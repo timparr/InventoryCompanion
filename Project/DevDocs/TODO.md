@@ -8,6 +8,7 @@
 
 * **A2.** **Refactor Rule Edits for Delta-Only Saved Variables (Explicit Surgical Setters):**
 * Implement explicit, single-responsibility helpers (`SetRuleProperty` for root-level properties like `displayName` and `patterns`, alongside existing flag setters) so that group renames, pattern edits, and display toggles write *only* the modified data as clean delta overrides in saved variables without redundant duplication.
+* Detailed design and verification notes: [Delta-Only Saved Variables](Tasks/DeltaOnlySavedVariables.md).
 
 
 ---
@@ -15,7 +16,7 @@
 ## Section B: 🐛 Bug Fixes (Pending)
 
 * **B1.** **Group Color Determination:**
-* Fix item quality color aggregation (currently picks the highest quality *anywhere*, e.g., gold in bank or purple in backpack, causing inaccurate group header text colors).
+* Fix item quality color aggregation so the group header reflects the scanned items, not the best quality anywhere in the account (for example, gold in the bank can incorrectly color a group when only purple items are in the backpack).
 
 
 * **B2.** **Tracker Window Placement Persistence:**
@@ -32,7 +33,7 @@
 ## Section C: ✨ Quality of Life (QOL) & Tweaks
 
 * **C1.** **Tracker Panel UI Toolbar Additions:**
-* Add dedicated toolbar buttons for **'all-bank' mode** and quick show/hide filters.
+* Add dedicated toolbar buttons for **'all-bank' mode** and quick show/hide-zero filters.
 
 
 * **C2.** **Search Input Debounce:**
@@ -95,36 +96,3 @@
 
 * **E3.** **Rule-Matching Optimization:**
 * Refactor `ItemMatchesRule` and `ItemMatchesAnyRule` to utilize pre-compiled pattern compilers rather than compiling on-the-fly during real-time inventory updates.
-
-
-
----
-
-## Section F: ✅ Completed (Verified in Codebase)
-
-* **F1.** **Tracker Visibility & Smart Positioning for Bank/Inventory:**
-* Implemented in `Core/Events.lua` (`InitCutsceneTicker`) and `Tracking/ItemTrackerPanel.lua` (`AdjustTrackerPositionForInteraction`, `RestoreTrackerPosition`). The Item Tracker automatically remains visible during Bank, Store, Fence, and Inventory interactions and dynamically repositions to avoid UI overlap.
-
-
-* **F2.** **Dual-Layer Group Management & Window Switching:**
-* Fully operational in `Tracking/EditPanelTabManager.lua`, `EditPanelItemsTab.lua`, and `EditPanelGroupsTab.lua`. Seamlessly toggles between the item editor and group editor while matching window geometry and remembering last-active tabs.
-
-
-* **F3.** **Profile Import / Copy System:**
-* Fully implemented in `Tracking/EditPanelItemsTab.lua` (`InitCopyDropdown`, `ExecuteCopy`, and confirmation dialogs) allowing profile and rule overrides to be imported across characters or account-wide settings.
-
-
-* **F4.** **Context Menu Integration:**
-* Implemented in `Core/ContextMenus.lua` for quick addition/removal of tracked items and partial stack banking transfers.
-
-
-* **F5.** **Currency & Standalone Progress Panels:**
-* Gold, bag, and bank spaces, along with standalone backpack and bank progress bars with dynamic color gradients and warning thresholds, are fully coded and functional (`CurrencyPanel.lua`, `ProgressPanels.lua`).
-
-
-* **F6.** **Tracker Right-Click Toggles:**
-* Right-clicking the tracker header or container opens a context menu to toggle **Show/Hide Empty Items** and **Multiline / Single Line View** (`ItemTrackerPanel.lua`).
-
-
-* **F7.** **Rule-Slug Keying Implementation:**
-* Verified in `ItemDatabase.lua` and `EditPanelGroupsTab.lua`. Rules properly key off their underlying slugs (`ruleSlug`/`ruleName`) in saved variables while cleanly evaluating and displaying `displayName` overrides.

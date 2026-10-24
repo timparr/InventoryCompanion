@@ -1,6 +1,7 @@
 # Generated backups and context dump
 /*.zip
 /InventoryCompanion_Context.md
+/Project/DevDocs/Archive/*.zip
 
 # ESO character data
 /SavedVariables/
