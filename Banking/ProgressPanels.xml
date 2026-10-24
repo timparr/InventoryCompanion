@@ -1,0 +1,15 @@
+﻿<GuiXml>
+    <Controls>
+        <!-- Backpack Progress Bar Window -->
+        <TopLevelControl name="InventoryCompanion_BagBarFloat" clampedToScreen="true" mouseEnabled="true" movable="true" hidden="true">
+            <Dimensions x="228" y="22"/>
+            <Anchor point="TOPLEFT" relativeTo="GuiRoot" relativePoint="TOPLEFT" offsetX="50" offsetY="90"/>
+        </TopLevelControl>
+
+        <!-- Bank Progress Bar Window -->
+        <TopLevelControl name="InventoryCompanion_BankBarFloat" clampedToScreen="true" mouseEnabled="true" movable="true" hidden="true">
+            <Dimensions x="228" y="22"/>
+            <Anchor point="TOPLEFT" relativeTo="GuiRoot" relativePoint="TOPLEFT" offsetX="50" offsetY="130"/>
+        </TopLevelControl>
+    </Controls>
+</GuiXml>
