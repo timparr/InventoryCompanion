@@ -1,9 +1,9 @@
 # Project Instructions
 
-## Remembered Information
+## Instruction Maintenance
 
-- Address the user as Tim.
-- When the user asks for a preference, project fact, or instruction to be remembered, record or update it in this file. Show the exact changes made so the user can review what is stored.
+- Keep this file concise; move context-specific guidance into scoped instruction files when it grows enough to justify the extra files.
+- Decide when accumulated preferences warrant scoped instruction files; keep a concise pointer here stating when each specialized file applies.
 
 ## Git Workflow
 
