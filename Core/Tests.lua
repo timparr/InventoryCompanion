@@ -327,6 +327,65 @@ local function RunTests(arguments)
                 end,
             },
             {
+                name = "Currency panel resource preferences",
+                run = function()
+                    local savedCurrencyPreferences = this.accountWide.currencyPreferences
+                    local savedCapacityPreferences = this.accountWide.capacityPreferences
+                    local ok, err = pcall(function()
+                        this.accountWide.currencyPreferences = {}
+                        this.accountWide.capacityPreferences = {}
+
+                        local entries = this.GetCurrencyPanelResourceEntries()
+                        Check(#entries > 0, "Expected currency and capacity resources")
+
+                        local currencyEntry
+                        for _, entry in ipairs(entries) do
+                            Check(entry.isVisible, "Resources should be visible by default")
+                            if entry.kind == "currency" and not currencyEntry then
+                                currencyEntry = entry
+                            end
+                        end
+                        Check(currencyEntry ~= nil, "Expected a discovered currency resource")
+
+                        this.accountWide.currencyPreferences[currencyEntry.currencyType] = {
+                            locations = {
+                                [currencyEntry.location] = { hidden = true },
+                            },
+                        }
+                        local hiddenCount = 0
+                        for _, entry in ipairs(this.GetCurrencyPanelResourceEntries()) do
+                            if entry.key == currencyEntry.key then
+                                Check(not entry.isVisible, "Hiding one currency location should hide that entry")
+                                hiddenCount = hiddenCount + 1
+                            else
+                                Check(entry.isVisible, "Hiding one currency location should not affect other resources")
+                            end
+                        end
+                        CheckEqual(hiddenCount, 1, "Expected exactly one matching currency location")
+
+                        this.accountWide.currencyPreferences = {}
+                        this.accountWide.capacityPreferences = {}
+                        local function SetTestOrder(entry, order)
+                            if entry.kind == "currency" then
+                                this.accountWide.currencyPreferences[entry.currencyType] = {
+                                    locations = { [entry.location] = { order = order } },
+                                }
+                            else
+                                this.accountWide.capacityPreferences[entry.resourceKey] = { order = order }
+                            end
+                        end
+                        SetTestOrder(entries[1], 2)
+                        SetTestOrder(entries[2], 1)
+                        local orderedEntries = this.GetCurrencyPanelResourceEntries()
+                        CheckEqual(orderedEntries[1].key, entries[2].key, "Explicit resource order should be applied")
+                        CheckEqual(orderedEntries[2].key, entries[1].key, "Explicit resource order should be deterministic")
+                    end)
+                    this.accountWide.currencyPreferences = savedCurrencyPreferences
+                    this.accountWide.capacityPreferences = savedCapacityPreferences
+                    if not ok then error(err) end
+                end,
+            },
+            {
                 name = "Live currency helper API",
                 run = function()
                     local currencyTypes = this.GetCurrencyList()

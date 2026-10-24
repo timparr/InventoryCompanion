@@ -29,11 +29,8 @@ local function Enqueue(key, func, delayMs)
         local executing = pendingActions
         pendingActions = {}
 
-        for qKey, qFunc in pairs(executing) do
-            local success, err = pcall(qFunc)
-            if not success and this.Utils and this.Utils.UserError then
-                this.Utils.UserError("Queue error [" .. tostring(qKey) .. "]: " .. tostring(err))
-            end
+        for _, qFunc in pairs(executing) do
+            qFunc()
         end
     end, delayMs)
 end
@@ -42,61 +39,72 @@ end
 -- Event Conditions & Handlers
 ------------------------------------------------------------------
 local function ShouldListenOpenBank()
-    return this.accountWide and (this.accountWide.autoMergeChests ~= false)
+    return this.accountWide.autoMergeChests ~= false
 end
 
 local function ShouldListenSlotUpdate()
-    local showMeters   = this.accountWide and (this.accountWide.showBagBar or this.accountWide.showBankBar)
-    local showTracker  = this.accountWide and (this.accountWide.showTrackedItemsPanel ~= false)
-    local showCurrency = this.accountWide and ((this.accountWide.showGold ~= false) or (this.accountWide.showBag ~= false) or (this.accountWide.showBank ~= false))
+    local showMeters   = this.accountWide.showBagBar or this.accountWide.showBankBar
+    local showTracker  = this.accountWide.showTrackedItemsPanel ~= false
+    local showCapacity = this.HasVisibleCapacityResources()
 
-    return showMeters or showTracker or showCurrency
+    return showMeters or showTracker or showCapacity
 end
 
-local function ShouldListenMoneyUpdate()
-    return this.accountWide and (this.accountWide.showGold ~= false)
+local function ShouldListenCurrencyUpdates()
+    return this.HasVisibleCurrencyResources()
+end
+
+local function ShouldListenCurrencyCapUpdates()
+    return this.HasVisibleCappedCurrencyResources()
 end
 
 local function ShouldListenBagCapacity()
-    return this.accountWide and (this.accountWide.showBagBar or this.accountWide.showBag)
+    return this.accountWide.showBagBar or this.IsCapacityResourceVisible("bag")
 end
 
 local function ShouldListenBankCapacity()
-    return this.accountWide and (this.accountWide.showBankBar or this.accountWide.showBank)
+    return this.accountWide.showBankBar or this.IsCapacityResourceVisible("bank")
 end
 
 local function OnBankOpened(eventCode, bankType)
-    if this.accountWide and (this.accountWide.autoMergeChests ~= false) and this.OnBankOpened then
+    if this.accountWide.autoMergeChests ~= false then
         this.OnBankOpened(eventCode, bankType)
     end
 end
 
 local function OnInventorySlotUpdate(eventCode, bagId, slotIndex, isNewItem, itemSoundCategory, updateReason, stackCountChange)
-    if this.HandleTrackedItemInventoryUpdate then
-        this.HandleTrackedItemInventoryUpdate(bagId, slotIndex, stackCountChange)
-    end
+    this.HandleTrackedItemInventoryUpdate(bagId, slotIndex, stackCountChange)
 
-    if this.accountWide and this.accountWide.showTrackedItemsPanel ~= false and this.RefreshItemTrackerPanel then
+    if this.accountWide.showTrackedItemsPanel ~= false then
         Enqueue("RefreshItemTracker", function()
             this.RefreshItemTrackerPanel()
         end, 500)
     end
 
-    if this.RefreshCurrencyPanel then
+    if this.HasVisibleCapacityResources() then
         Enqueue("RefreshCurrency", function()
             this.RefreshCurrencyPanel()
         end, 500)
     end
 
-    if this.RefreshProgressPanels and this.accountWide and (this.accountWide.showBagBar or this.accountWide.showBankBar) then
+    if this.accountWide.showBagBar or this.accountWide.showBankBar then
         Enqueue("RefreshProgress", function()
             this.RefreshProgressPanels()
         end, 500)
     end
 end
 
-local function OnMoneyUpdate(eventCode, newMoney, oldMoney, reason)
-    if this.RefreshCurrencyPanel then
+local function OnCurrencyUpdate(eventCode, currencyType, currencyLocation)
+    if not this.IsCurrencyResourceVisible(currencyType, currencyLocation) then
+        return
+    end
+    Enqueue("RefreshCurrency", function()
+        this.RefreshCurrencyPanel()
+    end, 500)
+end
+
+local function OnCurrencyCapsChanged()
+    if this.HasVisibleCurrencyResources() then
         Enqueue("RefreshCurrency", function()
             this.RefreshCurrencyPanel()
         end, 500)
@@ -104,12 +112,10 @@ local function OnMoneyUpdate(eventCode, newMoney, oldMoney, reason)
 end
 
 local function OnCapacityChanged()
-    if this.RefreshProgressPanels then
-        Enqueue("RefreshProgress", function()
-            this.RefreshProgressPanels()
-        end, 500)
-    end
-    if this.RefreshCurrencyPanel then
+    Enqueue("RefreshProgress", function()
+        this.RefreshProgressPanels()
+    end, 500)
+    if this.HasVisibleCapacityResources() then
         Enqueue("RefreshCurrency", function()
             this.RefreshCurrencyPanel()
         end, 500)
@@ -122,7 +128,8 @@ end
 local eventRegistry = {
     [EVENT_OPEN_BANK]                    = { name = "OpenBank",     condition = ShouldListenOpenBank,     handler = OnBankOpened },
     [EVENT_INVENTORY_SINGLE_SLOT_UPDATE]   = { name = "SlotUpdate",   condition = ShouldListenSlotUpdate,   handler = OnInventorySlotUpdate },
-    [EVENT_MONEY_UPDATE]                 = { name = "MoneyUpdate",  condition = ShouldListenMoneyUpdate,  handler = OnMoneyUpdate },
+    [EVENT_CURRENCY_UPDATE]                = { name = "CurrencyUpdate", condition = ShouldListenCurrencyUpdates, handler = OnCurrencyUpdate },
+    [EVENT_CURRENCY_CAPS_CHANGED]          = { name = "CurrencyCapsChanged", condition = ShouldListenCurrencyCapUpdates, handler = OnCurrencyCapsChanged },
     [EVENT_INVENTORY_BAG_CAPACITY_CHANGED] = { name = "BagCapacity",  condition = ShouldListenBagCapacity,  handler = OnCapacityChanged },
     [EVENT_INVENTORY_BANK_CAPACITY_CHANGED]= { name = "BankCapacity", condition = ShouldListenBankCapacity, handler = OnCapacityChanged },
 }
@@ -130,12 +137,7 @@ local eventRegistry = {
 function this.UpdateEventRegistry()
     for eventCode, entry in pairs(eventRegistry) do
         local eventId = string.format("%s_Event_%s", this.Name, entry.name)
-        local shouldBeActive = false
-
-        if entry.condition then
-            local success, result = pcall(entry.condition)
-            shouldBeActive = success and (result == true)
-        end
+        local shouldBeActive = entry.condition() == true
 
         local isCurrentlyActive = (activeListeners[eventId] == true)
 
@@ -172,10 +174,10 @@ function this.InitCutsceneTicker()
                 end
             end
 
-            if InventoryCompanion_CurrencyFloat then
-                local showInfo = (this.accountWide.showGold ~= false) or (this.accountWide.showBag ~= false) or (this.accountWide.showBank ~= false)
-                InventoryCompanion_CurrencyFloat:SetHidden((not showInfo) or inCutscene)
-            end
+            local showCurrencies = this.HasVisibleCurrencyResources()
+            local showCapacities = this.HasVisibleCapacityResources()
+            local showInfo = showCurrencies or showCapacities
+            InventoryCompanion_CurrencyFloat:SetHidden((not showInfo) or inCutscene)
 
             if InventoryCompanion_BagBarFloat then
                 InventoryCompanion_BagBarFloat:SetHidden((not this.accountWide.showBagBar) or inCutscene)

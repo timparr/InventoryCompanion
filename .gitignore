@@ -2,6 +2,7 @@
 /*.zip
 /InventoryCompanion_Context.md
 /Project/DevDocs/Archive/*.zip
+/generated-eso-api/
 
 # ESO character data
 /SavedVariables/

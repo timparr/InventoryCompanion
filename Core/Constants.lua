@@ -222,10 +222,7 @@ this.defaultsAccount = {
     wrapTrackedItemNames = false,
     trackerGroupThreshold = 8,
 
-    -- Currency & Info Overlay
-    showGold = true,
-    showBag = true,
-    showBank = true,
+    -- Currency & Capacity Overlay
     currencyOffsetX = 50,
     currencyOffsetY = 150,
     currencyNamesById = {},

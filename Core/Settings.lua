@@ -129,7 +129,7 @@ function this.CreateSettingsPanel()
                     setFunc = function(v) 
                         this.accountWide.showGold = v 
                         this.UpdateEventRegistry()
-                        if this.RefreshCurrencyPanel then this.RefreshCurrencyPanel() end
+                        this.RefreshCurrencyPanel()
                     end,
                     default = this.defaultsAccount.showGold,
                 },
@@ -140,7 +140,7 @@ function this.CreateSettingsPanel()
                     setFunc = function(v) 
                         this.accountWide.showBag = v 
                         this.UpdateEventRegistry()
-                        if this.RefreshCurrencyPanel then this.RefreshCurrencyPanel() end
+                        this.RefreshCurrencyPanel()
                     end,
                     default = this.defaultsAccount.showBag,
                 },
@@ -151,7 +151,7 @@ function this.CreateSettingsPanel()
                     setFunc = function(v) 
                         this.accountWide.showBank = v 
                         this.UpdateEventRegistry()
-                        if this.RefreshCurrencyPanel then this.RefreshCurrencyPanel() end
+                        this.RefreshCurrencyPanel()
                     end,
                     default = this.defaultsAccount.showBank,
                 },
@@ -168,7 +168,7 @@ function this.CreateSettingsPanel()
                     setFunc = function(v)
                         this.accountWide.showBagBar = v
                         this.UpdateEventRegistry()
-                        if this.RefreshProgressPanels then this.RefreshProgressPanels() end
+                        this.RefreshProgressPanels()
                     end,
                     default = this.defaultsAccount.showBagBar,
                 },
@@ -179,7 +179,7 @@ function this.CreateSettingsPanel()
                     setFunc = function(v)
                         this.accountWide.showBankBar = v
                         this.UpdateEventRegistry()
-                        if this.RefreshProgressPanels then this.RefreshProgressPanels() end
+                        this.RefreshProgressPanels()
                     end,
                     default = this.defaultsAccount.showBankBar,
                 },
@@ -451,43 +451,9 @@ function this.CreateSettingsPanel()
         },
         {
             type = "submenu",
-            name = "Currency & Info Panel",
-            tooltip = "Configure gold, bag, and bank summary elements.",
-            controls = {
-                {
-                    type = "checkbox",
-                    name = "Display Gold",
-                    getFunc = function() return this.accountWide.showGold ~= false end,
-                    setFunc = function(v) 
-                        this.accountWide.showGold = v 
-                        this.UpdateEventRegistry()
-                        if this.RefreshCurrencyPanel then this.RefreshCurrencyPanel() end
-                    end,
-                    default = this.defaultsAccount.showGold,
-                },
-                {
-                    type = "checkbox",
-                    name = "Display Bag Space",
-                    getFunc = function() return this.accountWide.showBag ~= false end,
-                    setFunc = function(v) 
-                        this.accountWide.showBag = v 
-                        this.UpdateEventRegistry()
-                        if this.RefreshCurrencyPanel then this.RefreshCurrencyPanel() end
-                    end,
-                    default = this.defaultsAccount.showBag,
-                },
-                {
-                    type = "checkbox",
-                    name = "Display Bank Space",
-                    getFunc = function() return this.accountWide.showBank ~= false end,
-                    setFunc = function(v) 
-                        this.accountWide.showBank = v 
-                        this.UpdateEventRegistry()
-                        if this.RefreshCurrencyPanel then this.RefreshCurrencyPanel() end
-                    end,
-                    default = this.defaultsAccount.showBank,
-                },
-            },
+            name = "Resources",
+            tooltip = "Choose which currencies and capacity values appear in the compact grid.",
+            controls = this.GetCurrencyPanelSettingsControls(),
         },
         {
             type = "submenu",
@@ -500,7 +466,7 @@ function this.CreateSettingsPanel()
                     setFunc = function(v)
                         this.accountWide.showBagBar = v
                         this.UpdateEventRegistry()
-                        if this.RefreshProgressPanels then this.RefreshProgressPanels() end
+                        this.RefreshProgressPanels()
                     end,
                     default = this.defaultsAccount.showBagBar,
                 },
@@ -511,7 +477,7 @@ function this.CreateSettingsPanel()
                     setFunc = function(v)
                         this.accountWide.showBankBar = v
                         this.UpdateEventRegistry()
-                        if this.RefreshProgressPanels then this.RefreshProgressPanels() end
+                        this.RefreshProgressPanels()
                     end,
                     default = this.defaultsAccount.showBankBar,
                 },

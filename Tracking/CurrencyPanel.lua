@@ -1,85 +1,452 @@
 InventoryCompanion = InventoryCompanion or {}
 local this = InventoryCompanion
 
-local TEXTURES = {
-    icon_gold = "|t16:16:/esoui/art/currency/currency_gold.dds|t",
-    icon_bag  = "|t16:16:/esoui/art/tooltips/icon_bag.dds|t",
-    icon_bank = "|t16:16:/esoui/art/tooltips/icon_bank.dds|t",
+local COLUMN_COUNT = 3
+local CELL_WIDTH = 192
+local CELL_HEIGHT = 40
+local CELL_GAP_X = 8
+local CELL_GAP_Y = 4
+local GRID_PADDING_X = 10
+local GRID_PADDING_Y = 8
+
+local CAPACITIES = {
+    bag = {
+        name = "Backpack",
+        texture = "EsoUI/Art/Tooltips/icon_bag.dds",
+    },
+    bank = {
+        name = "Bank",
+        texture = "EsoUI/Art/Tooltips/icon_bag.dds",
+    },
 }
 
-local COLORS = {
-    white  = "|cffffff",
-    red    = "|cff0000",
-    yellow = "|cffff00",
-    green  = "|c50c878",
-    gold   = "|cffffcc",
-}
+local currencyCells = {}
+local hasVisibleCurrencies = false
+local hasVisibleCapacities = false
+local hasVisibleCappedCurrencies = false
+local malformedPreferenceWarnings = {}
 
 local function OnCurrencyMoveStop(control)
     this.accountWide.currencyOffsetX = control:GetLeft()
     this.accountWide.currencyOffsetY = control:GetTop()
 end
 
-local function GetFormattedCurrencyData()
-    local segments = {}
+local function WarnMalformedPreference(message)
+    if malformedPreferenceWarnings[message] then return end
+    malformedPreferenceWarnings[message] = true
+    d("[InventoryCompanion] Ignoring malformed currency preference: " .. message)
+end
 
-    if this.accountWide.showGold ~= false then
-        local gold = GetCurrentMoney()
-        local goldFmt = FormatIntegerWithDigitGrouping(gold, ",", 3)
-        local goldColor = COLORS.gold
-        if gold > 10000000 then goldColor = COLORS.red
-        elseif gold > 5000000 then goldColor = COLORS.yellow
-        elseif gold > 1000000 then goldColor = COLORS.green end
-        table.insert(segments, string.format("%s %s%s|r", TEXTURES.icon_gold, goldColor, goldFmt))
+-- Saved variables persist across addon versions and can be edited externally, so validate this
+-- input boundary; warn and recover only the affected preference tables, preserving other settings.
+local function EnsurePreferences()
+    if type(this.accountWide.currencyPreferences) ~= "table" then
+        if this.accountWide.currencyPreferences ~= nil then
+            WarnMalformedPreference("currencyPreferences must be a table")
+        end
+        this.accountWide.currencyPreferences = {}
+    end
+    if type(this.accountWide.capacityPreferences) ~= "table" then
+        if this.accountWide.capacityPreferences ~= nil then
+            WarnMalformedPreference("capacityPreferences must be a table")
+        end
+        this.accountWide.capacityPreferences = {}
+    end
+end
+
+local function GetCurrencyLocationPreference(currencyType, location, create)
+    local currencyPreferences = this.accountWide.currencyPreferences
+    local currencyPreference = currencyPreferences[currencyType]
+    if type(currencyPreference) ~= "table" then
+        if currencyPreference ~= nil then
+            WarnMalformedPreference(string.format("currencyPreferences[%s] must be a table", tostring(currencyType)))
+        end
+        if not create then return nil end
+        currencyPreference = {}
+        currencyPreferences[currencyType] = currencyPreference
     end
 
-    if this.accountWide.showBag ~= false then
-        local bagMax = GetBagSize(BAG_BACKPACK)
-        local bagUsed = GetNumBagUsedSlots(BAG_BACKPACK)
-        local bagColor = COLORS.white
-        if bagUsed >= (bagMax - 5) then bagColor = COLORS.red
-        elseif bagUsed > (bagMax - 20) then bagColor = COLORS.yellow
-        elseif bagUsed > (bagMax * 0.5) then bagColor = COLORS.green end
-        table.insert(segments, string.format("%s %s%d/%d|r", TEXTURES.icon_bag, bagColor, bagUsed, bagMax))
+    local locations = currencyPreference.locations
+    if type(locations) ~= "table" then
+        if locations ~= nil then
+            WarnMalformedPreference(string.format("currencyPreferences[%s].locations must be a table", tostring(currencyType)))
+        end
+        if not create then return nil end
+        locations = {}
+        currencyPreference.locations = locations
     end
 
-    if this.accountWide.showBank ~= false then
-        local bankMax = GetBagSize(BAG_BANK) + GetBagUseableSize(BAG_SUBSCRIBER_BANK)
-        local bankUsed = GetNumBagUsedSlots(BAG_BANK) + GetNumBagUsedSlots(BAG_SUBSCRIBER_BANK)
-        local bankColor = COLORS.white
-        if bankUsed >= (bankMax - 5) then bankColor = COLORS.red
-        elseif bankUsed > (bankMax - 20) then bankColor = COLORS.yellow
-        elseif bankUsed > (bankMax * 0.5) then bankColor = COLORS.green end
-        table.insert(segments, string.format("%s %s%d/%d|r", TEXTURES.icon_bank, bankColor, bankUsed, bankMax))
+    local locationPreference = locations[location]
+    if type(locationPreference) ~= "table" then
+        if locationPreference ~= nil then
+            WarnMalformedPreference(string.format("currency preference location %s for ID %s must be a table", tostring(location), tostring(currencyType)))
+        end
+        if not create then return nil end
+        locationPreference = {}
+        locations[location] = locationPreference
+    end
+    return locationPreference
+end
+
+local function GetCapacityPreference(resourceKey, create)
+    local preferences = this.accountWide.capacityPreferences
+    local preference = preferences[resourceKey]
+    if type(preference) ~= "table" then
+        if preference ~= nil then
+            WarnMalformedPreference("capacityPreferences." .. resourceKey .. " must be a table")
+        end
+        if not create then return nil end
+        preference = {}
+        preferences[resourceKey] = preference
+    end
+    return preference
+end
+
+local function IsValidOrder(value)
+    return type(value) == "number" and value > 0 and value < math.huge and value == math.floor(value)
+end
+
+-- Malformed preference fields are also persisted input: report them and use the documented
+-- defaults (discovery order and visible) rather than allowing one bad field to break the panel.
+local function GetResourceOrder(entry)
+    local preference
+    if entry.kind == "currency" then
+        preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, false)
+    else
+        preference = GetCapacityPreference(entry.resourceKey, false)
+    end
+    if preference and preference.order ~= nil and not IsValidOrder(preference.order) then
+        WarnMalformedPreference("resource order for " .. entry.key .. " must be a positive integer")
+    end
+    return preference and IsValidOrder(preference.order) and preference.order or nil
+end
+
+local function IsResourceVisible(entry)
+    if entry.kind == "currency" then
+        local preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, false)
+        if preference and preference.hidden ~= nil and type(preference.hidden) ~= "boolean" then
+            WarnMalformedPreference("hidden flag for " .. entry.key .. " must be boolean")
+        end
+        return not (preference and preference.hidden == true)
     end
 
-    return table.concat(segments, "   ")
+    local preference = GetCapacityPreference(entry.resourceKey, false)
+    if preference and preference.showCompact ~= nil and type(preference.showCompact) ~= "boolean" then
+        WarnMalformedPreference("compact visibility flag for " .. entry.key .. " must be boolean")
+    end
+    return not (preference and preference.showCompact == false)
+end
+
+local function GetResourceEntries()
+    local entries = {}
+    local discoveryIndex = 0
+
+    for _, currencyType in ipairs(this.GetCurrencyList()) do
+        local summary = this.GetInfo(currencyType)
+        assert(summary, "Discovered currency is missing summary information")
+        local locations = {}
+        if summary.isAccountWide then
+            locations[1] = CURRENCY_LOCATION_ACCOUNT
+        else
+            locations[1] = CURRENCY_LOCATION_CHARACTER
+            if summary.canBeStoredInBank then
+                locations[2] = CURRENCY_LOCATION_BANK
+            end
+        end
+
+        for _, location in ipairs(locations) do
+            local info = this.GetInfoAtLocation(currencyType, location)
+            assert(info, "Discovered currency is missing location information")
+            discoveryIndex = discoveryIndex + 1
+            table.insert(entries, {
+                kind = "currency",
+                currencyType = currencyType,
+                location = location,
+                name = info.name,
+                locationName = info.locationName,
+                amount = info.amount,
+                cap = info.cap,
+                texture = info.keyboardTexture,
+                discoveryIndex = discoveryIndex,
+                key = string.format("currency:%d:%d", currencyType, location),
+            })
+        end
+    end
+
+    for _, resourceKey in ipairs({ "bag", "bank" }) do
+        local capacity = CAPACITIES[resourceKey]
+        discoveryIndex = discoveryIndex + 1
+        table.insert(entries, {
+            kind = "capacity",
+            resourceKey = resourceKey,
+            name = capacity.name,
+            texture = capacity.texture,
+            discoveryIndex = discoveryIndex,
+            key = "capacity:" .. resourceKey,
+        })
+    end
+
+    for _, entry in ipairs(entries) do
+        entry.order = GetResourceOrder(entry)
+        entry.isVisible = IsResourceVisible(entry)
+    end
+
+    table.sort(entries, function(left, right)
+        if left.order and right.order and left.order ~= right.order then
+            return left.order < right.order
+        elseif left.order ~= nil and right.order == nil then
+            return true
+        elseif left.order == nil and right.order ~= nil then
+            return false
+        elseif left.discoveryIndex ~= right.discoveryIndex then
+            return left.discoveryIndex < right.discoveryIndex
+        end
+        return left.key < right.key
+    end)
+
+    for index, entry in ipairs(entries) do
+        if entry.kind == "capacity" then
+            if entry.resourceKey == "bag" then
+                entry.amount = GetNumBagUsedSlots(BAG_BACKPACK)
+                entry.cap = GetBagSize(BAG_BACKPACK)
+            else
+                entry.amount = GetNumBagUsedSlots(BAG_BANK) + GetNumBagUsedSlots(BAG_SUBSCRIBER_BANK)
+                entry.cap = GetBagSize(BAG_BANK) + GetBagUseableSize(BAG_SUBSCRIBER_BANK)
+            end
+        end
+    end
+    return entries
+end
+
+local function FormatAmount(amount)
+    return FormatIntegerWithDigitGrouping(amount, ",", 3)
+end
+
+local function GetEntryText(entry)
+    local title = entry.name
+    if entry.kind == "currency" then
+        title = string.format("%s (%s)", entry.name, entry.locationName)
+    end
+
+    local amount = FormatAmount(entry.amount)
+    if entry.cap ~= nil then
+        amount = string.format("%s / %s", amount, FormatAmount(entry.cap))
+    end
+    return string.format("%s\n%s", title, amount)
+end
+
+local function GetOrCreateCell(index)
+    local cell = currencyCells[index]
+    if cell then return cell end
+
+    local container = InventoryCompanion_CurrencyFloatContainer
+    cell = WINDOW_MANAGER:CreateControl("InventoryCompanion_CurrencyFloatCell" .. index, container, CT_CONTROL)
+    cell:SetDimensions(CELL_WIDTH, CELL_HEIGHT)
+    cell:SetMouseEnabled(false)
+
+    local icon = WINDOW_MANAGER:CreateControl("InventoryCompanion_CurrencyFloatCell" .. index .. "Icon", cell, CT_TEXTURE)
+    icon:SetDimensions(20, 20)
+    icon:SetAnchor(TOPLEFT, cell, TOPLEFT, 0, 1)
+    icon:SetDrawLayer(DL_CONTROLS)
+    icon:SetDrawLevel(2)
+    icon:SetMouseEnabled(false)
+
+    local label = WINDOW_MANAGER:CreateControl("InventoryCompanion_CurrencyFloatCell" .. index .. "Label", cell, CT_LABEL)
+    label:SetFont("ZoFontGameSmall")
+    label:SetColor(1, 1, 1, 1)
+    label:SetVerticalAlignment(TEXT_ALIGN_TOP)
+    label:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
+    label:SetWrapMode(TEXT_WRAP_MODE_ELLIPSIS)
+    label:SetDimensions(CELL_WIDTH - 26, CELL_HEIGHT)
+    label:SetAnchor(TOPLEFT, icon, TOPRIGHT, 6, 0)
+    label:SetMouseEnabled(false)
+
+    cell.icon = icon
+    cell.label = label
+    currencyCells[index] = cell
+    return cell
+end
+
+local function SetEntryPreference(entry, visible)
+    if entry.kind == "currency" then
+        local preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, true)
+        if visible then
+            preference.hidden = nil
+        else
+            preference.hidden = true
+        end
+    else
+        local preference = GetCapacityPreference(entry.resourceKey, true)
+        if visible then
+            preference.showCompact = nil
+        else
+            preference.showCompact = false
+        end
+    end
+    entry.isVisible = visible
+end
+
+local function SaveEntryOrder(entries)
+    for index, entry in ipairs(entries) do
+        if entry.kind == "currency" then
+            local preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, true)
+            preference.order = index
+        else
+            local preference = GetCapacityPreference(entry.resourceKey, true)
+            preference.order = index
+        end
+    end
+end
+
+local function MoveResource(entryKey, direction)
+    local entries = GetResourceEntries()
+    local currentIndex
+    for index, entry in ipairs(entries) do
+        if entry.key == entryKey then currentIndex = index end
+    end
+    if not currentIndex then return end
+
+    local targetIndex = currentIndex + direction
+    if not entries[targetIndex] then return end
+    entries[currentIndex], entries[targetIndex] = entries[targetIndex], entries[currentIndex]
+    SaveEntryOrder(entries)
+end
+
+function this.IsCurrencyResourceVisible(currencyType, location)
+    EnsurePreferences()
+    local preference = GetCurrencyLocationPreference(currencyType, location, false)
+    return not (preference and preference.hidden == true)
+end
+
+function this.IsCapacityResourceVisible(resourceKey)
+    EnsurePreferences()
+    local preference = GetCapacityPreference(resourceKey, false)
+    return not (preference and preference.showCompact == false)
+end
+
+function this.GetCurrencyPanelResourceEntries()
+    EnsurePreferences()
+    return GetResourceEntries()
+end
+
+function this.HasVisibleCurrencyResources()
+    return hasVisibleCurrencies
+end
+
+function this.HasVisibleCapacityResources()
+    return hasVisibleCapacities
+end
+
+function this.HasVisibleCappedCurrencyResources()
+    return hasVisibleCappedCurrencies
+end
+
+function this.GetCurrencyPanelSettingsControls()
+    local entries = this.GetCurrencyPanelResourceEntries()
+    local controls = {
+        {
+            type = "description",
+            text = "Choose which resources appear in the compact grid and adjust their order.",
+        },
+    }
+
+    local function AddResourceControls(entry)
+        table.insert(controls, {
+            type = "checkbox",
+            name = entry.kind == "currency"
+                and string.format("%s (%s)", entry.name, entry.locationName)
+                or entry.name .. " space",
+            getFunc = function()
+                return IsResourceVisible(entry)
+            end,
+            setFunc = function(value)
+                SetEntryPreference(entry, value)
+                this.RefreshCurrencyPanel()
+                this.UpdateEventRegistry()
+            end,
+            default = true,
+        })
+        table.insert(controls, {
+            type = "button",
+            name = "Move up: " .. entry.name,
+            func = function()
+                MoveResource(entry.key, -1)
+                this.RefreshCurrencyPanel()
+            end,
+            width = "half",
+        })
+        table.insert(controls, {
+            type = "button",
+            name = "Move down: " .. entry.name,
+            func = function()
+                MoveResource(entry.key, 1)
+                this.RefreshCurrencyPanel()
+            end,
+            width = "half",
+        })
+    end
+
+    for _, entry in ipairs(entries) do
+        AddResourceControls(entry)
+    end
+    return controls
 end
 
 function this.InitCurrencyPanel()
-    if InventoryCompanion_CurrencyFloat then
-        InventoryCompanion_CurrencyFloat:ClearAnchors()
-        InventoryCompanion_CurrencyFloat:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, this.accountWide.currencyOffsetX or 50, this.accountWide.currencyOffsetY or 150)
-        InventoryCompanion_CurrencyFloat:SetHandler("OnMoveStop", OnCurrencyMoveStop)
-    end
+    EnsurePreferences()
+    InventoryCompanion_CurrencyFloat:ClearAnchors()
+    InventoryCompanion_CurrencyFloat:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, this.accountWide.currencyOffsetX or 50, this.accountWide.currencyOffsetY or 150)
+    InventoryCompanion_CurrencyFloat:SetHandler("OnMoveStop", OnCurrencyMoveStop)
 
-    if InventoryCompanion_CurrencyFloatContainer then
-        InventoryCompanion_CurrencyFloatContainer:SetHandler("OnMouseDown", function(control, button)
-            if button == MOUSE_BUTTON_INDEX_LEFT and InventoryCompanion_CurrencyFloat then
-                InventoryCompanion_CurrencyFloat:StartMoving()
-            end
-        end)
-    end
-
-this.RefreshCurrencyPanel()
+    this.RefreshCurrencyPanel()
+    InventoryCompanion_CurrencyFloatContainer:SetHandler("OnMouseDown", function(_, button)
+        if button == MOUSE_BUTTON_INDEX_LEFT then
+            InventoryCompanion_CurrencyFloat:StartMoving()
+        end
+    end)
 end
 
 function this.RefreshCurrencyPanel()
-    local hasInfo = (this.accountWide.showGold ~= false) or (this.accountWide.showBag ~= false) or (this.accountWide.showBank ~= false)
-    if not InventoryCompanion_CurrencyFloatInfoLabel or not hasInfo then
-        if InventoryCompanion_CurrencyFloat then InventoryCompanion_CurrencyFloat:SetHidden(true) end
-        return
+    local panel = InventoryCompanion_CurrencyFloat
+    local container = InventoryCompanion_CurrencyFloatContainer
+
+    local entries = {}
+    hasVisibleCurrencies = false
+    hasVisibleCapacities = false
+    hasVisibleCappedCurrencies = false
+    for _, entry in ipairs(this.GetCurrencyPanelResourceEntries()) do
+        if entry.isVisible then
+            table.insert(entries, entry)
+            if entry.kind == "currency" then
+                hasVisibleCurrencies = true
+                if entry.cap ~= nil then
+                    hasVisibleCappedCurrencies = true
+                end
+            else
+                hasVisibleCapacities = true
+            end
+        end
     end
 
-    InventoryCompanion_CurrencyFloatInfoLabel:SetText(GetFormattedCurrencyData())   
+    local rowCount = math.ceil(#entries / COLUMN_COUNT)
+    local gridHeight = rowCount > 0 and (rowCount * CELL_HEIGHT + (rowCount - 1) * CELL_GAP_Y) or 0
+    container:SetDimensions(COLUMN_COUNT * CELL_WIDTH + (COLUMN_COUNT - 1) * CELL_GAP_X, gridHeight)
+    panel:SetDimensions(COLUMN_COUNT * CELL_WIDTH + (COLUMN_COUNT - 1) * CELL_GAP_X + GRID_PADDING_X * 2, gridHeight + GRID_PADDING_Y * 2)
+
+    for index, entry in ipairs(entries) do
+        local cell = GetOrCreateCell(index)
+        local zeroBasedIndex = index - 1
+        local column = zeroBasedIndex % COLUMN_COUNT
+        local row = math.floor(zeroBasedIndex / COLUMN_COUNT)
+        cell:ClearAnchors()
+        cell:SetAnchor(TOPLEFT, container, TOPLEFT, column * (CELL_WIDTH + CELL_GAP_X), row * (CELL_HEIGHT + CELL_GAP_Y))
+        cell.icon:SetTexture(entry.texture or "")
+        cell.label:SetText(GetEntryText(entry))
+        cell:SetHidden(false)
+    end
+    for index = #entries + 1, #currencyCells do
+        currencyCells[index]:SetHidden(true)
+    end
+
+    panel:SetHidden(#entries == 0)
 end

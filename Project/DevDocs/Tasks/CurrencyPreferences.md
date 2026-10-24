@@ -1,6 +1,6 @@
 # Feature Specification: Currency Preferences and Saved-Variable Maintenance
 
-**Status:** Planned
+**Status:** In progress
 
 ## 1. Goal
 
@@ -10,9 +10,11 @@ The feature must tolerate currencies being added, removed, or renamed by ESO wit
 
 ## 2. Current State
 
-- `Tracking/CurrencyPanel.lua` currently displays gold, backpack slots, and bank slots. `Core/Constants.lua` stores their visibility and panel position account-wide.
+- `Tracking/CurrencyPanel.lua` renders a compact three-column grid of discovered currency/location entries and addon-defined backpack/bank capacity entries. The grid is movable and its position is saved account-wide.
 - `Banking/CurrencyHelper.lua` discovers currencies within `CURT_ITERATION_BEGIN` through `CURT_ITERATION_END`, filtering with `IsCurrencyValid` and `ShouldShowCurrencyInCurrencyPanel`. It exposes currency lists, current information, totals, cap information, and near-cap queries.
-- The helper is initialized during addon startup. It is not yet used to render a currency grid or to save display preferences.
+- Account-wide `currencyPreferences` and `capacityPreferences` control compact-grid visibility and ordering. Currency refreshes use `EVENT_CURRENCY_UPDATE` and `EVENT_CURRENCY_CAPS_CHANGED` while currency entries are visible.
+- LibAddonMenu provides visibility and ordering controls for each discovered entry. Existing standalone backpack and bank progress bars remain unchanged.
+- This first implementation slice does not yet add currency progress bars, advanced per-bar settings, separate enabled/hidden settings lists, or invalid-ID preference pruning.
 - `Core/Tests.lua` stores localized currency names by numeric ID in `currencyNamesById` and warns if a valid ID's observed name changes. That history is diagnostic metadata, separate from user preferences.
 
 ## 3. User Experience

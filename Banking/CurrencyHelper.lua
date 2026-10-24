@@ -67,6 +67,32 @@ function this.GetInfo(currencyType)
     return GetCurrentInfo(FindCurrency(currencyType))
 end
 
+function this.GetInfoAtLocation(currencyType, location)
+    local currency = FindCurrency(currencyType)
+    if not currency then
+        return nil
+    end
+
+    local cap
+    if IsCurrencyCapped(currencyType, location) then
+        cap = GetMaxPossibleCurrency(currencyType, location)
+    end
+
+    return
+    {
+        currencyType = currencyType,
+        name = currency.name,
+        keyboardTexture = currency.keyboardTexture,
+        gamepadTexture = currency.gamepadTexture,
+        location = location,
+        locationName = GetString("SI_CURRENCYLOCATION", location),
+        amount = GetCurrencyAmount(currencyType, location),
+        cap = cap,
+        isAccountWide = location == CURRENCY_LOCATION_ACCOUNT,
+        canBeStoredInBank = CanCurrencyBeStoredInLocation(currencyType, CURRENCY_LOCATION_BANK),
+    }
+end
+
 function this.GetTotalInfo(currencyType)
     local currency = FindCurrency(currencyType)
     if not currency then

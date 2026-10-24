@@ -28,14 +28,14 @@ local function Initialize()
     this.character   = ZO_SavedVars:NewCharacterIdSettings(this.SettingsName, this.SettingsVersion, nil, this.defaultsCharacter)
 
     -- Initialize modules
-    this.UpdateEventRegistry()
     this.InitCutsceneTicker()
-    this.CreateSettingsPanel()
     this.InitContextMenus()
     this.InitProgressPanels()
     this.InitializeCurrencyHelper()
     this.InitItemTrackerPanel()
     this.InitCurrencyPanel()
+    this.CreateSettingsPanel()
+    this.UpdateEventRegistry()
 
     this.state.isLoaded = true
 end
