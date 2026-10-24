@@ -41,3 +41,4 @@ Tracking/ItemTrackerPanel.lua
 
 -- 4. Event handler
 Core/Events.lua
+Core/Tests.lua
