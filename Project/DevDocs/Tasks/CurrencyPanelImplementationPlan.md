@@ -61,8 +61,55 @@ GLOBAL BAR ALERT COLOURS
 
 ## Decided, Needs Investigation
 
-- **Value refresh lifecycle and listener strategy:** Use event-driven refreshes and keep listeners active only while relevant displays are enabled. The [ESO API declarations](https://github.com/Flat-Badger-1971/eso-api/blob/01973824df2bb303d1a148c5ab350cf50405bd0b/library/events.lua) specify `EVENT_CURRENCY_UPDATE(eventId, currencyType, currencyLocation, newAmount, oldAmount, reason, reasonSupplementaryInfo)`. [ESOUI shared inventory](https://github.com/esoui/esoui/blob/86832f7b492a5bd3e2774fe187caf1cc527735df/esoui/ingame/inventory/sharedinventory.lua) filters by currency type and storage location, and [ESOUI currency input](https://github.com/esoui/esoui/blob/86832f7b492a5bd3e2774fe187caf1cc527735df/esoui/ingame/zo_currencyinput/zo_currencyinput.lua) listens to the event for `CURT_MONEY` (gold). Also listen for `EVENT_CURRENCY_CAPS_CHANGED` while displayed currencies use cap data; it has no currency/location payload, so refresh affected cap-dependent displays. In the panel, register currency listeners only while at least one currency/location entry is displayed and filter updates against enabled entries. Keep bag/bank capacity refreshes on their capacity and inventory-slot events; retain `EVENT_MONEY_UPDATE` only if in-game verification shows it is needed for gold. Avoid polling unless event testing demonstrates that no event-driven approach is sufficient.
-- **Currency event diagnostic:** `/iccurrencyevents start` temporarily listens for `EVENT_CURRENCY_UPDATE` and `EVENT_CURRENCY_CAPS_CHANGED`, displaying HUD messages with the currency, location, old/new amounts, and reason (or a caps-changed notice). Use `/iccurrencyevents stop` immediately after testing. In game, move AP or Tel Var Stones between character and bank and confirm which location-specific events fire; also check gold and cap changes where practical. This is an opt-in diagnostic only, not the panel's permanent refresh implementation.
+- **Value refresh lifecycle and listener strategy:** Use event-driven refreshes and keep listeners active only while relevant displays are enabled. The [ESO API declarations](https://github.com/Flat-Badger-1971/eso-api/blob/01973824df2bb303d1a148c5ab350cf50405bd0b/library/events.lua) specify `EVENT_CURRENCY_UPDATE(eventId, currencyType, currencyLocation, newAmount, oldAmount, reason, reasonSupplementaryInfo)`. [ESOUI shared inventory](https://github.com/esoui/esoui/blob/86832f7b492a5bd3e2774fe187caf1cc527735df/esoui/ingame/inventory/sharedinventory.lua) filters by currency type and storage location, and [ESOUI currency input](https://github.com/esoui/esoui/blob/86832f7b492a5bd3e2774fe187caf1cc527735df/esoui/ingame/zo_currencyinput/zo_currencyinput.lua) listens to the event for `CURT_MONEY` (gold). In-game testing confirmed the event fires for Writ Vouchers, Alliance Points, Tel Var Stones, and gold when transferring currency between character and bank; it also fires for gold when buying from or selling to a merchant. The event API is generic across currency types, so treat `EVENT_CURRENCY_UPDATE` as the update source for all ESO currencies, including gameplay gains, rather than requiring individual verification of every currency. A separate `EVENT_MONEY_UPDATE` listener is not currently indicated. Also listen for `EVENT_CURRENCY_CAPS_CHANGED` while displayed currencies use cap data; it has no currency/location payload, so refresh affected cap-dependent displays. In the panel, register currency listeners only while at least one currency/location entry is displayed and filter updates against enabled entries. Keep bag/bank capacity refreshes on their capacity and inventory-slot events. Avoid polling unless later testing demonstrates that no event-driven approach is sufficient.
+- **Currency event diagnostic:** The temporary `/iccurrencyevents start|stop` diagnostic was used to confirm representative currencies and transactions, then removed from the shipped addon. Coverage of every currency individually is not required because the event is generic by currency type and location. To repeat the test, temporarily add this block to `Core/Init.lua`; it displays currency, location, old/new amounts, and reason as HUD messages. Cap-change event behavior remains to be verified if a suitable in-game test becomes available.
+
+```lua
+local currencyEventDiagnosticName = this.Name .. "_CurrencyEventDiagnostic"
+local currencyEventDiagnosticActive = false
+
+local function OnDiagnosticCurrencyUpdate(_, currencyType, currencyLocation, newAmount, oldAmount, reason)
+    local currencyName = GetCurrencyName(currencyType, false, false)
+    local locationName = GetString("SI_CURRENCYLOCATION", currencyLocation)
+    this.Utils.UserMessage(nil, string.format(
+        "%s (ID %s, %s): %s -> %s, reason %s",
+        tostring(currencyName),
+        tostring(currencyType),
+        tostring(locationName),
+        tostring(oldAmount),
+        tostring(newAmount),
+        tostring(reason)
+    ))
+end
+
+local function OnDiagnosticCurrencyCapsChanged()
+    this.Utils.UserMessage(nil, "Currency caps changed")
+end
+
+SLASH_COMMANDS["/iccurrencyevents"] = function(arguments)
+    local action = tostring(arguments or ""):lower():match("^%s*(%S+)%s*$")
+
+    if action == "start" then
+        if currencyEventDiagnosticActive then
+            this.Utils.UserMessage("Currency event diagnostics are already running.")
+            return
+        end
+        EVENT_MANAGER:RegisterForEvent(currencyEventDiagnosticName, EVENT_CURRENCY_UPDATE, OnDiagnosticCurrencyUpdate)
+        EVENT_MANAGER:RegisterForEvent(currencyEventDiagnosticName, EVENT_CURRENCY_CAPS_CHANGED, OnDiagnosticCurrencyCapsChanged)
+        currencyEventDiagnosticActive = true
+        this.Utils.UserMessage("Currency event diagnostics started.", "Listening for currency changes")
+    elseif action == "stop" then
+        if currencyEventDiagnosticActive then
+            EVENT_MANAGER:UnregisterForEvent(currencyEventDiagnosticName, EVENT_CURRENCY_UPDATE)
+            EVENT_MANAGER:UnregisterForEvent(currencyEventDiagnosticName, EVENT_CURRENCY_CAPS_CHANGED)
+            currencyEventDiagnosticActive = false
+        end
+        this.Utils.UserMessage("Currency event diagnostics stopped.")
+    else
+        this.Utils.UserMessage("Use /iccurrencyevents start or /iccurrencyevents stop.")
+    end
+end
+```
 - **Storage-location marker:** First prototype layering a small location badge over the existing currency icon and inspect it in game at the compact grid size. Check that the layering is reliable and the result remains clear across icons/backgrounds. If it is brittle or visually poor, compare against a small addon-owned texture before choosing the final treatment.
 
 ## Resource Identity
@@ -111,7 +158,7 @@ Threshold preferences apply only to bar-capable resources and should be omitted 
 3. **HUD presentation:** Render the compact resource panel from descriptors and preferences. Generalize progress bars for selected capped resources while retaining their independent movable windows and current defaults.
 4. **Settings UI:** Initialize currency discovery before creating the settings controls so resource rows use the session's discovered currency set. Add resource rows with visibility, compact/bar presentation, and simple reorder controls. Add per-resource thresholds only for standalone bars.
 5. **Pruning and diagnostics:** Extend `/ictest` to prune only invalid ESO currency preference IDs, preserve valid but currently undisplayable currencies, and leave addon capacity preferences and name history intact.
-6. **Verification:** Add synthetic checks for identity separation, defaults, ordering, malformed preferences, pruning, and preservation of unrelated data. Use `/iccurrencyevents` to verify currency and location event coverage in game, including character/bank transfers and gold; verify cap-change behavior and that disabled entries do not keep unnecessary panel listeners active. Then verify settings persistence and HUD behavior.
+6. **Verification:** Add synthetic checks for identity separation, defaults, ordering, malformed preferences, pruning, and preservation of unrelated data. Use the confirmed `EVENT_CURRENCY_UPDATE` path for currency refreshes; verify cap-change behavior if practical and that disabled entries do not keep unnecessary panel listeners active. Then verify settings persistence and HUD behavior.
 
 ## Acceptance Checks
 
