@@ -62,7 +62,7 @@
 
 
 * **D4.** **Expanded Currency Panel:**
-* Add support for AP, Tel Var, Writ Vouchers, Archival Fortunes, Undaunted Keys, and Transmute Crystals in a configurable grid.
+* Add a configurable, ESO-discovered currency grid with per-currency visibility and ordering preferences. See [Currency Preferences](Tasks/CurrencyPreferences.md) for saved-variable, pruning, and compatibility requirements.
 
 
 * **D5.** **Global Panel Show/Hide Context Menu:**
