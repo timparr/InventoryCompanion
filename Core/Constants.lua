@@ -228,6 +228,7 @@ this.defaultsAccount = {
     showBank = true,
     currencyOffsetX = 50,
     currencyOffsetY = 150,
+    currencyNamesById = {},
 
     -- Standalone Bag Bar Window
     showBagBar = true,

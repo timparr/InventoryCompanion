@@ -33,6 +33,7 @@ local function Initialize()
     this.CreateSettingsPanel()
     this.InitContextMenus()
     this.InitProgressPanels()
+    this.InitializeCurrencyHelper()
     this.InitItemTrackerPanel()
     this.InitCurrencyPanel()
 
@@ -85,121 +86,8 @@ SLASH_COMMANDS["/icclearoverrides"] = function()
 end
 
 ------------------------------------------------------------------
--- Debug Key - only the last will actually run. This is fine
+-- Debug Key
 ------------------------------------------------------------------
-local currencyLocationConstants =
-{
-    { name = "CURRENCY_LOCATION_ACCOUNT", value = CURRENCY_LOCATION_ACCOUNT },
-    { name = "CURRENCY_LOCATION_ALL", value = CURRENCY_LOCATION_ALL },
-    { name = "CURRENCY_LOCATION_BANK", value = CURRENCY_LOCATION_BANK },
-    { name = "CURRENCY_LOCATION_CHARACTER", value = CURRENCY_LOCATION_CHARACTER },
-    { name = "CURRENCY_LOCATION_GUILD_BANK", value = CURRENCY_LOCATION_GUILD_BANK },
-    { name = "CURRENCY_LOCATION_MAX_VALUE", value = CURRENCY_LOCATION_MAX_VALUE },
-}
-
-function DebugPrintInventoryCurrencyRows()
-    local row = 0
-    local IS_PLURAL = false
-    local IS_UPPER = false
-    this.accountWide.currencyInfo = {}
-
-    for currencyType = CURT_ITERATION_BEGIN, CURT_ITERATION_END do
-        if IsCurrencyValid(currencyType) and ShouldShowCurrencyInCurrencyPanel(currencyType) then
-            row = row + 1
-
-            local constantNames = {}
-            for _, constant in ipairs(minedConstants) do
-                if constant.value == currencyType then
-                    table.insert(constantNames, constant.name)
-                end
-            end
-
-            local name = GetCurrencyName(currencyType, IS_PLURAL, IS_UPPER)
-            local texture = GetCurrencyKeyboardIcon(currencyType)
-            local location = GetCurrencyPlayerStoredLocation(currencyType)
-            local amount = GetCurrencyAmount(currencyType, location)
-            local cap = IsCurrencyCapped(currencyType, location) and GetMaxPossibleCurrency(currencyType, location) or nil
-            local isAccountWide = location == CURRENCY_LOCATION_ACCOUNT
-            local canBeStoredInBank = CanCurrencyBeStoredInLocation(currencyType, CURRENCY_LOCATION_BANK)
-
-            local locationNames = {}
-            for _, constant in ipairs(currencyLocationConstants) do
-                if constant.value == location then
-                    table.insert(locationNames, constant.name)
-                end
-            end
-
-            local locationName = #locationNames > 0 and table.concat(locationNames, " / ") or "unknown"
-            local debugLine = string.format("[%d] constant: %s | name: %s | texture: %s | amount: %s | location: %s (%s) | cap: %s | isAccountWide: %s | canBeStoredInBank: %s",
-                row, #constantNames > 0 and table.concat(constantNames, " / ") or "unknown",
-                tostring(name), tostring(texture), tostring(amount), locationName, tostring(location),
-                tostring(cap), tostring(isAccountWide), tostring(canBeStoredInBank))
-
-            local info =
-            {
-                constants = constantNames,
-                currencyType = currencyType,
-                name = name,
-                texture = texture,
-                amount = amount,
-                location = location,
-                locationName = locationName,
-                cap = cap,
-                isAccountWide = isAccountWide,
-                canBeStoredInBank = canBeStoredInBank,
-            }
-            for _, constantName in ipairs(constantNames) do
-                this.accountWide.currencyInfo[constantName] = info
-            end
-
-            d(debugLine)
-        end
-    end
-end
-
-minedConstants =
-{
-    { name = "CURT_ALLIANCE_POINTS", value = CURT_ALLIANCE_POINTS },
-    { name = "CURT_ARCHIVAL_FORTUNES", value = CURT_ARCHIVAL_FORTUNES },
-    { name = "CURT_CHAOTIC_CREATIA", value = CURT_CHAOTIC_CREATIA },
-    { name = "CURT_CROWN_GEMS", value = CURT_CROWN_GEMS },
-    { name = "CURT_CROWNS", value = CURT_CROWNS },
-    { name = "CURT_ENDEAVOR_SEALS", value = CURT_ENDEAVOR_SEALS },
-    { name = "CURT_ENDLESS_DUNGEON", value = CURT_ENDLESS_DUNGEON },
-    { name = "CURT_IMPERIAL_FRAGMENTS", value = CURT_IMPERIAL_FRAGMENTS },
-    { name = "CURT_ITERATION_BEGIN", value = CURT_ITERATION_BEGIN },
-    { name = "CURT_ITERATION_END", value = CURT_ITERATION_END },
-    { name = "CURT_MONEY", value = CURT_MONEY },
-    { name = "CURT_NONE", value = CURT_NONE },
-    { name = "CURT_SEALS", value = CURT_SEALS },
-    { name = "CURT_STYLE_STONES", value = CURT_STYLE_STONES },
-    { name = "CURT_TELVAR_STONES", value = CURT_TELVAR_STONES },
-    { name = "CURT_TOME_CHALLENGE_REROLLS", value = CURT_TOME_CHALLENGE_REROLLS },
-    { name = "CURT_TOME_POINT_CACHES", value = CURT_TOME_POINT_CACHES },
-    { name = "CURT_TOME_POINTS", value = CURT_TOME_POINTS },
-    { name = "CURT_TOME_TOKENS", value = CURT_TOME_TOKENS },
-    { name = "CURT_TRADE_BARS", value = CURT_TRADE_BARS },
-    { name = "CURT_TRANSMUTE_CRYSTALS", value = CURT_TRANSMUTE_CRYSTALS },
-    { name = "CURT_UNDAUNTED_CRESTS", value = CURT_UNDAUNTED_CRESTS },
-    { name = "CURT_UNDAUNTED_KEYS", value = CURT_UNDAUNTED_KEYS },
-    { name = "CURT_WRIT_VOUCHERS", value = CURT_WRIT_VOUCHERS },
-}
-
-for _, currency in ipairs(minedConstants) do
-    currency.cap = nil
-    currency.isAccountWide = false
-    currency.canBeStoredInBank = false
-
-    if IsCurrencyValid(currency.value) then
-        local location = GetCurrencyPlayerStoredLocation(currency.value)
-        if IsCurrencyCapped(currency.value, location) then
-            currency.cap = GetMaxPossibleCurrency(currency.value, location)
-        end
-        currency.isAccountWide = location == CURRENCY_LOCATION_ACCOUNT
-        currency.canBeStoredInBank = CanCurrencyBeStoredInLocation(currency.value, CURRENCY_LOCATION_BANK)
-    end
-end
-
 function this.Debug()
-	DebugPrintInventoryCurrencyRows()
+	this.RunTests("verbose copy")
 end
