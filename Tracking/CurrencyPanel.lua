@@ -341,6 +341,74 @@ function this.HasVisibleCappedCurrencyResources()
     return hasVisibleCappedCurrencies
 end
 
+local function RefreshResourceSettingsRow(control)
+    local entry = control.resourceEntry
+    ZO_CheckButton_SetCheckState(control.visibilityCheck, IsResourceVisible(entry))
+end
+
+local function CreateResourceSettingsRow(control, entry)
+    control.resourceEntry = entry
+
+    local icon = WINDOW_MANAGER:CreateControl(nil, control, CT_TEXTURE)
+    icon:SetDimensions(24, 24)
+    icon:SetAnchor(LEFT, control, LEFT, 0, 0)
+    icon:SetTexture(entry.texture or "")
+    control.resourceIcon = icon
+
+    local name = WINDOW_MANAGER:CreateControl(nil, control, CT_LABEL)
+    name:SetFont("ZoFontGame")
+    name:SetColor(ZO_NORMAL_TEXT:UnpackRGBA())
+    name:SetVerticalAlignment(TEXT_ALIGN_CENTER)
+    name:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
+    name:SetWrapMode(TEXT_WRAP_MODE_ELLIPSIS)
+    name:SetAnchor(LEFT, icon, RIGHT, 8, 0)
+    name:SetAnchor(RIGHT, control, RIGHT, -151, 0)
+    name:SetText(entry.kind == "currency"
+        and string.format("%s (%s)", entry.name, entry.locationName)
+        or entry.name .. " space")
+    control.resourceName = name
+
+    local function CreateArrowButton(text, tooltip, direction, rightOffset)
+        local button = WINDOW_MANAGER:CreateControlFromVirtual(nil, control, "ZO_DefaultButton")
+        button:SetDimensions(28, 26)
+        button:SetAnchor(RIGHT, control, RIGHT, -rightOffset, 0)
+        button:SetText(text)
+        button.data = { tooltipText = tooltip }
+        button:SetClickSound("Click")
+        button:SetHandler("OnMouseEnter", ZO_Options_OnMouseEnter)
+        button:SetHandler("OnMouseExit", ZO_Options_OnMouseExit)
+        button:SetHandler("OnClicked", function()
+            MoveResource(entry.key, direction)
+            this.RefreshCurrencyPanel()
+        end)
+        return button
+    end
+
+    CreateArrowButton("↓", "Move this resource down", 1, 0)
+    CreateArrowButton("↑", "Move this resource up", -1, 30)
+
+    local check = WINDOW_MANAGER:CreateControlFromVirtual(nil, control, "ZO_CheckButton")
+    check:SetAnchor(RIGHT, control, RIGHT, -66, 0)
+    check.data = { tooltipText = "Show this resource in the compact grid" }
+    check:SetHandler("OnMouseEnter", ZO_Options_OnMouseEnter)
+    check:SetHandler("OnMouseExit", ZO_Options_OnMouseExit)
+    control.visibilityCheck = check
+    ZO_CheckButton_SetToggleFunction(check, function(_, visible)
+        SetEntryPreference(entry, visible)
+        this.RefreshCurrencyPanel()
+        this.UpdateEventRegistry()
+    end)
+    RefreshResourceSettingsRow(control)
+
+    local showLabel = WINDOW_MANAGER:CreateControl(nil, control, CT_LABEL)
+    showLabel:SetFont("ZoFontGameSmall")
+    showLabel:SetColor(ZO_NORMAL_TEXT:UnpackRGBA())
+    showLabel:SetVerticalAlignment(TEXT_ALIGN_CENTER)
+    showLabel:SetHorizontalAlignment(TEXT_ALIGN_RIGHT)
+    showLabel:SetAnchor(RIGHT, check, LEFT, -4, 0)
+    showLabel:SetText("Show")
+end
+
 function this.GetCurrencyPanelSettingsControls()
     local entries = this.GetCurrencyPanelResourceEntries()
     local controls = {
@@ -352,37 +420,14 @@ function this.GetCurrencyPanelSettingsControls()
 
     local function AddResourceControls(entry)
         table.insert(controls, {
-            type = "checkbox",
-            name = entry.kind == "currency"
-                and string.format("%s (%s)", entry.name, entry.locationName)
-                or entry.name .. " space",
-            getFunc = function()
-                return IsResourceVisible(entry)
+            type = "custom",
+            reference = "InventoryCompanion_ResourceSettings_" .. entry.key:gsub("[^%w]", "_"),
+            minHeight = 34,
+            maxHeight = 34,
+            createFunc = function(control)
+                CreateResourceSettingsRow(control, entry)
             end,
-            setFunc = function(value)
-                SetEntryPreference(entry, value)
-                this.RefreshCurrencyPanel()
-                this.UpdateEventRegistry()
-            end,
-            default = true,
-        })
-        table.insert(controls, {
-            type = "button",
-            name = "Move up: " .. entry.name,
-            func = function()
-                MoveResource(entry.key, -1)
-                this.RefreshCurrencyPanel()
-            end,
-            width = "half",
-        })
-        table.insert(controls, {
-            type = "button",
-            name = "Move down: " .. entry.name,
-            func = function()
-                MoveResource(entry.key, 1)
-                this.RefreshCurrencyPanel()
-            end,
-            width = "half",
+            refreshFunc = RefreshResourceSettingsRow,
         })
     end
 
