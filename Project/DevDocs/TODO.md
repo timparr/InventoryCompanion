@@ -62,7 +62,7 @@
 
 
 * **D4.** **Expanded Currency Panel:**
-* Add a configurable, ESO-discovered currency grid with per-currency visibility and ordering preferences. See [Currency Preferences](Tasks/CurrencyPreferences.md) for saved-variable, pruning, and compatibility requirements.
+* Unify configurable ESO currencies and addon-defined capacity resources, with compact and optional progress-bar presentations. See [Currency Panel Implementation Plan](Tasks/CurrencyPanelImplementationPlan.md) for the proposed UX, resource identities, migration, and phases, and [Currency Preferences](Tasks/CurrencyPreferences.md) for currency-specific saved-variable, pruning, and compatibility requirements.
 
 
 * **D5.** **Global Panel Show/Hide Context Menu:**
