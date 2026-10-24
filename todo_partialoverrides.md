@@ -61,7 +61,7 @@ See further discussion below:
 
 * **Objective:** Ensure functional correctness and check output saved variables.
 * **Action Items:**
-* Execute the synthetic unit tests in `Core/IC_Init.lua` to verify baseline-to-override resolution.
+* Execute the synthetic unit tests in `Core/Init.lua` to verify baseline-to-override resolution.
 * Test renaming a group and modifying patterns via the UI, then inspect `InventoryCompanion_SavedVariables` to confirm that saved tables contain *only* the modified delta properties.
 
 More discussion:

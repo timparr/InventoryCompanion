@@ -10,18 +10,18 @@
 Bindings.xml
 
 -- 1. Core Framework, Utilities & Settings
-Core/IC_Init.lua
-Core/IC_Utils.lua
+Core/Init.lua
+Core/Utils.lua
 
-Core/IC_Constants.lua
-Core/IC_ContextMenus.lua
-Core/IC_Settings.lua
-Core/IC_Scanning.lua
+Core/Constants.lua
+Core/ContextMenus.lua
+Core/Settings.lua
+Core/Scanning.lua
 
 -- 2. Banking & Inventory Progress Modules
-Banking/IC_CraftedItems.lua
+Banking/CraftedItems.lua
 Banking/BankDatabase.lua
-Banking/IC_BankTransfers.lua
+Banking/BankTransfers.lua
 Banking/ProgressPanels.xml
 Banking/ProgressPanels.lua
 
@@ -40,4 +40,4 @@ Tracking/ItemTrackerPanel.xml
 Tracking/ItemTrackerPanel.lua
 
 -- 4. Event handler
-Core/IC_Events.lua
+Core/Events.lua

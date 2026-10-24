@@ -85,7 +85,7 @@
 
 ## Section E: 🏗️ Post-V1 Refactoring Tickets
 
-* **E1.** **Phase 1: Shared Utility Migration (`IC_Utils.lua`):**
+* **E1.** **Phase 1: Shared Utility Migration (`Core/Utils.lua`):**
 * Extract string sanitization (`SanitizeText`), debounced action queues (`Debounce`), and wildcard pattern compilation (`CompileWildcards`) into centralized utility methods.
 
 
@@ -103,7 +103,7 @@
 ## Section F: ✅ Completed (Verified in Codebase)
 
 * **F1.** **Tracker Visibility & Smart Positioning for Bank/Inventory:**
-* Implemented in `Core/IC_Events.lua` (`InitCutsceneTicker`) and `Tracking/ItemTrackerPanel.lua` (`AdjustTrackerPositionForInteraction`, `RestoreTrackerPosition`). The Item Tracker automatically remains visible during Bank, Store, Fence, and Inventory interactions and dynamically repositions to avoid UI overlap.
+* Implemented in `Core/Events.lua` (`InitCutsceneTicker`) and `Tracking/ItemTrackerPanel.lua` (`AdjustTrackerPositionForInteraction`, `RestoreTrackerPosition`). The Item Tracker automatically remains visible during Bank, Store, Fence, and Inventory interactions and dynamically repositions to avoid UI overlap.
 
 
 * **F2.** **Dual-Layer Group Management & Window Switching:**
@@ -115,7 +115,7 @@
 
 
 * **F4.** **Context Menu Integration:**
-* Implemented in `Core/IC_ContextMenus.lua` for quick addition/removal of tracked items and partial stack banking transfers.
+* Implemented in `Core/ContextMenus.lua` for quick addition/removal of tracked items and partial stack banking transfers.
 
 
 * **F5.** **Currency & Standalone Progress Panels:**
