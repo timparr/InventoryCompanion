@@ -51,7 +51,9 @@ local function ShouldListenSlotUpdate()
 end
 
 local function ShouldListenCurrencyUpdates()
-    return this.HasCurrencyResourcesToTrack() or this.HasVisibleCurrencyProgressBars()
+    return this.HasCurrencyResourcesToTrack()
+        or this.HasVisibleCurrencyProgressBars()
+        or this.HasCurrencyNotifications()
 end
 
 local function ShouldListenCurrencyCapUpdates()
@@ -94,9 +96,18 @@ local function OnInventorySlotUpdate(eventCode, bagId, slotIndex, isNewItem, ite
     end
 end
 
-local function OnCurrencyUpdate(eventCode, currencyType, currencyLocation)
+local function OnCurrencyUpdate(eventCode, currencyType, currencyLocation, newAmount, oldAmount)
     local shouldRefreshPanel = this.IsCurrencyResourceVisible(currencyType, currencyLocation)
     local shouldRefreshBar = this.IsCurrencyProgressBarVisible(currencyType)
+    local shouldNotify = this.IsCurrencyNotificationEnabled(currencyType)
+    if shouldNotify then
+        this.NotifyCurrencyChange(
+            currencyType,
+            currencyLocation,
+            newAmount,
+            oldAmount
+        )
+    end
     if not shouldRefreshPanel and not shouldRefreshBar then
         return
     end

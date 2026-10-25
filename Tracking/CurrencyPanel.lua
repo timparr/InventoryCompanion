@@ -670,6 +670,61 @@ function this.IsCurrencyResourceVisible(currencyType, location)
     return not (preference and preference.hidden == true)
 end
 
+function this.IsCurrencyNotificationEnabled(currencyType)
+    EnsurePreferences()
+    local preference = GetCurrencyPreference(currencyType, false)
+    if preference and preference.notify ~= nil and type(preference.notify) ~= "boolean" then
+        WarnMalformedPreference("currency notification flag for ID " .. tostring(currencyType) .. " must be boolean")
+    end
+    return preference ~= nil and preference.notify == true
+end
+
+function this.HasCurrencyNotifications()
+    for _, currencyType in ipairs(this.GetCurrencyList()) do
+        if this.IsCurrencyNotificationEnabled(currencyType) then
+            return true
+        end
+    end
+    return false
+end
+
+function this.SetCurrencyNotificationEnabled(currencyType, enabled)
+    assert(type(enabled) == "boolean", "Currency notification state must be boolean")
+    EnsurePreferences()
+    local preference = GetCurrencyPreference(currencyType, true)
+    preference.notify = enabled and true or nil
+    if next(preference) == nil then
+        this.accountWide.currencyPreferences[currencyType] = nil
+    end
+end
+
+function this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount, oldAmount)
+    if not this.IsCurrencyNotificationEnabled(currencyType)
+        or type(newAmount) ~= "number"
+        or type(oldAmount) ~= "number"
+        or newAmount == oldAmount then
+        return false
+    end
+
+    local currencyName = GetCurrencyName(currencyType, false, false)
+    local locationName = GetString("SI_CURRENCYLOCATION", currencyLocation)
+    local delta = newAmount - oldAmount
+    local direction = delta > 0 and "Gained" or "Spent"
+    local changedAmount = math.abs(delta)
+    this.Utils.UserWarning(
+        string.format(
+            "%s %d %s (%d total, %s)",
+            direction,
+            changedAmount,
+            currencyName,
+            newAmount,
+            locationName
+        ),
+        string.format("%s %d %s", direction, changedAmount, currencyName)
+    )
+    return true
+end
+
 function this.IsCapacityResourceVisible(resourceKey)
     EnsurePreferences()
     local preference = GetCapacityPreference(resourceKey, false)
@@ -749,6 +804,12 @@ ReorderResourceSettingsRows = function(control)
                 if checkbox then
                     ZO_CheckButton_SetCheckState(checkbox, locationEntry.isVisible)
                 end
+            end
+            if row.notifyCheckbox then
+                ZO_CheckButton_SetCheckState(
+                    row.notifyCheckbox,
+                    this.IsCurrencyNotificationEnabled(row.currencyType)
+                )
             end
             row.visibilityButton:SetText(shown and "Hide" or "Show")
             if entry.kind == "currency" and not entry.hasSelectedLocation and shown then
@@ -838,7 +899,14 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
     name:SetAnchor(LEFT, icon, RIGHT, 8, 0)
     local hasLocationCheckboxes = entry.kind == "currency"
         and entry.location ~= CURRENCY_LOCATION_ACCOUNT
-    name:SetAnchor(RIGHT, row, RIGHT, hasLocationCheckboxes and -390 or -130, 0)
+    local hasCurrencyNotifications = entry.kind == "currency"
+    name:SetAnchor(
+        RIGHT,
+        row,
+        RIGHT,
+        hasLocationCheckboxes and -480 or (hasCurrencyNotifications and -245 or -130),
+        0
+    )
     name:SetText(entry.kind == "currency" and entry.name or entry.name .. " space")
     row.resourceName = name
 
@@ -863,6 +931,20 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
 
     row.downButton = CreateArrowButton("↓", "Move this entry down in the panel", 1)
     row.upButton = CreateArrowButton("↑", "Move this entry up in the panel", -1)
+
+    if hasCurrencyNotifications then
+        row.notifyCheckbox = CreateSettingsCheckbox(
+            row,
+            "Notify",
+            90,
+            hasLocationCheckboxes and -390 or -150,
+            this.IsCurrencyNotificationEnabled(entry.currencyType),
+            function(enabled)
+                this.SetCurrencyNotificationEnabled(entry.currencyType, enabled)
+                this.UpdateEventRegistry()
+            end
+        )
+    end
 
     if entry.kind == "currency" then
         local locationOptions = {
@@ -953,7 +1035,7 @@ function this.GetCurrencyPanelSettingsControls()
         },
         {
             type = "description",
-            text = "Choose which locations appear for each currency. Click a location label or checkbox to toggle it. Use Show/Hide to control the row and arrows to reorder shown resources. A shown currency with no selected locations remains in the list in red but contributes no HUD value.",
+            text = "Choose which locations appear for each currency. Click a location label or checkbox to toggle it. Use Notify for alerts on currency changes, Show/Hide to control the row, and arrows to reorder shown resources. A shown currency with no selected locations remains in the list in red but contributes no HUD value. Notifications work even when the currency is not shown in this panel.",
         },
         {
             type = "button",

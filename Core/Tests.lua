@@ -416,6 +416,55 @@ local function RunTests(arguments)
                 end,
             },
             {
+                name = "Currency notification preferences and changes",
+                run = function()
+                    local savedPreferences = this.accountWide.currencyPreferences
+                    local savedUserWarning = this.Utils.UserWarning
+                    local ok, err = pcall(function()
+                        local currencyTypes = this.GetCurrencyList()
+                        local currencyType = currencyTypes[1]
+                        Check(currencyType ~= nil, "Expected a currency for notification tests")
+                        this.accountWide.currencyPreferences = {}
+                        local notifications = {}
+                        this.Utils.UserWarning = function(chat, hud)
+                            table.insert(notifications, { chat = chat, hud = hud })
+                        end
+
+                        this.SetCurrencyNotificationEnabled(currencyType, true)
+                        Check(this.IsCurrencyNotificationEnabled(currencyType), "Currency notification preference should turn on")
+                        Check(this.HasCurrencyNotifications(), "Enabled currency notification should request an event listener")
+                        Check(
+                            this.NotifyCurrencyChange(currencyType, CURRENCY_LOCATION_CHARACTER, 25, 20),
+                            "Positive currency changes should notify"
+                        )
+                        CheckEqual(#notifications, 1, "One positive currency change should produce one notification")
+                        Check(
+                            this.NotifyCurrencyChange(currencyType, CURRENCY_LOCATION_CHARACTER, 20, 25),
+                            "Currency decreases should notify"
+                        )
+                        CheckEqual(#notifications, 2, "A currency decrease should produce a notification")
+                        Check(
+                            notifications[2].chat:find("Spent 5", 1, true) ~= nil,
+                            "Currency decrease notification should identify the amount spent"
+                        )
+                        Check(
+                            not this.NotifyCurrencyChange(currencyType, CURRENCY_LOCATION_CHARACTER, 20, 20),
+                            "Unchanged currency amounts should not notify"
+                        )
+                        this.SetCurrencyNotificationEnabled(currencyType, false)
+                        Check(not this.HasCurrencyNotifications(), "Disabled currency notifications should release the event listener")
+                        Check(
+                            not this.NotifyCurrencyChange(currencyType, CURRENCY_LOCATION_CHARACTER, 30, 20),
+                            "Disabled currency notifications should not emit messages"
+                        )
+                        CheckEqual(#notifications, 2, "Disabled currency notification should not add messages")
+                    end)
+                    this.accountWide.currencyPreferences = savedPreferences
+                    this.Utils.UserWarning = savedUserWarning
+                    if not ok then error(err) end
+                end,
+            },
+            {
                 name = "Prune known saved-variable diagnostic keys only",
                 run = function()
                     local accountWide = {
