@@ -18,7 +18,7 @@ The existing currency-specific requirements, including ESO validity checks and d
 - Preserve current defaults: gold, backpack space, and bank space continue to appear as they do today, including the existing standalone backpack and bank bars.
 - Keep each enabled progress bar as an independently movable window with its own saved position. This preserves current bag/bank behavior; additional currency bars follow the same independent-window model in Phase 1.
 - Render gold once, sourced from ESO currency discovery.
-- Represent each applicable currency/storage-location pair as a separate entry (for example, character and bank entries for a bankable currency). Each entry can be shown, hidden, and ordered independently.
+- Represent each applicable currency/storage-location pair as a separate settings entry (for example, character and bank entries for a bankable currency). Each entry can be shown, hidden, and ordered independently; the compact display may combine selected locations for the same currency.
 - Represent each account-wide currency with one account entry.
 - Display the amount and cap for the same location on each entry.
 - Order compact-grid entries with move-up/move-down controls in settings. Show IN entries in compact-grid order and OUT entries alphabetically. Only IN entries have move controls. Hiding an entry clears its saved order; showing it again appends it to the bottom of IN. New eligible entries appear in IN unless explicitly hidden.
@@ -31,9 +31,11 @@ The existing currency-specific requirements, including ESO validity checks and d
 
 ## Currency Panel Refinement
 
-The first refinement is to restore a super-compact, single-line grid treatment: each cell shows its icon and abbreviated current amount, without a text title. Use the addon's existing big-number formatter (for example, `1.3k` or `32m`) and keep the three-column layout and existing resource defaults and preference behavior unchanged. Caps remain available to the presentation and refresh logic, but are not shown in this compact cell treatment.
+The first refinement is to restore a super-compact, single-line grid treatment: each cell shows its icon and abbreviated value, without a text title or location abbreviations. Use the addon's existing big-number formatter (for example, `1.3k` or `32m`) and keep the three-column layout and existing resource defaults and preference behavior unchanged. Capped values include their rounded percentage of cap. Hovering a cell shows a tooltip with the full resource name and a separate line for each location currently shown, using full amounts and cap information when available.
 
-The panel should ultimately size itself to its three columns rather than use a permanently fixed width. Adaptive sizing raises a follow-up question: whether column widths should track the widest visible value in each column, including zero-valued entries, and how to avoid distracting width changes as values update. Decide and refine that behavior after evaluating the compact single-line layout in game. The discussion of whether character and bank locations should remain separate entries is deferred; this refinement does not change their identities or preferences.
+When both character and bank entries for a currency are visible, render them in one cell as values divided by a middle dot; when only one is visible, show only that location's value. Account-wide currencies show a single value. Preserve separate visibility and ordering preferences for each location. Place a combined cell at the earlier of its selected locations' positions in the grid order.
+
+Size each grid column to fit its widest displayed value, subject to the compact minimum cell width. This allows combined amounts and cap percentages to remain legible while retaining three columns. Review in game whether the resulting column-width changes as amounts update are acceptable. The discussion of whether character and bank locations should remain separate settings entries is deferred; this display refinement does not change their identities or preferences.
 
 ## Settings Panel Mockup
 

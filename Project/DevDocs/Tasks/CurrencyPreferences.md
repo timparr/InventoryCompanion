@@ -23,7 +23,7 @@ The feature must tolerate currencies being added, removed, or renamed by ESO wit
 1. Keep gold, backpack-space, and bank-space indicators, with their existing visibility behavior as the initial defaults. This feature is unreleased, so old panel-specific preference values do not need migration and may be reset.
 2. Add a compact three-column grid for ESO currencies that are valid and eligible for display, matching the existing panel's compact inline presentation. Configurable items-per-row is a future consideration, not part of the initial implementation.
 3. Let users show/hide individual currency/location entries in separate IN and OUT lists. IN follows compact-grid order and has move-up/move-down controls. OUT is alphabetical and has no ordering controls. Hiding an entry clears its order; showing it again appends it to the bottom of IN. New eligible entries appear in IN unless explicitly hidden.
-4. For currencies available in multiple storage locations, show separate entries for each applicable location (for example, character and bank entries). Each entry displays the amount and cap for that same location and can be shown, hidden, and ordered independently. Account-wide currencies have a single account entry. Combined character-plus-bank totals are deferred beyond Phase 1.
+4. For currencies available in multiple storage locations, keep separate settings entries for each applicable location (for example, character and bank entries), each independently shown, hidden, and ordered. In the compact panel, combine the selected character and bank values into one cell when both are visible; show only the selected location when just one is visible. Separate values with a middle dot and show each capped value with its rounded percentage of that location's cap. On hover, show the full resource name and a separate line for each displayed location, with full amount and cap details. When two location entries combine, place the cell at the earlier of their positions in the grid order. Combined character-plus-bank totals (a summed amount) remain deferred beyond Phase 1.
 5. Do not require an active bank interaction to read currency amounts. Do not perform currency transfers or other mutations.
 6. New eligible currencies should be discoverable without an addon update. Unless the user has explicitly hidden them, new currencies should appear after existing ordered entries.
 
@@ -84,14 +84,17 @@ Requirements:
 ### Synthetic checks
 
 1. First initialization shows gold plus backpack and bank space; other currently discovered currencies start in OUT. A currency first discovered later appears in IN unless explicitly hidden.
-2. Hiding a currency/location entry moves it to the alphabetized OUT list and omits only that entry from the panel; other locations and currencies remain visible.
-3. Showing an OUT entry appends it to the bottom of IN; moving an IN entry updates both settings order and HUD order.
-4. Reset restores only gold, backpack space, and bank space to IN, resets their order, and preserves the panel position and standalone bars.
-5. Duplicate, missing, or malformed order values produce deterministic output.
-6. Pruning removes an invalid currency ID but preserves valid hidden/order entries for every location.
-7. A valid currency omitted by `ShouldShowCurrencyInCurrencyPanel` retains its preferences.
-8. Unrelated account settings, character settings, tracked items, and tracked rules are unchanged by pruning.
-9. A currency name change for the same ID warns without deleting preferences; an unchanged name does not warn again.
+2. When both character and bank locations are visible, the panel renders one combined cell with both values separated by a middle dot; when only one is visible, it renders only that location's value.
+3. Capped currency values show a rounded percentage based on the matching location's amount and cap; uncapped values omit the percentage.
+4. Hovering a compact cell shows the full resource name and lines only for its displayed locations, with full amounts and cap details where available.
+5. Hiding a currency/location entry moves it to the alphabetized OUT list and omits only that location's value from the panel; other locations and currencies remain visible.
+6. Showing an OUT entry appends it to the bottom of IN; moving an IN entry updates settings order and HUD order, with combined cells placed at the earlier selected location position.
+7. Reset restores only gold, backpack space, and bank space to IN, resets their order, and preserves the panel position and standalone bars.
+8. Duplicate, missing, or malformed order values produce deterministic output.
+9. Pruning removes an invalid currency ID but preserves valid hidden/order entries for every location.
+10. A valid currency omitted by `ShouldShowCurrencyInCurrencyPanel` retains its preferences.
+11. Unrelated account settings, character settings, tracked items, and tracked rules are unchanged by pruning.
+12. A currency name change for the same ID warns without deleting preferences; an unchanged name does not warn again.
 
 ### In-game checks
 
@@ -100,6 +103,7 @@ Requirements:
 3. Verify an ESO-added currency appears without adding a hand-maintained preference entry.
 4. Simulate or inspect an invalid/removed currency ID and verify only its preference is pruned.
 5. Verify the gold, bag-space, and bank-space defaults and independent preferences behave as specified after reload.
+6. Hover cells to verify the full resource name and only the displayed location lines appear; confirm hovering does not interfere with moving the panel.
 
 ## 9. Product Decisions Deferred Beyond Phase 1
 
@@ -113,3 +117,9 @@ The following wording was part of the original specification before the IN/OUT w
 - “Apply explicit order values first; append entries with no saved order in deterministic ESO currency discovery and location order. Preserve ordering for disabled entries so re-enabling restores their position. Resolve duplicate or invalid order values deterministically.”
 - “Provide separate enabled and disabled entry lists. Use move-up/move-down controls to order enabled compact-grid entries, preserving positions when entries are disabled and re-enabled.”
 - “Missing preferences show all eligible currency/location entries in ESO discovery and location order.”
+
+## Appendix: Superseded Original Compact-Display Requirement
+
+The following location-by-location display wording predates the compact combined-cell treatment above. Separate settings preferences remain current; the compact presentation rule in Section 3 takes precedence.
+
+- “For currencies available in multiple storage locations, show separate entries for each applicable location (for example, character and bank entries). Each entry displays the amount and cap for that same location and can be shown, hidden, and ordered independently. Account-wide currencies have a single account entry. Combined character-plus-bank totals are deferred beyond Phase 1.”

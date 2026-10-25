@@ -2,7 +2,7 @@ InventoryCompanion = InventoryCompanion or {}
 local this = InventoryCompanion
 
 local COLUMN_COUNT = 3
-local CELL_WIDTH = 84
+local MIN_CELL_WIDTH = 84
 local CELL_HEIGHT = 24
 local CELL_GAP_X = 8
 local CELL_GAP_Y = 4
@@ -16,7 +16,7 @@ local CAPACITIES = {
     },
     bank = {
         name = "Bank",
-        texture = "EsoUI/Art/Tooltips/icon_bag.dds",
+        texture = "EsoUI/Art/Tooltips/icon_bank.dds",
     },
 }
 
@@ -236,8 +236,115 @@ local function InitializeCurrencyPanelPreferences()
     end
 end
 
+local function FormatResourceValue(amount, cap)
+    local formattedAmount = this.Utils.FormatBigNumber(amount)
+    if type(cap) == "number" and cap > 0 then
+        local percent = math.floor(amount / cap * 100 + 0.5)
+        return string.format("%s (%d%%)", formattedAmount, percent)
+    end
+    return formattedAmount
+end
+
+local function GetCurrencyLocationName(location)
+    if location == CURRENCY_LOCATION_CHARACTER then return GetString("SI_CURRENCYLOCATION", CURRENCY_LOCATION_CHARACTER) end
+    if location == CURRENCY_LOCATION_BANK then return GetString("SI_CURRENCYLOCATION", CURRENCY_LOCATION_BANK) end
+    if location == CURRENCY_LOCATION_ACCOUNT then return GetString("SI_CURRENCYLOCATION", CURRENCY_LOCATION_ACCOUNT) end
+    error("Unsupported currency location in compact panel tooltip: " .. tostring(location))
+end
+
 local function GetEntryText(entry)
-    return this.Utils.FormatBigNumber(entry.amount)
+    if entry.kind == "capacity" then
+        return FormatResourceValue(entry.amount, entry.cap)
+    end
+
+    local values = {}
+    for _, locationEntry in ipairs(entry.currencyLocations) do
+        table.insert(values, FormatResourceValue(locationEntry.amount, locationEntry.cap))
+    end
+    return table.concat(values, " · ")
+end
+
+local function GetFullResourceAmount(amount)
+    return FormatIntegerWithDigitGrouping(amount, ",", 3)
+end
+
+local function FormatTooltipAmount(amount, cap)
+    local amountText = GetFullResourceAmount(amount)
+    if type(cap) == "number" and cap > 0 then
+        local percent = math.floor(amount / cap * 100 + 0.5)
+        amountText = string.format("%s / %s (%d%%)", amountText, GetFullResourceAmount(cap), percent)
+    end
+    return amountText
+end
+
+local function AddCurrencyLocationTooltipLine(locationEntry)
+    local amountText = FormatTooltipAmount(locationEntry.amount, locationEntry.cap)
+    local locationName = GetCurrencyLocationName(locationEntry.location)
+    InformationTooltip:AddLine(string.format("%s: %s", locationName, amountText), "ZoFontGame", 1, 1, 1, 1)
+end
+
+local function ShowCellTooltip(cell)
+    local entry = cell.resourceEntry
+    if not entry then return end
+
+    InitializeTooltip(InformationTooltip, cell, TOP, 0, -5)
+    InformationTooltip:AddLine(entry.name, "ZoFontGame", 1, 1, 1, 1)
+    if entry.kind == "currency" then
+        for _, locationEntry in ipairs(entry.currencyLocations) do
+            AddCurrencyLocationTooltipLine(locationEntry)
+        end
+    else
+        local amountText = FormatTooltipAmount(entry.amount, entry.cap)
+        InformationTooltip:AddLine(string.format("Used: %s", amountText), "ZoFontGame", 1, 1, 1, 1)
+    end
+end
+
+local function HideCellTooltip()
+    ClearTooltip(InformationTooltip)
+end
+
+local function GetVisibleGridEntries(resourceEntries)
+    local currencyEntriesByType = {}
+    for _, entry in ipairs(resourceEntries) do
+        if entry.kind == "currency" then
+            currencyEntriesByType[entry.currencyType] = currencyEntriesByType[entry.currencyType] or {}
+            currencyEntriesByType[entry.currencyType][entry.location] = entry
+        end
+    end
+
+    local gridEntries = {}
+    local addedCurrencies = {}
+    for _, entry in ipairs(resourceEntries) do
+        if entry.isVisible then
+            if entry.kind ~= "currency" then
+                table.insert(gridEntries, entry)
+            elseif entry.location == CURRENCY_LOCATION_ACCOUNT then
+                table.insert(gridEntries, {
+                    kind = "currency",
+                    name = entry.name,
+                    texture = entry.texture,
+                    currencyLocations = { entry },
+                })
+            elseif not addedCurrencies[entry.currencyType] then
+                addedCurrencies[entry.currencyType] = true
+                local currencyLocations = currencyEntriesByType[entry.currencyType]
+                local visibleLocations = {}
+                for _, location in ipairs({ CURRENCY_LOCATION_CHARACTER, CURRENCY_LOCATION_BANK }) do
+                    local locationEntry = currencyLocations[location]
+                    if locationEntry and locationEntry.isVisible then
+                        table.insert(visibleLocations, locationEntry)
+                    end
+                end
+                table.insert(gridEntries, {
+                    kind = "currency",
+                    name = entry.name,
+                    texture = entry.texture,
+                    currencyLocations = visibleLocations,
+                })
+            end
+        end
+    end
+    return gridEntries
 end
 
 local function GetOrCreateCell(index)
@@ -246,8 +353,15 @@ local function GetOrCreateCell(index)
 
     local container = InventoryCompanion_CurrencyFloatContainer
     cell = WINDOW_MANAGER:CreateControl("InventoryCompanion_CurrencyFloatCell" .. index, container, CT_CONTROL)
-    cell:SetDimensions(CELL_WIDTH, CELL_HEIGHT)
-    cell:SetMouseEnabled(false)
+    cell:SetDimensions(MIN_CELL_WIDTH, CELL_HEIGHT)
+    cell:SetMouseEnabled(true)
+    cell:SetHandler("OnMouseEnter", ShowCellTooltip)
+    cell:SetHandler("OnMouseExit", HideCellTooltip)
+    cell:SetHandler("OnMouseDown", function(_, button)
+        if button == MOUSE_BUTTON_INDEX_LEFT then
+            InventoryCompanion_CurrencyFloat:StartMoving()
+        end
+    end)
 
     local icon = WINDOW_MANAGER:CreateControl("InventoryCompanion_CurrencyFloatCell" .. index .. "Icon", cell, CT_TEXTURE)
     icon:SetDimensions(20, 20)
@@ -262,7 +376,7 @@ local function GetOrCreateCell(index)
     label:SetVerticalAlignment(TEXT_ALIGN_CENTER)
     label:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
     label:SetWrapMode(TEXT_WRAP_MODE_ELLIPSIS)
-    label:SetDimensions(CELL_WIDTH - 26, 20)
+    label:SetDimensions(MIN_CELL_WIDTH - 26, 20)
     label:SetAnchor(TOPLEFT, icon, TOPRIGHT, 6, 0)
     label:SetMouseEnabled(false)
 
@@ -601,13 +715,12 @@ function this.RefreshCurrencyPanel()
     local panel = InventoryCompanion_CurrencyFloat
     local container = InventoryCompanion_CurrencyFloatContainer
 
-    local entries = {}
+    local resourceEntries = this.GetCurrencyPanelResourceEntries()
     hasVisibleCurrencies = false
     hasVisibleCapacities = false
     hasVisibleCappedCurrencies = false
-    for _, entry in ipairs(this.GetCurrencyPanelResourceEntries()) do
+    for _, entry in ipairs(resourceEntries) do
         if entry.isVisible then
-            table.insert(entries, entry)
             if entry.kind == "currency" then
                 hasVisibleCurrencies = true
                 if entry.cap ~= nil then
@@ -619,20 +732,38 @@ function this.RefreshCurrencyPanel()
         end
     end
 
+    local entries = GetVisibleGridEntries(resourceEntries)
+    local columnWidths = { MIN_CELL_WIDTH, MIN_CELL_WIDTH, MIN_CELL_WIDTH }
+    for index, entry in ipairs(entries) do
+        local cell = GetOrCreateCell(index)
+        cell.label:SetWidth(0)
+        cell.label:SetText(GetEntryText(entry))
+        local column = (index - 1) % COLUMN_COUNT + 1
+        columnWidths[column] = math.max(columnWidths[column], math.ceil(cell.label:GetTextWidth()) + 26)
+    end
+
     local rowCount = math.ceil(#entries / COLUMN_COUNT)
     local gridHeight = rowCount > 0 and (rowCount * CELL_HEIGHT + (rowCount - 1) * CELL_GAP_Y) or 0
-    container:SetDimensions(COLUMN_COUNT * CELL_WIDTH + (COLUMN_COUNT - 1) * CELL_GAP_X, gridHeight)
-    panel:SetDimensions(COLUMN_COUNT * CELL_WIDTH + (COLUMN_COUNT - 1) * CELL_GAP_X + GRID_PADDING_X * 2, gridHeight + GRID_PADDING_Y * 2)
+    local gridWidth = columnWidths[1] + columnWidths[2] + columnWidths[3] + (COLUMN_COUNT - 1) * CELL_GAP_X
+    container:SetDimensions(gridWidth, gridHeight)
+    panel:SetDimensions(gridWidth + GRID_PADDING_X * 2, gridHeight + GRID_PADDING_Y * 2)
 
     for index, entry in ipairs(entries) do
         local cell = GetOrCreateCell(index)
         local zeroBasedIndex = index - 1
         local column = zeroBasedIndex % COLUMN_COUNT
         local row = math.floor(zeroBasedIndex / COLUMN_COUNT)
+        local columnOffset = 0
+        for previousColumn = 1, column do
+            columnOffset = columnOffset + columnWidths[previousColumn] + CELL_GAP_X
+        end
         cell:ClearAnchors()
-        cell:SetAnchor(TOPLEFT, container, TOPLEFT, column * (CELL_WIDTH + CELL_GAP_X), row * (CELL_HEIGHT + CELL_GAP_Y))
+        cell:SetDimensions(columnWidths[column + 1], CELL_HEIGHT)
+        cell:SetAnchor(TOPLEFT, container, TOPLEFT, columnOffset, row * (CELL_HEIGHT + CELL_GAP_Y))
         cell.icon:SetTexture(entry.texture or "")
+        cell.label:SetDimensions(columnWidths[column + 1] - 26, 20)
         cell.label:SetText(GetEntryText(entry))
+        cell.resourceEntry = entry
         cell:SetHidden(false)
     end
     for index = #entries + 1, #currencyCells do
