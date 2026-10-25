@@ -890,7 +890,7 @@ ReorderResourceSettingsRows = function(control)
             if row.notifyCheckbox then
                 ZO_CheckButton_SetCheckState(
                     row.notifyCheckbox,
-                    this.IsCurrencyNotificationEnabled(row.currencyType)
+                    this.IsCurrencyNotificationEnabled(entry.currencyType)
                 )
             end
             row.visibilityButton:SetText(shown and "Hide" or "Show")
