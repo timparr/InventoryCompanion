@@ -128,7 +128,17 @@ end
 ------------------------------------------------------------------
 local eventRegistry = {
     [EVENT_OPEN_BANK]                    = { name = "OpenBank",     condition = ShouldListenOpenBank,     handler = OnBankOpened },
-    [EVENT_INVENTORY_SINGLE_SLOT_UPDATE]   = { name = "SlotUpdate",   condition = ShouldListenSlotUpdate,   handler = OnInventorySlotUpdate },
+    [EVENT_INVENTORY_SINGLE_SLOT_UPDATE] = {
+        name = "SlotUpdate",
+        condition = ShouldListenSlotUpdate,
+        handler = OnInventorySlotUpdate,
+        filters = {
+            { name = "Backpack", value = BAG_BACKPACK },
+            { name = "Virtual", value = BAG_VIRTUAL },
+            { name = "Bank", value = BAG_BANK },
+            { name = "SubscriberBank", value = BAG_SUBSCRIBER_BANK },
+        },
+    },
     [EVENT_CURRENCY_UPDATE]                = { name = "CurrencyUpdate", condition = ShouldListenCurrencyUpdates, handler = OnCurrencyUpdate },
     [EVENT_CURRENCY_CAPS_CHANGED]          = { name = "CurrencyCapsChanged", condition = ShouldListenCurrencyCapUpdates, handler = OnCurrencyCapsChanged },
     [EVENT_INVENTORY_BAG_CAPACITY_CHANGED] = { name = "BagCapacity",  condition = ShouldListenBagCapacity,  handler = OnCapacityChanged },
@@ -136,17 +146,47 @@ local eventRegistry = {
 }
 
 function this.UpdateEventRegistry()
+    local desiredListeners = {}
+
+    local function AddDesiredListener(eventCode, entry, filter)
+        local suffix = filter and ("_" .. filter.name) or ""
+        local eventId = string.format("%s_Event_%s%s", this.Name, entry.name, suffix)
+        desiredListeners[eventId] = {
+            eventCode = eventCode,
+            handler = entry.handler,
+            filter = filter,
+        }
+    end
+
     for eventCode, entry in pairs(eventRegistry) do
-        local eventId = string.format("%s_Event_%s", this.Name, entry.name)
-        local shouldBeActive = entry.condition() == true
+        if entry.condition() == true then
+            if entry.filters then
+                for _, filter in ipairs(entry.filters) do
+                    AddDesiredListener(eventCode, entry, filter)
+                end
+            else
+                AddDesiredListener(eventCode, entry)
+            end
+        end
+    end
 
-        local isCurrentlyActive = (activeListeners[eventId] == true)
+    for eventId, listener in pairs(desiredListeners) do
+        if not activeListeners[eventId] then
+            EVENT_MANAGER:RegisterForEvent(eventId, listener.eventCode, listener.handler)
+            if listener.filter then
+                EVENT_MANAGER:AddFilterForEvent(
+                    eventId,
+                    listener.eventCode,
+                    REGISTER_FILTER_BAG_ID,
+                    listener.filter.value
+                )
+            end
+            activeListeners[eventId] = listener.eventCode
+        end
+    end
 
-        if shouldBeActive and not isCurrentlyActive then
-            EVENT_MANAGER:RegisterForEvent(eventId, eventCode, entry.handler)
-            activeListeners[eventId] = true
-
-        elseif not shouldBeActive and isCurrentlyActive then
+    for eventId, eventCode in pairs(activeListeners) do
+        if not desiredListeners[eventId] then
             EVENT_MANAGER:UnregisterForEvent(eventId, eventCode)
             activeListeners[eventId] = nil
         end
@@ -198,16 +238,27 @@ function this.DebugAudit()
     local totalDefined = 0
     local totalActive  = 0
 
-    for eventCode, entry in pairs(eventRegistry) do
-        totalDefined = totalDefined + 1
-        local eventId  = string.format("%s_Event_%s", this.Name, entry.name)
-        local isActive = (activeListeners[eventId] == true)
-
+    local function AuditListener(eventCode, entry, filter)
+        local suffix = filter and ("_" .. filter.name) or ""
+        local eventId = string.format("%s_Event_%s%s", this.Name, entry.name, suffix)
+        local isActive = activeListeners[eventId] == eventCode
         local statusTag = isActive and "|c50c878[ACTIVE]|r" or "|c888888[OFF]|r"
-        if isActive then totalActive = totalActive + 1 end
+        local listenerName = entry.name .. suffix
 
-        d(string.format("  -> %s %s (Code: %d)", statusTag, entry.name, eventCode))
+        totalDefined = totalDefined + 1
+        if isActive then totalActive = totalActive + 1 end
+        d(string.format("  -> %s %s (Code: %d)", statusTag, listenerName, eventCode))
     end
 
-    d(string.format("Audit Summary: |cFFFF00%d/%d|r engine events active.", totalActive, totalDefined))
+    for eventCode, entry in pairs(eventRegistry) do
+        if entry.filters then
+            for _, filter in ipairs(entry.filters) do
+                AuditListener(eventCode, entry, filter)
+            end
+        else
+            AuditListener(eventCode, entry)
+        end
+    end
+
+    d(string.format("Audit Summary: |cFFFF00%d/%d|r engine listeners active.", totalActive, totalDefined))
 end
