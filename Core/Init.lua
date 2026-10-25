@@ -26,6 +26,7 @@ local function Initialize()
     -- Load Saved Variables
     this.accountWide = ZO_SavedVars:NewAccountWide(this.SettingsName, this.SettingsVersion, nil, this.defaultsAccount)
     this.character   = ZO_SavedVars:NewCharacterIdSettings(this.SettingsName, this.SettingsVersion, nil, this.defaultsCharacter)
+    this.state.isCurrencySettingsOpen = false
 
     -- Initialize modules
     this.InitCutsceneTicker()

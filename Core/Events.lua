@@ -177,7 +177,8 @@ function this.InitCutsceneTicker()
             local showCurrencies = this.HasVisibleCurrencyResources()
             local showCapacities = this.HasVisibleCapacityResources()
             local showInfo = showCurrencies or showCapacities
-            InventoryCompanion_CurrencyFloat:SetHidden((not showInfo) or inCutscene)
+            local shouldShowCurrencyPanel = this.state.isCurrencySettingsOpen or (showInfo and not inCutscene)
+            InventoryCompanion_CurrencyFloat:SetHidden(not shouldShowCurrencyPanel)
 
             if InventoryCompanion_BagBarFloat then
                 InventoryCompanion_BagBarFloat:SetHidden((not this.accountWide.showBagBar) or inCutscene)

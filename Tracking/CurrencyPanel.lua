@@ -25,6 +25,8 @@ local hasVisibleCurrencies = false
 local hasVisibleCapacities = false
 local hasVisibleCappedCurrencies = false
 local malformedPreferenceWarnings = {}
+local RESOURCE_SETTINGS_ROW_HEIGHT = 34
+local RESOURCE_SETTINGS_ROW_GAP = 6
 
 local function OnCurrencyMoveStop(control)
     this.accountWide.currencyOffsetX = control:GetLeft()
@@ -304,12 +306,13 @@ local function MoveResource(entryKey, direction)
     for index, entry in ipairs(entries) do
         if entry.key == entryKey then currentIndex = index end
     end
-    if not currentIndex then return end
+    if not currentIndex then return false end
 
     local targetIndex = currentIndex + direction
-    if not entries[targetIndex] then return end
+    if not entries[targetIndex] then return false end
     entries[currentIndex], entries[targetIndex] = entries[targetIndex], entries[currentIndex]
     SaveEntryOrder(entries)
+    return true
 end
 
 function this.IsCurrencyResourceVisible(currencyType, location)
@@ -341,45 +344,84 @@ function this.HasVisibleCappedCurrencyResources()
     return hasVisibleCappedCurrencies
 end
 
-local function RefreshResourceSettingsRow(control)
-    local entry = control.resourceEntry
-    ZO_CheckButton_SetCheckState(control.visibilityCheck, IsResourceVisible(entry))
+local function RefreshResourceSettingsList(control)
+    for _, row in pairs(control.resourceRows) do
+        ZO_CheckButton_SetCheckState(row.visibilityCheck, IsResourceVisible(row.resourceEntry))
+    end
 end
 
-local function CreateResourceSettingsRow(control, entry)
-    control.resourceEntry = entry
+local function HighlightResourceSettingsRow(row)
+    row.highlightToken = (row.highlightToken or 0) + 1
+    local highlightToken = row.highlightToken
+    row.highlight:SetHidden(false)
+    zo_callLater(function()
+        if row.highlightToken == highlightToken then
+            row.highlight:SetHidden(true)
+        end
+    end, 2000)
+end
 
-    local icon = WINDOW_MANAGER:CreateControl(nil, control, CT_TEXTURE)
+local function ReorderResourceSettingsRows(control)
+    local entries = GetResourceEntries()
+    for index, entry in ipairs(entries) do
+        local row = control.resourceRows[entry.key]
+        row:ClearAnchors()
+        row:SetAnchor(TOPLEFT, control, TOPLEFT, 0, (index - 1) * (RESOURCE_SETTINGS_ROW_HEIGHT + RESOURCE_SETTINGS_ROW_GAP))
+    end
+end
+
+local function CreateResourceSettingsRow(control, entry, resourceList)
+    local row = WINDOW_MANAGER:CreateControl(nil, control, CT_CONTROL)
+    row:SetDimensions(control:GetWidth(), RESOURCE_SETTINGS_ROW_HEIGHT)
+    row.resourceEntry = entry
+    resourceList.resourceRows[entry.key] = row
+
+    local highlight = WINDOW_MANAGER:CreateControl(nil, row, CT_BACKDROP)
+    highlight:SetAnchorFill(row)
+    highlight:SetCenterTexture("EsoUI/Art/Tooltips/UI-TooltipCenter.dds")
+    highlight:SetCenterColor(0.9, 0.62, 0.05, 0.8)
+    highlight:SetEdgeTexture("EsoUI/Art/Tooltips/UI-Border.dds", 128, 16)
+    highlight:SetEdgeColor(1, 0.85, 0.2, 1)
+    highlight:SetInsets(4, 4, -4, -4)
+    highlight:SetDrawLayer(DL_CONTROLS)
+    highlight:SetDrawLevel(-1)
+    highlight:SetHidden(true)
+    row.highlight = highlight
+
+    local icon = WINDOW_MANAGER:CreateControl(nil, row, CT_TEXTURE)
     icon:SetDimensions(24, 24)
-    icon:SetAnchor(LEFT, control, LEFT, 0, 0)
+    icon:SetAnchor(LEFT, row, LEFT, 0, 0)
     icon:SetTexture(entry.texture or "")
-    control.resourceIcon = icon
+    row.resourceIcon = icon
 
-    local name = WINDOW_MANAGER:CreateControl(nil, control, CT_LABEL)
+    local name = WINDOW_MANAGER:CreateControl(nil, row, CT_LABEL)
     name:SetFont("ZoFontGame")
     name:SetColor(ZO_NORMAL_TEXT:UnpackRGBA())
     name:SetVerticalAlignment(TEXT_ALIGN_CENTER)
     name:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
     name:SetWrapMode(TEXT_WRAP_MODE_ELLIPSIS)
     name:SetAnchor(LEFT, icon, RIGHT, 8, 0)
-    name:SetAnchor(RIGHT, control, RIGHT, -151, 0)
+    name:SetAnchor(RIGHT, row, RIGHT, -151, 0)
     name:SetText(entry.kind == "currency"
         and string.format("%s (%s)", entry.name, entry.locationName)
         or entry.name .. " space")
-    control.resourceName = name
+    row.resourceName = name
 
     local function CreateArrowButton(text, tooltip, direction, rightOffset)
-        local button = WINDOW_MANAGER:CreateControlFromVirtual(nil, control, "ZO_DefaultButton")
+        local button = WINDOW_MANAGER:CreateControlFromVirtual(nil, row, "ZO_DefaultButton")
         button:SetDimensions(28, 26)
-        button:SetAnchor(RIGHT, control, RIGHT, -rightOffset, 0)
+        button:SetAnchor(RIGHT, row, RIGHT, -rightOffset, 0)
         button:SetText(text)
         button.data = { tooltipText = tooltip }
         button:SetClickSound("Click")
         button:SetHandler("OnMouseEnter", ZO_Options_OnMouseEnter)
         button:SetHandler("OnMouseExit", ZO_Options_OnMouseExit)
         button:SetHandler("OnClicked", function()
-            MoveResource(entry.key, direction)
-            this.RefreshCurrencyPanel()
+            if MoveResource(entry.key, direction) then
+                ReorderResourceSettingsRows(resourceList)
+                HighlightResourceSettingsRow(resourceList.resourceRows[entry.key])
+                this.RefreshCurrencyPanel()
+            end
         end)
         return button
     end
@@ -387,20 +429,20 @@ local function CreateResourceSettingsRow(control, entry)
     CreateArrowButton("↓", "Move this resource down", 1, 0)
     CreateArrowButton("↑", "Move this resource up", -1, 30)
 
-    local check = WINDOW_MANAGER:CreateControlFromVirtual(nil, control, "ZO_CheckButton")
-    check:SetAnchor(RIGHT, control, RIGHT, -66, 0)
+    local check = WINDOW_MANAGER:CreateControlFromVirtual(nil, row, "ZO_CheckButton")
+    check:SetAnchor(RIGHT, row, RIGHT, -66, 0)
     check.data = { tooltipText = "Show this resource in the compact grid" }
     check:SetHandler("OnMouseEnter", ZO_Options_OnMouseEnter)
     check:SetHandler("OnMouseExit", ZO_Options_OnMouseExit)
-    control.visibilityCheck = check
+    row.visibilityCheck = check
     ZO_CheckButton_SetToggleFunction(check, function(_, visible)
         SetEntryPreference(entry, visible)
         this.RefreshCurrencyPanel()
         this.UpdateEventRegistry()
     end)
-    RefreshResourceSettingsRow(control)
+    ZO_CheckButton_SetCheckState(check, IsResourceVisible(entry))
 
-    local showLabel = WINDOW_MANAGER:CreateControl(nil, control, CT_LABEL)
+    local showLabel = WINDOW_MANAGER:CreateControl(nil, row, CT_LABEL)
     showLabel:SetFont("ZoFontGameSmall")
     showLabel:SetColor(ZO_NORMAL_TEXT:UnpackRGBA())
     showLabel:SetVerticalAlignment(TEXT_ALIGN_CENTER)
@@ -409,31 +451,34 @@ local function CreateResourceSettingsRow(control, entry)
     showLabel:SetText("Show")
 end
 
+local function CreateResourceSettingsList(control, entries)
+    control.resourceRows = {}
+    for _, entry in ipairs(entries) do
+        CreateResourceSettingsRow(control, entry, control)
+    end
+    ReorderResourceSettingsRows(control)
+end
+
 function this.GetCurrencyPanelSettingsControls()
     local entries = this.GetCurrencyPanelResourceEntries()
+    local listHeight = #entries * RESOURCE_SETTINGS_ROW_HEIGHT + (#entries - 1) * RESOURCE_SETTINGS_ROW_GAP
     local controls = {
         {
             type = "description",
             text = "Choose which resources appear in the compact grid and adjust their order.",
         },
+        {
+            type = "custom",
+            reference = "InventoryCompanion_ResourceSettingsList",
+            minHeight = listHeight,
+            maxHeight = listHeight,
+            createFunc = function(control)
+                CreateResourceSettingsList(control, entries)
+            end,
+            refreshFunc = RefreshResourceSettingsList,
+        },
     }
 
-    local function AddResourceControls(entry)
-        table.insert(controls, {
-            type = "custom",
-            reference = "InventoryCompanion_ResourceSettings_" .. entry.key:gsub("[^%w]", "_"),
-            minHeight = 34,
-            maxHeight = 34,
-            createFunc = function(control)
-                CreateResourceSettingsRow(control, entry)
-            end,
-            refreshFunc = RefreshResourceSettingsRow,
-        })
-    end
-
-    for _, entry in ipairs(entries) do
-        AddResourceControls(entry)
-    end
     return controls
 end
 

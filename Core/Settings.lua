@@ -349,7 +349,17 @@ function this.CreateSettingsPanel()
         registerForDefaults = true,
     }
 
-    LAM:RegisterAddonPanel("InventoryCompanionPanel", panelData)
+    local settingsPanel = LAM:RegisterAddonPanel("InventoryCompanionPanel", panelData)
+    CALLBACK_MANAGER:RegisterCallback("LAM-PanelOpened", function(panel)
+        if panel == settingsPanel then
+            this.state.isCurrencySettingsOpen = true
+        end
+    end)
+    CALLBACK_MANAGER:RegisterCallback("LAM-PanelClosed", function(panel)
+        if panel == settingsPanel then
+            this.state.isCurrencySettingsOpen = false
+        end
+    end)
 
     local optionsData = {
         {
