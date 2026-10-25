@@ -717,6 +717,130 @@ local function RunTests(arguments)
                 end,
             },
             {
+                name = "Profile import copies tracked items and rule overrides",
+                run = function()
+                    local savedAccountWide = this.accountWide
+                    local savedCharacter = this.character
+                    local savedSavedVariables = _G[this.SettingsName]
+                    local ok, err = pcall(function()
+                        local sourceProfile = {
+                            trackedItems = {
+                                [101] = {
+                                    link = "item-one",
+                                    icon = "icon-one",
+                                    mode = 3,
+                                    display = { show = false, notify = true, bank = true },
+                                },
+                                [102] = {
+                                    link = "item-two",
+                                    icon = "icon-two",
+                                    mode = 2,
+                                },
+                            },
+                            trackedRules = {
+                                baseline = {
+                                    displayName = "Renamed baseline",
+                                    patterns = { "Custom *" },
+                                    display = { show = false, notify = true, isHidden = true },
+                                },
+                                custom = {
+                                    displayName = "Custom group",
+                                    patterns = { "Other *" },
+                                },
+                            },
+                        }
+
+                        this.accountWide = {
+                            trackedItems = { [999] = { link = "old-item" } },
+                            trackedRules = { old = { patterns = { "Old *" } } },
+                        }
+                        this.character = { useCharacterItemList = false }
+                        _G[this.SettingsName] = {
+                            Default = {
+                                account = {
+                                    ["$AccountWide"] = sourceProfile,
+                                    sourceCharacter = sourceProfile,
+                                },
+                            },
+                        }
+
+                        Check(this.CopyProfile("sourceCharacter"), "A valid saved profile should import")
+                        local copiedItems = this.accountWide.trackedItems
+                        CheckEqual(CountEntries(copiedItems), 2, "Import should replace the destination item list")
+                        CheckEqual(copiedItems[101].link, "item-one", "Item link should be copied")
+                        CheckEqual(copiedItems[101].display.show, false, "Explicit hidden state should be copied")
+                        CheckEqual(copiedItems[101].display.notify, true, "Notification preference should be copied")
+                        CheckEqual(copiedItems[101].display.bank, true, "Bank preference should be copied")
+                        CheckEqual(copiedItems[102].display.show, true, "Legacy mode should retain its visible default")
+                        CheckEqual(copiedItems[102].display.notify, true, "Legacy notify mode should be normalized")
+
+                        local copiedRules = this.accountWide.trackedRules
+                        CheckEqual(CountEntries(copiedRules), 2, "Import should replace the destination rule list")
+                        CheckEqual(copiedRules.baseline.displayName, "Renamed baseline", "Rule name override should be copied")
+                        CheckEqual(copiedRules.baseline.patterns[1], "Custom *", "Rule patterns should be copied")
+                        CheckEqual(copiedRules.baseline.display.isHidden, true, "Rule display overrides should be copied")
+                        CheckEqual(copiedRules.custom.displayName, "Custom group", "Custom rule should be copied")
+                        Check(not this.CopyProfile("missingCharacter"), "An unknown profile should not import")
+                    end)
+                    this.accountWide = savedAccountWide
+                    this.character = savedCharacter
+                    _G[this.SettingsName] = savedSavedVariables
+                    if not ok then error(err) end
+                end,
+            },
+            {
+                name = "Tracked item count respects backpack and craft-bag scope",
+                run = function()
+                    local savedGetBagContents = this.Scanning.GetBagContents
+                    local savedIsESOPlusSubscriber = _G.IsESOPlusSubscriber
+                    local ok, err = pcall(function()
+                        local scanCalls = 0
+                        local scannedBagIds
+                        local entries = {
+                            { bagId = BAG_BACKPACK, itemId = 77, count = 2 },
+                            { bagId = BAG_BACKPACK, itemId = 88, count = 50 },
+                            { bagId = BAG_VIRTUAL, itemId = 77, count = 5 },
+                        }
+                        this.Scanning.GetBagContents = function(bagIds, selectFunc)
+                            scanCalls = scanCalls + 1
+                            scannedBagIds = bagIds
+                            local contents = {}
+                            for _, entry in ipairs(entries) do
+                                local bagMatches = false
+                                for _, bagId in ipairs(bagIds) do
+                                    if entry.bagId == bagId then
+                                        bagMatches = true
+                                        break
+                                    end
+                                end
+                                if bagMatches and (not selectFunc or selectFunc(entry)) then
+                                    table.insert(contents, entry)
+                                end
+                            end
+                            return contents
+                        end
+
+                        _G.IsESOPlusSubscriber = function() return true end
+                        CheckEqual(this.GetTrackedItemCount(77), 7, "Count should include backpack and craft-bag stacks")
+                        CheckEqual(#scannedBagIds, 2, "ESO+ scans should include two item bags")
+                        CheckEqual(scannedBagIds[1], BAG_BACKPACK, "Backpack should be scanned first")
+                        CheckEqual(scannedBagIds[2], BAG_VIRTUAL, "Craft bag should be included for ESO+")
+
+                        _G.IsESOPlusSubscriber = function() return false end
+                        CheckEqual(this.GetTrackedItemCount(77), 2, "Non-ESO+ count should include only backpack stacks")
+                        CheckEqual(#scannedBagIds, 1, "Non-ESO+ scans should use only one item bag")
+                        CheckEqual(scannedBagIds[1], BAG_BACKPACK, "Non-ESO+ scans should use the backpack")
+
+                        local callsBeforeMissingId = scanCalls
+                        CheckEqual(this.GetTrackedItemCount(nil), 0, "Missing item ID should return zero")
+                        CheckEqual(scanCalls, callsBeforeMissingId, "Missing item ID should not scan inventory")
+                    end)
+                    this.Scanning.GetBagContents = savedGetBagContents
+                    _G.IsESOPlusSubscriber = savedIsESOPlusSubscriber
+                    if not ok then error(err) end
+                end,
+            },
+            {
                 name = "Case-insensitive substring matching",
                 run = function()
                     Check(this.ItemMatchesRule("item-exact", "mundane rune"), "Expected case-insensitive exact match")
@@ -886,6 +1010,344 @@ local function RunTests(arguments)
                             slotUpdateLimitMs
                         )
                     )
+                end,
+            },
+            {
+                name = "Event listener transitions and refresh debounce",
+                run = function()
+                    local liveAccountWide = syntheticOriginal.accountWide
+                    local savedAutoMergeChests = liveAccountWide.autoMergeChests
+                    local savedShowTrackedItemsPanel = liveAccountWide.showTrackedItemsPanel
+                    -- Isolate settings changes from the live SavedVariables table.
+                    local eventTestAccountWide = {}
+                    for key, value in pairs(liveAccountWide) do
+                        eventTestAccountWide[key] = value
+                    end
+
+                    local listenerState = {
+                        visibleProgressBars = false,
+                        visibleCapacityResources = false,
+                        currencyResourcesToTrack = false,
+                        visibleCurrencyProgressBars = false,
+                        currencyNotifications = false,
+                        visibleCappedCurrencyResources = false,
+                        visibleCappedProgressBars = false,
+                        bagProgressBar = false,
+                        bankProgressBar = false,
+                        bagCapacity = false,
+                        bankCapacity = false,
+                    }
+                    local queryNames = {
+                        "HasVisibleProgressBars",
+                        "HasVisibleCapacityResources",
+                        "HasCurrencyResourcesToTrack",
+                        "HasVisibleCurrencyProgressBars",
+                        "HasCurrencyNotifications",
+                        "HasVisibleCappedCurrencyResources",
+                        "HasVisibleCappedProgressBars",
+                        "IsProgressBarVisible",
+                        "IsCapacityResourceVisible",
+                    }
+                    local savedQueries = {}
+                    for _, name in ipairs(queryNames) do
+                        savedQueries[name] = this[name]
+                    end
+
+                    local manager = EVENT_MANAGER
+                    local savedRegister = manager.RegisterForEvent
+                    local savedUnregister = manager.UnregisterForEvent
+                    local savedAddFilter = manager.AddFilterForEvent
+                    local managerProxy = setmetatable({}, { __index = manager })
+                    local registrationCalls = {}
+                    local unregistrationCalls = {}
+                    local filterCalls = {}
+                    local slotUpdateHandler
+
+                    managerProxy.RegisterForEvent = function(_, eventId, eventCode, handler)
+                        table.insert(registrationCalls, { eventId = eventId, eventCode = eventCode })
+                        if eventId == this.Name .. "_Event_SlotUpdate_Backpack" then
+                            slotUpdateHandler = handler
+                        end
+                        return savedRegister(manager, eventId, eventCode, handler)
+                    end
+                    managerProxy.UnregisterForEvent = function(_, eventId, eventCode)
+                        table.insert(unregistrationCalls, { eventId = eventId, eventCode = eventCode })
+                        return savedUnregister(manager, eventId, eventCode)
+                    end
+                    managerProxy.AddFilterForEvent = function(_, eventId, eventCode, filterType, filterValue)
+                        table.insert(filterCalls, {
+                            eventId = eventId,
+                            eventCode = eventCode,
+                            filterType = filterType,
+                            filterValue = filterValue,
+                        })
+                        return savedAddFilter(manager, eventId, eventCode, filterType, filterValue)
+                    end
+                    EVENT_MANAGER = managerProxy
+
+                    this.HasVisibleProgressBars = function() return listenerState.visibleProgressBars end
+                    this.HasVisibleCapacityResources = function() return listenerState.visibleCapacityResources end
+                    this.HasCurrencyResourcesToTrack = function() return listenerState.currencyResourcesToTrack end
+                    this.HasVisibleCurrencyProgressBars = function() return listenerState.visibleCurrencyProgressBars end
+                    this.HasCurrencyNotifications = function() return listenerState.currencyNotifications end
+                    this.HasVisibleCappedCurrencyResources = function() return listenerState.visibleCappedCurrencyResources end
+                    this.HasVisibleCappedProgressBars = function() return listenerState.visibleCappedProgressBars end
+                    this.IsProgressBarVisible = function(resourceKey)
+                        if resourceKey == "capacity:bag" then return listenerState.bagProgressBar end
+                        if resourceKey == "capacity:bank" then return listenerState.bankProgressBar end
+                        return false
+                    end
+                    this.IsCapacityResourceVisible = function(resourceKey)
+                        if resourceKey == "bag" then return listenerState.bagCapacity end
+                        if resourceKey == "bank" then return listenerState.bankCapacity end
+                        return false
+                    end
+
+                    local oldCallLater = zo_callLater
+                    local oldRemoveCallLater = zo_removeCallLater
+                    local scheduledCallbacks = {}
+                    local removedCallbacks = {}
+                    local nextCallbackId = 0
+                    local debounceRefreshes = { tracker = 0, currency = 0, progress = 0, slotUpdate = 0 }
+                    local savedHandleTrackedItemInventoryUpdate = this.HandleTrackedItemInventoryUpdate
+                    local savedRefreshItemTrackerPanel = this.RefreshItemTrackerPanel
+                    local savedRefreshCurrencyPanel = this.RefreshCurrencyPanel
+                    local savedRefreshResourceProgressBars = this.RefreshResourceProgressBars
+                    local testOk, testError = pcall(function()
+                        this.accountWide = eventTestAccountWide
+                        eventTestAccountWide.autoMergeChests = false
+                        eventTestAccountWide.showTrackedItemsPanel = false
+                        this.UpdateEventRegistry()
+
+                        local function ClearCalls()
+                            registrationCalls = {}
+                            unregistrationCalls = {}
+                            filterCalls = {}
+                        end
+                        local function HasEventCall(calls, eventId)
+                            for _, call in ipairs(calls) do
+                                if call.eventId == eventId then return true end
+                            end
+                            return false
+                        end
+                        local function CheckSlotListenersRegistered()
+                            local filtersBySuffix = {
+                                Backpack = BAG_BACKPACK,
+                                Virtual = BAG_VIRTUAL,
+                                Bank = BAG_BANK,
+                                SubscriberBank = BAG_SUBSCRIBER_BANK,
+                            }
+                            for suffix, bagId in pairs(filtersBySuffix) do
+                                local eventId = this.Name .. "_Event_SlotUpdate_" .. suffix
+                                Check(HasEventCall(registrationCalls, eventId), "Expected registration for " .. suffix .. " slot updates")
+                                local filterFound = false
+                                for _, filter in ipairs(filterCalls) do
+                                    if filter.eventId == eventId then
+                                        CheckEqual(filter.filterType, REGISTER_FILTER_BAG_ID, "Slot-update filter should match bag IDs")
+                                        CheckEqual(filter.filterValue, bagId, "Slot-update filter should use the expected bag")
+                                        filterFound = true
+                                        break
+                                    end
+                                end
+                                Check(filterFound, "Expected a bag filter for " .. suffix .. " slot updates")
+                            end
+                            CheckEqual(#filterCalls, 4, "Each slot-update listener should receive a bag filter")
+                        end
+
+                        ClearCalls()
+                        eventTestAccountWide.autoMergeChests = true
+                        this.UpdateEventRegistry()
+                        Check(
+                            HasEventCall(registrationCalls, this.Name .. "_Event_OpenBank"),
+                            "Enabling chest merging should register the bank-open listener"
+                        )
+
+                        ClearCalls()
+                        eventTestAccountWide.autoMergeChests = false
+                        this.UpdateEventRegistry()
+                        Check(
+                            HasEventCall(unregistrationCalls, this.Name .. "_Event_OpenBank"),
+                            "Disabling chest merging should unregister the bank-open listener"
+                        )
+
+                        ClearCalls()
+                        eventTestAccountWide.showTrackedItemsPanel = true
+                        this.UpdateEventRegistry()
+                        CheckSlotListenersRegistered()
+
+                        ClearCalls()
+                        eventTestAccountWide.showTrackedItemsPanel = false
+                        this.UpdateEventRegistry()
+                        CheckEqual(#unregistrationCalls, 4, "Hiding the tracker should unregister its four slot-update listeners")
+
+                        ClearCalls()
+                        listenerState.visibleCapacityResources = true
+                        listenerState.bagCapacity = true
+                        this.UpdateEventRegistry()
+                        CheckSlotListenersRegistered()
+                        Check(
+                            HasEventCall(registrationCalls, this.Name .. "_Event_BagCapacity"),
+                            "Visible backpack capacity should register its capacity listener"
+                        )
+                        Check(
+                            HasEventCall(registrationCalls, this.Name .. "_Event_BankCapacity") == false,
+                            "Hidden bank capacity should not register its capacity listener"
+                        )
+
+                        ClearCalls()
+                        listenerState.visibleCapacityResources = false
+                        listenerState.bagCapacity = false
+                        this.UpdateEventRegistry()
+                        CheckEqual(#unregistrationCalls, 5, "Hiding capacity indicators should unregister slot and bag-capacity listeners")
+
+                        ClearCalls()
+                        listenerState.visibleCapacityResources = true
+                        listenerState.bankCapacity = true
+                        this.UpdateEventRegistry()
+                        CheckSlotListenersRegistered()
+                        Check(
+                            HasEventCall(registrationCalls, this.Name .. "_Event_BankCapacity"),
+                            "Visible bank capacity should register its capacity listener"
+                        )
+                        Check(
+                            not HasEventCall(registrationCalls, this.Name .. "_Event_BagCapacity"),
+                            "Hidden backpack capacity should not register its capacity listener"
+                        )
+
+                        ClearCalls()
+                        listenerState.visibleCapacityResources = false
+                        listenerState.bankCapacity = false
+                        this.UpdateEventRegistry()
+                        CheckEqual(#unregistrationCalls, 5, "Hiding bank capacity should unregister slot and bank-capacity listeners")
+
+                        ClearCalls()
+                        listenerState.currencyResourcesToTrack = true
+                        listenerState.visibleCappedCurrencyResources = true
+                        this.UpdateEventRegistry()
+                        Check(
+                            HasEventCall(registrationCalls, this.Name .. "_Event_CurrencyUpdate"),
+                            "Tracked currencies should register currency updates"
+                        )
+                        Check(
+                            HasEventCall(registrationCalls, this.Name .. "_Event_CurrencyCapsChanged"),
+                            "Visible capped currencies should register cap-change updates"
+                        )
+
+                        ClearCalls()
+                        listenerState.currencyResourcesToTrack = false
+                        listenerState.visibleCappedCurrencyResources = false
+                        this.UpdateEventRegistry()
+                        CheckEqual(#unregistrationCalls, 2, "Hiding currency indicators should unregister both currency listeners")
+
+                        ClearCalls()
+                        listenerState.currencyNotifications = true
+                        this.UpdateEventRegistry()
+                        Check(
+                            HasEventCall(registrationCalls, this.Name .. "_Event_CurrencyUpdate"),
+                            "Enabled currency notifications should register currency updates"
+                        )
+                        ClearCalls()
+                        listenerState.currencyNotifications = false
+                        this.UpdateEventRegistry()
+                        Check(
+                            HasEventCall(unregistrationCalls, this.Name .. "_Event_CurrencyUpdate"),
+                            "Disabling currency notifications should unregister currency updates when nothing else needs them"
+                        )
+
+                        ClearCalls()
+                        listenerState.visibleProgressBars = true
+                        listenerState.bagProgressBar = true
+                        listenerState.visibleCurrencyProgressBars = true
+                        listenerState.visibleCappedProgressBars = true
+                        this.UpdateEventRegistry()
+                        CheckSlotListenersRegistered()
+                        Check(
+                            HasEventCall(registrationCalls, this.Name .. "_Event_BagCapacity"),
+                            "A visible backpack progress bar should register capacity updates"
+                        )
+                        Check(
+                            HasEventCall(registrationCalls, this.Name .. "_Event_CurrencyUpdate"),
+                            "A visible currency progress bar should register currency updates"
+                        )
+                        Check(
+                            HasEventCall(registrationCalls, this.Name .. "_Event_CurrencyCapsChanged"),
+                            "Visible capped progress bars should register cap-change updates"
+                        )
+                        Check(slotUpdateHandler ~= nil, "Expected the backpack slot-update handler to be registered")
+                        listenerState.visibleCapacityResources = true
+
+                        this.HandleTrackedItemInventoryUpdate = function()
+                            debounceRefreshes.slotUpdate = debounceRefreshes.slotUpdate + 1
+                        end
+                        this.RefreshItemTrackerPanel = function()
+                            debounceRefreshes.tracker = debounceRefreshes.tracker + 1
+                        end
+                        this.RefreshCurrencyPanel = function()
+                            debounceRefreshes.currency = debounceRefreshes.currency + 1
+                        end
+                        this.RefreshResourceProgressBars = function()
+                            debounceRefreshes.progress = debounceRefreshes.progress + 1
+                        end
+                        eventTestAccountWide.showTrackedItemsPanel = true
+                        zo_callLater = function(callback, delay)
+                            nextCallbackId = nextCallbackId + 1
+                            local callbackId = nextCallbackId
+                            scheduledCallbacks[callbackId] = {
+                                callback = function()
+                                    scheduledCallbacks[callbackId] = nil
+                                    callback()
+                                end,
+                                delay = delay,
+                            }
+                            return callbackId
+                        end
+                        zo_removeCallLater = function(callbackId)
+                            removedCallbacks[callbackId] = true
+                            scheduledCallbacks[callbackId] = nil
+                        end
+
+                        slotUpdateHandler(EVENT_INVENTORY_SINGLE_SLOT_UPDATE, BAG_BACKPACK, 1, false, nil, nil, 1)
+                        slotUpdateHandler(EVENT_INVENTORY_SINGLE_SLOT_UPDATE, BAG_BACKPACK, 2, false, nil, nil, 1)
+                        CheckEqual(nextCallbackId, 6, "Two slot updates should debounce three refresh actions")
+                        CheckEqual(CountEntries(scheduledCallbacks), 1, "Only the final debounced callback should remain scheduled")
+                        CheckEqual(CountEntries(removedCallbacks), 5, "Each newly enqueued action should cancel the prior callback")
+                        local finalCallback = scheduledCallbacks[nextCallbackId]
+                        CheckEqual(finalCallback.delay, 500, "Refresh debounce should retain the 500 ms delay")
+                        finalCallback.callback()
+                        CheckEqual(debounceRefreshes.slotUpdate, 2, "Each inventory event should update tracked-item notification state")
+                        CheckEqual(debounceRefreshes.tracker, 1, "A burst should refresh the tracker once")
+                        CheckEqual(debounceRefreshes.currency, 1, "A burst should refresh the currency panel once")
+                        CheckEqual(debounceRefreshes.progress, 1, "A burst should refresh progress bars once")
+                    end)
+
+                    for _, pending in pairs(scheduledCallbacks) do
+                        local cleanupOk, cleanupError = pcall(pending.callback)
+                        if not cleanupOk and testOk then
+                            testOk = false
+                            testError = "Failed to flush a pending synthetic refresh: " .. tostring(cleanupError)
+                        end
+                        break
+                    end
+
+                    EVENT_MANAGER = manager
+                    for name, query in pairs(savedQueries) do
+                        this[name] = query
+                    end
+                    this.HandleTrackedItemInventoryUpdate = savedHandleTrackedItemInventoryUpdate
+                    this.RefreshItemTrackerPanel = savedRefreshItemTrackerPanel
+                    this.RefreshCurrencyPanel = savedRefreshCurrencyPanel
+                    this.RefreshResourceProgressBars = savedRefreshResourceProgressBars
+                    zo_callLater = oldCallLater
+                    zo_removeCallLater = oldRemoveCallLater
+                    this.accountWide = liveAccountWide
+
+                    local restoreOk, restoreError = pcall(this.UpdateEventRegistry)
+                    if not restoreOk then
+                        error("Failed to restore live event listeners: " .. tostring(restoreError))
+                    end
+                    CheckEqual(liveAccountWide.autoMergeChests, savedAutoMergeChests, "Chest-merge setting should be unchanged after the test")
+                    CheckEqual(liveAccountWide.showTrackedItemsPanel, savedShowTrackedItemsPanel, "Tracker visibility setting should be unchanged after the test")
+                    if not testOk then error(testError) end
                 end,
             },
         }
