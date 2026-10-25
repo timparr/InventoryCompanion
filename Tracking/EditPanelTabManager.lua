@@ -15,21 +15,6 @@ local function SyncPanelGeometry(sourceWindow, targetWindow)
 end
 
 function this.UpdateEditorLayout()
-    local isItemOpen = InventoryCompanion_TrackedItemsWindow and not InventoryCompanion_TrackedItemsWindow:IsHidden()
-    local isGroupOpen = InventoryCompanion_GroupsWindow and not InventoryCompanion_GroupsWindow:IsHidden()
-
-    if isItemOpen and this.AdjustTrackerPositionForEditor then
-        this.AdjustTrackerPositionForEditor(InventoryCompanion_TrackedItemsWindow)
-    elseif isGroupOpen and this.AdjustTrackerPositionForEditor then
-        this.AdjustTrackerPositionForEditor(InventoryCompanion_GroupsWindow)
-    else
-        if this.RestoreTrackerPosition then
-            this.RestoreTrackerPosition()
-        end
-    end
-end
--- debug
-function this.UpdateEditorLayout()
     local itemWindow = InventoryCompanion_TrackedItemsWindow
     local groupWindow = InventoryCompanion_GroupsWindow
 

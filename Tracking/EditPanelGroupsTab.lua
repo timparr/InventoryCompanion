@@ -27,11 +27,6 @@ local function SanitizeGroupName(name)
     return name
 end
 
-local function HasRuleOverride(groupName)
-    local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
-    return savedRules and savedRules[groupName] ~= nil
-end
-
 local function HasMeaningfulOverride(groupId)
     local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
     if not savedRules or not savedRules[groupId] then return false end
@@ -219,38 +214,6 @@ local function GenerateUniqueGroupName(savedRules, baseName, excludeKey)
         end
         counter = counter + 1
     end
-end
-
-local function CommitGroupNameEdit(editBox, titleLabel, pencilBtn)
-    local rawText = editBox:GetText()
-    local sanitized = SanitizeGroupName(rawText)
-
-    if sanitized ~= "" and selectedGroupName then
-        local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
-        local basePredefined = this.preLoadedRulesets[selectedGroupName]
-
-        if basePredefined then
-            savedRules[selectedGroupName] = savedRules[selectedGroupName] or {}
-            savedRules[selectedGroupName].displayName = sanitized
-            savedRules[selectedGroupName].patterns = savedRules[selectedGroupName].patterns or basePredefined.patterns
-            savedRules[selectedGroupName].display = savedRules[selectedGroupName].display or {}
-            for k, v in pairs(basePredefined.display) do
-                if savedRules[selectedGroupName].display[k] == nil then
-                    savedRules[selectedGroupName].display[k] = v
-                end
-            end
-        else
-            savedRules[selectedGroupName] = savedRules[selectedGroupName] or {}
-            savedRules[selectedGroupName].displayName = sanitized
-            savedRules[selectedGroupName].patterns = savedRules[selectedGroupName].patterns or {}
-        end
-    end
-
-    editBox:SetHidden(true)
-    titleLabel:SetHidden(false)
-    pencilBtn:SetHidden(false)
-    this.RefreshGroupsEditor()
-    if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
 end
 
 local function CommitGroupNameEdit(editBox, titleLabel, pencilBtn)
@@ -601,46 +564,6 @@ local function InitNewGroupButton()
     btnNewGroup:SetHandler("OnClicked", function()
         local timestampKey = string.format("custom_%d", GetGameTimeMilliseconds())
         local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
-        
-        savedRules[timestampKey] = {
-            displayName = "New Group",
-            patterns = {},
-            display = {
-                show = true,
-                notify = false,
-                bank = false,
-                group = true,
-                isExpanded = true,
-                isHidden = false,
-            }
-        }
-        
-        selectedGroupName = timestampKey
-        this.RefreshGroupsEditor()
-
-        local rightPane = InventoryCompanion_GroupsWindowRightPane
-        local titleLabel = GetControl(rightPane, "GroupTitleLabel")
-        local editBox = GetControl(rightPane, "GroupEditBox")
-        local pencilBtn = GetControl(rightPane, "BtnEditGroupName")
-
-        editBox:SetText("New Group")
-        titleLabel:SetHidden(true)
-        pencilBtn:SetHidden(true)
-        editBox:SetHidden(false)
-        editBox:TakeFocus()
-        editBox:SelectAll()
-
-        this.RefreshItemTrackerPanel()
-    end)
-end
-
-local function InitNewGroupButton()
-    local topBar = GetControl(InventoryCompanion_GroupsWindow, "TopActionBar")
-    local btnNewGroup = GetControl(topBar, "BtnNewGroup")
-    
-    btnNewGroup:SetHandler("OnClicked", function()
-        local timestampKey = string.format("custom_%d", GetGameTimeMilliseconds())
-        local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
         local uniqueDisplayName = GenerateUniqueGroupName(savedRules, nil, nil)
         
         savedRules[timestampKey] = {
@@ -729,22 +652,6 @@ local function DoDeleteGroup(dialog)
         savedRules[data.groupId] = nil
     end
     selectedGroupName = nil
-    this.RefreshGroupsEditor()
-    if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
-    
-    zo_callLater(function() SetGameCameraUIMode(true) end, 50)
-end
-
-local function DoResetGroup(dialog)
-    local data = dialog.data
-    local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
-    local ruleEntry = savedRules[data.groupId]
-    if ruleEntry then
-        ruleEntry.displayName = nil
-        ruleEntry.patterns = nil
-		if ruleEntry.display then ruleEntry.display.isHidden = nil end --rulentryDisplay COULD legitimately be nil here because the user might have only changed the pattern or the name. this is therefore allowed unt
-    end
-    
     this.RefreshGroupsEditor()
     if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
     

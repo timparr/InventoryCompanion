@@ -38,28 +38,6 @@ local function ExecuteTransferInstruction(instruction)
     return false
 end
 
--- --untestd: fix item transers
--- local function ExecuteTransferInstruction(instruction)
-    -- local amount = instruction.amount or select(2, GetItemInfo(instruction.sourceBag, instruction.sourceSlot))
-    -- if not amount or amount <= 0 then return false end
-
-    -- local targetSlot = instruction.targetSlot
-    -- if not targetSlot then
-        -- targetSlot = FindTargetSlotForItem(instruction.targetBag, instruction.sourceBag, instruction.sourceSlot)
-    -- end
-
-    -- if not targetSlot then return false end
-
-    -- if CallSecureProtected("RequestMoveItem", instruction.sourceBag, instruction.sourceSlot, instruction.targetBag, targetSlot, amount) then
-        -- if instruction.message then
-            -- this.Utils.UserMessage(instruction.message, instruction.message)
-        -- end
-        -- return true
-    -- end
-
-    -- return false
--- end
-
 local function ProcessTransferQueue(queue, index)
     if not IsBankOpen() then return end
 
@@ -90,27 +68,6 @@ local function MapBagContentsByName(bagId)
     local slotMap = {}
     local contents = this.Scanning.GetBagContents({ bagId })
 
-    for _, itemData in ipairs(contents) do
-        local itemName = GetItemLinkName(itemData.link)
-        if itemName then
-            slotMap[itemName] = slotMap[itemName] or { slots = {} }
-
-            table.insert(slotMap[itemName].slots, {
-                slotIndex    = itemData.slotIndex,
-                currentCount = itemData.count,
-                maxCount     = itemData.maxCount,
-            })
-        end
-    end
-
-    return slotMap
-end
-
---DEBUG
-local function MapBagContentsByName(bagId)   
-    local slotMap = {}
-    local contents = this.Scanning.GetBagContents({ bagId })
-
     d(string.format("[IC Debug] MapBagContentsByName scanning bag ID: %d (Total items found: %d)", bagId, #contents))
 
     for _, itemData in ipairs(contents) do
@@ -129,58 +86,6 @@ local function MapBagContentsByName(bagId)
 
     return slotMap
 end
-
-local function BuildChestMergePlan(containerBagId)
-    d(string.format("[IC Debug] Building Chest Merge Plan for container bag: %d", containerBagId))
-    local chestMap = MapBagContentsByName(containerBagId)
-    local backpackMap = MapBagContentsByName(BAG_BACKPACK)
-
-    local commonItems = {}
-    for itemName, backpackEntry in pairs(backpackMap) do
-        if chestMap[itemName] then
-            d(string.format("[IC Debug] Common item match found between backpack and chest: '%s'", itemName))
-            commonItems[itemName] = backpackEntry
-        end
-    end
-
-    local mergePlan = {}
-
-    for itemName, backpackEntry in pairs(commonItems) do
-        local chestEntry = chestMap[itemName]
-
-        for _, backpackSlot in ipairs(backpackEntry.slots) do
-            local remainingSourceCount = backpackSlot.currentCount
-            local viableTargets = {}
-
-            for _, chestSlot in ipairs(chestEntry.slots) do
-                local availableSpace = chestSlot.maxCount - chestSlot.currentCount
-                if availableSpace > 0 then
-                    local amountToTransfer = math.min(remainingSourceCount, availableSpace)
-                    d(string.format("[IC Debug]   -> Stacking plan for '%s': Move %d from backpack slot %d to chest slot %s (Space available: %d)", itemName, amountToTransfer, backpackSlot.slotIndex, tostring(chestSlot.slotIndex), availableSpace))
-                    table.insert(viableTargets, {
-                        targetSlotIndex = chestSlot.slotIndex,
-                        transferAmount  = amountToTransfer,
-                    })
-
-                    remainingSourceCount = remainingSourceCount - amountToTransfer
-                    if remainingSourceCount <= 0 then break end
-                end
-            end
-
-            if #viableTargets > 0 then
-                table.insert(mergePlan, {
-                    itemName          = itemName,
-                    backpackSlotIndex = backpackSlot.slotIndex,
-                    targets           = viableTargets,
-                })
-            end
-        end
-    end
-
-    d(string.format("[IC Debug] Merge plan built with %d transfer actions.", #mergePlan))
-    return mergePlan
-end
---/DEBUG
 
 local function BuildChestMergePlan(containerBagId)
     local chestMap = MapBagContentsByName(containerBagId)

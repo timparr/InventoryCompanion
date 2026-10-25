@@ -102,10 +102,6 @@ function this.SetRuleFlag(ruleName, flagKey, value)
     savedRules[ruleName].display[flagKey] = value
 end
 
-function this.ClearRuleOverride(ruleName)
-    GetRawSavedRules()[ruleName] = nil
-end
-
 ------------------------------------------------------------------
 -- Profile Copying Logic
 ------------------------------------------------------------------
@@ -214,37 +210,6 @@ function this.ItemMatchesAnyRule(itemLink, patterns)
     return false
 end
 
-function this.GetRuleItemInstances(ruleData)
-    local instances = {}
-    local seenItemIds = {}
-    local patterns = ruleData.patterns or { ruleData.pattern }
-
-    local bagIdList = { BAG_BACKPACK }
-    if IsESOPlusSubscriber() then
-        table.insert(bagIdList, BAG_VIRTUAL)
-    end
-
-    local contents = this.Scanning.GetBagContents(bagIdList)
-    for _, itemData in ipairs(contents) do
-        if this.ItemMatchesAnyRule(itemData.link, patterns) then
-            local itemId = itemData.itemId
-            if itemId and itemId > 0 and not seenItemIds[itemId] then
-                seenItemIds[itemId] = true
-                table.insert(instances, {
-                    itemId = itemId,
-                    link = itemData.link,
-                    icon = itemData.icon,
-                    count = this.GetTrackedItemCount(itemId)
-                })
-            end
-        end
-    end
-
-    table.sort(instances, function(a, b) return a.link:lower() < b.link:lower() end)
-    return instances
-end
-
-
 ------------------------------------------------------------------
 -- Update Display List
 ------------------------------------------------------------------
@@ -318,26 +283,6 @@ function this.HandleTrackedItemInventoryUpdate(bagId, slotIndex, stackCountChang
 
         itemCountsCache[itemId] = currentCount
     end
-end
-
-function this.GetBankItemCount(itemId)
-    if not itemId then return 0 end
-
-    local bankBags = {
-        BAG_BANK,
-        BAG_SUBSCRIBER_BANK,       
-    }
-
-    local contents = this.Scanning.GetBagContents(bankBags, function(item)
-        return item.itemId == itemId
-    end)
-
-    local total = 0
-    for _, item in ipairs(contents) do
-        total = total + item.count
-    end
-
-    return total
 end
 
 ------------------------------------------------------------------
