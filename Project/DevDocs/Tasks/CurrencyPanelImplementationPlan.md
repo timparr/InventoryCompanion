@@ -21,7 +21,8 @@ The existing currency-specific requirements, including ESO validity checks and d
 - Represent each applicable currency/storage-location pair as a separate entry (for example, character and bank entries for a bankable currency). Each entry can be shown, hidden, and ordered independently.
 - Represent each account-wide currency with one account entry.
 - Display the amount and cap for the same location on each entry.
-- Order compact-grid entries with move-up/move-down controls in settings. Show enabled and disabled resources in separate lists/sections so users only need to order the entries they currently display. Keep each entry's saved order when disabled; when re-enabled, return it to that position. Append new eligible entries after existing ordered entries.
+- Order compact-grid entries with move-up/move-down controls in settings. Show IN entries in compact-grid order and OUT entries alphabetically. Only IN entries have move controls. Hiding an entry clears its saved order; showing it again appends it to the bottom of IN. New eligible entries appear in IN unless explicitly hidden.
+- Provide a reset control that restores the compact grid to gold, backpack space, and bank space only, clears resource ordering, and preserves the panel position and standalone-bar preferences.
 - For capped resources, make amount and cap available to the presentation and allow a progress bar.
 - Retain the existing bag and bank warning/danger thresholds as per-bar defaults (bag: 75% warning / 90% danger; bank: 80% warning / 95% danger). Let users configure warning and danger thresholds independently for each progress bar. When a change crosses the other threshold, the setter adjusts the other threshold to match, preserving the selected value.
 - **Bar colours (decided):** Let users choose each bar's normal/base fill colour, with optional global warning (amber) and danger (red) colours shared by all bars. This keeps resource identity visible in normal use while making alert semantics consistent.
@@ -37,27 +38,29 @@ Inventory Companion — Currency & Capacity Panel
 
 COMPACT GRID (3 columns)
 
-Shown in grid
-  [↑][↓] Currency A · Character  12,450/50,000  [Grid ✓] [Bar ✓] [Bar settings ▾]
+IN — Shown in grid
+  [icon] Currency A · Character  12,450/50,000  [Hide] [↑][↓] [Bar ✓] [Bar settings ▾]
              Warning at 75%   [────────●──]
              Danger at  90%   [──────────●]
              Normal colour   [colour picker]
-  [↑][↓] Currency B · Character       8,120     [Grid ✓] [Bar  ] [—]
-  [↑][↓] Currency C · Bank              950     [Grid ✓] [Bar  ] [—]
-  [↑][↓] Currency D · Character  24,800/100,000 [Grid ✓] [Bar ✓] [Bar settings ▸]
-  [↑][↓] Currency E · Character       2,675     [Grid ✓] [Bar  ] [—]
-  [↑][↓] Currency F · Character         410     [Grid ✓] [Bar  ] [—]
+  [icon] Currency B · Character       8,120     [Hide] [↑][↓] [Bar  ] [—]
+  [icon] Currency C · Bank              950     [Hide] [↑][↓] [Bar  ] [—]
+  [icon] Currency D · Character  24,800/100,000 [Hide] [↑][↓] [Bar ✓] [Bar settings ▸]
+  [icon] Currency E · Character       2,675     [Hide] [↑][↓] [Bar  ] [—]
+  [icon] Currency F · Character         410     [Hide] [↑][↓] [Bar  ] [—]
 
-Hidden from grid
-       Currency G · Character   3,400/10,000    [Grid  ] [Bar  ] [Bar settings ▸]
-       Currency H · Bank              1,200     [Grid  ] [Bar  ] [—]
+OUT — Hidden from grid (alphabetical)
+  [icon] Currency G · Character   3,400/10,000    [Show] [Bar  ] [Bar settings ▸]
+  [icon] Currency H · Bank              1,200     [Show] [Bar  ] [—]
+
+  [Reset Currency Panel Preferences]
 
 GLOBAL BAR ALERT COLOURS
   Warning / amber                  [colour picker]
   Danger / red                     [colour picker]
 ```
 
-`Grid` controls compact-panel visibility; `Bar` independently controls the standalone progress bar. Bar settings expose per-bar warning/danger thresholds and normal colour only when that bar is enabled. Grid ordering controls apply to shown entries; disabled entries retain their positions for when they are re-enabled. Bars are independently movable, so they have no ordering controls.
+`Hide` and `Show` move resources between IN and OUT. IN entries follow grid order and have move controls; OUT entries are alphabetical and have show controls only. Showing an OUT entry appends it to IN, while hiding an IN entry clears its saved order and moves it to OUT. The reset returns the grid to gold, backpack space, and bank space, without changing the panel position or standalone-bar preferences. `Bar` independently controls the standalone progress bar; its advanced settings expose per-bar warning/danger thresholds and normal colour only when that bar is enabled. Bars are independently movable, so they have no ordering controls.
 
 ## Needs Decision
 
@@ -137,8 +140,8 @@ Conceptual example:
 currencyPreferences = {
     [ESO_CURRENCY_TYPE] = {
         locations = {
-            [CURRENCY_LOCATION_CHARACTER] = { hidden = true, order = 3 },
-            [CURRENCY_LOCATION_BANK] = { order = 5 },
+            [CURRENCY_LOCATION_CHARACTER] = { hidden = true },
+            [CURRENCY_LOCATION_BANK] = { order = 2 },
         },
     },
 }
@@ -185,3 +188,10 @@ Threshold preferences apply only to bar-capable resources and should be omitted 
 - In-session currency-discovery watchers or reload prompts; ESO currency definitions are stable during a login session, so use the startup-discovered set.
 - Ordering standalone progress bars; each bar is independently movable.
 - Polling as a currency-refresh mechanism unless event investigation demonstrates that no suitable event-driven approach exists.
+
+## Appendix: Superseded Original Ordering Requirements
+
+The following wording was part of the original plan before the IN/OUT workflow was chosen. It is retained for decision history; the current UX decisions above take precedence.
+
+- “Order compact-grid entries with move-up/move-down controls in settings. Show enabled and disabled resources in separate lists/sections so users only need to order the entries they currently display. Keep each entry's saved order when disabled; when re-enabled, return it to that position. Append new eligible entries after existing ordered entries.”
+- “`Grid` controls compact-panel visibility; `Bar` independently controls the standalone progress bar. Bar settings expose per-bar warning/danger thresholds and normal colour only when that bar is enabled. Grid ordering controls apply to shown entries; disabled entries retain their positions for when they are re-enabled. Bars are independently movable, so they have no ordering controls.”

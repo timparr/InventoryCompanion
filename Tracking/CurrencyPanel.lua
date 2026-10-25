@@ -27,6 +27,8 @@ local hasVisibleCappedCurrencies = false
 local malformedPreferenceWarnings = {}
 local RESOURCE_SETTINGS_ROW_HEIGHT = 34
 local RESOURCE_SETTINGS_ROW_GAP = 6
+local ReorderResourceSettingsRows
+local resourceSettingsListControl
 
 local function OnCurrencyMoveStop(control)
     this.accountWide.currencyOffsetX = control:GetLeft()
@@ -220,6 +222,20 @@ local function GetResourceEntries()
     return entries
 end
 
+local function InitializeCurrencyPanelPreferences()
+    local isFirstInitialization = this.accountWide.currencyPreferences == nil
+    EnsurePreferences()
+    if not isFirstInitialization then return end
+
+    -- Keep the existing currency set out by default; currencies discovered in later sessions have no preference and remain visible.
+    for _, entry in ipairs(GetResourceEntries()) do
+        if entry.kind == "currency" and entry.currencyType ~= CURT_MONEY then
+            local preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, true)
+            preference.hidden = true
+        end
+    end
+end
+
 local function FormatAmount(amount)
     return FormatIntegerWithDigitGrouping(amount, ",", 3)
 end
@@ -288,8 +304,8 @@ local function SetEntryPreference(entry, visible)
     entry.isVisible = visible
 end
 
-local function SaveEntryOrder(entries)
-    for index, entry in ipairs(entries) do
+local function SaveVisibleEntryOrder(visibleEntries, allEntries)
+    for index, entry in ipairs(visibleEntries) do
         if entry.kind == "currency" then
             local preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, true)
             preference.order = index
@@ -298,21 +314,72 @@ local function SaveEntryOrder(entries)
             preference.order = index
         end
     end
+    for _, entry in ipairs(allEntries) do
+        if not entry.isVisible then
+            if entry.kind == "currency" then
+                local preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, false)
+                if preference then preference.order = nil end
+            else
+                local preference = GetCapacityPreference(entry.resourceKey, false)
+                if preference then preference.order = nil end
+            end
+        end
+    end
 end
 
 local function MoveResource(entryKey, direction)
     local entries = GetResourceEntries()
+    local visibleEntries = {}
     local currentIndex
     for index, entry in ipairs(entries) do
-        if entry.key == entryKey then currentIndex = index end
+        if entry.isVisible then
+            table.insert(visibleEntries, entry)
+            if entry.key == entryKey then currentIndex = #visibleEntries end
+        end
     end
     if not currentIndex then return false end
 
     local targetIndex = currentIndex + direction
-    if not entries[targetIndex] then return false end
-    entries[currentIndex], entries[targetIndex] = entries[targetIndex], entries[currentIndex]
-    SaveEntryOrder(entries)
+    if not visibleEntries[targetIndex] then return false end
+    visibleEntries[currentIndex], visibleEntries[targetIndex] = visibleEntries[targetIndex], visibleEntries[currentIndex]
+    SaveVisibleEntryOrder(visibleEntries, entries)
     return true
+end
+
+local function SetResourceVisibility(entryKey, visible)
+    local entries = GetResourceEntries()
+    local entry
+    local visibleEntries = {}
+    for _, resourceEntry in ipairs(entries) do
+        if resourceEntry.key == entryKey then
+            entry = resourceEntry
+        elseif resourceEntry.isVisible then
+            table.insert(visibleEntries, resourceEntry)
+        end
+    end
+    assert(entry, "Settings row is missing its resource entry")
+
+    SetEntryPreference(entry, visible)
+    if visible then
+        table.insert(visibleEntries, entry)
+    end
+    SaveVisibleEntryOrder(visibleEntries, entries)
+end
+
+local function ResetCurrencyPanelPreferences()
+    this.accountWide.currencyPreferences = {}
+    this.accountWide.capacityPreferences = {}
+
+    for _, entry in ipairs(GetResourceEntries()) do
+        if entry.kind == "currency" and entry.currencyType ~= CURT_MONEY then
+            local preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, true)
+            preference.hidden = true
+        end
+    end
+
+    ReorderResourceSettingsRows(resourceSettingsListControl)
+    this.RefreshCurrencyPanel()
+    this.UpdateEventRegistry()
 end
 
 function this.IsCurrencyResourceVisible(currencyType, location)
@@ -345,9 +412,7 @@ function this.HasVisibleCappedCurrencyResources()
 end
 
 local function RefreshResourceSettingsList(control)
-    for _, row in pairs(control.resourceRows) do
-        ZO_CheckButton_SetCheckState(row.visibilityCheck, IsResourceVisible(row.resourceEntry))
-    end
+    ReorderResourceSettingsRows(control)
 end
 
 local function HighlightResourceSettingsRow(row)
@@ -361,13 +426,48 @@ local function HighlightResourceSettingsRow(row)
     end, 2000)
 end
 
-local function ReorderResourceSettingsRows(control)
+ReorderResourceSettingsRows = function(control)
     local entries = GetResourceEntries()
-    for index, entry in ipairs(entries) do
-        local row = control.resourceRows[entry.key]
-        row:ClearAnchors()
-        row:SetAnchor(TOPLEFT, control, TOPLEFT, 0, (index - 1) * (RESOURCE_SETTINGS_ROW_HEIGHT + RESOURCE_SETTINGS_ROW_GAP))
+    local shownEntries = {}
+    local hiddenEntries = {}
+    for _, entry in ipairs(entries) do
+        if entry.isVisible then
+            table.insert(shownEntries, entry)
+        else
+            table.insert(hiddenEntries, entry)
+        end
     end
+    table.sort(hiddenEntries, function(left, right)
+        local leftName = string.lower(string.format("%s (%s)", left.name, left.locationName or ""))
+        local rightName = string.lower(string.format("%s (%s)", right.name, right.locationName or ""))
+        if leftName ~= rightName then
+            return leftName < rightName
+        end
+        return left.key < right.key
+    end)
+
+    control.shownHeader:SetText(string.format("Shown in panel (%d)", #shownEntries))
+    control.hiddenHeader:SetText(string.format("Not shown in panel (%d)", #hiddenEntries))
+    local nextY = RESOURCE_SETTINGS_ROW_HEIGHT + RESOURCE_SETTINGS_ROW_GAP
+    local function PlaceRows(resourceEntries, shown)
+        for index, entry in ipairs(resourceEntries) do
+            local row = control.resourceRows[entry.key]
+            row:ClearAnchors()
+            row:SetAnchor(TOPLEFT, control, TOPLEFT, 0, nextY)
+            row.visibilityButton:SetText(shown and "Hide" or "Show")
+            row.upButton:SetHidden(not shown)
+            row.downButton:SetHidden(not shown)
+            row.upButton:SetEnabled(index > 1)
+            row.downButton:SetEnabled(index < #resourceEntries)
+            nextY = nextY + RESOURCE_SETTINGS_ROW_HEIGHT + RESOURCE_SETTINGS_ROW_GAP
+        end
+    end
+    PlaceRows(shownEntries, true)
+    nextY = nextY + RESOURCE_SETTINGS_ROW_GAP
+    control.hiddenHeader:ClearAnchors()
+    control.hiddenHeader:SetAnchor(TOPLEFT, control, TOPLEFT, 0, nextY)
+    nextY = nextY + RESOURCE_SETTINGS_ROW_HEIGHT + RESOURCE_SETTINGS_ROW_GAP
+    PlaceRows(hiddenEntries, false)
 end
 
 local function CreateResourceSettingsRow(control, entry, resourceList)
@@ -407,10 +507,10 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
         or entry.name .. " space")
     row.resourceName = name
 
-    local function CreateArrowButton(text, tooltip, direction, rightOffset)
+    local function CreateArrowButton(text, tooltip, direction)
         local button = WINDOW_MANAGER:CreateControlFromVirtual(nil, row, "ZO_DefaultButton")
         button:SetDimensions(28, 26)
-        button:SetAnchor(RIGHT, row, RIGHT, -rightOffset, 0)
+        button:SetAnchor(RIGHT, row, RIGHT, direction < 0 and -30 or 0, 0)
         button:SetText(text)
         button.data = { tooltipText = tooltip }
         button:SetClickSound("Click")
@@ -426,33 +526,39 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
         return button
     end
 
-    CreateArrowButton("↓", "Move this resource down", 1, 0)
-    CreateArrowButton("↑", "Move this resource up", -1, 30)
+    row.downButton = CreateArrowButton("↓", "Move this entry down in the panel", 1)
+    row.upButton = CreateArrowButton("↑", "Move this entry up in the panel", -1)
 
-    local check = WINDOW_MANAGER:CreateControlFromVirtual(nil, row, "ZO_CheckButton")
-    check:SetAnchor(RIGHT, row, RIGHT, -66, 0)
-    check.data = { tooltipText = "Show this resource in the compact grid" }
-    check:SetHandler("OnMouseEnter", ZO_Options_OnMouseEnter)
-    check:SetHandler("OnMouseExit", ZO_Options_OnMouseExit)
-    row.visibilityCheck = check
-    ZO_CheckButton_SetToggleFunction(check, function(_, visible)
-        SetEntryPreference(entry, visible)
+    local visibilityButton = WINDOW_MANAGER:CreateControlFromVirtual(nil, row, "ZO_DefaultButton")
+    visibilityButton:SetDimensions(54, 26)
+    visibilityButton:SetAnchor(RIGHT, row, RIGHT, -66, 0)
+    visibilityButton:SetClickSound("Click")
+    visibilityButton:SetHandler("OnClicked", function()
+        SetResourceVisibility(entry.key, not IsResourceVisible(entry))
+        ReorderResourceSettingsRows(resourceList)
         this.RefreshCurrencyPanel()
         this.UpdateEventRegistry()
     end)
-    ZO_CheckButton_SetCheckState(check, IsResourceVisible(entry))
-
-    local showLabel = WINDOW_MANAGER:CreateControl(nil, row, CT_LABEL)
-    showLabel:SetFont("ZoFontGameSmall")
-    showLabel:SetColor(ZO_NORMAL_TEXT:UnpackRGBA())
-    showLabel:SetVerticalAlignment(TEXT_ALIGN_CENTER)
-    showLabel:SetHorizontalAlignment(TEXT_ALIGN_RIGHT)
-    showLabel:SetAnchor(RIGHT, check, LEFT, -4, 0)
-    showLabel:SetText("Show")
+    row.visibilityButton = visibilityButton
 end
 
 local function CreateResourceSettingsList(control, entries)
+    resourceSettingsListControl = control
     control.resourceRows = {}
+
+    local function CreateHeader(name)
+        local header = WINDOW_MANAGER:CreateControl(nil, control, CT_LABEL)
+        header:SetDimensions(control:GetWidth(), RESOURCE_SETTINGS_ROW_HEIGHT)
+        header:SetFont("ZoFontWinH4")
+        header:SetColor(ZO_HIGHLIGHT_TEXT:UnpackRGBA())
+        header:SetVerticalAlignment(TEXT_ALIGN_CENTER)
+        header:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
+        header:SetText(name)
+        return header
+    end
+    control.shownHeader = CreateHeader("Shown in panel")
+    control.hiddenHeader = CreateHeader("Not shown in panel")
+
     for _, entry in ipairs(entries) do
         CreateResourceSettingsRow(control, entry, control)
     end
@@ -461,11 +567,19 @@ end
 
 function this.GetCurrencyPanelSettingsControls()
     local entries = this.GetCurrencyPanelResourceEntries()
-    local listHeight = #entries * RESOURCE_SETTINGS_ROW_HEIGHT + (#entries - 1) * RESOURCE_SETTINGS_ROW_GAP
+    local listHeight = (RESOURCE_SETTINGS_ROW_HEIGHT + RESOURCE_SETTINGS_ROW_GAP) * (#entries + 2) + RESOURCE_SETTINGS_ROW_GAP * 2
     local controls = {
         {
             type = "description",
-            text = "Choose which resources appear in the compact grid and adjust their order.",
+            text = "Choose which entries appear in the Currency Summary Panel. Use the arrows to reorder shown entries. Hidden entries are listed alphabetically.",
+        },
+        {
+            type = "button",
+            name = "Reset Panel",
+            tooltip = "Show only gold, backpack space, and bank space. Reset resource ordering; keep the panel position and standalone bars.",
+            warning = "This resets compact-grid visibility and ordering to defaults.",
+            isDangerous = true,
+            func = ResetCurrencyPanelPreferences,
         },
         {
             type = "custom",
@@ -483,7 +597,7 @@ function this.GetCurrencyPanelSettingsControls()
 end
 
 function this.InitCurrencyPanel()
-    EnsurePreferences()
+    InitializeCurrencyPanelPreferences()
     InventoryCompanion_CurrencyFloat:ClearAnchors()
     InventoryCompanion_CurrencyFloat:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, this.accountWide.currencyOffsetX or 50, this.accountWide.currencyOffsetY or 150)
     InventoryCompanion_CurrencyFloat:SetHandler("OnMoveStop", OnCurrencyMoveStop)

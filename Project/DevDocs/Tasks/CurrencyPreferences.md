@@ -13,15 +13,16 @@ The feature must tolerate currencies being added, removed, or renamed by ESO wit
 - `Tracking/CurrencyPanel.lua` renders a compact three-column grid of discovered currency/location entries and addon-defined backpack/bank capacity entries. The grid is movable and its position is saved account-wide.
 - `Banking/CurrencyHelper.lua` discovers currencies within `CURT_ITERATION_BEGIN` through `CURT_ITERATION_END`, filtering with `IsCurrencyValid` and `ShouldShowCurrencyInCurrencyPanel`. It exposes currency lists, current information, totals, cap information, and near-cap queries.
 - Account-wide `currencyPreferences` and `capacityPreferences` control compact-grid visibility and ordering. Currency refreshes use `EVENT_CURRENCY_UPDATE` and `EVENT_CURRENCY_CAPS_CHANGED` while currency entries are visible.
-- LibAddonMenu provides visibility and ordering controls for each discovered entry. Existing standalone backpack and bank progress bars remain unchanged.
-- This first implementation slice does not yet add currency progress bars, advanced per-bar settings, separate enabled/hidden settings lists, or invalid-ID preference pruning.
+- LibAddonMenu provides separate IN and OUT resource lists. Shown entries follow compact-grid order and can be reordered; hidden entries are alphabetical and have no order controls.
+- Hiding an entry removes its saved order. Showing it again appends it to the end of the IN list. The reset control restores gold, backpack space, and bank space as the only shown entries without changing the panel position or standalone bars.
+- Existing standalone backpack and bank progress bars remain unchanged. Currency progress bars, advanced per-bar settings, and invalid-ID preference pruning are not yet implemented.
 - `Core/Tests.lua` stores localized currency names by numeric ID in `currencyNamesById` and warns if a valid ID's observed name changes. That history is diagnostic metadata, separate from user preferences.
 
 ## 3. User Experience
 
 1. Keep gold, backpack-space, and bank-space indicators, with their existing visibility behavior as the initial defaults. This feature is unreleased, so old panel-specific preference values do not need migration and may be reset.
 2. Add a compact three-column grid for ESO currencies that are valid and eligible for display, matching the existing panel's compact inline presentation. Configurable items-per-row is a future consideration, not part of the initial implementation.
-3. Let users enable/disable individual currency/location entries. In settings, show enabled and disabled entries in separate lists. Use move-up/move-down controls to order enabled compact-grid entries. Preserve an entry's order when disabled so it returns to the same position when re-enabled; append new eligible entries after existing ordered entries.
+3. Let users show/hide individual currency/location entries in separate IN and OUT lists. IN follows compact-grid order and has move-up/move-down controls. OUT is alphabetical and has no ordering controls. Hiding an entry clears its order; showing it again appends it to the bottom of IN. New eligible entries appear in IN unless explicitly hidden.
 4. For currencies available in multiple storage locations, show separate entries for each applicable location (for example, character and bank entries). Each entry displays the amount and cap for that same location and can be shown, hidden, and ordered independently. Account-wide currencies have a single account entry. Combined character-plus-bank totals are deferred beyond Phase 1.
 5. Do not require an active bank interaction to read currency amounts. Do not perform currency transfers or other mutations.
 6. New eligible currencies should be discoverable without an addon update. Unless the user has explicitly hidden them, new currencies should appear after existing ordered entries.
@@ -55,9 +56,9 @@ currencyPreferences = {
 Requirements:
 
 - Top-level keys are numeric ESO currency type IDs; nested location keys are ESO currency storage locations.
-- Do not write entries for default visibility or automatic ordering.
+- Do not write entries for default visibility or automatic ordering. Hidden entries have no saved order.
 - Treat missing, malformed, or obsolete preference entries defensively. A malformed entry should be reported and skipped or normalized without discarding unrelated saved variables.
-- Apply explicit order values first; append entries with no saved order in deterministic ESO currency discovery and location order. Preserve ordering for disabled entries so re-enabling restores their position. Resolve duplicate or invalid order values deterministically.
+- Apply explicit order values first; append visible entries with no saved order in deterministic ESO currency discovery and location order. Resolve duplicate or invalid order values deterministically.
 - Continue to use `currencyNamesById` only for diagnostics; do not copy names into `currencyPreferences`.
 
 ## 6. Pruning and Migration
@@ -73,7 +74,7 @@ Requirements:
 
 - Add a currency-preferences section to the existing settings panel using current LibAddonMenu patterns.
 - Initialize currency discovery before building the settings controls. ESO currency definitions are stable during a logged-in session, so settings can use the startup-discovered list; no in-session currency-list watcher is required.
-- Provide separate enabled and disabled entry lists. Use move-up/move-down controls to order enabled compact-grid entries, preserving positions when entries are disabled and re-enabled.
+- Provide separate IN and OUT entry lists. IN follows compact-grid order and has move-up/move-down controls. OUT is alphabetical and has show controls only. Showing an OUT entry appends it to IN; hiding an IN entry clears its order. Include a reset control that restores only gold, backpack space, and bank space to IN while preserving the panel position and standalone-bar preferences.
 - Refresh the currency panel immediately after a preference changes.
 - Replace the unreleased panel-specific visibility controls with resource preferences; no compatibility migration for `showGold`, `showBag`, or `showBank` is required.
 - Keep currency discovery, preference normalization/pruning, and rendering separate: the helper supplies live ESO data; saved variables supply user choices; the panel combines them.
@@ -82,14 +83,15 @@ Requirements:
 
 ### Synthetic checks
 
-1. Missing preferences show all eligible currency/location entries in ESO discovery and location order.
-2. Hiding a currency/location entry omits only that entry; other locations and currencies remain visible.
-3. Explicit order values are respected; new currency/location entries without an order are appended.
-4. Duplicate, missing, or malformed order values produce deterministic output.
-5. Pruning removes an invalid currency ID but preserves valid hidden/order entries for every location.
-6. A valid currency omitted by `ShouldShowCurrencyInCurrencyPanel` retains its preferences.
-7. Unrelated account settings, character settings, tracked items, and tracked rules are unchanged by pruning.
-8. A currency name change for the same ID warns without deleting preferences; an unchanged name does not warn again.
+1. First initialization shows gold plus backpack and bank space; other currently discovered currencies start in OUT. A currency first discovered later appears in IN unless explicitly hidden.
+2. Hiding a currency/location entry moves it to the alphabetized OUT list and omits only that entry from the panel; other locations and currencies remain visible.
+3. Showing an OUT entry appends it to the bottom of IN; moving an IN entry updates both settings order and HUD order.
+4. Reset restores only gold, backpack space, and bank space to IN, resets their order, and preserves the panel position and standalone bars.
+5. Duplicate, missing, or malformed order values produce deterministic output.
+6. Pruning removes an invalid currency ID but preserves valid hidden/order entries for every location.
+7. A valid currency omitted by `ShouldShowCurrencyInCurrencyPanel` retains its preferences.
+8. Unrelated account settings, character settings, tracked items, and tracked rules are unchanged by pruning.
+9. A currency name change for the same ID warns without deleting preferences; an unchanged name does not warn again.
 
 ### In-game checks
 
@@ -101,4 +103,13 @@ Requirements:
 
 ## 9. Product Decisions Deferred Beyond Phase 1
 
-Combined character-plus-bank totals are deferred beyond Phase 1. Standalone progress bars remain independent movable windows with separately saved positions, preserving the existing bag/bank behavior. Compact-grid entries use move-up/move-down ordering in the settings panel; disabled entries retain their position, while newly discovered entries append. For remaining investigations, see [Currency Panel Implementation Plan](./CurrencyPanelImplementationPlan.md).
+Combined character-plus-bank totals are deferred beyond Phase 1. Standalone progress bars remain independent movable windows with separately saved positions, preserving the existing bag/bank behavior. Compact-grid entries use move-up/move-down ordering in the IN list; OUT entries are alphabetical and return to the bottom of IN when shown. For remaining investigations, see [Currency Panel Implementation Plan](./CurrencyPanelImplementationPlan.md).
+
+## Appendix: Superseded Original Ordering Requirements
+
+The following wording was part of the original specification before the IN/OUT workflow was chosen. It is retained for decision history; the current requirements above take precedence.
+
+- “Let users enable/disable individual currency/location entries. In settings, show enabled and disabled entries in separate lists. Use move-up/move-down controls to order enabled compact-grid entries. Preserve an entry's order when disabled so it returns to the same position when re-enabled; append new eligible entries after existing ordered entries.”
+- “Apply explicit order values first; append entries with no saved order in deterministic ESO currency discovery and location order. Preserve ordering for disabled entries so re-enabling restores their position. Resolve duplicate or invalid order values deterministically.”
+- “Provide separate enabled and disabled entry lists. Use move-up/move-down controls to order enabled compact-grid entries, preserving positions when entries are disabled and re-enabled.”
+- “Missing preferences show all eligible currency/location entries in ESO discovery and location order.”

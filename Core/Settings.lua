@@ -461,8 +461,8 @@ function this.CreateSettingsPanel()
         },
         {
             type = "submenu",
-            name = "Resources",
-            tooltip = "Choose which currencies and capacity values appear in the compact grid.",
+            name = "Currency Summary Panel",
+            tooltip = "Choose which currencies and capacity indicators appear in the Currency Summary Panel.",
             controls = this.GetCurrencyPanelSettingsControls(),
         },
         {
