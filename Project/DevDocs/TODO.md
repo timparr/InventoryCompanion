@@ -27,6 +27,9 @@
 * Audit and refine bank/chest transfer execution plans and stack merging helpers.
 
 
+* **B4.** **Low Priority — Craft-Bag Stow Tracker Refresh:**
+* Investigate why stowing an item from the backpack into the craft bag did not produce a logged slot event or immediately refresh the tracker in the current code. Harvesting directly into the craft bag works both before and after the event-filter change. Stowing/retrieving was not tested against the old code, so do not assume the filter change caused this behavior. Minor impact: users rarely take tracked items out of the craft bag, and the tracker may refresh shortly afterward through another event.
+
 
 ---
 

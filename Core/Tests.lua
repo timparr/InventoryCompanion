@@ -93,6 +93,54 @@ local function AuditCurrencyNames(accountWide)
     return currencyCount, namesChanged
 end
 
+local function RunBankItems(arguments)
+    if not this.state or not this.state.isLoaded then
+        d("[InventoryCompanion bank items] Addon is not fully loaded.")
+        return
+    end
+    if not IsBankOpen() then
+        d("[InventoryCompanion bank items] Open a bank or house chest before running this command.")
+        return
+    end
+
+    local limitText = tostring(arguments or ""):match("^%s*(.-)%s*$")
+    local limit = limitText == "" and 10 or tonumber(limitText)
+    if not limit or limit % 1 ~= 0 or limit < 1 or limit > 20 then
+        d("[InventoryCompanion bank items] Usage: /icbankitems [1-20]")
+        return
+    end
+
+    local bags = {
+        { id = BAG_BANK, label = "Standard bank" },
+        { id = BAG_SUBSCRIBER_BANK, label = "ESO Plus subscriber bank" },
+    }
+
+    for _, bag in ipairs(bags) do
+        if bag.id ~= BAG_SUBSCRIBER_BANK or IsESOPlusSubscriber() then
+            local contents = this.Scanning.GetBagContents({ bag.id })
+            d(string.format(
+                "[InventoryCompanion bank items] %s: %d occupied slots; listing up to %d.",
+                bag.label,
+                #contents,
+                limit
+            ))
+
+            for index = 1, math.min(#contents, limit) do
+                local item = contents[index]
+                d(string.format(
+                    "  x%s %s (item ID %s, slot %s)",
+                    tostring(item.count),
+                    GetItemLinkName(item.link) or item.link,
+                    tostring(item.itemId),
+                    tostring(item.slotIndex)
+                ))
+            end
+        else
+            d("[InventoryCompanion bank items] ESO Plus subscriber bank unavailable on this account.")
+        end
+    end
+end
+
 local function RunCleanup()
     if not this.state or not this.state.isLoaded then
         d("[InventoryCompanion cleanup] Addon is not fully loaded.")
@@ -688,3 +736,4 @@ end
 this.RunTests = RunTests
 SLASH_COMMANDS["/ictest"] = RunTests
 SLASH_COMMANDS["/icclean"] = RunCleanup
+SLASH_COMMANDS["/icbankitems"] = RunBankItems

@@ -233,7 +233,7 @@ function this.InitCutsceneTicker()
 end
 
 function this.DebugAudit()
-    d("|c50c878[IC Events Audit]|r Checking Registered Engine Listeners...")
+    local reportLines = { "[IC Events Audit] Checking Registered Engine Listeners..." }
 
     local totalDefined = 0
     local totalActive  = 0
@@ -247,7 +247,7 @@ function this.DebugAudit()
 
         totalDefined = totalDefined + 1
         if isActive then totalActive = totalActive + 1 end
-        d(string.format("  -> %s %s (Code: %d)", statusTag, listenerName, eventCode))
+        table.insert(reportLines, string.format("  -> %s %s (Code: %d)", statusTag, listenerName, eventCode))
     end
 
     for eventCode, entry in pairs(eventRegistry) do
@@ -260,5 +260,6 @@ function this.DebugAudit()
         end
     end
 
-    d(string.format("Audit Summary: |cFFFF00%d/%d|r engine listeners active.", totalActive, totalDefined))
+    table.insert(reportLines, string.format("Audit Summary: %d/%d engine listeners active.", totalActive, totalDefined))
+    error(table.concat(reportLines, "\n"), 0)
 end

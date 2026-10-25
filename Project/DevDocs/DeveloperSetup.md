@@ -32,3 +32,4 @@ git -C "$env:USERPROFILE\Documents\ESO-LuaLS-Generator" pull --ff-only
 
 - `/ictest [verbose] [copy]` runs diagnostic tests and live inventory scans. It does not intentionally modify saved variables.
 - `/icclean` explicitly prunes known diagnostic saved-variable leftovers and updates the currency-name diagnostic history.
+- `/icbankitems [1-20]` lists sample standard-bank and ESO Plus subscriber-bank contents while a bank or house chest is open. It is read-only.
