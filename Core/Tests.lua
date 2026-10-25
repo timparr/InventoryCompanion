@@ -294,6 +294,106 @@ local function RunTests(arguments)
 
         local tests = {
             {
+                name = "Progress bar resource model and preferences",
+                run = function()
+                    local savedPreferences = this.accountWide.progressBarPreferences
+                    local savedTestValue = this.accountWide.unrelatedProgressTestValue
+                    local ok, err = pcall(function()
+                        this.accountWide.progressBarPreferences = {}
+                        local resources = this.GetProgressBarResources()
+                        local resourcesByKey = {}
+                        local capacityCount = 0
+
+                        for _, resource in ipairs(resources) do
+                            Check(type(resource.key) == "string" and resource.key ~= "", "Progress resource needs a stable key")
+                            Check(not resourcesByKey[resource.key], "Progress resource keys must be unique")
+                            resourcesByKey[resource.key] = resource
+
+                            local values = this.GetProgressBarResourceValues(resource)
+                            Check(values ~= nil, "Progress resource values should be available")
+                            Check(type(values.amount) == "number", "Progress resource amount should be numeric")
+                            Check(type(values.cap) == "number" and values.cap > 0, "Progress resource cap should be positive")
+
+                            local settings = this.GetProgressBarSettings(resource.key)
+                            Check(type(settings.showBar) == "boolean", "Progress bar visibility default should be boolean")
+                            Check(
+                                settings.warningThreshold >= 0
+                                    and settings.warningThreshold <= settings.dangerThreshold
+                                    and settings.dangerThreshold <= 1,
+                                "Progress bar thresholds should be ordered within 0 to 1"
+                            )
+
+                            if resource.kind == "capacity" then
+                                capacityCount = capacityCount + 1
+                                CheckEqual(resource.defaultShowBar, true, "Capacity bars should preserve their visible defaults")
+                            else
+                                CheckEqual(resource.kind, "currency", "Progress resource kind should be capacity or currency")
+                                CheckEqual(resource.defaultShowBar, false, "Capped currency bars should default to hidden")
+                            end
+                        end
+
+                        CheckEqual(capacityCount, 2, "Expected backpack and bank capacity resources")
+                        local bag = resourcesByKey["capacity:bag"]
+                        local bank = resourcesByKey["capacity:bank"]
+                        Check(bag ~= nil and bank ~= nil, "Expected stable backpack and bank resource identities")
+                        CheckEqual(this.GetProgressBarSettings(bag.key).warningThreshold, 0.75, "Backpack warning default should be preserved")
+                        CheckEqual(this.GetProgressBarSettings(bag.key).dangerThreshold, 0.90, "Backpack danger default should be preserved")
+                        CheckEqual(this.GetProgressBarSettings(bank.key).warningThreshold, 0.80, "Bank warning default should be preserved")
+                        CheckEqual(this.GetProgressBarSettings(bank.key).dangerThreshold, 0.95, "Bank danger default should be preserved")
+
+                        for _, currencyType in ipairs(this.GetCappedCurrencyList()) do
+                            local key = "currency:" .. tostring(currencyType)
+                            Check(resourcesByKey[key] ~= nil, "Every capped ESO currency should have a progress resource")
+                            local info = this.GetCappedCurrencyInfo(currencyType)
+                            Check(info and type(info.amount) == "number" and type(info.cap) == "number", "Capped currency values should be numeric")
+                        end
+
+                        this.accountWide.unrelatedProgressTestValue = "preserved"
+                        this.SetProgressBarSetting(bag.key, "showBar", false)
+                        CheckEqual(this.GetProgressBarSettings(bag.key).showBar, false, "False visibility overrides should persist")
+                        CheckEqual(this.GetProgressBarSettings(bank.key).showBar, true, "Visibility preferences should be independent")
+                        for _, resource in ipairs(resources) do
+                            if resource.kind == "currency" then
+                                this.SetProgressBarSetting(resource.key, "showBar", true)
+                                CheckEqual(this.GetProgressBarSettings(resource.key).showBar, true, "Currency bars should be independently configurable")
+                                CheckEqual(this.GetProgressBarSettings(bag.key).showBar, false, "Currency preferences should not affect capacity bars")
+                                break
+                            end
+                        end
+
+                        this.SetProgressBarSetting(bag.key, "warningThreshold", 0.96)
+                        local settings = this.GetProgressBarSettings(bag.key)
+                        CheckEqual(settings.warningThreshold, 0.96, "Warning threshold change should be retained")
+                        CheckEqual(settings.dangerThreshold, 0.96, "Crossing warning should move danger to the selected value")
+                        this.SetProgressBarSetting(bag.key, "dangerThreshold", 0.20)
+                        settings = this.GetProgressBarSettings(bag.key)
+                        CheckEqual(settings.warningThreshold, 0.20, "Crossing danger should move warning to the selected value")
+                        CheckEqual(settings.dangerThreshold, 0.20, "Danger threshold change should be retained")
+
+                        this.accountWide.progressBarPreferences = {
+                            [bag.key] = { showBar = "invalid", warningThreshold = 1.5, dangerThreshold = 0.2 },
+                            ["capacity:future"] = { futureSetting = true },
+                        }
+                        settings = this.GetProgressBarSettings(bag.key)
+                        CheckEqual(settings.showBar, true, "Malformed visibility should fall back to the resource default")
+                        CheckEqual(settings.warningThreshold, 0.75, "Malformed threshold ordering should fall back to defaults")
+                        CheckEqual(settings.dangerThreshold, 0.90, "Malformed threshold ordering should fall back to defaults")
+                        CheckEqual(
+                            this.accountWide.progressBarPreferences["capacity:future"].futureSetting,
+                            true,
+                            "Unknown resource preferences should be preserved"
+                        )
+                        this.accountWide.progressBarPreferences = "malformed"
+                        CheckEqual(this.GetProgressBarSettings(bag.key).showBar, true, "Malformed preference tables should use resource defaults")
+                        Check(type(this.accountWide.progressBarPreferences) == "table", "Malformed preference tables should be recovered")
+                        CheckEqual(this.accountWide.unrelatedProgressTestValue, "preserved", "Unrelated saved variables should remain unchanged")
+                    end)
+                    this.accountWide.progressBarPreferences = savedPreferences
+                    this.accountWide.unrelatedProgressTestValue = savedTestValue
+                    if not ok then error(err) end
+                end,
+            },
+            {
                 name = "Prune known saved-variable diagnostic keys only",
                 run = function()
                     local accountWide = {
@@ -343,9 +443,20 @@ local function RunTests(arguments)
                             Check(entry.isVisible, "Resources should be visible by default")
                             if entry.kind == "currency" and not currencyEntry then
                                 currencyEntry = entry
+                            elseif entry.kind == "capacity" then
+                                CheckEqual(
+                                    this.IsCapacityResourceVisible(entry.resourceKey),
+                                    true,
+                                    "Capacity resources should be visible by default"
+                                )
                             end
                         end
                         Check(currencyEntry ~= nil, "Expected a discovered currency resource")
+
+                        this.accountWide.capacityPreferences.bag = { showCompact = false }
+                        CheckEqual(this.IsCapacityResourceVisible("bag"), false, "A hidden backpack capacity should report hidden")
+                        this.accountWide.capacityPreferences.bag.showCompact = nil
+                        CheckEqual(this.IsCapacityResourceVisible("bag"), true, "A shown backpack capacity should report visible")
 
                         this.accountWide.currencyPreferences[currencyEntry.currencyType] = {
                             locations = {

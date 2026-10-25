@@ -20,6 +20,7 @@ Core/Scanning.lua
 
 -- 2. Banking & Inventory Progress Modules
 Banking/CurrencyHelper.lua
+Banking/ProgressBarResources.lua
 Banking/CraftedItems.lua
 Banking/BankDatabase.lua
 Banking/BankTransfers.lua

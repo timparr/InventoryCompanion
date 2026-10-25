@@ -238,6 +238,9 @@ this.defaultsAccount = {
     bankBarOffsetX = 50,
     bankBarOffsetY = 130,
 
+    -- Standalone Progress Bars
+    progressBarPreferences = {},
+
     -- Threshold Percentages
     warningThresholdBag  = 0.75,
     dangerThresholdBag   = 0.90,

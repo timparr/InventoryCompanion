@@ -81,6 +81,10 @@
 * Gear set checks, quick deposit keybinds, and inter-character gear sync.
 
 
+* **D9.** **Additional Virtual Groups & Summary Panel:**
+* Explore virtual groups for self-crafted writ items and sellable items (junk), and allow groups to be summarized in the Currency Panel. Inspect the existing Miscellaneous virtual group before implementation and reuse or extend its behavior where appropriate. Consider renaming the Currency Panel to Summary Panel if it includes broader item/group summaries.
+
+
 
 ---
 
