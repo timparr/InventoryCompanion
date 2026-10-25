@@ -141,6 +141,11 @@ function this.GetProgressBarResources()
     return GetProgressBarResourceList()
 end
 
+function this.RefreshProgressBarResourceDiscovery()
+    progressBarResources = BuildProgressBarResourceList()
+    this.RefreshResourceProgressBars()
+end
+
 function this.GetProgressBarResourceValues(resource)
     assert(type(resource) == "table" and type(resource.key) == "string", "A progress bar resource descriptor is required")
 
@@ -286,4 +291,21 @@ end
 function this.InitializeProgressBarResources()
     EnsurePreferences()
     progressBarResources = BuildProgressBarResourceList()
+end
+
+function this.HasVisibleCurrencyProgressBars()
+    for _, resource in ipairs(this.GetProgressBarResources()) do
+        if resource.kind == "currency" and this.IsProgressBarVisible(resource.key) then
+            return true
+        end
+    end
+    return false
+end
+
+function this.IsCurrencyProgressBarVisible(currencyType)
+    return this.IsProgressBarVisible("currency:" .. tostring(currencyType))
+end
+
+function this.HasVisibleCappedProgressBars()
+    return this.HasVisibleCurrencyProgressBars()
 end

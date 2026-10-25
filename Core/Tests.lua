@@ -364,6 +364,8 @@ local function RunTests(arguments)
                             if resource.kind == "currency" then
                                 this.SetProgressBarSetting(resource.key, "showBar", true)
                                 CheckEqual(this.GetProgressBarSettings(resource.key).showBar, true, "Currency bars should be independently configurable")
+                                Check(this.HasVisibleCurrencyProgressBars(), "An enabled capped-currency bar should be discoverable by event registration")
+                                Check(this.IsCurrencyProgressBarVisible(resource.currencyType), "An enabled capped-currency bar should be individually discoverable")
                                 CheckEqual(this.GetProgressBarSettings(bag.key).showBar, false, "Currency preferences should not affect capacity bars")
                                 break
                             end

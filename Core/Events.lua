@@ -51,11 +51,11 @@ local function ShouldListenSlotUpdate()
 end
 
 local function ShouldListenCurrencyUpdates()
-    return this.HasCurrencyResourcesToTrack()
+    return this.HasCurrencyResourcesToTrack() or this.HasVisibleCurrencyProgressBars()
 end
 
 local function ShouldListenCurrencyCapUpdates()
-    return this.HasVisibleCappedCurrencyResources()
+    return this.HasVisibleCappedCurrencyResources() or this.HasVisibleCappedProgressBars()
 end
 
 local function ShouldListenBagCapacity()
@@ -95,19 +95,30 @@ local function OnInventorySlotUpdate(eventCode, bagId, slotIndex, isNewItem, ite
 end
 
 local function OnCurrencyUpdate(eventCode, currencyType, currencyLocation)
-    if not this.IsCurrencyResourceVisible(currencyType, currencyLocation) then
+    local shouldRefreshPanel = this.IsCurrencyResourceVisible(currencyType, currencyLocation)
+    local shouldRefreshBar = this.IsCurrencyProgressBarVisible(currencyType)
+    if not shouldRefreshPanel and not shouldRefreshBar then
         return
     end
     Enqueue("RefreshCurrency", function()
-        this.RefreshCurrencyPanel()
+        if shouldRefreshPanel then
+            this.RefreshCurrencyPanel()
+        end
+        if shouldRefreshBar then
+            this.RefreshResourceProgressBars()
+        end
         this.UpdateEventRegistry()
     end, 500)
 end
 
 local function OnCurrencyCapsChanged()
-    if this.HasVisibleCurrencyResources() then
-        Enqueue("RefreshCurrency", function()
-            this.RefreshCurrencyPanel()
+    if this.HasVisibleCurrencyResources() or this.HasVisibleCappedProgressBars() then
+        Enqueue("RefreshCurrencyAndProgress", function()
+            this.RefreshProgressBarResourceDiscovery()
+            if this.HasVisibleCurrencyResources() then
+                this.RefreshCurrencyPanel()
+            end
+            this.UpdateEventRegistry()
         end, 500)
     end
 end
