@@ -43,7 +43,7 @@ local function ShouldListenOpenBank()
 end
 
 local function ShouldListenSlotUpdate()
-    local showMeters   = this.accountWide.showBagBar or this.accountWide.showBankBar
+    local showMeters   = this.HasVisibleProgressBars()
     local showTracker  = this.accountWide.showTrackedItemsPanel ~= false
     local showCapacity = this.HasVisibleCapacityResources()
 
@@ -52,18 +52,20 @@ end
 
 local function ShouldListenCurrencyUpdates()
     return this.HasCurrencyResourcesToTrack()
+        or this.HasVisibleCurrencyProgressBars()
+        or this.HasCurrencyNotifications()
 end
 
 local function ShouldListenCurrencyCapUpdates()
-    return this.HasVisibleCappedCurrencyResources()
+    return this.HasVisibleCappedCurrencyResources() or this.HasVisibleCappedProgressBars()
 end
 
 local function ShouldListenBagCapacity()
-    return this.accountWide.showBagBar or this.IsCapacityResourceVisible("bag")
+    return this.IsProgressBarVisible("capacity:bag") or this.IsCapacityResourceVisible("bag")
 end
 
 local function ShouldListenBankCapacity()
-    return this.accountWide.showBankBar or this.IsCapacityResourceVisible("bank")
+    return this.IsProgressBarVisible("capacity:bank") or this.IsCapacityResourceVisible("bank")
 end
 
 local function OnBankOpened(eventCode, bankType)
@@ -87,34 +89,46 @@ local function OnInventorySlotUpdate(eventCode, bagId, slotIndex, isNewItem, ite
         end, 500)
     end
 
-    if this.accountWide.showBagBar or this.accountWide.showBankBar then
+    if this.HasVisibleProgressBars() then
         Enqueue("RefreshProgress", function()
-            this.RefreshProgressPanels()
+            this.RefreshResourceProgressBars()
         end, 500)
     end
 end
 
-local function OnCurrencyUpdate(eventCode, currencyType, currencyLocation)
-    if not this.IsCurrencyResourceVisible(currencyType, currencyLocation) then
+local function OnCurrencyUpdate(eventCode, currencyType, currencyLocation, newAmount, oldAmount, reason)
+    local shouldRefreshPanel = this.IsCurrencyResourceVisible(currencyType, currencyLocation)
+    local shouldRefreshBar = this.IsCurrencyProgressBarVisible(currencyType)
+    this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount, reason)
+    if not shouldRefreshPanel and not shouldRefreshBar then
         return
     end
     Enqueue("RefreshCurrency", function()
-        this.RefreshCurrencyPanel()
+        if shouldRefreshPanel then
+            this.RefreshCurrencyPanel()
+        end
+        if shouldRefreshBar then
+            this.RefreshResourceProgressBars()
+        end
         this.UpdateEventRegistry()
     end, 500)
 end
 
 local function OnCurrencyCapsChanged()
-    if this.HasVisibleCurrencyResources() then
-        Enqueue("RefreshCurrency", function()
-            this.RefreshCurrencyPanel()
+    if this.HasVisibleCurrencyResources() or this.HasVisibleCappedProgressBars() then
+        Enqueue("RefreshCurrencyAndProgress", function()
+            this.RefreshProgressBarResourceDiscovery()
+            if this.HasVisibleCurrencyResources() then
+                this.RefreshCurrencyPanel()
+            end
+            this.UpdateEventRegistry()
         end, 500)
     end
 end
 
 local function OnCapacityChanged()
     Enqueue("RefreshProgress", function()
-        this.RefreshProgressPanels()
+        this.RefreshResourceProgressBars()
     end, 500)
     if this.HasVisibleCapacityResources() then
         Enqueue("RefreshCurrency", function()
@@ -193,6 +207,12 @@ function this.UpdateEventRegistry()
     end
 end
 
+EVENT_MANAGER:RegisterForEvent(this.Name .. "_Event_PlayerActivated", EVENT_PLAYER_ACTIVATED, function()
+    if this.state and this.state.isLoaded then
+        this.BeginCurrencyNotificationSuppression()
+    end
+end)
+
 function this.InitCutsceneTicker()
     EVENT_MANAGER:RegisterForUpdate(this.Name .. "_HideCheck", 100, function()
         if ZO_CompassFrame then
@@ -221,13 +241,7 @@ function this.InitCutsceneTicker()
             local shouldShowCurrencyPanel = this.state.isCurrencySettingsOpen or (showInfo and not inCutscene)
             InventoryCompanion_CurrencyFloat:SetHidden(not shouldShowCurrencyPanel)
 
-            if InventoryCompanion_BagBarFloat then
-                InventoryCompanion_BagBarFloat:SetHidden((not this.accountWide.showBagBar) or inCutscene)
-            end
-
-            if InventoryCompanion_BankBarFloat then
-                InventoryCompanion_BankBarFloat:SetHidden((not this.accountWide.showBankBar) or inCutscene)
-            end
+            this.SetProgressBarsHidden(inCutscene)
         end
     end)
 end

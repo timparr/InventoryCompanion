@@ -671,6 +671,143 @@ function this.IsCurrencyResourceVisible(currencyType, location)
     return not (preference and preference.hidden == true)
 end
 
+function this.IsCurrencyNotificationEnabled(currencyType)
+    EnsurePreferences()
+    local preference = GetCurrencyPreference(currencyType, false)
+    if preference and preference.notify ~= nil and type(preference.notify) ~= "boolean" then
+        WarnMalformedPreference("currency notification flag for ID " .. tostring(currencyType) .. " must be boolean")
+    end
+    return preference ~= nil and preference.notify == true
+end
+
+function this.HasCurrencyNotifications()
+    for _, currencyType in ipairs(this.GetCurrencyList()) do
+        if this.IsCurrencyNotificationEnabled(currencyType) then
+            return true
+        end
+    end
+    return false
+end
+
+function this.SetCurrencyNotificationEnabled(currencyType, enabled)
+    assert(type(enabled) == "boolean", "Currency notification state must be boolean")
+    EnsurePreferences()
+    local preference = GetCurrencyPreference(currencyType, true)
+    preference.notify = enabled and true or nil
+    if enabled then
+        this.SeedCurrencyNotificationBaselines()
+    end
+    if next(preference) == nil then
+        this.accountWide.currencyPreferences[currencyType] = nil
+    end
+end
+
+-- Last-known balances per currency/location. ESO reports login balances as changes from 0,
+-- so notifications compare against this baseline instead of the event's old amount.
+local notificationBaselines = {}
+
+local function GetBaselineKey(currencyType, currencyLocation)
+    return tostring(currencyType) .. ":" .. tostring(currencyLocation)
+end
+
+function this.SetCurrencyNotificationBaseline(currencyType, currencyLocation, amount)
+    notificationBaselines[GetBaselineKey(currencyType, currencyLocation)] = amount
+end
+
+function this.SeedCurrencyNotificationBaselines()
+    for _, currencyType in ipairs(this.GetCurrencyList()) do
+        for _, location in ipairs({ CURRENCY_LOCATION_CHARACTER, CURRENCY_LOCATION_BANK, CURRENCY_LOCATION_ACCOUNT }) do
+            this.SetCurrencyNotificationBaseline(currencyType, location, GetCurrencyAmount(currencyType, location))
+        end
+    end
+end
+
+-- ESO re-sends balances after load screens (login, wayshrines), so changes are ignored briefly afterwards.
+local LOAD_SUPPRESSION_MS = 5000
+local suppressNotificationsUntil = 0
+
+-- Rapid changes (e.g. selling many items) are merged and announced once the balance has been quiet for this long.
+local NOTIFICATION_QUIET_MS = 1000
+local pendingNotifications = {}
+
+local function FlushCurrencyNotification(key)
+    local pending = pendingNotifications[key]
+    if not pending then return false end
+    pendingNotifications[key] = nil
+    if pending.timer then
+        zo_removeCallLater(pending.timer)
+    end
+    if pending.delta == 0 then return false end
+
+    local currencyName = GetCurrencyName(pending.currencyType, false, false)
+    local locationName = GetString("SI_CURRENCYLOCATION", pending.currencyLocation)
+    local direction = pending.delta > 0 and "Gained" or "Spent"
+    local changedText = (this.Utils.FormatBigNumber(math.abs(pending.delta)))
+    local totalText = (this.Utils.FormatBigNumber(pending.total))
+    this.Utils.UserWarning(
+        string.format("%s %s %s (%s total, %s)", direction, changedText, currencyName, totalText, locationName),
+        string.format("%s %s %s", direction, changedText, currencyName)
+    )
+    return true
+end
+
+function this.FlushCurrencyNotifications()
+    local flushed = false
+    local keys = {}
+    for key in pairs(pendingNotifications) do
+        keys[#keys + 1] = key
+    end
+    for _, key in ipairs(keys) do
+        flushed = FlushCurrencyNotification(key) or flushed
+    end
+    return flushed
+end
+
+function this.BeginCurrencyNotificationSuppression(now)
+    suppressNotificationsUntil = (now or GetGameTimeMilliseconds()) + LOAD_SUPPRESSION_MS
+    this.SeedCurrencyNotificationBaselines()
+    for key, pending in pairs(pendingNotifications) do
+        if pending.timer then
+            zo_removeCallLater(pending.timer)
+        end
+        pendingNotifications[key] = nil
+    end
+end
+
+-- Returns true when the change was queued; the announcement is sent after the quiet period.
+function this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount, reason, now)
+    if type(newAmount) ~= "number" then return false end
+
+    local key = GetBaselineKey(currencyType, currencyLocation)
+    local previousAmount = notificationBaselines[key]
+    notificationBaselines[key] = newAmount
+
+    local isInitialReport = CURRENCY_CHANGE_REASON_PLAYER_INIT ~= nil
+        and reason == CURRENCY_CHANGE_REASON_PLAYER_INIT
+    if isInitialReport
+        or (now or GetGameTimeMilliseconds()) < suppressNotificationsUntil
+        or previousAmount == nil
+        or previousAmount == newAmount
+        or not this.IsCurrencyNotificationEnabled(currencyType) then
+        return false
+    end
+
+    local pending = pendingNotifications[key]
+    if not pending then
+        pending = { currencyType = currencyType, currencyLocation = currencyLocation, delta = 0 }
+        pendingNotifications[key] = pending
+    elseif pending.timer then
+        zo_removeCallLater(pending.timer)
+    end
+    pending.delta = pending.delta + (newAmount - previousAmount)
+    pending.total = newAmount
+    pending.timer = zo_callLater(function()
+        pending.timer = nil
+        FlushCurrencyNotification(key)
+    end, NOTIFICATION_QUIET_MS)
+    return true
+end
+
 function this.IsCapacityResourceVisible(resourceKey)
     EnsurePreferences()
     local preference = GetCapacityPreference(resourceKey, false)
@@ -750,6 +887,12 @@ ReorderResourceSettingsRows = function(control)
                 if checkbox then
                     ZO_CheckButton_SetCheckState(checkbox, locationEntry.isVisible)
                 end
+            end
+            if row.notifyCheckbox then
+                ZO_CheckButton_SetCheckState(
+                    row.notifyCheckbox,
+                    this.IsCurrencyNotificationEnabled(entry.currencyType)
+                )
             end
             row.visibilityButton:SetText(shown and "Hide" or "Show")
             if entry.kind == "currency" and not entry.hasSelectedLocation and shown then
@@ -839,7 +982,14 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
     name:SetAnchor(LEFT, icon, RIGHT, 8, 0)
     local hasLocationCheckboxes = entry.kind == "currency"
         and entry.location ~= CURRENCY_LOCATION_ACCOUNT
-    name:SetAnchor(RIGHT, row, RIGHT, hasLocationCheckboxes and -390 or -130, 0)
+    local hasCurrencyNotifications = entry.kind == "currency"
+    name:SetAnchor(
+        RIGHT,
+        row,
+        RIGHT,
+        hasLocationCheckboxes and -480 or (hasCurrencyNotifications and -245 or -130),
+        0
+    )
     name:SetText(entry.kind == "currency" and entry.name or entry.name .. " space")
     row.resourceName = name
 
@@ -864,6 +1014,20 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
 
     row.downButton = CreateArrowButton("↓", "Move this entry down in the panel", 1)
     row.upButton = CreateArrowButton("↑", "Move this entry up in the panel", -1)
+
+    if hasCurrencyNotifications then
+        row.notifyCheckbox = CreateSettingsCheckbox(
+            row,
+            "Notify",
+            90,
+            hasLocationCheckboxes and -390 or -150,
+            this.IsCurrencyNotificationEnabled(entry.currencyType),
+            function(enabled)
+                this.SetCurrencyNotificationEnabled(entry.currencyType, enabled)
+                this.UpdateEventRegistry()
+            end
+        )
+    end
 
     if entry.kind == "currency" then
         local locationOptions = {
@@ -954,7 +1118,7 @@ function this.GetCurrencyPanelSettingsControls()
         },
         {
             type = "description",
-            text = "Choose which locations appear for each currency. Click a location label or checkbox to toggle it. Use Show/Hide to control the row and arrows to reorder shown resources. A shown currency with no selected locations remains in the list in red but contributes no HUD value.",
+            text = "Choose which locations appear for each currency. Click a location label or checkbox to toggle it. Use Notify for alerts on currency changes, Show/Hide to control the row, and arrows to reorder shown resources. A shown currency with no selected locations remains in the list in red but contributes no HUD value. Notifications work even when the currency is not shown in this panel.",
         },
         {
             type = "button",
@@ -981,6 +1145,7 @@ end
 
 function this.InitCurrencyPanel()
     InitializeCurrencyPanelPreferences()
+    this.SeedCurrencyNotificationBaselines()
     InventoryCompanion_CurrencyFloat:ClearAnchors()
     InventoryCompanion_CurrencyFloat:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, this.accountWide.currencyOffsetX or 50, this.accountWide.currencyOffsetY or 150)
     InventoryCompanion_CurrencyFloat:SetHandler("OnMoveStop", OnCurrencyMoveStop)

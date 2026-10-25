@@ -228,21 +228,9 @@ this.defaultsAccount = {
     currencyOffsetY = 150,
     currencyNamesById = {},
 
-    -- Standalone Bag Bar Window
-    showBagBar = true,
-    bagBarOffsetX = 50,
-    bagBarOffsetY = 90,
-
-    -- Standalone Bank Bar Window
-    showBankBar = true,
-    bankBarOffsetX = 50,
-    bankBarOffsetY = 130,
-
-    -- Threshold Percentages
-    warningThresholdBag  = 0.75,
-    dangerThresholdBag   = 0.90,
-    warningThresholdBank = 0.80,
-    dangerThresholdBank  = 0.95,
+    -- Standalone Progress Bars
+    progressBarPreferences = {},
+    progressBarAlertColors = {},
 }
 
 ------------------------------------------------------------------

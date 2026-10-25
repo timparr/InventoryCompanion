@@ -342,6 +342,232 @@ local function RunTests(arguments)
 
         local tests = {
             {
+                name = "Progress bar resource model and preferences",
+                run = function()
+                    local savedPreferences = this.accountWide.progressBarPreferences
+                    local savedAlertColors = this.accountWide.progressBarAlertColors
+                    local savedTestValue = this.accountWide.unrelatedProgressTestValue
+                    local ok, err = pcall(function()
+                        this.accountWide.progressBarPreferences = {}
+                        this.accountWide.progressBarAlertColors = {}
+                        local resources = this.GetProgressBarResources()
+                        local resourcesByKey = {}
+                        local capacityCount = 0
+
+                        for _, resource in ipairs(resources) do
+                            Check(type(resource.key) == "string" and resource.key ~= "", "Progress resource needs a stable key")
+                            Check(not resourcesByKey[resource.key], "Progress resource keys must be unique")
+                            resourcesByKey[resource.key] = resource
+
+                            local values = this.GetProgressBarResourceValues(resource)
+                            Check(values ~= nil, "Progress resource values should be available")
+                            Check(type(values.amount) == "number", "Progress resource amount should be numeric")
+                            Check(type(values.cap) == "number" and values.cap > 0, "Progress resource cap should be positive")
+
+                            local settings = this.GetProgressBarSettings(resource.key)
+                            Check(type(settings.showBar) == "boolean", "Progress bar visibility default should be boolean")
+                            Check(
+                                settings.warningThreshold >= 0
+                                    and settings.warningThreshold <= settings.dangerThreshold
+                                    and settings.dangerThreshold <= 1,
+                                "Progress bar thresholds should be ordered within 0 to 1"
+                            )
+
+                            if resource.kind == "capacity" then
+                                capacityCount = capacityCount + 1
+                                CheckEqual(resource.defaultShowBar, true, "Capacity bars should preserve their visible defaults")
+                            else
+                                CheckEqual(resource.kind, "currency", "Progress resource kind should be capacity or currency")
+                                CheckEqual(resource.defaultShowBar, false, "Capped currency bars should default to hidden")
+                            end
+                        end
+
+                        CheckEqual(capacityCount, 2, "Expected backpack and bank capacity resources")
+                        local bag = resourcesByKey["capacity:bag"]
+                        local bank = resourcesByKey["capacity:bank"]
+                        Check(bag ~= nil and bank ~= nil, "Expected stable backpack and bank resource identities")
+                        CheckEqual(this.GetProgressBarSettings(bag.key).warningThreshold, 0.75, "Backpack warning default should be preserved")
+                        CheckEqual(this.GetProgressBarSettings(bag.key).dangerThreshold, 0.90, "Backpack danger default should be preserved")
+                        CheckEqual(this.GetProgressBarSettings(bank.key).warningThreshold, 0.80, "Bank warning default should be preserved")
+                        CheckEqual(this.GetProgressBarSettings(bank.key).dangerThreshold, 0.95, "Bank danger default should be preserved")
+                        local originalNormalColor = this.GetProgressBarNormalColor(bag.key)
+                        this.SetProgressBarSetting(bag.key, "normalColor", { r = 0.1, g = 0.2, b = 0.3, a = 0.4 })
+                        local changedNormalColor = this.GetProgressBarSettings(bag.key).normalColor
+                        CheckEqual(changedNormalColor.r, 0.1, "Per-bar normal color should persist")
+                        CheckEqual(this.GetProgressBarSettings(bank.key).normalColor, nil, "Per-bar normal colors should be independent")
+                        this.SetProgressBarAlertColor("warning", { r = 0.7, g = 0.6, b = 0.2, a = 1 })
+                        CheckEqual(this.GetProgressBarAlertColor("warning").g, 0.6, "Shared warning color should persist")
+                        CheckEqual(this.GetProgressBarAlertColor("danger").r, 0.85, "Changing warning color should not alter danger color")
+                        Check(type(originalNormalColor) == "table", "Default normal color should be available to settings")
+                        CheckEqual(this.GetProgressBarSettings(bag.key).offsetX, 50, "Backpack default horizontal position should be stable")
+                        CheckEqual(this.GetProgressBarSettings(bag.key).offsetY, 90, "Backpack default vertical position should be stable")
+                        CheckEqual(this.GetProgressBarSettings(bank.key).offsetX, 50, "Bank default horizontal position should be stable")
+                        CheckEqual(this.GetProgressBarSettings(bank.key).offsetY, 130, "Bank default vertical position should be stable")
+                        this.SetProgressBarPosition(bag.key, 25, 35)
+                        CheckEqual(this.GetProgressBarSettings(bag.key).offsetX, 25, "Backpack position should persist independently")
+                        CheckEqual(this.GetProgressBarSettings(bag.key).offsetY, 35, "Backpack position should persist independently")
+                        CheckEqual(this.GetProgressBarSettings(bank.key).offsetY, 130, "Moving backpack should not move bank")
+
+                        for _, currencyType in ipairs(this.GetCappedCurrencyList()) do
+                            local key = "currency:" .. tostring(currencyType)
+                            Check(resourcesByKey[key] ~= nil, "Every capped ESO currency should have a progress resource")
+                            local info = this.GetCappedCurrencyInfo(currencyType)
+                            Check(info and type(info.amount) == "number" and type(info.cap) == "number", "Capped currency values should be numeric")
+                        end
+
+                        this.accountWide.unrelatedProgressTestValue = "preserved"
+                        this.SetProgressBarSetting(bag.key, "showBar", false)
+                        CheckEqual(this.GetProgressBarSettings(bag.key).showBar, false, "False visibility overrides should persist")
+                        CheckEqual(this.GetProgressBarSettings(bank.key).showBar, true, "Visibility preferences should be independent")
+                        for _, resource in ipairs(resources) do
+                            if resource.kind == "currency" then
+                                this.SetProgressBarSetting(resource.key, "showBar", true)
+                                CheckEqual(this.GetProgressBarSettings(resource.key).showBar, true, "Currency bars should be independently configurable")
+                                Check(this.HasVisibleCurrencyProgressBars(), "An enabled capped-currency bar should be discoverable by event registration")
+                                Check(this.IsCurrencyProgressBarVisible(resource.currencyType), "An enabled capped-currency bar should be individually discoverable")
+                                CheckEqual(this.GetProgressBarSettings(bag.key).showBar, false, "Currency preferences should not affect capacity bars")
+                                break
+                            end
+                        end
+
+                        this.SetProgressBarSetting(bag.key, "warningThreshold", 0.96)
+                        local settings = this.GetProgressBarSettings(bag.key)
+                        CheckEqual(settings.warningThreshold, 0.96, "Warning threshold change should be retained")
+                        CheckEqual(settings.dangerThreshold, 0.96, "Crossing warning should move danger to the selected value")
+                        this.SetProgressBarSetting(bag.key, "dangerThreshold", 0.20)
+                        settings = this.GetProgressBarSettings(bag.key)
+                        CheckEqual(settings.warningThreshold, 0.20, "Crossing danger should move warning to the selected value")
+                        CheckEqual(settings.dangerThreshold, 0.20, "Danger threshold change should be retained")
+
+                        this.accountWide.progressBarPreferences = {
+                            [bag.key] = { showBar = "invalid", warningThreshold = 1.5, dangerThreshold = 0.2 },
+                            ["capacity:future"] = { futureSetting = true },
+                        }
+                        settings = this.GetProgressBarSettings(bag.key)
+                        CheckEqual(settings.showBar, true, "Malformed visibility should fall back to the resource default")
+                        CheckEqual(settings.warningThreshold, 0.75, "Malformed threshold ordering should fall back to defaults")
+                        CheckEqual(settings.dangerThreshold, 0.90, "Malformed threshold ordering should fall back to defaults")
+                        CheckEqual(
+                            this.accountWide.progressBarPreferences["capacity:future"].futureSetting,
+                            true,
+                            "Unknown resource preferences should be preserved"
+                        )
+                        this.accountWide.progressBarPreferences = "malformed"
+                        CheckEqual(this.GetProgressBarSettings(bag.key).showBar, true, "Malformed preference tables should use resource defaults")
+                        Check(type(this.accountWide.progressBarPreferences) == "table", "Malformed preference tables should be recovered")
+                        CheckEqual(this.accountWide.unrelatedProgressTestValue, "preserved", "Unrelated saved variables should remain unchanged")
+                    end)
+                    this.accountWide.progressBarPreferences = savedPreferences
+                    this.accountWide.progressBarAlertColors = savedAlertColors
+                    this.accountWide.unrelatedProgressTestValue = savedTestValue
+                    if not ok then error(err) end
+                end,
+            },
+            {
+                name = "Currency notification preferences and changes",
+                run = function()
+                    local savedPreferences = this.accountWide.currencyPreferences
+                    local savedUserWarning = this.Utils.UserWarning
+                    local ok, err = pcall(function()
+                        local currencyTypes = this.GetCurrencyList()
+                        local currencyType = currencyTypes[1]
+                        Check(currencyType ~= nil, "Expected a currency for notification tests")
+                        this.accountWide.currencyPreferences = {}
+                        local notifications = {}
+                        this.Utils.UserWarning = function(chat, hud)
+                            table.insert(notifications, { chat = chat, hud = hud })
+                        end
+
+                        this.SetCurrencyNotificationEnabled(currencyType, true)
+                        Check(this.IsCurrencyNotificationEnabled(currencyType), "Currency notification preference should turn on")
+                        Check(this.HasCurrencyNotifications(), "Enabled currency notification should request an event listener")
+
+                        this.BeginCurrencyNotificationSuppression(0)
+                        local location = CURRENCY_LOCATION_CHARACTER
+                        this.SetCurrencyNotificationBaseline(currencyType, location, 20)
+                        Check(
+                            not this.NotifyCurrencyChange(currencyType, location, 20),
+                            "A login balance matching the baseline should not notify"
+                        )
+                        Check(not this.FlushCurrencyNotifications(), "Unchanged balances should queue nothing")
+                        CheckEqual(#notifications, 0, "Startup balances should not produce notifications")
+
+                        Check(this.NotifyCurrencyChange(currencyType, location, 25), "Positive currency changes should queue")
+                        CheckEqual(#notifications, 0, "Changes should be held until the quiet period ends")
+                        Check(this.FlushCurrencyNotifications(), "A held change should announce when flushed")
+                        CheckEqual(#notifications, 1, "One positive change should produce one notification")
+                        Check(notifications[1].chat:find("Gained 5", 1, true) ~= nil, "Gain should identify the amount gained")
+
+                        this.NotifyCurrencyChange(currencyType, location, 20)
+                        this.FlushCurrencyNotifications()
+                        CheckEqual(#notifications, 2, "A currency decrease should produce a notification")
+                        Check(
+                            notifications[2].chat:find("Spent 5", 1, true) ~= nil,
+                            "Currency decrease notification should identify the amount spent"
+                        )
+
+                        this.NotifyCurrencyChange(currencyType, location, 1020)
+                        this.NotifyCurrencyChange(currencyType, location, 2020)
+                        this.NotifyCurrencyChange(currencyType, location, 12020)
+                        CheckEqual(#notifications, 2, "A burst should not announce each change")
+                        this.FlushCurrencyNotifications()
+                        CheckEqual(#notifications, 3, "A burst should produce one combined notification")
+                        Check(
+                            notifications[3].chat:find("Gained 12k", 1, true) ~= nil
+                                and notifications[3].chat:find("12k total", 1, true) ~= nil,
+                            "Combined notification should use big-number formatting for the net change and total"
+                        )
+
+                        this.NotifyCurrencyChange(currencyType, location, 13020)
+                        this.NotifyCurrencyChange(currencyType, location, 12020)
+                        Check(not this.FlushCurrencyNotifications(), "Changes that cancel out should not announce")
+                        CheckEqual(#notifications, 3, "Net-zero bursts should add no notifications")
+
+                        local unseededLocation = CURRENCY_LOCATION_BANK
+                        this.SetCurrencyNotificationBaseline(currencyType, unseededLocation, nil)
+                        Check(
+                            not this.NotifyCurrencyChange(currencyType, unseededLocation, 500),
+                            "The first observed balance should initialize silently"
+                        )
+                        CheckEqual(#notifications, 3, "Initializing a balance should not add notifications")
+
+                        this.BeginCurrencyNotificationSuppression(1000)
+                        this.SetCurrencyNotificationBaseline(currencyType, location, 20)
+                        Check(
+                            not this.NotifyCurrencyChange(currencyType, location, 0, nil, 2000),
+                            "Balance reports shortly after a load screen should not notify"
+                        )
+                        Check(
+                            not this.NotifyCurrencyChange(currencyType, location, 20, nil, 3000),
+                            "Restored balances after a load screen should not notify"
+                        )
+                        Check(not this.FlushCurrencyNotifications(), "Load-screen reports should queue nothing")
+                        Check(
+                            this.NotifyCurrencyChange(currencyType, location, 25, nil, 7000),
+                            "Changes after the load window should queue"
+                        )
+                        this.FlushCurrencyNotifications()
+                        CheckEqual(#notifications, 4, "A change after the load window should notify")
+                        this.SetCurrencyNotificationBaseline(currencyType, location, 20)
+
+                        this.SetCurrencyNotificationEnabled(currencyType, false)
+                        Check(not this.HasCurrencyNotifications(), "Disabled currency notifications should release the event listener")
+                        this.SetCurrencyNotificationBaseline(currencyType, location, 20)
+                        Check(
+                            not this.NotifyCurrencyChange(currencyType, location, 30),
+                            "Disabled currency notifications should not emit messages"
+                        )
+                        this.FlushCurrencyNotifications()
+                        CheckEqual(#notifications, 4, "Disabled currency notification should not add messages")
+                    end)
+                    this.FlushCurrencyNotifications()
+                    this.SeedCurrencyNotificationBaselines()
+                    this.accountWide.currencyPreferences = savedPreferences
+                    this.Utils.UserWarning = savedUserWarning
+                    if not ok then error(err) end
+                end,
+            },
+            {
                 name = "Prune known saved-variable diagnostic keys only",
                 run = function()
                     local accountWide = {

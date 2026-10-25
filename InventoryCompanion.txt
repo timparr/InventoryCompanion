@@ -20,11 +20,12 @@ Core/Scanning.lua
 
 -- 2. Banking & Inventory Progress Modules
 Banking/CurrencyHelper.lua
+Banking/ProgressBarResources.lua
 Banking/CraftedItems.lua
 Banking/BankDatabase.lua
 Banking/BankTransfers.lua
-Banking/ProgressPanels.xml
-Banking/ProgressPanels.lua
+Banking/ResourceProgressBars.xml
+Banking/ResourceProgressBars.lua
 
 -- 3. Item & Currency Tracking Module
 Tracking/EditPanelItemsTab.xml

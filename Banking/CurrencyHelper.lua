@@ -63,6 +63,40 @@ function this.GetCurrencyList()
     return currencyTypes
 end
 
+function this.GetCappedCurrencyList()
+    local currencyTypes = {}
+    for currencyType = CURT_ITERATION_BEGIN, CURT_ITERATION_END do
+        if IsCurrencyValid(currencyType) then
+            local location = GetCurrencyPlayerStoredLocation(currencyType)
+            if IsCurrencyCapped(currencyType, location) then
+                table.insert(currencyTypes, currencyType)
+            end
+        end
+    end
+    return currencyTypes
+end
+
+function this.GetCappedCurrencyInfo(currencyType)
+    if not IsCurrencyValid(currencyType) then
+        return nil
+    end
+
+    local location = GetCurrencyPlayerStoredLocation(currencyType)
+    if not IsCurrencyCapped(currencyType, location) then
+        return nil
+    end
+
+    return {
+        currencyType = currencyType,
+        name = GetCurrencyName(currencyType, false, false),
+        keyboardTexture = GetCurrencyKeyboardIcon(currencyType),
+        gamepadTexture = GetCurrencyGamepadIcon(currencyType),
+        location = location,
+        amount = GetCurrencyAmount(currencyType, location),
+        cap = GetMaxPossibleCurrency(currencyType, location),
+    }
+end
+
 function this.GetInfo(currencyType)
     return GetCurrentInfo(FindCurrency(currencyType))
 end

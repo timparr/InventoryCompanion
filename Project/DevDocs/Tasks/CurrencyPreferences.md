@@ -16,7 +16,7 @@ The feature must tolerate currencies being added, removed, or renamed by ESO wit
 - LibAddonMenu provides separate IN and OUT resource lists, with one row per currency type. Bankable currencies have independent Character and Bank checkboxes; account-wide currencies have no location checkbox. A row-level Show/Hide control is independent of the selected locations. Shown rows follow compact-grid order and can be reordered; hidden rows are alphabetical in OUT.
 - Currency-level `showCompact` and `order` preferences control whether a currency row is in IN/OUT and its row order. Per-location `hidden` preferences independently select which values the compact cell displays. A shown currency with no selected value remains in IN, is marked red in settings, and contributes no HUD value until a location is selected.
 - Hiding an entry removes its saved order. Showing it again appends it to the end of the IN list. The reset control restores gold, backpack space, and bank space as the only shown entries without changing the panel position or standalone bars.
-- Existing standalone backpack and bank progress bars remain unchanged. Currency progress bars, advanced per-bar settings, and invalid-ID preference pruning are not yet implemented.
+- Standalone progress bars now use a reusable movable panel for backpack, bank, and capped-currency resources. Per-bar visibility, thresholds, and colors are being added in the progress-panel implementation plan. Currency notification preferences are stored separately from compact-grid visibility.
 - `Core/Tests.lua` stores localized currency names by numeric ID in `currencyNamesById` and warns if a valid ID's observed name changes. That history is diagnostic metadata, separate from user preferences.
 
 ## 3. User Experience
@@ -28,6 +28,7 @@ The feature must tolerate currencies being added, removed, or renamed by ESO wit
 5. Do not require an active bank interaction to read currency amounts. Do not perform currency transfers or other mutations.
 6. New eligible currencies should be discoverable without an addon update. Unless the user has explicitly hidden them, new currencies should appear after existing ordered entries.
 7. Add an account-wide `Show Empty Currencies` option, enabled by default, with a matching right-click panel-menu toggle. When disabled, show a currency cell only if at least one selected location has a balance greater than zero; retain both selected values in a combined cell if either one is positive. Apply the same rule to account-wide currencies, not to bag/bank capacity entries. Keep currency update listeners active for shown, selected locations even when their current balances are zero.
+8. Provide an independent Notify option per currency. Notify on every nonzero balance change, including gains and spends; a transfer may notify for both the source decrease and destination increase. Currency notifications remain active when their currency is hidden from the HUD and reuse the addon's existing notification and duplicate-suppression behavior.
 
 ## 4. Currency Discovery and Identity
 
@@ -47,6 +48,7 @@ currencyPreferences = {
     [currencyType] = {
         showCompact = true, -- absent means default-visible; false means row is in OUT
         order = 3,          -- row order shared by its selected locations
+        notify = true,      -- absent/false disables gain notifications
         locations = {
             [location] = {
                 hidden = true, -- absent/false means visible
