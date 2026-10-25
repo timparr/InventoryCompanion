@@ -391,9 +391,20 @@ local function RunTests(arguments)
                             Check(entry.isVisible, "Resources should be visible by default")
                             if entry.kind == "currency" and not currencyEntry then
                                 currencyEntry = entry
+                            elseif entry.kind == "capacity" then
+                                CheckEqual(
+                                    this.IsCapacityResourceVisible(entry.resourceKey),
+                                    true,
+                                    "Capacity resources should be visible by default"
+                                )
                             end
                         end
                         Check(currencyEntry ~= nil, "Expected a discovered currency resource")
+
+                        this.accountWide.capacityPreferences.bag = { showCompact = false }
+                        CheckEqual(this.IsCapacityResourceVisible("bag"), false, "A hidden backpack capacity should report hidden")
+                        this.accountWide.capacityPreferences.bag.showCompact = nil
+                        CheckEqual(this.IsCapacityResourceVisible("bag"), true, "A shown backpack capacity should report visible")
 
                         this.accountWide.currencyPreferences[currencyEntry.currencyType] = {
                             locations = {

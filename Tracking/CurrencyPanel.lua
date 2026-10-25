@@ -495,6 +495,7 @@ local function GetResourceSettingsRows(entries)
                 key = rowKey,
                 kind = entry.kind,
                 currencyType = entry.currencyType,
+                resourceKey = entry.resourceKey,
                 name = entry.name,
                 texture = entry.texture,
                 entries = {},
