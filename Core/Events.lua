@@ -99,15 +99,7 @@ end
 local function OnCurrencyUpdate(eventCode, currencyType, currencyLocation, newAmount, oldAmount)
     local shouldRefreshPanel = this.IsCurrencyResourceVisible(currencyType, currencyLocation)
     local shouldRefreshBar = this.IsCurrencyProgressBarVisible(currencyType)
-    local shouldNotify = this.IsCurrencyNotificationEnabled(currencyType)
-    if shouldNotify then
-        this.NotifyCurrencyChange(
-            currencyType,
-            currencyLocation,
-            newAmount,
-            oldAmount
-        )
-    end
+    this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount)
     if not shouldRefreshPanel and not shouldRefreshBar then
         return
     end

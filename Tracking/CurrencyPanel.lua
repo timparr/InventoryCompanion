@@ -693,22 +693,50 @@ function this.SetCurrencyNotificationEnabled(currencyType, enabled)
     EnsurePreferences()
     local preference = GetCurrencyPreference(currencyType, true)
     preference.notify = enabled and true or nil
+    if enabled then
+        this.SeedCurrencyNotificationBaselines()
+    end
     if next(preference) == nil then
         this.accountWide.currencyPreferences[currencyType] = nil
     end
 end
 
-function this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount, oldAmount)
-    if not this.IsCurrencyNotificationEnabled(currencyType)
-        or type(newAmount) ~= "number"
-        or type(oldAmount) ~= "number"
-        or newAmount == oldAmount then
+-- Last-known balances per currency/location. ESO reports login balances as changes from 0,
+-- so notifications compare against this baseline instead of the event's old amount.
+local notificationBaselines = {}
+
+local function GetBaselineKey(currencyType, currencyLocation)
+    return tostring(currencyType) .. ":" .. tostring(currencyLocation)
+end
+
+function this.SetCurrencyNotificationBaseline(currencyType, currencyLocation, amount)
+    notificationBaselines[GetBaselineKey(currencyType, currencyLocation)] = amount
+end
+
+function this.SeedCurrencyNotificationBaselines()
+    for _, currencyType in ipairs(this.GetCurrencyList()) do
+        for _, location in ipairs({ CURRENCY_LOCATION_CHARACTER, CURRENCY_LOCATION_BANK, CURRENCY_LOCATION_ACCOUNT }) do
+            this.SetCurrencyNotificationBaseline(currencyType, location, GetCurrencyAmount(currencyType, location))
+        end
+    end
+end
+
+function this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount)
+    if type(newAmount) ~= "number" then return false end
+
+    local key = GetBaselineKey(currencyType, currencyLocation)
+    local previousAmount = notificationBaselines[key]
+    notificationBaselines[key] = newAmount
+
+    if previousAmount == nil
+        or previousAmount == newAmount
+        or not this.IsCurrencyNotificationEnabled(currencyType) then
         return false
     end
 
     local currencyName = GetCurrencyName(currencyType, false, false)
     local locationName = GetString("SI_CURRENCYLOCATION", currencyLocation)
-    local delta = newAmount - oldAmount
+    local delta = newAmount - previousAmount
     local direction = delta > 0 and "Gained" or "Spent"
     local changedAmount = math.abs(delta)
     this.Utils.UserWarning(
@@ -1062,6 +1090,7 @@ end
 
 function this.InitCurrencyPanel()
     InitializeCurrencyPanelPreferences()
+    this.SeedCurrencyNotificationBaselines()
     InventoryCompanion_CurrencyFloat:ClearAnchors()
     InventoryCompanion_CurrencyFloat:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, this.accountWide.currencyOffsetX or 50, this.accountWide.currencyOffsetY or 150)
     InventoryCompanion_CurrencyFloat:SetHandler("OnMoveStop", OnCurrencyMoveStop)
