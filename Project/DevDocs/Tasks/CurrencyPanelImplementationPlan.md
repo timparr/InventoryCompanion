@@ -11,17 +11,17 @@ The existing currency-specific requirements, including ESO validity checks and d
 ## UX Decisions
 
 - Use the existing LibAddonMenu settings panel for Phase 1 resource configuration.
-- Provide one **Resources** settings section with a row for each currently available resource.
+- Provide one **Resources** settings section with one row per currency type. Bankable currencies have separate Character and Bank checkboxes; account-wide currencies have no location checkbox. Clicking an option's label toggles that checkbox. Every resource row has a separate Show/Hide control; backpack and bank capacity resources have their own rows.
 - Keep the compact HUD panel for glanceable values. Resources can be shown there, in a standalone progress bar, in both, or hidden.
 - Use a compact three-column grid for the initial HUD layout, matching the existing inline panel's compact feel.
 - Keep standalone bars optional rather than automatically creating a bar for every capped currency. This avoids clutter as ESO adds currencies.
 - Preserve current defaults: gold, backpack space, and bank space continue to appear as they do today, including the existing standalone backpack and bank bars.
 - Keep each enabled progress bar as an independently movable window with its own saved position. This preserves current bag/bank behavior; additional currency bars follow the same independent-window model in Phase 1.
 - Render gold once, sourced from ESO currency discovery.
-- Represent each applicable currency/storage-location pair as a separate settings entry (for example, character and bank entries for a bankable currency). Each entry can be shown, hidden, and ordered independently; the compact display may combine selected locations for the same currency.
+- Preserve each currency/storage-location pair as an independent saved value-selection preference (for example, character and bank); the single currency settings row exposes those preferences as separate checkboxes, while the compact display combines selected locations. Keep row-level Show/Hide and order separate from the location selections.
 - Represent each account-wide currency with one account entry.
 - Display the amount and cap for the same location on each entry.
-- Order compact-grid entries with move-up/move-down controls in settings. Show IN entries in compact-grid order and OUT entries alphabetically. Only IN entries have move controls. Hiding an entry clears its saved order; showing it again appends it to the bottom of IN. New eligible entries appear in IN unless explicitly hidden.
+- Order compact-grid resources with move-up/move-down controls in settings. A currency's IN/OUT state is separate from its location choices. A shown currency with no locations selected remains in IN, is marked red, and contributes no grid cell. Moving a currency row moves its selected locations together. Hidden rows are listed alphabetically in OUT. Only IN rows have move controls. New eligible currencies appear in IN unless explicitly hidden.
 - Provide a reset control that restores the compact grid to gold, backpack space, and bank space only, clears resource ordering, and preserves the panel position and standalone-bar preferences.
 - For capped resources, make amount and cap available to the presentation and allow a progress bar.
 - Retain the existing bag and bank warning/danger thresholds as per-bar defaults (bag: 75% warning / 90% danger; bank: 80% warning / 95% danger). Let users configure warning and danger thresholds independently for each progress bar. When a change crosses the other threshold, the setter adjusts the other threshold to match, preserving the selected value.
@@ -35,7 +35,11 @@ The first refinement is to restore a super-compact, single-line grid treatment: 
 
 When both character and bank entries for a currency are visible, render them in one cell as values divided by a middle dot; when only one is visible, show only that location's value. Account-wide currencies show a single value. Preserve separate visibility and ordering preferences for each location. Place a combined cell at the earlier of its selected locations' positions in the grid order.
 
-Size each grid column to fit its widest displayed value, subject to the compact minimum cell width. This allows combined amounts and cap percentages to remain legible while retaining three columns. Review in game whether the resulting column-width changes as amounts update are acceptable. The discussion of whether character and bank locations should remain separate settings entries is deferred; this display refinement does not change their identities or preferences.
+Size each grid column to fit its widest displayed value, subject to the compact minimum cell width. This allows combined amounts and cap percentages to remain legible while retaining three columns. Review in game whether the resulting column-width changes as amounts update are acceptable. Character and bank remain independent saved visibility options, shown as checkboxes in one currency settings row; their selected values combine in the compact display.
+
+## Future Refinement: Hide Zero-Balance Currencies
+
+Consider adding a panel option to show only currencies with a positive balance, following the item-tracking panel's `showEmptyTrackedItems` pattern: a toolbar toggle backed by an account-wide preference, with the current behavior (showing empty entries) as the default. When enabled, include a currency cell only if at least one of its selected locations has an amount greater than zero; for a combined character/bank cell, omit the entire cell only when all selected locations are zero. Apply the same rule to account-wide currencies. Keep this filter separate from row Show/Hide and location-selection preferences, and refresh the panel and currency event/listener state when the option changes. Do not apply the balance filter to bag/bank capacity indicators.
 
 ## Settings Panel Mockup
 
@@ -47,19 +51,19 @@ Inventory Companion — Currency & Capacity Panel
 COMPACT GRID (3 columns)
 
 IN — Shown in grid
-  [icon] Currency A · Character  12,450/50,000  [Hide] [↑][↓] [Bar ✓] [Bar settings ▾]
+  [icon] Currency A             [Character ✓] [Bank ✓] [Hide][↑][↓]
+       12,450 (25%) · 8,200 (16%)
              Warning at 75%   [────────●──]
              Danger at  90%   [──────────●]
              Normal colour   [colour picker]
-  [icon] Currency B · Character       8,120     [Hide] [↑][↓] [Bar  ] [—]
-  [icon] Currency C · Bank              950     [Hide] [↑][↓] [Bar  ] [—]
-  [icon] Currency D · Character  24,800/100,000 [Hide] [↑][↓] [Bar ✓] [Bar settings ▸]
-  [icon] Currency E · Character       2,675     [Hide] [↑][↓] [Bar  ] [—]
-  [icon] Currency F · Character         410     [Hide] [↑][↓] [Bar  ] [—]
+  [icon] Currency B             [Character ✓] [Bank  ] [Hide][↑][↓]
+       8,120
+  [icon] Currency C                                      [Hide][↑][↓]
+       950
 
 OUT — Hidden from grid (alphabetical)
-  [icon] Currency G · Character   3,400/10,000    [Show] [Bar  ] [Bar settings ▸]
-  [icon] Currency H · Bank              1,200     [Show] [Bar  ] [—]
+  [icon] Currency G             [Character ✓] [Bank  ] [Show]
+  [icon] Currency H                                      [Show]
 
   [Reset Currency Panel Preferences]
 
@@ -68,7 +72,7 @@ GLOBAL BAR ALERT COLOURS
   Danger / red                     [colour picker]
 ```
 
-`Hide` and `Show` move resources between IN and OUT. IN entries follow grid order and have move controls; OUT entries are alphabetical and have show controls only. Showing an OUT entry appends it to IN, while hiding an IN entry clears its saved order and moves it to OUT. The reset returns the grid to gold, backpack space, and bank space, without changing the panel position or standalone-bar preferences. `Bar` independently controls the standalone progress bar; its advanced settings expose per-bar warning/danger thresholds and normal colour only when that bar is enabled. Bars are independently movable, so they have no ordering controls.
+Each checkbox controls one storage location; clicking the checkbox text toggles the same option. Account-wide currencies have no location checkbox. Show/Hide controls whether a resource row is in IN or OUT, independently of currency location selections. If a shown currency has no selected locations, its name is red in settings and it contributes no value to the HUD until a location is selected. IN resource rows follow grid order and move as a unit; capacity rows use Show/Hide. The reset returns the grid to gold, backpack space, and bank space, without changing the panel position or standalone-bar preferences. `Bar` independently controls the standalone progress bar; its advanced settings expose per-bar warning/danger thresholds and normal colour only when that bar is enabled. Bars are independently movable, so they have no ordering controls.
 
 ## Needs Decision
 
@@ -171,8 +175,8 @@ Threshold preferences apply only to bar-capable resources and should be omitted 
 1. **Resource model:** Define a presentation-facing resource descriptor contract. Adapt ESO currency helper results and bag/bank capacity APIs without changing currency-only API semantics.
 2. **Preference normalization:** Add stable identities, default resolution, and deterministic ordering. Initialize preferences using the planned defaults and keep diagnostic currency-name history separate.
 3. **HUD presentation:** Render the compact resource panel from descriptors and preferences. Generalize progress bars for selected capped resources while retaining their independent movable windows and current defaults.
-4. **Settings UI:** Initialize currency discovery before creating the settings controls so resource rows use the session's discovered currency set. Add resource rows with visibility, compact/bar presentation, and simple reorder controls. Add per-resource thresholds only for standalone bars.
-5. **Pruning and diagnostics:** Extend `/ictest` to prune only invalid ESO currency preference IDs, preserve valid but currently undisplayable currencies, and leave addon capacity preferences and name history intact.
+4. **Settings UI:** Initialize currency discovery before creating the settings controls so resource rows use the session's discovered currency set. Add one row per currency type with independent location checkboxes whose labels are clickable; order shown currency rows as units. Keep capacity rows independently toggleable, and add per-resource thresholds only for standalone bars.
+5. **Pruning and diagnostics:** Extend `/icclean` to prune only invalid ESO currency preference IDs, preserve valid but currently undisplayable currencies, and leave addon capacity preferences and name history intact.
 6. **Verification:** Add synthetic checks for identity separation, defaults, ordering, malformed preferences, pruning, and preservation of unrelated data. Use the confirmed `EVENT_CURRENCY_UPDATE` path for currency refreshes; verify cap-change behavior if practical and that disabled entries do not keep unnecessary panel listeners active. Then verify settings persistence and HUD behavior.
 
 ## Acceptance Checks
@@ -182,6 +186,8 @@ Threshold preferences apply only to bar-capable resources and should be omitted 
 - Each applicable currency/location entry displays its matching amount and cap; account-wide currencies have one account entry.
 - A capped ESO currency can be displayed compactly and optionally as a standalone bar; uncapped currencies do not offer bar-only threshold controls.
 - Hiding, ordering, or configuring a resource does not change another resource's preferences.
+- Each currency has exactly one settings row; each location checkbox and its label changes only that location, and moving the row reorders its selected locations together.
+- A shown currency with no selected locations remains in IN, is marked red, and contributes no cell or currency-listener requirement to the HUD.
 - Invalid ESO currency preferences are pruned; valid but currently ineligible currency preferences and capacity preferences remain.
 - Unknown saved-variable keys and unrelated account, character, item, and rule data are preserved.
 - A newly eligible ESO currency appears automatically with defaults and no addon update.
@@ -202,4 +208,10 @@ Threshold preferences apply only to bar-capable resources and should be omitted 
 The following wording was part of the original plan before the IN/OUT workflow was chosen. It is retained for decision history; the current UX decisions above take precedence.
 
 - “Order compact-grid entries with move-up/move-down controls in settings. Show enabled and disabled resources in separate lists/sections so users only need to order the entries they currently display. Keep each entry's saved order when disabled; when re-enabled, return it to that position. Append new eligible entries after existing ordered entries.”
+
+## Appendix: Superseded Original Location-Selection Requirement
+
+The following wording is retained for decision history; the current UX decisions above take precedence.
+
+- “A currency with no locations selected is one OUT row, listed alphabetically. Account-wide currencies have an Account checkbox.”
 - “`Grid` controls compact-panel visibility; `Bar` independently controls the standalone progress bar. Bar settings expose per-bar warning/danger thresholds and normal colour only when that bar is enabled. Grid ordering controls apply to shown entries; disabled entries retain their positions for when they are re-enabled. Bars are independently movable, so they have no ordering controls.”

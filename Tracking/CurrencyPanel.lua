@@ -2,7 +2,6 @@ InventoryCompanion = InventoryCompanion or {}
 local this = InventoryCompanion
 
 local COLUMN_COUNT = 3
-local MIN_CELL_WIDTH = 84
 local CELL_HEIGHT = 24
 local CELL_GAP_X = 8
 local CELL_GAP_Y = 4
@@ -27,6 +26,7 @@ local hasVisibleCappedCurrencies = false
 local malformedPreferenceWarnings = {}
 local RESOURCE_SETTINGS_ROW_HEIGHT = 34
 local RESOURCE_SETTINGS_ROW_GAP = 6
+local settingsCheckboxControlId = 0
 local ReorderResourceSettingsRows
 local resourceSettingsListControl
 
@@ -106,6 +106,20 @@ local function GetCapacityPreference(resourceKey, create)
     return preference
 end
 
+local function GetCurrencyPreference(currencyType, create)
+    local currencyPreferences = this.accountWide.currencyPreferences
+    local preference = currencyPreferences[currencyType]
+    if type(preference) ~= "table" then
+        if preference ~= nil then
+            WarnMalformedPreference(string.format("currencyPreferences[%s] must be a table", tostring(currencyType)))
+        end
+        if not create then return nil end
+        preference = {}
+        currencyPreferences[currencyType] = preference
+    end
+    return preference
+end
+
 local function IsValidOrder(value)
     return type(value) == "number" and value > 0 and value < math.huge and value == math.floor(value)
 end
@@ -115,6 +129,14 @@ end
 local function GetResourceOrder(entry)
     local preference
     if entry.kind == "currency" then
+        local currencyPreference = GetCurrencyPreference(entry.currencyType, false)
+        if currencyPreference and currencyPreference.order ~= nil then
+            if not IsValidOrder(currencyPreference.order) then
+                WarnMalformedPreference("resource order for currency:" .. tostring(entry.currencyType) .. " must be a positive integer")
+            else
+                return currencyPreference.order
+            end
+        end
         preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, false)
     else
         preference = GetCapacityPreference(entry.resourceKey, false)
@@ -139,6 +161,25 @@ local function IsResourceVisible(entry)
         WarnMalformedPreference("compact visibility flag for " .. entry.key .. " must be boolean")
     end
     return not (preference and preference.showCompact == false)
+end
+
+local function IsCurrencySettingsRowVisible(currencyType)
+    local preference = GetCurrencyPreference(currencyType, false)
+    if preference and preference.showCompact ~= nil then
+        if type(preference.showCompact) ~= "boolean" then
+            WarnMalformedPreference("compact visibility flag for currency:" .. tostring(currencyType) .. " must be boolean")
+        else
+            return preference.showCompact
+        end
+    end
+
+    for _, location in ipairs({ CURRENCY_LOCATION_CHARACTER, CURRENCY_LOCATION_BANK, CURRENCY_LOCATION_ACCOUNT }) do
+        local locationPreference = GetCurrencyLocationPreference(currencyType, location, false)
+        if not (locationPreference and locationPreference.hidden == true) then
+            return true
+        end
+    end
+    return false
 end
 
 local function GetResourceEntries()
@@ -230,8 +271,10 @@ local function InitializeCurrencyPanelPreferences()
     -- Keep the existing currency set out by default; currencies discovered in later sessions have no preference and remain visible.
     for _, entry in ipairs(GetResourceEntries()) do
         if entry.kind == "currency" and entry.currencyType ~= CURT_MONEY then
-            local preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, true)
-            preference.hidden = true
+            local preference = GetCurrencyPreference(entry.currencyType, true)
+            preference.showCompact = false
+            local locationPreference = GetCurrencyLocationPreference(entry.currencyType, entry.location, true)
+            locationPreference.hidden = true
         end
     end
 end
@@ -315,32 +358,36 @@ local function GetVisibleGridEntries(resourceEntries)
     local gridEntries = {}
     local addedCurrencies = {}
     for _, entry in ipairs(resourceEntries) do
-        if entry.isVisible then
-            if entry.kind ~= "currency" then
-                table.insert(gridEntries, entry)
-            elseif entry.location == CURRENCY_LOCATION_ACCOUNT then
+        if entry.kind == "capacity" then
+            if entry.isVisible then table.insert(gridEntries, entry) end
+        elseif entry.location == CURRENCY_LOCATION_ACCOUNT then
+            if IsCurrencySettingsRowVisible(entry.currencyType) then
                 table.insert(gridEntries, {
                     kind = "currency",
                     name = entry.name,
                     texture = entry.texture,
                     currencyLocations = { entry },
                 })
-            elseif not addedCurrencies[entry.currencyType] then
-                addedCurrencies[entry.currencyType] = true
-                local currencyLocations = currencyEntriesByType[entry.currencyType]
-                local visibleLocations = {}
+            end
+        elseif not addedCurrencies[entry.currencyType] then
+            addedCurrencies[entry.currencyType] = true
+            local currencyLocations = currencyEntriesByType[entry.currencyType]
+            local visibleLocations = {}
+            if IsCurrencySettingsRowVisible(entry.currencyType) then
                 for _, location in ipairs({ CURRENCY_LOCATION_CHARACTER, CURRENCY_LOCATION_BANK }) do
                     local locationEntry = currencyLocations[location]
                     if locationEntry and locationEntry.isVisible then
                         table.insert(visibleLocations, locationEntry)
                     end
                 end
-                table.insert(gridEntries, {
-                    kind = "currency",
-                    name = entry.name,
-                    texture = entry.texture,
-                    currencyLocations = visibleLocations,
-                })
+                if #visibleLocations > 0 then
+                    table.insert(gridEntries, {
+                        kind = "currency",
+                        name = entry.name,
+                        texture = entry.texture,
+                        currencyLocations = visibleLocations,
+                    })
+                end
             end
         end
     end
@@ -353,7 +400,7 @@ local function GetOrCreateCell(index)
 
     local container = InventoryCompanion_CurrencyFloatContainer
     cell = WINDOW_MANAGER:CreateControl("InventoryCompanion_CurrencyFloatCell" .. index, container, CT_CONTROL)
-    cell:SetDimensions(MIN_CELL_WIDTH, CELL_HEIGHT)
+    cell:SetDimensions(0, CELL_HEIGHT)
     cell:SetMouseEnabled(true)
     cell:SetHandler("OnMouseEnter", ShowCellTooltip)
     cell:SetHandler("OnMouseExit", HideCellTooltip)
@@ -376,7 +423,7 @@ local function GetOrCreateCell(index)
     label:SetVerticalAlignment(TEXT_ALIGN_CENTER)
     label:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
     label:SetWrapMode(TEXT_WRAP_MODE_ELLIPSIS)
-    label:SetDimensions(MIN_CELL_WIDTH - 26, 20)
+    label:SetDimensions(0, 20)
     label:SetAnchor(TOPLEFT, icon, TOPRIGHT, 6, 0)
     label:SetMouseEnabled(false)
 
@@ -405,37 +452,101 @@ local function SetEntryPreference(entry, visible)
     entry.isVisible = visible
 end
 
-local function SaveVisibleEntryOrder(visibleEntries, allEntries)
-    for index, entry in ipairs(visibleEntries) do
-        if entry.kind == "currency" then
-            local preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, true)
+local function GetResourceSettingsRows(entries)
+    local rows = {}
+    local rowsByKey = {}
+
+    for index, entry in ipairs(entries) do
+        local rowKey = entry.kind == "currency"
+            and string.format("currency:%d", entry.currencyType)
+            or entry.key
+        local row = rowsByKey[rowKey]
+        if not row then
+            row = {
+                key = rowKey,
+                kind = entry.kind,
+                currencyType = entry.currencyType,
+                name = entry.name,
+                texture = entry.texture,
+                entries = {},
+                isVisible = false,
+                discoveryIndex = index,
+            }
+            if entry.kind == "currency" then
+                row.isVisible = IsCurrencySettingsRowVisible(entry.currencyType)
+            else
+                row.isVisible = entry.isVisible
+            end
+            rowsByKey[rowKey] = row
+            table.insert(rows, row)
+        end
+        table.insert(row.entries, entry)
+        if entry.order then
+            row.orderIndex = row.orderIndex and math.min(row.orderIndex, entry.order) or entry.order
+        end
+        if entry.kind == "currency" and entry.location == CURRENCY_LOCATION_ACCOUNT then
+            row.hasSelectedLocation = row.isVisible
+        elseif entry.isVisible then
+            row.hasSelectedLocation = true
+        end
+    end
+
+    table.sort(rows, function(left, right)
+        local leftOrder = left.orderIndex or math.huge
+        local rightOrder = right.orderIndex or math.huge
+        if leftOrder ~= rightOrder then
+            return leftOrder < rightOrder
+        end
+        if left.discoveryIndex ~= right.discoveryIndex then
+            return left.discoveryIndex < right.discoveryIndex
+        end
+        return left.key < right.key
+    end)
+
+    return rows
+end
+
+local function SaveSettingsRowOrder(shownRows, allEntries)
+    local orderedCurrencyTypes = {}
+    for index, row in ipairs(shownRows) do
+        if row.kind == "currency" then
+            local preference = GetCurrencyPreference(row.currencyType, true)
             preference.order = index
+            orderedCurrencyTypes[row.currencyType] = true
+            for _, entry in ipairs(row.entries) do
+                local locationPreference = GetCurrencyLocationPreference(entry.currencyType, entry.location, false)
+                if locationPreference then locationPreference.order = nil end
+            end
         else
-            local preference = GetCapacityPreference(entry.resourceKey, true)
+            local preference = GetCapacityPreference(row.entries[1].resourceKey, true)
             preference.order = index
         end
     end
+
     for _, entry in ipairs(allEntries) do
-        if not entry.isVisible then
-            if entry.kind == "currency" then
-                local preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, false)
-                if preference then preference.order = nil end
-            else
-                local preference = GetCapacityPreference(entry.resourceKey, false)
-                if preference then preference.order = nil end
+        if entry.kind == "currency" then
+            local preference = GetCurrencyPreference(entry.currencyType, false)
+            if preference and not orderedCurrencyTypes[entry.currencyType] then
+                preference.order = nil
             end
+            local locationPreference = GetCurrencyLocationPreference(entry.currencyType, entry.location, false)
+            if locationPreference then locationPreference.order = nil end
+        elseif not entry.isVisible then
+            local preference = GetCapacityPreference(entry.resourceKey, false)
+            if preference then preference.order = nil end
         end
     end
 end
 
-local function MoveResource(entryKey, direction)
+local function MoveResource(rowKey, direction)
     local entries = GetResourceEntries()
+    local settingsRows = GetResourceSettingsRows(entries)
     local visibleEntries = {}
     local currentIndex
-    for index, entry in ipairs(entries) do
-        if entry.isVisible then
-            table.insert(visibleEntries, entry)
-            if entry.key == entryKey then currentIndex = #visibleEntries end
+    for _, row in ipairs(settingsRows) do
+        if row.isVisible then
+            table.insert(visibleEntries, row)
+            if row.key == rowKey then currentIndex = #visibleEntries end
         end
     end
     if not currentIndex then return false end
@@ -443,28 +554,65 @@ local function MoveResource(entryKey, direction)
     local targetIndex = currentIndex + direction
     if not visibleEntries[targetIndex] then return false end
     visibleEntries[currentIndex], visibleEntries[targetIndex] = visibleEntries[targetIndex], visibleEntries[currentIndex]
-    SaveVisibleEntryOrder(visibleEntries, entries)
+
+    SaveSettingsRowOrder(visibleEntries, entries)
     return true
 end
 
-local function SetResourceVisibility(entryKey, visible)
+local function SetCurrencyLocationVisibility(entryKey, visible)
     local entries = GetResourceEntries()
     local entry
-    local visibleEntries = {}
     for _, resourceEntry in ipairs(entries) do
         if resourceEntry.key == entryKey then
             entry = resourceEntry
-        elseif resourceEntry.isVisible then
-            table.insert(visibleEntries, resourceEntry)
+            break
         end
     end
-    assert(entry, "Settings row is missing its resource entry")
+    assert(entry, "Settings checkbox is missing its resource entry")
 
     SetEntryPreference(entry, visible)
-    if visible then
-        table.insert(visibleEntries, entry)
+end
+
+local function SetSettingsRowVisibility(row, visible)
+    if row.kind == "currency" then
+        local preference = GetCurrencyPreference(row.currencyType, true)
+        if visible then
+            preference.showCompact = nil
+        else
+            preference.showCompact = false
+            preference.order = nil
+        end
+    else
+        SetEntryPreference(row.entries[1], visible)
     end
-    SaveVisibleEntryOrder(visibleEntries, entries)
+
+    local entries = GetResourceEntries()
+    local shownRows = {}
+    for _, settingsRow in ipairs(GetResourceSettingsRows(entries)) do
+        if settingsRow.isVisible then
+            table.insert(shownRows, settingsRow)
+        end
+    end
+    if visible then
+        local isAlreadyShown = false
+        for _, settingsRow in ipairs(shownRows) do
+            if settingsRow.key == row.key then
+                isAlreadyShown = true
+                break
+            end
+        end
+        if not isAlreadyShown then
+            table.insert(shownRows, row)
+        end
+    else
+        for index, settingsRow in ipairs(shownRows) do
+            if settingsRow.key == row.key then
+                table.remove(shownRows, index)
+                break
+            end
+        end
+    end
+    SaveSettingsRowOrder(shownRows, entries)
 end
 
 local function ResetCurrencyPanelPreferences()
@@ -473,8 +621,10 @@ local function ResetCurrencyPanelPreferences()
 
     for _, entry in ipairs(GetResourceEntries()) do
         if entry.kind == "currency" and entry.currencyType ~= CURT_MONEY then
-            local preference = GetCurrencyLocationPreference(entry.currencyType, entry.location, true)
-            preference.hidden = true
+            local preference = GetCurrencyPreference(entry.currencyType, true)
+            preference.showCompact = false
+            local locationPreference = GetCurrencyLocationPreference(entry.currencyType, entry.location, true)
+            locationPreference.hidden = true
         end
     end
 
@@ -485,7 +635,9 @@ end
 
 function this.IsCurrencyResourceVisible(currencyType, location)
     EnsurePreferences()
+    if not IsCurrencySettingsRowVisible(currencyType) then return false end
     local preference = GetCurrencyLocationPreference(currencyType, location, false)
+    if location == CURRENCY_LOCATION_ACCOUNT then return true end
     return not (preference and preference.hidden == true)
 end
 
@@ -528,7 +680,7 @@ local function HighlightResourceSettingsRow(row)
 end
 
 ReorderResourceSettingsRows = function(control)
-    local entries = GetResourceEntries()
+    local entries = GetResourceSettingsRows(GetResourceEntries())
     local shownEntries = {}
     local hiddenEntries = {}
     for _, entry in ipairs(entries) do
@@ -539,8 +691,8 @@ ReorderResourceSettingsRows = function(control)
         end
     end
     table.sort(hiddenEntries, function(left, right)
-        local leftName = string.lower(string.format("%s (%s)", left.name, left.locationName or ""))
-        local rightName = string.lower(string.format("%s (%s)", right.name, right.locationName or ""))
+        local leftName = string.lower(left.name)
+        local rightName = string.lower(right.name)
         if leftName ~= rightName then
             return leftName < rightName
         end
@@ -555,11 +707,22 @@ ReorderResourceSettingsRows = function(control)
             local row = control.resourceRows[entry.key]
             row:ClearAnchors()
             row:SetAnchor(TOPLEFT, control, TOPLEFT, 0, nextY)
-            row.visibilityButton:SetText(shown and "Hide" or "Show")
             row.upButton:SetHidden(not shown)
             row.downButton:SetHidden(not shown)
             row.upButton:SetEnabled(index > 1)
             row.downButton:SetEnabled(index < #resourceEntries)
+            for _, locationEntry in ipairs(entry.entries) do
+                local checkbox = row.locationCheckboxes[locationEntry.key]
+                if checkbox then
+                    ZO_CheckButton_SetCheckState(checkbox, locationEntry.isVisible)
+                end
+            end
+            row.visibilityButton:SetText(shown and "Hide" or "Show")
+            if entry.kind == "currency" and not entry.hasSelectedLocation and shown then
+                row.resourceName:SetColor(1, 0.2, 0.2, 1)
+            else
+                row.resourceName:SetColor(ZO_NORMAL_TEXT:UnpackRGBA())
+            end
             nextY = nextY + RESOURCE_SETTINGS_ROW_HEIGHT + RESOURCE_SETTINGS_ROW_GAP
         end
     end
@@ -571,11 +734,49 @@ ReorderResourceSettingsRows = function(control)
     PlaceRows(hiddenEntries, false)
 end
 
+local function CreateSettingsCheckbox(row, labelText, width, rightOffset, isChecked, onChanged)
+    settingsCheckboxControlId = settingsCheckboxControlId + 1
+    local option = WINDOW_MANAGER:CreateControl(nil, row, CT_CONTROL)
+    option:SetDimensions(width, 26)
+    option:SetAnchor(RIGHT, row, RIGHT, rightOffset, 0)
+    option:SetMouseEnabled(true)
+
+    local checkboxName = "InventoryCompanion_CurrencySettingsCheckbox" .. settingsCheckboxControlId
+    local checkbox = WINDOW_MANAGER:CreateControlFromVirtual(checkboxName, option, "ZO_CheckButton")
+    checkbox:SetDimensions(24, 24)
+    checkbox:SetScale(0.8)
+    checkbox:SetAnchor(LEFT, option, LEFT, 0, 0)
+    ZO_CheckButton_SetLabelText(checkbox, "")
+    ZO_CheckButton_SetLabelWidth(checkbox, 0)
+    ZO_CheckButton_SetCheckState(checkbox, isChecked)
+    ZO_CheckButton_SetToggleFunction(checkbox, function(_, checked)
+        onChanged(checked)
+    end)
+    checkbox:SetClickSound("Click")
+
+    local label = WINDOW_MANAGER:CreateControl(nil, option, CT_LABEL)
+    label:SetFont("ZoFontGameSmall")
+    label:SetColor(ZO_NORMAL_TEXT:UnpackRGBA())
+    label:SetVerticalAlignment(TEXT_ALIGN_CENTER)
+    label:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
+    label:SetText(labelText)
+    label:SetAnchor(LEFT, checkbox, RIGHT, 2, 0)
+    label:SetDimensions(width - 30, 24)
+    label:SetMouseEnabled(true)
+    label:SetHandler("OnMouseDown", function(_, button)
+        if button ~= MOUSE_BUTTON_INDEX_LEFT then return end
+        local checked = not ZO_CheckButton_IsChecked(checkbox)
+        ZO_CheckButton_SetCheckState(checkbox, checked)
+        onChanged(checked)
+    end)
+    return checkbox
+end
+
 local function CreateResourceSettingsRow(control, entry, resourceList)
     local row = WINDOW_MANAGER:CreateControl(nil, control, CT_CONTROL)
     row:SetDimensions(control:GetWidth(), RESOURCE_SETTINGS_ROW_HEIGHT)
-    row.resourceEntry = entry
     resourceList.resourceRows[entry.key] = row
+    row.locationCheckboxes = {}
 
     local highlight = WINDOW_MANAGER:CreateControl(nil, row, CT_BACKDROP)
     highlight:SetAnchorFill(row)
@@ -602,10 +803,10 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
     name:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
     name:SetWrapMode(TEXT_WRAP_MODE_ELLIPSIS)
     name:SetAnchor(LEFT, icon, RIGHT, 8, 0)
-    name:SetAnchor(RIGHT, row, RIGHT, -151, 0)
-    name:SetText(entry.kind == "currency"
-        and string.format("%s (%s)", entry.name, entry.locationName)
-        or entry.name .. " space")
+    local hasLocationCheckboxes = entry.kind == "currency"
+        and entry.location ~= CURRENCY_LOCATION_ACCOUNT
+    name:SetAnchor(RIGHT, row, RIGHT, hasLocationCheckboxes and -390 or -130, 0)
+    name:SetText(entry.kind == "currency" and entry.name or entry.name .. " space")
     row.resourceName = name
 
     local function CreateArrowButton(text, tooltip, direction)
@@ -630,12 +831,45 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
     row.downButton = CreateArrowButton("↓", "Move this entry down in the panel", 1)
     row.upButton = CreateArrowButton("↑", "Move this entry up in the panel", -1)
 
+    if entry.kind == "currency" then
+        local locationOptions = {
+            { location = CURRENCY_LOCATION_CHARACTER, label = GetString("SI_CURRENCYLOCATION", CURRENCY_LOCATION_CHARACTER), width = 130, rightOffset = -260 },
+            { location = CURRENCY_LOCATION_BANK, label = GetString("SI_CURRENCYLOCATION", CURRENCY_LOCATION_BANK), width = 104, rightOffset = -150 },
+        }
+        for _, option in ipairs(locationOptions) do
+            for _, locationEntry in ipairs(entry.entries) do
+                if locationEntry.location == option.location then
+                    local locationEntryKey = locationEntry.key
+                    row.locationCheckboxes[locationEntry.key] = CreateSettingsCheckbox(
+                        row,
+                        option.label,
+                        option.width,
+                        option.rightOffset,
+                        locationEntry.isVisible,
+                        function(visible)
+                            SetCurrencyLocationVisibility(locationEntryKey, visible)
+                            ReorderResourceSettingsRows(resourceList)
+                            this.RefreshCurrencyPanel()
+                            this.UpdateEventRegistry()
+                        end
+                    )
+                end
+            end
+        end
+    end
+
     local visibilityButton = WINDOW_MANAGER:CreateControlFromVirtual(nil, row, "ZO_DefaultButton")
     visibilityButton:SetDimensions(54, 26)
     visibilityButton:SetAnchor(RIGHT, row, RIGHT, -66, 0)
     visibilityButton:SetClickSound("Click")
     visibilityButton:SetHandler("OnClicked", function()
-        SetResourceVisibility(entry.key, not IsResourceVisible(entry))
+        local isVisible
+        if entry.kind == "currency" then
+            isVisible = IsCurrencySettingsRowVisible(entry.currencyType)
+        else
+            isVisible = this.IsCapacityResourceVisible(entry.resourceKey)
+        end
+        SetSettingsRowVisibility(entry, not isVisible)
         ReorderResourceSettingsRows(resourceList)
         this.RefreshCurrencyPanel()
         this.UpdateEventRegistry()
@@ -646,6 +880,7 @@ end
 local function CreateResourceSettingsList(control, entries)
     resourceSettingsListControl = control
     control.resourceRows = {}
+    local settingsRows = GetResourceSettingsRows(entries)
 
     local function CreateHeader(name)
         local header = WINDOW_MANAGER:CreateControl(nil, control, CT_LABEL)
@@ -660,7 +895,7 @@ local function CreateResourceSettingsList(control, entries)
     control.shownHeader = CreateHeader("Shown in panel")
     control.hiddenHeader = CreateHeader("Not shown in panel")
 
-    for _, entry in ipairs(entries) do
+    for _, entry in ipairs(settingsRows) do
         CreateResourceSettingsRow(control, entry, control)
     end
     ReorderResourceSettingsRows(control)
@@ -668,11 +903,12 @@ end
 
 function this.GetCurrencyPanelSettingsControls()
     local entries = this.GetCurrencyPanelResourceEntries()
-    local listHeight = (RESOURCE_SETTINGS_ROW_HEIGHT + RESOURCE_SETTINGS_ROW_GAP) * (#entries + 2) + RESOURCE_SETTINGS_ROW_GAP * 2
+    local settingsRows = GetResourceSettingsRows(entries)
+    local listHeight = (RESOURCE_SETTINGS_ROW_HEIGHT + RESOURCE_SETTINGS_ROW_GAP) * (#settingsRows + 2) + RESOURCE_SETTINGS_ROW_GAP * 2
     local controls = {
         {
             type = "description",
-            text = "Choose which entries appear in the Currency Summary Panel. Use the arrows to reorder shown entries. Hidden entries are listed alphabetically.",
+            text = "Choose which locations appear for each currency. Click a location label or checkbox to toggle it. Use Show/Hide to control the row and arrows to reorder shown resources. A shown currency with no selected locations remains in the list in red but contributes no HUD value.",
         },
         {
             type = "button",
@@ -719,21 +955,21 @@ function this.RefreshCurrencyPanel()
     hasVisibleCurrencies = false
     hasVisibleCapacities = false
     hasVisibleCappedCurrencies = false
-    for _, entry in ipairs(resourceEntries) do
-        if entry.isVisible then
-            if entry.kind == "currency" then
-                hasVisibleCurrencies = true
-                if entry.cap ~= nil then
+    local entries = GetVisibleGridEntries(resourceEntries)
+    for _, entry in ipairs(entries) do
+        if entry.kind == "currency" then
+            hasVisibleCurrencies = true
+            for _, locationEntry in ipairs(entry.currencyLocations) do
+                if locationEntry.cap ~= nil then
                     hasVisibleCappedCurrencies = true
                 end
-            else
-                hasVisibleCapacities = true
             end
+        else
+            hasVisibleCapacities = true
         end
     end
 
-    local entries = GetVisibleGridEntries(resourceEntries)
-    local columnWidths = { MIN_CELL_WIDTH, MIN_CELL_WIDTH, MIN_CELL_WIDTH }
+    local columnWidths = { 0, 0, 0 }
     for index, entry in ipairs(entries) do
         local cell = GetOrCreateCell(index)
         cell.label:SetWidth(0)
@@ -742,9 +978,14 @@ function this.RefreshCurrencyPanel()
         columnWidths[column] = math.max(columnWidths[column], math.ceil(cell.label:GetTextWidth()) + 26)
     end
 
+    local columnCount = math.min(COLUMN_COUNT, #entries)
     local rowCount = math.ceil(#entries / COLUMN_COUNT)
     local gridHeight = rowCount > 0 and (rowCount * CELL_HEIGHT + (rowCount - 1) * CELL_GAP_Y) or 0
-    local gridWidth = columnWidths[1] + columnWidths[2] + columnWidths[3] + (COLUMN_COUNT - 1) * CELL_GAP_X
+    local gridWidth = 0
+    for column = 1, columnCount do
+        gridWidth = gridWidth + columnWidths[column]
+    end
+    gridWidth = gridWidth + math.max(0, columnCount - 1) * CELL_GAP_X
     container:SetDimensions(gridWidth, gridHeight)
     panel:SetDimensions(gridWidth + GRID_PADDING_X * 2, gridHeight + GRID_PADDING_Y * 2)
 
