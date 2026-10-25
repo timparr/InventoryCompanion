@@ -725,11 +725,55 @@ end
 local LOAD_SUPPRESSION_MS = 5000
 local suppressNotificationsUntil = 0
 
+-- Rapid changes (e.g. selling many items) are merged and announced once the balance has been quiet for this long.
+local NOTIFICATION_QUIET_MS = 1000
+local pendingNotifications = {}
+
+local function FlushCurrencyNotification(key)
+    local pending = pendingNotifications[key]
+    if not pending then return false end
+    pendingNotifications[key] = nil
+    if pending.timer then
+        zo_removeCallLater(pending.timer)
+    end
+    if pending.delta == 0 then return false end
+
+    local currencyName = GetCurrencyName(pending.currencyType, false, false)
+    local locationName = GetString("SI_CURRENCYLOCATION", pending.currencyLocation)
+    local direction = pending.delta > 0 and "Gained" or "Spent"
+    local changedText = (this.Utils.FormatBigNumber(math.abs(pending.delta)))
+    local totalText = (this.Utils.FormatBigNumber(pending.total))
+    this.Utils.UserWarning(
+        string.format("%s %s %s (%s total, %s)", direction, changedText, currencyName, totalText, locationName),
+        string.format("%s %s %s", direction, changedText, currencyName)
+    )
+    return true
+end
+
+function this.FlushCurrencyNotifications()
+    local flushed = false
+    local keys = {}
+    for key in pairs(pendingNotifications) do
+        keys[#keys + 1] = key
+    end
+    for _, key in ipairs(keys) do
+        flushed = FlushCurrencyNotification(key) or flushed
+    end
+    return flushed
+end
+
 function this.BeginCurrencyNotificationSuppression(now)
     suppressNotificationsUntil = (now or GetGameTimeMilliseconds()) + LOAD_SUPPRESSION_MS
     this.SeedCurrencyNotificationBaselines()
+    for key, pending in pairs(pendingNotifications) do
+        if pending.timer then
+            zo_removeCallLater(pending.timer)
+        end
+        pendingNotifications[key] = nil
+    end
 end
 
+-- Returns true when the change was queued; the announcement is sent after the quiet period.
 function this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount, reason, now)
     if type(newAmount) ~= "number" then return false end
 
@@ -747,22 +791,19 @@ function this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount, re
         return false
     end
 
-    local currencyName = GetCurrencyName(currencyType, false, false)
-    local locationName = GetString("SI_CURRENCYLOCATION", currencyLocation)
-    local delta = newAmount - previousAmount
-    local direction = delta > 0 and "Gained" or "Spent"
-    local changedAmount = math.abs(delta)
-    this.Utils.UserWarning(
-        string.format(
-            "%s %d %s (%d total, %s)",
-            direction,
-            changedAmount,
-            currencyName,
-            newAmount,
-            locationName
-        ),
-        string.format("%s %d %s", direction, changedAmount, currencyName)
-    )
+    local pending = pendingNotifications[key]
+    if not pending then
+        pending = { currencyType = currencyType, currencyLocation = currencyLocation, delta = 0 }
+        pendingNotifications[key] = pending
+    elseif pending.timer then
+        zo_removeCallLater(pending.timer)
+    end
+    pending.delta = pending.delta + (newAmount - previousAmount)
+    pending.total = newAmount
+    pending.timer = zo_callLater(function()
+        pending.timer = nil
+        FlushCurrencyNotification(key)
+    end, NOTIFICATION_QUIET_MS)
     return true
 end
 

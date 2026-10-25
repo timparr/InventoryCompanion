@@ -434,31 +434,46 @@ local function RunTests(arguments)
                         Check(this.IsCurrencyNotificationEnabled(currencyType), "Currency notification preference should turn on")
                         Check(this.HasCurrencyNotifications(), "Enabled currency notification should request an event listener")
 
+                        this.BeginCurrencyNotificationSuppression(0)
                         local location = CURRENCY_LOCATION_CHARACTER
                         this.SetCurrencyNotificationBaseline(currencyType, location, 20)
                         Check(
                             not this.NotifyCurrencyChange(currencyType, location, 20),
                             "A login balance matching the baseline should not notify"
                         )
+                        Check(not this.FlushCurrencyNotifications(), "Unchanged balances should queue nothing")
                         CheckEqual(#notifications, 0, "Startup balances should not produce notifications")
-                        Check(
-                            this.NotifyCurrencyChange(currencyType, location, 25),
-                            "Positive currency changes should notify"
-                        )
-                        CheckEqual(#notifications, 1, "One positive currency change should produce one notification")
-                        Check(
-                            this.NotifyCurrencyChange(currencyType, location, 20),
-                            "Currency decreases should notify"
-                        )
+
+                        Check(this.NotifyCurrencyChange(currencyType, location, 25), "Positive currency changes should queue")
+                        CheckEqual(#notifications, 0, "Changes should be held until the quiet period ends")
+                        Check(this.FlushCurrencyNotifications(), "A held change should announce when flushed")
+                        CheckEqual(#notifications, 1, "One positive change should produce one notification")
+                        Check(notifications[1].chat:find("Gained 5", 1, true) ~= nil, "Gain should identify the amount gained")
+
+                        this.NotifyCurrencyChange(currencyType, location, 20)
+                        this.FlushCurrencyNotifications()
                         CheckEqual(#notifications, 2, "A currency decrease should produce a notification")
                         Check(
                             notifications[2].chat:find("Spent 5", 1, true) ~= nil,
                             "Currency decrease notification should identify the amount spent"
                         )
+
+                        this.NotifyCurrencyChange(currencyType, location, 1020)
+                        this.NotifyCurrencyChange(currencyType, location, 2020)
+                        this.NotifyCurrencyChange(currencyType, location, 12020)
+                        CheckEqual(#notifications, 2, "A burst should not announce each change")
+                        this.FlushCurrencyNotifications()
+                        CheckEqual(#notifications, 3, "A burst should produce one combined notification")
                         Check(
-                            not this.NotifyCurrencyChange(currencyType, location, 20),
-                            "Unchanged currency amounts should not notify"
+                            notifications[3].chat:find("Gained 12k", 1, true) ~= nil
+                                and notifications[3].chat:find("12k total", 1, true) ~= nil,
+                            "Combined notification should use big-number formatting for the net change and total"
                         )
+
+                        this.NotifyCurrencyChange(currencyType, location, 13020)
+                        this.NotifyCurrencyChange(currencyType, location, 12020)
+                        Check(not this.FlushCurrencyNotifications(), "Changes that cancel out should not announce")
+                        CheckEqual(#notifications, 3, "Net-zero bursts should add no notifications")
 
                         local unseededLocation = CURRENCY_LOCATION_BANK
                         this.SetCurrencyNotificationBaseline(currencyType, unseededLocation, nil)
@@ -466,7 +481,7 @@ local function RunTests(arguments)
                             not this.NotifyCurrencyChange(currencyType, unseededLocation, 500),
                             "The first observed balance should initialize silently"
                         )
-                        CheckEqual(#notifications, 2, "Initializing a balance should not add notifications")
+                        CheckEqual(#notifications, 3, "Initializing a balance should not add notifications")
 
                         this.BeginCurrencyNotificationSuppression(1000)
                         this.SetCurrencyNotificationBaseline(currencyType, location, 20)
@@ -478,12 +493,13 @@ local function RunTests(arguments)
                             not this.NotifyCurrencyChange(currencyType, location, 20, nil, 3000),
                             "Restored balances after a load screen should not notify"
                         )
-                        CheckEqual(#notifications, 2, "Load-screen reports should not add notifications")
+                        Check(not this.FlushCurrencyNotifications(), "Load-screen reports should queue nothing")
                         Check(
                             this.NotifyCurrencyChange(currencyType, location, 25, nil, 7000),
-                            "Changes after the load window should notify again"
+                            "Changes after the load window should queue"
                         )
-                        CheckEqual(#notifications, 3, "A change after the load window should notify")
+                        this.FlushCurrencyNotifications()
+                        CheckEqual(#notifications, 4, "A change after the load window should notify")
                         this.SetCurrencyNotificationBaseline(currencyType, location, 20)
 
                         this.SetCurrencyNotificationEnabled(currencyType, false)
@@ -493,8 +509,10 @@ local function RunTests(arguments)
                             not this.NotifyCurrencyChange(currencyType, location, 30),
                             "Disabled currency notifications should not emit messages"
                         )
-                        CheckEqual(#notifications, 2, "Disabled currency notification should not add messages")
+                        this.FlushCurrencyNotifications()
+                        CheckEqual(#notifications, 4, "Disabled currency notification should not add messages")
                     end)
+                    this.FlushCurrencyNotifications()
                     this.SeedCurrencyNotificationBaselines()
                     this.accountWide.currencyPreferences = savedPreferences
                     this.Utils.UserWarning = savedUserWarning
