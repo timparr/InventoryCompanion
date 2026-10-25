@@ -7,6 +7,8 @@ local CAPACITY_RESOURCES = {
         resourceKey = "bag",
         name = "Backpack",
         texture = "EsoUI/Art/Tooltips/icon_bag.dds",
+        defaultOffsetX = 50,
+        defaultOffsetY = 90,
         defaultShowBar = true,
         warningThreshold = 0.75,
         dangerThreshold = 0.90,
@@ -16,6 +18,8 @@ local CAPACITY_RESOURCES = {
         resourceKey = "bank",
         name = "Bank",
         texture = "EsoUI/Art/Tooltips/icon_bank.dds",
+        defaultOffsetX = 50,
+        defaultOffsetY = 130,
         defaultShowBar = true,
         warningThreshold = 0.80,
         dangerThreshold = 0.95,
@@ -89,13 +93,15 @@ local function BuildProgressBarResourceList()
             resourceKey = definition.resourceKey,
             name = definition.name,
             texture = definition.texture,
+            defaultOffsetX = definition.defaultOffsetX,
+            defaultOffsetY = definition.defaultOffsetY,
             defaultShowBar = definition.defaultShowBar,
             warningThreshold = definition.warningThreshold,
             dangerThreshold = definition.dangerThreshold,
         })
     end
 
-    for _, currencyType in ipairs(this.GetCappedCurrencyList()) do
+    for index, currencyType in ipairs(this.GetCappedCurrencyList()) do
         local info = this.GetCappedCurrencyInfo(currencyType)
         assert(info and info.cap ~= nil, "Capped currency is missing cap information")
         table.insert(resources, {
@@ -104,6 +110,8 @@ local function BuildProgressBarResourceList()
             currencyType = currencyType,
             name = info.name,
             texture = info.keyboardTexture or info.gamepadTexture,
+            defaultOffsetX = 50,
+            defaultOffsetY = 170 + (index - 1) * 30,
             defaultShowBar = false,
             warningThreshold = DEFAULT_CURRENCY_WARNING_THRESHOLD,
             dangerThreshold = DEFAULT_CURRENCY_DANGER_THRESHOLD,
@@ -172,6 +180,8 @@ function this.GetProgressBarSettings(resourceKey)
     local showBar = defaultShowBar
     local warningThreshold = defaultWarningThreshold
     local dangerThreshold = defaultDangerThreshold
+    local offsetX = resource.defaultOffsetX or 50
+    local offsetY = resource.defaultOffsetY or 170
 
     if preference then
         if preference.showBar ~= nil then
@@ -195,6 +205,16 @@ function this.GetProgressBarSettings(resourceKey)
                 WarnMalformedPreference(resource.key .. ".dangerThreshold must be between 0 and 1")
             end
         end
+        if type(preference.offsetX) == "number" and preference.offsetX >= 0 and preference.offsetX < math.huge then
+            offsetX = preference.offsetX
+        elseif preference.offsetX ~= nil then
+            WarnMalformedPreference(resource.key .. ".offsetX must be a non-negative number")
+        end
+        if type(preference.offsetY) == "number" and preference.offsetY >= 0 and preference.offsetY < math.huge then
+            offsetY = preference.offsetY
+        elseif preference.offsetY ~= nil then
+            WarnMalformedPreference(resource.key .. ".offsetY must be a non-negative number")
+        end
     end
 
     if warningThreshold > dangerThreshold then
@@ -207,6 +227,8 @@ function this.GetProgressBarSettings(resourceKey)
         showBar = showBar,
         warningThreshold = warningThreshold,
         dangerThreshold = dangerThreshold,
+        offsetX = offsetX,
+        offsetY = offsetY,
     }
 end
 
@@ -245,6 +267,20 @@ function this.SetProgressBarSetting(resourceKey, setting, value)
     if next(preference) == nil then
         this.accountWide.progressBarPreferences[resource.key] = nil
     end
+end
+
+function this.SetProgressBarPosition(resourceKey, offsetX, offsetY)
+    local resource = FindProgressBarResource(resourceKey)
+    assert(resource, "Unknown progress bar resource: " .. tostring(resourceKey))
+    assert(
+        type(offsetX) == "number" and offsetX >= 0 and offsetX < math.huge
+            and type(offsetY) == "number" and offsetY >= 0 and offsetY < math.huge,
+        "Progress bar position must contain non-negative numeric offsets"
+    )
+
+    local preference = GetStoredPreference(resource, true)
+    preference.offsetX = offsetX
+    preference.offsetY = offsetY
 end
 
 function this.InitializeProgressBarResources()

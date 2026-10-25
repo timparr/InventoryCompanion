@@ -25,7 +25,9 @@ Banking/CraftedItems.lua
 Banking/BankDatabase.lua
 Banking/BankTransfers.lua
 Banking/ProgressPanels.xml
+Banking/ResourceProgressBars.xml
 Banking/ProgressPanels.lua
+Banking/ResourceProgressBars.lua
 
 -- 3. Item & Currency Tracking Module
 Tracking/EditPanelItemsTab.xml

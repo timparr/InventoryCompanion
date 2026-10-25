@@ -43,7 +43,7 @@ local function ShouldListenOpenBank()
 end
 
 local function ShouldListenSlotUpdate()
-    local showMeters   = this.accountWide.showBagBar or this.accountWide.showBankBar
+    local showMeters   = this.HasVisibleProgressBars()
     local showTracker  = this.accountWide.showTrackedItemsPanel ~= false
     local showCapacity = this.HasVisibleCapacityResources()
 
@@ -59,11 +59,11 @@ local function ShouldListenCurrencyCapUpdates()
 end
 
 local function ShouldListenBagCapacity()
-    return this.accountWide.showBagBar or this.IsCapacityResourceVisible("bag")
+    return this.IsProgressBarVisible("capacity:bag") or this.IsCapacityResourceVisible("bag")
 end
 
 local function ShouldListenBankCapacity()
-    return this.accountWide.showBankBar or this.IsCapacityResourceVisible("bank")
+    return this.IsProgressBarVisible("capacity:bank") or this.IsCapacityResourceVisible("bank")
 end
 
 local function OnBankOpened(eventCode, bankType)
@@ -87,9 +87,9 @@ local function OnInventorySlotUpdate(eventCode, bagId, slotIndex, isNewItem, ite
         end, 500)
     end
 
-    if this.accountWide.showBagBar or this.accountWide.showBankBar then
+    if this.HasVisibleProgressBars() then
         Enqueue("RefreshProgress", function()
-            this.RefreshProgressPanels()
+            this.RefreshResourceProgressBars()
         end, 500)
     end
 end
@@ -114,7 +114,7 @@ end
 
 local function OnCapacityChanged()
     Enqueue("RefreshProgress", function()
-        this.RefreshProgressPanels()
+        this.RefreshResourceProgressBars()
     end, 500)
     if this.HasVisibleCapacityResources() then
         Enqueue("RefreshCurrency", function()
@@ -181,13 +181,7 @@ function this.InitCutsceneTicker()
             local shouldShowCurrencyPanel = this.state.isCurrencySettingsOpen or (showInfo and not inCutscene)
             InventoryCompanion_CurrencyFloat:SetHidden(not shouldShowCurrencyPanel)
 
-            if InventoryCompanion_BagBarFloat then
-                InventoryCompanion_BagBarFloat:SetHidden((not this.accountWide.showBagBar) or inCutscene)
-            end
-
-            if InventoryCompanion_BankBarFloat then
-                InventoryCompanion_BankBarFloat:SetHidden((not this.accountWide.showBankBar) or inCutscene)
-            end
+            this.SetProgressBarsHidden(inCutscene)
         end
     end)
 end
