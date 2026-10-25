@@ -4,6 +4,7 @@
 
 - Keep this file concise; move context-specific guidance into scoped instruction files when it grows enough to justify the extra files.
 - Decide when accumulated preferences warrant scoped instruction files; keep a concise pointer here stating when each specialized file applies.
+- Prefer conversational discussion during planning. Use structured question forms only when implementation is underway and a quick, specific decision is needed.
 
 ## Git Workflow
 
