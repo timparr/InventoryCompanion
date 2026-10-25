@@ -96,3 +96,7 @@
 
 * **E3.** **Rule-Matching Optimization:**
 * Refactor `ItemMatchesRule` and `ItemMatchesAnyRule` to utilize pre-compiled pattern compilers rather than compiling on-the-fly during real-time inventory updates.
+
+
+* **E4.** **Modular Settings Panel:**
+* Review the currency panel settings UI, which is already partially owned by `Tracking/CurrencyPanel.lua`, as a template. Discuss whether and how to modularize the remaining settings sections so the panel can be assembled from modules.
