@@ -29,6 +29,12 @@ The existing currency-specific requirements, including ESO validity checks and d
 - Keep each bar's advanced settings collapsed by default, with an independent expand/collapse control per bar. Allow multiple bars' settings to remain expanded simultaneously so users can compare or synchronize values.
 - Refresh affected HUD presentations immediately after preference changes.
 
+## Currency Panel Refinement
+
+The first refinement is to restore a super-compact, single-line grid treatment: each cell shows its icon and abbreviated current amount, without a text title. Use the addon's existing big-number formatter (for example, `1.3k` or `32m`) and keep the three-column layout and existing resource defaults and preference behavior unchanged. Caps remain available to the presentation and refresh logic, but are not shown in this compact cell treatment.
+
+The panel should ultimately size itself to its three columns rather than use a permanently fixed width. Adaptive sizing raises a follow-up question: whether column widths should track the widest visible value in each column, including zero-valued entries, and how to avoid distracting width changes as values update. Decide and refine that behavior after evaluating the compact single-line layout in game. The discussion of whether character and bank locations should remain separate entries is deferred; this refinement does not change their identities or preferences.
+
 ## Settings Panel Mockup
 
 The resource names and amounts below are illustrative. Three of the eight example resources are capped. The mockup shows one bar's advanced settings expanded; each bar can be expanded independently, and multiple sections may remain open at once.

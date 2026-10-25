@@ -2,8 +2,8 @@ InventoryCompanion = InventoryCompanion or {}
 local this = InventoryCompanion
 
 local COLUMN_COUNT = 3
-local CELL_WIDTH = 192
-local CELL_HEIGHT = 40
+local CELL_WIDTH = 84
+local CELL_HEIGHT = 24
 local CELL_GAP_X = 8
 local CELL_GAP_Y = 4
 local GRID_PADDING_X = 10
@@ -236,21 +236,8 @@ local function InitializeCurrencyPanelPreferences()
     end
 end
 
-local function FormatAmount(amount)
-    return FormatIntegerWithDigitGrouping(amount, ",", 3)
-end
-
 local function GetEntryText(entry)
-    local title = entry.name
-    if entry.kind == "currency" then
-        title = string.format("%s (%s)", entry.name, entry.locationName)
-    end
-
-    local amount = FormatAmount(entry.amount)
-    if entry.cap ~= nil then
-        amount = string.format("%s / %s", amount, FormatAmount(entry.cap))
-    end
-    return string.format("%s\n%s", title, amount)
+    return this.Utils.FormatBigNumber(entry.amount)
 end
 
 local function GetOrCreateCell(index)
@@ -264,18 +251,18 @@ local function GetOrCreateCell(index)
 
     local icon = WINDOW_MANAGER:CreateControl("InventoryCompanion_CurrencyFloatCell" .. index .. "Icon", cell, CT_TEXTURE)
     icon:SetDimensions(20, 20)
-    icon:SetAnchor(TOPLEFT, cell, TOPLEFT, 0, 1)
+    icon:SetAnchor(TOPLEFT, cell, TOPLEFT, 0, 2)
     icon:SetDrawLayer(DL_CONTROLS)
     icon:SetDrawLevel(2)
     icon:SetMouseEnabled(false)
 
     local label = WINDOW_MANAGER:CreateControl("InventoryCompanion_CurrencyFloatCell" .. index .. "Label", cell, CT_LABEL)
-    label:SetFont("ZoFontGameSmall")
+    label:SetFont("ZoFontGameMedium")
     label:SetColor(1, 1, 1, 1)
-    label:SetVerticalAlignment(TEXT_ALIGN_TOP)
+    label:SetVerticalAlignment(TEXT_ALIGN_CENTER)
     label:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
     label:SetWrapMode(TEXT_WRAP_MODE_ELLIPSIS)
-    label:SetDimensions(CELL_WIDTH - 26, CELL_HEIGHT)
+    label:SetDimensions(CELL_WIDTH - 26, 20)
     label:SetAnchor(TOPLEFT, icon, TOPRIGHT, 6, 0)
     label:SetMouseEnabled(false)
 
