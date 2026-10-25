@@ -43,6 +43,10 @@ local function CreateProgressBarControl(resource, resourceSettings)
         resourceSettings.offsetY
     )
     control.resourceKey = resource.key
+    control.icon = GetControl(control, "Icon")
+    control.trackBG = GetControl(control, "TrackBG")
+    control.bar = GetControl(control, "Bar")
+    control.label = GetControl(control, "Label")
     control.icon:SetTexture(resource.texture)
     control.icon:SetDrawLayer(DL_CONTROLS)
     control.icon:SetDrawLevel(3)
