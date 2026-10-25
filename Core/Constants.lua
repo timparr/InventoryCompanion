@@ -240,6 +240,7 @@ this.defaultsAccount = {
 
     -- Standalone Progress Bars
     progressBarPreferences = {},
+    progressBarAlertColors = {},
 
     -- Threshold Percentages
     warningThresholdBag  = 0.75,

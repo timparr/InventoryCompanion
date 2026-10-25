@@ -297,9 +297,11 @@ local function RunTests(arguments)
                 name = "Progress bar resource model and preferences",
                 run = function()
                     local savedPreferences = this.accountWide.progressBarPreferences
+                    local savedAlertColors = this.accountWide.progressBarAlertColors
                     local savedTestValue = this.accountWide.unrelatedProgressTestValue
                     local ok, err = pcall(function()
                         this.accountWide.progressBarPreferences = {}
+                        this.accountWide.progressBarAlertColors = {}
                         local resources = this.GetProgressBarResources()
                         local resourcesByKey = {}
                         local capacityCount = 0
@@ -340,6 +342,15 @@ local function RunTests(arguments)
                         CheckEqual(this.GetProgressBarSettings(bag.key).dangerThreshold, 0.90, "Backpack danger default should be preserved")
                         CheckEqual(this.GetProgressBarSettings(bank.key).warningThreshold, 0.80, "Bank warning default should be preserved")
                         CheckEqual(this.GetProgressBarSettings(bank.key).dangerThreshold, 0.95, "Bank danger default should be preserved")
+                        local originalNormalColor = this.GetProgressBarNormalColor(bag.key)
+                        this.SetProgressBarSetting(bag.key, "normalColor", { r = 0.1, g = 0.2, b = 0.3, a = 0.4 })
+                        local changedNormalColor = this.GetProgressBarSettings(bag.key).normalColor
+                        CheckEqual(changedNormalColor.r, 0.1, "Per-bar normal color should persist")
+                        CheckEqual(this.GetProgressBarSettings(bank.key).normalColor, nil, "Per-bar normal colors should be independent")
+                        this.SetProgressBarAlertColor("warning", { r = 0.7, g = 0.6, b = 0.2, a = 1 })
+                        CheckEqual(this.GetProgressBarAlertColor("warning").g, 0.6, "Shared warning color should persist")
+                        CheckEqual(this.GetProgressBarAlertColor("danger").r, 0.85, "Changing warning color should not alter danger color")
+                        Check(type(originalNormalColor) == "table", "Default normal color should be available to settings")
                         CheckEqual(this.GetProgressBarSettings(bag.key).offsetX, 50, "Backpack default horizontal position should be stable")
                         CheckEqual(this.GetProgressBarSettings(bag.key).offsetY, 90, "Backpack default vertical position should be stable")
                         CheckEqual(this.GetProgressBarSettings(bank.key).offsetX, 50, "Bank default horizontal position should be stable")
@@ -399,6 +410,7 @@ local function RunTests(arguments)
                         CheckEqual(this.accountWide.unrelatedProgressTestValue, "preserved", "Unrelated saved variables should remain unchanged")
                     end)
                     this.accountWide.progressBarPreferences = savedPreferences
+                    this.accountWide.progressBarAlertColors = savedAlertColors
                     this.accountWide.unrelatedProgressTestValue = savedTestValue
                     if not ok then error(err) end
                 end,

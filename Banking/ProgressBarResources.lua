@@ -28,6 +28,8 @@ local CAPACITY_RESOURCES = {
 
 local DEFAULT_CURRENCY_WARNING_THRESHOLD = 0.75
 local DEFAULT_CURRENCY_DANGER_THRESHOLD = 0.90
+local DEFAULT_WARNING_COLOR = { r = 0.95, g = 0.55, b = 0.08, a = 1 }
+local DEFAULT_DANGER_COLOR = { r = 0.85, g = 0.18, b = 0.18, a = 1 }
 local malformedPreferenceWarnings = {}
 local progressBarResources
 
@@ -61,6 +63,18 @@ local function IsValidThreshold(value)
         and value < math.huge
 end
 
+local function IsValidColor(color)
+    return type(color) == "table"
+        and type(color.r) == "number" and color.r >= 0 and color.r <= 1
+        and type(color.g) == "number" and color.g >= 0 and color.g <= 1
+        and type(color.b) == "number" and color.b >= 0 and color.b <= 1
+        and type(color.a) == "number" and color.a >= 0 and color.a <= 1
+end
+
+local function CopyColor(color)
+    return { r = color.r, g = color.g, b = color.b, a = color.a }
+end
+
 local function StoreDeviation(preference, setting, value, defaultValue)
     if value == defaultValue then
         preference[setting] = nil
@@ -82,6 +96,18 @@ local function GetStoredPreference(resource, create)
         preferences[resource.key] = preference
     end
     return preference
+end
+
+local function GetAlertColors()
+    local colors = this.accountWide.progressBarAlertColors
+    if type(colors) ~= "table" then
+        if colors ~= nil then
+            WarnMalformedPreference("progressBarAlertColors must be a table")
+        end
+        colors = {}
+        this.accountWide.progressBarAlertColors = colors
+    end
+    return colors
 end
 
 local function BuildProgressBarResourceList()
@@ -187,6 +213,7 @@ function this.GetProgressBarSettings(resourceKey)
     local dangerThreshold = defaultDangerThreshold
     local offsetX = resource.defaultOffsetX or 50
     local offsetY = resource.defaultOffsetY or 170
+    local normalColor
 
     if preference then
         if preference.showBar ~= nil then
@@ -208,6 +235,13 @@ function this.GetProgressBarSettings(resourceKey)
                 dangerThreshold = preference.dangerThreshold
             else
                 WarnMalformedPreference(resource.key .. ".dangerThreshold must be between 0 and 1")
+            end
+        end
+        if preference.normalColor ~= nil then
+            if IsValidColor(preference.normalColor) then
+                normalColor = CopyColor(preference.normalColor)
+            else
+                WarnMalformedPreference(resource.key .. ".normalColor must contain RGBA components between 0 and 1")
             end
         end
         if type(preference.offsetX) == "number" and preference.offsetX >= 0 and preference.offsetX < math.huge then
@@ -234,19 +268,65 @@ function this.GetProgressBarSettings(resourceKey)
         dangerThreshold = dangerThreshold,
         offsetX = offsetX,
         offsetY = offsetY,
+        normalColor = normalColor,
     }
+end
+
+function this.GetProgressBarNormalColor(resourceKey)
+    local settings = this.GetProgressBarSettings(resourceKey)
+    if settings.normalColor then
+        return settings.normalColor
+    end
+    local resource = FindProgressBarResource(resourceKey)
+    if resource.kind == "capacity" and resource.resourceKey == "bank" then
+        return { r = 0.57, g = 0.30, b = 0.77, a = 1 }
+    end
+    return { r = 0.25, g = 0.55, b = 0.95, a = 1 }
+end
+
+function this.GetProgressBarAlertColor(alertType)
+    assert(alertType == "warning" or alertType == "danger", "Unknown progress bar alert color")
+    local defaults = alertType == "warning" and DEFAULT_WARNING_COLOR or DEFAULT_DANGER_COLOR
+    local color = GetAlertColors()[alertType]
+    if color == nil then
+        return CopyColor(defaults)
+    end
+    if IsValidColor(color) then
+        return CopyColor(color)
+    end
+    WarnMalformedPreference("progressBarAlertColors." .. alertType .. " must contain RGBA components between 0 and 1")
+    return CopyColor(defaults)
+end
+
+function this.GetProgressBarAlertColorPreference(alertType)
+    assert(alertType == "warning" or alertType == "danger", "Unknown progress bar alert color")
+    local color = GetAlertColors()[alertType]
+    if color == nil then return nil end
+    if IsValidColor(color) then
+        return CopyColor(color)
+    end
+    WarnMalformedPreference("progressBarAlertColors." .. alertType .. " must contain RGBA components between 0 and 1")
+    return nil
+end
+
+function this.SetProgressBarAlertColor(alertType, color)
+    assert(alertType == "warning" or alertType == "danger", "Unknown progress bar alert color")
+    assert(IsValidColor(color), "Alert color must contain RGBA components between 0 and 1")
+    GetAlertColors()[alertType] = CopyColor(color)
 end
 
 function this.SetProgressBarSetting(resourceKey, setting, value)
     local resource = FindProgressBarResource(resourceKey)
     assert(resource, "Unknown progress bar resource: " .. tostring(resourceKey))
     assert(
-        setting == "showBar" or setting == "warningThreshold" or setting == "dangerThreshold",
+        setting == "showBar" or setting == "warningThreshold" or setting == "dangerThreshold" or setting == "normalColor",
         "Unknown progress bar setting: " .. tostring(setting)
     )
 
     if setting == "showBar" then
         assert(type(value) == "boolean", "showBar must be boolean")
+    elseif setting == "normalColor" then
+        assert(IsValidColor(value), "normalColor must contain RGBA components between 0 and 1")
     else
         assert(IsValidThreshold(value), setting .. " must be between 0 and 1")
     end
@@ -255,7 +335,9 @@ function this.SetProgressBarSetting(resourceKey, setting, value)
     local settings = this.GetProgressBarSettings(resourceKey)
     local defaultShowBar, defaultWarningThreshold, defaultDangerThreshold = GetResourceDefaults(resource)
 
-    if setting == "showBar" then
+    if setting == "normalColor" then
+        preference.normalColor = CopyColor(value)
+    elseif setting == "showBar" then
         StoreDeviation(preference, "showBar", value, defaultShowBar)
     elseif setting == "warningThreshold" then
         StoreDeviation(preference, "warningThreshold", value, defaultWarningThreshold)

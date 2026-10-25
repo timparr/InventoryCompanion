@@ -1,6 +1,112 @@
 InventoryCompanion = InventoryCompanion or {}
 local this = InventoryCompanion
 
+local function RefreshProgressBarSettings()
+    this.RefreshResourceProgressBars()
+    this.UpdateEventRegistry()
+    if type(LibAddonMenu2.RefreshAddonPanel) == "function" then
+        LibAddonMenu2:RefreshAddonPanel("InventoryCompanionPanel")
+    end
+end
+
+local function MakeProgressBarColorPicker(name, getColor, setColor, defaultColor)
+    return {
+        type = "colorpicker",
+        name = name,
+        getFunc = function()
+            local color = getColor()
+            return color.r, color.g, color.b, color.a
+        end,
+        setFunc = function(r, g, b, a)
+            setColor({ r = r, g = g, b = b, a = a })
+            RefreshProgressBarSettings()
+        end,
+        default = defaultColor,
+    }
+end
+
+local function GetStandaloneProgressBarControls()
+    local controls = {}
+    for _, resource in ipairs(this.GetProgressBarResources()) do
+        local resourceKey = resource.key
+        local settings = this.GetProgressBarSettings(resourceKey)
+        table.insert(controls, {
+            type = "checkbox",
+            name = "Show " .. resource.name .. " Bar",
+            tooltip = "Show this resource in its own movable progress bar. This is independent of the Currency Summary Panel.",
+            getFunc = function()
+                return this.GetProgressBarSettings(resourceKey).showBar
+            end,
+            setFunc = function(value)
+                this.SetProgressBarSetting(resourceKey, "showBar", value)
+                RefreshProgressBarSettings()
+            end,
+            default = settings.showBar,
+        })
+
+        table.insert(controls, {
+            type = "submenu",
+            name = resource.name .. " Bar Advanced Settings",
+            controls = {
+                {
+                    type = "slider",
+                    name = "Warning Threshold (%)",
+                    min = 0,
+                    max = 100,
+                    step = 1,
+                    getFunc = function()
+                        return this.GetProgressBarSettings(resourceKey).warningThreshold * 100
+                    end,
+                    setFunc = function(value)
+                        this.SetProgressBarSetting(resourceKey, "warningThreshold", value / 100)
+                        RefreshProgressBarSettings()
+                    end,
+                    default = settings.warningThreshold * 100,
+                },
+                {
+                    type = "slider",
+                    name = "Danger Threshold (%)",
+                    min = 0,
+                    max = 100,
+                    step = 1,
+                    getFunc = function()
+                        return this.GetProgressBarSettings(resourceKey).dangerThreshold * 100
+                    end,
+                    setFunc = function(value)
+                        this.SetProgressBarSetting(resourceKey, "dangerThreshold", value / 100)
+                        RefreshProgressBarSettings()
+                    end,
+                    default = settings.dangerThreshold * 100,
+                },
+                MakeProgressBarColorPicker(
+                    "Normal Bar Color",
+                    function() return this.GetProgressBarNormalColor(resourceKey) end,
+                    function(color) this.SetProgressBarSetting(resourceKey, "normalColor", color) end,
+                    this.GetProgressBarNormalColor(resourceKey)
+                ),
+            },
+        })
+    end
+
+    table.insert(controls, {
+        type = "header",
+        name = "Shared Alert Colors",
+    })
+    table.insert(controls, MakeProgressBarColorPicker(
+        "Warning Color",
+        function() return this.GetProgressBarAlertColor("warning") end,
+        function(color) this.SetProgressBarAlertColor("warning", color) end,
+        { r = 0.95, g = 0.55, b = 0.08, a = 1 }
+    ))
+    table.insert(controls, MakeProgressBarColorPicker(
+        "Danger Color",
+        function() return this.GetProgressBarAlertColor("danger") end,
+        function(color) this.SetProgressBarAlertColor("danger", color) end,
+        { r = 0.85, g = 0.18, b = 0.18, a = 1 }
+    ))
+    return controls
+end
+
 function this.CreateSettingsPanel()
     local LAM = LibAddonMenu2
     local panelName = this.Utils.DisplayName()
@@ -160,30 +266,8 @@ function this.CreateSettingsPanel()
         {
             type = "submenu",
             name = "Standalone Progress Bars",
-            controls = {
-                {
-                    type = "checkbox",
-                    name = "Show Backpack Bar",
-                    getFunc = function() return this.accountWide.showBagBar ~= false end,
-                    setFunc = function(v)
-                        this.accountWide.showBagBar = v
-                        this.UpdateEventRegistry()
-                        this.RefreshProgressPanels()
-                    end,
-                    default = this.defaultsAccount.showBagBar,
-                },
-                {
-                    type = "checkbox",
-                    name = "Show Bank Bar",
-                    getFunc = function() return this.accountWide.showBankBar ~= false end,
-                    setFunc = function(v)
-                        this.accountWide.showBankBar = v
-                        this.UpdateEventRegistry()
-                        this.RefreshProgressPanels()
-                    end,
-                    default = this.defaultsAccount.showBankBar,
-                },
-            },
+            tooltip = "Choose which capped resources have independent movable progress bars.",
+            controls = GetStandaloneProgressBarControls(),
         },
         {
             type = "header",
@@ -468,30 +552,8 @@ function this.CreateSettingsPanel()
         {
             type = "submenu",
             name = "Standalone Progress Bars",
-            controls = {
-                {
-                    type = "checkbox",
-                    name = "Show Backpack Bar",
-                    getFunc = function() return this.accountWide.showBagBar ~= false end,
-                    setFunc = function(v)
-                        this.accountWide.showBagBar = v
-                        this.UpdateEventRegistry()
-                        this.RefreshProgressPanels()
-                    end,
-                    default = this.defaultsAccount.showBagBar,
-                },
-                {
-                    type = "checkbox",
-                    name = "Show Bank Bar",
-                    getFunc = function() return this.accountWide.showBankBar ~= false end,
-                    setFunc = function(v)
-                        this.accountWide.showBankBar = v
-                        this.UpdateEventRegistry()
-                        this.RefreshProgressPanels()
-                    end,
-                    default = this.defaultsAccount.showBankBar,
-                },
-            },
+            tooltip = "Choose which capped resources have independent movable progress bars.",
+            controls = GetStandaloneProgressBarControls(),
         },
         {
             type = "header",

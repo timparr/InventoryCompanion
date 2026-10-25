@@ -24,40 +24,8 @@ local function GetControlName(resourceKey)
     return "InventoryCompanion_ProgressBar_" .. resourceKey:gsub("[^%w]", "_")
 end
 
-local function GetLegacyCapacityVisibility(resource)
-    if resource.resourceKey == "bag" then
-        return this.accountWide.showBagBar ~= false
-    end
-    if resource.resourceKey == "bank" then
-        return this.accountWide.showBankBar ~= false
-    end
-    return true
-end
-
 local function GetEffectiveSettings(resource)
     local settings = this.GetProgressBarSettings(resource.key)
-    if resource.kind == "capacity" then
-        local preference = type(this.accountWide.progressBarPreferences) == "table"
-            and this.accountWide.progressBarPreferences[resource.key]
-        if type(preference) ~= "table" or preference.showBar == nil then
-            settings.showBar = settings.showBar and GetLegacyCapacityVisibility(resource)
-        end
-        if resource.resourceKey == "bag" then
-            if type(preference) ~= "table" or preference.warningThreshold == nil then
-                settings.warningThreshold = this.accountWide.warningThresholdBag or settings.warningThreshold
-            end
-            if type(preference) ~= "table" or preference.dangerThreshold == nil then
-                settings.dangerThreshold = this.accountWide.dangerThresholdBag or settings.dangerThreshold
-            end
-        elseif resource.resourceKey == "bank" then
-            if type(preference) ~= "table" or preference.warningThreshold == nil then
-                settings.warningThreshold = this.accountWide.warningThresholdBank or settings.warningThreshold
-            end
-            if type(preference) ~= "table" or preference.dangerThreshold == nil then
-                settings.dangerThreshold = this.accountWide.dangerThresholdBank or settings.dangerThreshold
-            end
-        end
-    end
     return settings
 end
 
@@ -101,13 +69,28 @@ local function CreateProgressBarControl(resource, resourceSettings)
 end
 
 local function GetNormalColors(resource)
-    if resource.kind == "capacity" and resource.resourceKey == "bag" then
+    local color = this.GetProgressBarSettings(resource.key).normalColor
+    if not color then
+        if resource.kind == "capacity" and resource.resourceKey == "bank" then
+            return BAR_COLORS.bank_normal
+        end
         return BAR_COLORS.bag_normal
     end
-    if resource.kind == "capacity" and resource.resourceKey == "bank" then
-        return BAR_COLORS.bank_normal
+    return {
+        ZO_ColorDef:New(color.r * 0.8, color.g * 0.8, color.b * 0.8, color.a),
+        ZO_ColorDef:New(math.min(color.r * 1.15, 1), math.min(color.g * 1.15, 1), math.min(color.b * 1.15, 1), color.a),
+    }
+end
+
+local function GetAlertColors(alertType)
+    local color = this.GetProgressBarAlertColorPreference(alertType)
+    if not color then
+        return BAR_COLORS[alertType]
     end
-    return BAR_COLORS.bag_normal
+    return {
+        ZO_ColorDef:New(color.r * 0.8, color.g * 0.8, color.b * 0.8, color.a),
+        ZO_ColorDef:New(math.min(color.r * 1.15, 1), math.min(color.g * 1.15, 1), math.min(color.b * 1.15, 1), color.a),
+    }
 end
 
 local function UpdateProgressBar(resource, control, settings)
@@ -122,9 +105,9 @@ local function UpdateProgressBar(resource, control, settings)
     control.bar:SetValue(values.amount)
 
     if percent >= settings.dangerThreshold then
-        ZO_StatusBar_SetGradientColor(control.bar, BAR_COLORS.danger)
+        ZO_StatusBar_SetGradientColor(control.bar, GetAlertColors("danger"))
     elseif percent >= settings.warningThreshold then
-        ZO_StatusBar_SetGradientColor(control.bar, BAR_COLORS.warning)
+        ZO_StatusBar_SetGradientColor(control.bar, GetAlertColors("warning"))
     else
         ZO_StatusBar_SetGradientColor(control.bar, GetNormalColors(resource))
     end
@@ -134,12 +117,19 @@ local function UpdateProgressBar(resource, control, settings)
 end
 
 function this.RefreshResourceProgressBars()
+    local activeResources = {}
     for _, resource in ipairs(this.GetProgressBarResources()) do
+        activeResources[resource.key] = true
         local settings = GetEffectiveSettings(resource)
         local control = progressBarControls[resource.key]
         if settings.showBar or control then
             control = control or CreateProgressBarControl(resource, this.GetProgressBarSettings(resource.key))
             UpdateProgressBar(resource, control, settings)
+        end
+    end
+    for resourceKey, control in pairs(progressBarControls) do
+        if not activeResources[resourceKey] then
+            control:SetHidden(true)
         end
     end
 end
