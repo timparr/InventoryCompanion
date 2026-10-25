@@ -468,6 +468,24 @@ local function RunTests(arguments)
                         )
                         CheckEqual(#notifications, 2, "Initializing a balance should not add notifications")
 
+                        this.BeginCurrencyNotificationSuppression(1000)
+                        this.SetCurrencyNotificationBaseline(currencyType, location, 20)
+                        Check(
+                            not this.NotifyCurrencyChange(currencyType, location, 0, nil, 2000),
+                            "Balance reports shortly after a load screen should not notify"
+                        )
+                        Check(
+                            not this.NotifyCurrencyChange(currencyType, location, 20, nil, 3000),
+                            "Restored balances after a load screen should not notify"
+                        )
+                        CheckEqual(#notifications, 2, "Load-screen reports should not add notifications")
+                        Check(
+                            this.NotifyCurrencyChange(currencyType, location, 25, nil, 7000),
+                            "Changes after the load window should notify again"
+                        )
+                        CheckEqual(#notifications, 3, "A change after the load window should notify")
+                        this.SetCurrencyNotificationBaseline(currencyType, location, 20)
+
                         this.SetCurrencyNotificationEnabled(currencyType, false)
                         Check(not this.HasCurrencyNotifications(), "Disabled currency notifications should release the event listener")
                         this.SetCurrencyNotificationBaseline(currencyType, location, 20)

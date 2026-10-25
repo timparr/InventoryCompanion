@@ -96,10 +96,10 @@ local function OnInventorySlotUpdate(eventCode, bagId, slotIndex, isNewItem, ite
     end
 end
 
-local function OnCurrencyUpdate(eventCode, currencyType, currencyLocation, newAmount, oldAmount)
+local function OnCurrencyUpdate(eventCode, currencyType, currencyLocation, newAmount, oldAmount, reason)
     local shouldRefreshPanel = this.IsCurrencyResourceVisible(currencyType, currencyLocation)
     local shouldRefreshBar = this.IsCurrencyProgressBarVisible(currencyType)
-    this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount)
+    this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount, reason)
     if not shouldRefreshPanel and not shouldRefreshBar then
         return
     end
@@ -166,6 +166,12 @@ function this.UpdateEventRegistry()
         end
     end
 end
+
+EVENT_MANAGER:RegisterForEvent(this.Name .. "_Event_PlayerActivated", EVENT_PLAYER_ACTIVATED, function()
+    if this.state and this.state.isLoaded then
+        this.BeginCurrencyNotificationSuppression()
+    end
+end)
 
 function this.InitCutsceneTicker()
     EVENT_MANAGER:RegisterForUpdate(this.Name .. "_HideCheck", 100, function()

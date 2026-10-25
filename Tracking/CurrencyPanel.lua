@@ -721,14 +721,27 @@ function this.SeedCurrencyNotificationBaselines()
     end
 end
 
-function this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount)
+-- ESO re-sends balances after load screens (login, wayshrines), so changes are ignored briefly afterwards.
+local LOAD_SUPPRESSION_MS = 5000
+local suppressNotificationsUntil = 0
+
+function this.BeginCurrencyNotificationSuppression(now)
+    suppressNotificationsUntil = (now or GetGameTimeMilliseconds()) + LOAD_SUPPRESSION_MS
+    this.SeedCurrencyNotificationBaselines()
+end
+
+function this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount, reason, now)
     if type(newAmount) ~= "number" then return false end
 
     local key = GetBaselineKey(currencyType, currencyLocation)
     local previousAmount = notificationBaselines[key]
     notificationBaselines[key] = newAmount
 
-    if previousAmount == nil
+    local isInitialReport = CURRENCY_CHANGE_REASON_PLAYER_INIT ~= nil
+        and reason == CURRENCY_CHANGE_REASON_PLAYER_INIT
+    if isInitialReport
+        or (now or GetGameTimeMilliseconds()) < suppressNotificationsUntil
+        or previousAmount == nil
         or previousAmount == newAmount
         or not this.IsCurrencyNotificationEnabled(currencyType) then
         return false
