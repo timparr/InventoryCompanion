@@ -27,3 +27,8 @@ To refresh the generator and its bundled UESP exports later:
 git -C "$env:USERPROFILE\Documents\ESO-LuaLS-Generator" pull --ff-only
 .\Project\DevDocs\UpdateESOApiLibrary.ps1
 ```
+
+## In-Game Diagnostics
+
+- `/ictest [verbose] [copy]` runs diagnostic tests and live inventory scans. It does not intentionally modify saved variables.
+- `/icclean` explicitly prunes known diagnostic saved-variable leftovers and updates the currency-name diagnostic history.

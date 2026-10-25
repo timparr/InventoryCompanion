@@ -223,6 +223,7 @@ this.defaultsAccount = {
     trackerGroupThreshold = 8,
 
     -- Currency & Capacity Overlay
+    showEmptyCurrencies = true,
     currencyOffsetX = 50,
     currencyOffsetY = 150,
     currencyNamesById = {},

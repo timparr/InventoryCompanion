@@ -93,6 +93,38 @@ local function AuditCurrencyNames(accountWide)
     return currencyCount, namesChanged
 end
 
+local function RunCleanup()
+    if not this.state or not this.state.isLoaded then
+        d("[InventoryCompanion cleanup] Addon is not fully loaded.")
+        return
+    end
+
+    local pruneOk, removedDiagnosticCount = pcall(function()
+        return PruneDiagnosticSavedVariables(this.accountWide, this.character)
+    end)
+    if pruneOk then
+        d(string.format(
+            "[InventoryCompanion cleanup] Removed %d known diagnostic saved-variable entries.",
+            removedDiagnosticCount
+        ))
+    else
+        d("[InventoryCompanion cleanup] Failed to prune diagnostic entries: " .. tostring(removedDiagnosticCount))
+    end
+
+    local currencyAuditOk, currencyCount, changedCurrencyNames = pcall(function()
+        local count, changes = AuditCurrencyNames(this.accountWide)
+        return count, changes
+    end)
+    if currencyAuditOk then
+        d(string.format("[InventoryCompanion cleanup] Checked %d valid currency IDs.", currencyCount))
+        for _, warning in ipairs(changedCurrencyNames) do
+            d("[InventoryCompanion cleanup] " .. warning)
+        end
+    else
+        d("[InventoryCompanion cleanup] Failed to audit currency names: " .. tostring(currencyCount))
+    end
+end
+
 local function RunTests(arguments)
     if not this.state or not this.state.isLoaded then
         d("[InventoryCompanion tests] Addon is not fully loaded.")
@@ -115,44 +147,12 @@ local function RunTests(arguments)
     local bankOpenDuringLiveScan = IsBankOpen()
 
     local original = {
-        accountWide = this.accountWide,
-        character = this.character,
-        preLoadedRulesets = this.preLoadedRulesets,
         getBagContents = this.Scanning.GetBagContents,
         getItemLinkName = _G.GetItemLinkName,
     }
 
     local results = {}
     local passed = 0
-    local pruneOk, removedDiagnosticCount = pcall(function()
-        return PruneDiagnosticSavedVariables(this.accountWide, this.character)
-    end)
-    if pruneOk then
-        table.insert(results, string.format(
-            "PASS Saved-variable cleanup: removed %d known diagnostic entries",
-            removedDiagnosticCount
-        ))
-        passed = passed + 1
-    else
-        table.insert(results, "FAIL Saved-variable cleanup: " .. tostring(removedDiagnosticCount))
-    end
-
-    local currencyAuditOk, currencyCount, changedCurrencyNames = pcall(function()
-        local count, changes = AuditCurrencyNames(this.accountWide)
-        return count, changes
-    end)
-    if currencyAuditOk then
-        table.insert(results, string.format(
-            "PASS Currency ID name history: checked %d valid IDs",
-            currencyCount
-        ))
-        passed = passed + 1
-        for _, warning in ipairs(changedCurrencyNames) do
-            table.insert(results, warning)
-        end
-    else
-        table.insert(results, "FAIL Currency ID name history: " .. tostring(currencyCount))
-    end
 
     local liveBagIds = { BAG_BACKPACK, BAG_BANK, BAG_SUBSCRIBER_BANK }
     if IsESOPlusSubscriber() then
@@ -687,3 +687,4 @@ end
 
 this.RunTests = RunTests
 SLASH_COMMANDS["/ictest"] = RunTests
+SLASH_COMMANDS["/icclean"] = RunCleanup

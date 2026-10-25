@@ -51,7 +51,7 @@ local function ShouldListenSlotUpdate()
 end
 
 local function ShouldListenCurrencyUpdates()
-    return this.HasVisibleCurrencyResources()
+    return this.HasCurrencyResourcesToTrack()
 end
 
 local function ShouldListenCurrencyCapUpdates()
@@ -100,6 +100,7 @@ local function OnCurrencyUpdate(eventCode, currencyType, currencyLocation)
     end
     Enqueue("RefreshCurrency", function()
         this.RefreshCurrencyPanel()
+        this.UpdateEventRegistry()
     end, 500)
 end
 

@@ -21,6 +21,7 @@ local CAPACITIES = {
 
 local currencyCells = {}
 local hasVisibleCurrencies = false
+local hasCurrencyResourcesToTrack = false
 local hasVisibleCapacities = false
 local hasVisibleCappedCurrencies = false
 local malformedPreferenceWarnings = {}
@@ -33,6 +34,23 @@ local resourceSettingsListControl
 local function OnCurrencyMoveStop(control)
     this.accountWide.currencyOffsetX = control:GetLeft()
     this.accountWide.currencyOffsetY = control:GetTop()
+end
+
+local function OnCurrencyPanelMouseUp(_, button)
+    if button ~= MOUSE_BUTTON_INDEX_RIGHT then return end
+
+    ClearMenu()
+    local showEmptyCurrencies = this.accountWide.showEmptyCurrencies ~= false
+    AddCustomMenuItem(
+        showEmptyCurrencies and "Hide Zero-Balance Currencies" or "Show Zero-Balance Currencies",
+        function()
+            this.accountWide.showEmptyCurrencies = not showEmptyCurrencies
+            this.RefreshCurrencyPanel()
+            this.UpdateEventRegistry()
+        end,
+        MENU_ADD_OPTION_LABEL
+    )
+    ShowMenu()
 end
 
 local function WarnMalformedPreference(message)
@@ -357,17 +375,28 @@ local function GetVisibleGridEntries(resourceEntries)
 
     local gridEntries = {}
     local addedCurrencies = {}
+    local function HasPositiveBalance(currencyLocations)
+        if this.accountWide.showEmptyCurrencies ~= false then return true end
+        for _, locationEntry in ipairs(currencyLocations) do
+            if locationEntry.amount > 0 then return true end
+        end
+        return false
+    end
+
     for _, entry in ipairs(resourceEntries) do
         if entry.kind == "capacity" then
             if entry.isVisible then table.insert(gridEntries, entry) end
         elseif entry.location == CURRENCY_LOCATION_ACCOUNT then
             if IsCurrencySettingsRowVisible(entry.currencyType) then
-                table.insert(gridEntries, {
-                    kind = "currency",
-                    name = entry.name,
-                    texture = entry.texture,
-                    currencyLocations = { entry },
-                })
+                local currencyLocations = { entry }
+                if HasPositiveBalance(currencyLocations) then
+                    table.insert(gridEntries, {
+                        kind = "currency",
+                        name = entry.name,
+                        texture = entry.texture,
+                        currencyLocations = currencyLocations,
+                    })
+                end
             end
         elseif not addedCurrencies[entry.currencyType] then
             addedCurrencies[entry.currencyType] = true
@@ -380,7 +409,7 @@ local function GetVisibleGridEntries(resourceEntries)
                         table.insert(visibleLocations, locationEntry)
                     end
                 end
-                if #visibleLocations > 0 then
+                if #visibleLocations > 0 and HasPositiveBalance(visibleLocations) then
                     table.insert(gridEntries, {
                         kind = "currency",
                         name = entry.name,
@@ -656,6 +685,10 @@ function this.HasVisibleCurrencyResources()
     return hasVisibleCurrencies
 end
 
+function this.HasCurrencyResourcesToTrack()
+    return hasCurrencyResourcesToTrack
+end
+
 function this.HasVisibleCapacityResources()
     return hasVisibleCapacities
 end
@@ -907,6 +940,18 @@ function this.GetCurrencyPanelSettingsControls()
     local listHeight = (RESOURCE_SETTINGS_ROW_HEIGHT + RESOURCE_SETTINGS_ROW_GAP) * (#settingsRows + 2) + RESOURCE_SETTINGS_ROW_GAP * 2
     local controls = {
         {
+            type = "checkbox",
+            name = "Show Empty Currencies",
+            tooltip = "If enabled, currencies with a zero balance remain in the panel. Disable this to show only currencies with a positive balance in at least one selected location.",
+            getFunc = function() return this.accountWide.showEmptyCurrencies ~= false end,
+            setFunc = function(value)
+                this.accountWide.showEmptyCurrencies = value
+                this.RefreshCurrencyPanel()
+                this.UpdateEventRegistry()
+            end,
+            default = this.defaultsAccount.showEmptyCurrencies,
+        },
+        {
             type = "description",
             text = "Choose which locations appear for each currency. Click a location label or checkbox to toggle it. Use Show/Hide to control the row and arrows to reorder shown resources. A shown currency with no selected locations remains in the list in red but contributes no HUD value.",
         },
@@ -938,6 +983,7 @@ function this.InitCurrencyPanel()
     InventoryCompanion_CurrencyFloat:ClearAnchors()
     InventoryCompanion_CurrencyFloat:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, this.accountWide.currencyOffsetX or 50, this.accountWide.currencyOffsetY or 150)
     InventoryCompanion_CurrencyFloat:SetHandler("OnMoveStop", OnCurrencyMoveStop)
+    InventoryCompanion_CurrencyFloat:SetHandler("OnMouseUp", OnCurrencyPanelMouseUp)
 
     this.RefreshCurrencyPanel()
     InventoryCompanion_CurrencyFloatContainer:SetHandler("OnMouseDown", function(_, button)
@@ -945,6 +991,7 @@ function this.InitCurrencyPanel()
             InventoryCompanion_CurrencyFloat:StartMoving()
         end
     end)
+    InventoryCompanion_CurrencyFloatContainer:SetHandler("OnMouseUp", OnCurrencyPanelMouseUp)
 end
 
 function this.RefreshCurrencyPanel()
@@ -953,8 +1000,17 @@ function this.RefreshCurrencyPanel()
 
     local resourceEntries = this.GetCurrencyPanelResourceEntries()
     hasVisibleCurrencies = false
+    hasCurrencyResourcesToTrack = false
     hasVisibleCapacities = false
     hasVisibleCappedCurrencies = false
+    for _, entry in ipairs(resourceEntries) do
+        if entry.kind == "currency"
+            and entry.isVisible
+            and IsCurrencySettingsRowVisible(entry.currencyType) then
+            hasCurrencyResourcesToTrack = true
+            break
+        end
+    end
     local entries = GetVisibleGridEntries(resourceEntries)
     for _, entry in ipairs(entries) do
         if entry.kind == "currency" then

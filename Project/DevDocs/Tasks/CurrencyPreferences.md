@@ -27,6 +27,7 @@ The feature must tolerate currencies being added, removed, or renamed by ESO wit
 4. For currencies available in multiple storage locations, keep independent visibility preferences for each applicable location (for example, character and bank). In the compact panel, combine the selected character and bank values into one cell when both are visible; show only the selected location when just one is visible. Separate values with a middle dot and show each capped value with its rounded percentage of that location's cap. On hover, show the full resource name and a separate line for each displayed location, with full amount and cap details. The combined cell uses the earliest selected location's position in the grid order. Combined character-plus-bank totals (a summed amount) remain deferred beyond Phase 1.
 5. Do not require an active bank interaction to read currency amounts. Do not perform currency transfers or other mutations.
 6. New eligible currencies should be discoverable without an addon update. Unless the user has explicitly hidden them, new currencies should appear after existing ordered entries.
+7. Add an account-wide `Show Empty Currencies` option, enabled by default, with a matching right-click panel-menu toggle. When disabled, show a currency cell only if at least one selected location has a balance greater than zero; retain both selected values in a combined cell if either one is positive. Apply the same rule to account-wide currencies, not to bag/bank capacity entries. Keep currency update listeners active for shown, selected locations even when their current balances are zero.
 
 ## 4. Currency Discovery and Identity
 
@@ -78,6 +79,7 @@ Requirements:
 - Initialize currency discovery before building the settings controls. ESO currency definitions are stable during a logged-in session, so settings can use the startup-discovered list; no in-session currency-list watcher is required.
 - Provide separate IN and OUT lists with one row per currency type. Bankable currencies have independent Character and Bank checkboxes; account-wide currencies have no location checkbox. Clicking either a checkbox or its label toggles that location. A separate Show/Hide control moves the row between IN and alphabetized OUT without changing location choices. IN follows grid order and has move-up/move-down controls that move the currency row and its selected locations together; OUT has no ordering controls. A shown currency with no selected locations stays in IN, with its name colored red, and contributes no value to the panel. Capacity resources have their own rows with compact-panel controls. Include a reset control that restores only gold, backpack space, and bank space to IN while preserving the panel position and standalone-bar preferences.
 - Refresh the currency panel immediately after a preference changes.
+- The zero-balance filter is independent of currency row visibility and location selection. Keep the currency update listener active while any shown row has a selected location, even if the filter currently hides all currency cells.
 - Replace the unreleased panel-specific visibility controls with resource preferences; no compatibility migration for `showGold`, `showBag`, or `showBank` is required.
 - Keep currency discovery, preference normalization/pruning, and rendering separate: the helper supplies live ESO data; saved variables supply user choices; the panel combines them.
 
@@ -108,6 +110,7 @@ Requirements:
 6. Hover cells to verify the full resource name and only the displayed location lines appear; confirm hovering does not interfere with moving the panel.
 7. In settings, verify each currency has one row, each location checkbox and its label toggle only that location, and moving a currency reorders its selected locations together.
 8. Verify a shown currency with no selected locations remains in IN with a red name, has no HUD cell, and does not keep currency update listeners active by itself.
+9. With `Show Empty Currencies` disabled, verify zero-balance currencies are omitted, a combined cell remains if either selected location is positive, account-wide zero balances are omitted, and capacity indicators are unaffected. Verify a currency that changes from zero to positive appears without toggling settings.
 
 ## 9. Product Decisions Deferred Beyond Phase 1
 
