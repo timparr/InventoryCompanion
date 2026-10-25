@@ -134,8 +134,6 @@ function this.RefreshResourceProgressBars()
     end
 end
 
-this.RefreshProgressPanels = this.RefreshResourceProgressBars
-
 function this.InitResourceProgressBars()
     for _, resource in ipairs(this.GetProgressBarResources()) do
         local settings = GetEffectiveSettings(resource)
