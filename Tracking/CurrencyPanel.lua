@@ -728,7 +728,148 @@ local suppressNotificationsUntil = 0
 
 -- Rapid changes (e.g. selling many items) are merged and announced once the balance has been quiet for this long.
 local NOTIFICATION_QUIET_MS = 1000
+-- One record per currency holds net per-location changes; whether it was a gain, spend or bank
+-- transfer is decided when the record is flushed.
 local pendingNotifications = {}
+
+local BALANCE_ICON_SIZE = 20
+
+function this.FormatBalanceIcon(texturePath)
+    return string.format("|t%d:%d:%s|t", BALANCE_ICON_SIZE, BALANCE_ICON_SIZE, texturePath)
+end
+
+-- Change markers shown after the currency icon. Swap these to restyle (textures or plain text).
+local CHANGE_MARKERS = {
+    gain = "EsoUI/Art/Buttons/plus_up.dds",
+    spend = "EsoUI/Art/Buttons/minus_up.dds",
+    transfer = "EsoUI/Art/Miscellaneous/transform_arrow.dds",
+}
+
+-- "kind" is "gain", "spend" or "transfer". Returns "[marker][currency icon]" as a visual prefix.
+function this.FormatCurrencyChangeHeader(currencyType, kind)
+    local marker = CHANGE_MARKERS[kind]
+    if marker:find("%.dds$") then
+        marker = this.FormatBalanceIcon(marker)
+    end
+    local icon = GetCurrencyKeyboardIcon(currencyType)
+    if not icon or icon == "" then return marker end
+    return marker .. this.FormatBalanceIcon(icon)
+end
+
+local BALANCE_PROGRESS_BAR_KEYS = { bag = "capacity:bag", bank = "capacity:bank" }
+
+local function ColorizeText(color, text)
+    return string.format("|c%s%s|r", ZO_ColorDef:New(color.r, color.g, color.b, 1):ToHex(), text)
+end
+
+-- "kind" is "bag" or "bank". The amount takes the colour the user chose for that progress bar.
+function this.FormatBalanceEntry(kind, amountText)
+    local color = this.GetProgressBarNormalColor(BALANCE_PROGRESS_BAR_KEYS[kind])
+    return string.format("%s %s", this.FormatBalanceIcon(CAPACITIES[kind].texture), ColorizeText(color, amountText))
+end
+
+-- Capped currencies read "amount/cap (percent%)", coloured as that currency's progress bar would be
+-- at that fill level (normal, warning or danger colour and thresholds from the settings).
+-- forcedLevel ("normal", "warning" or "danger") overrides the thresholds; the debug demo uses it.
+function this.FormatCappedBalance(currencyType, amount, cap, abbreviated, forcedLevel)
+    local function FormatAmount(value)
+        return abbreviated and this.Utils.FormatBigNumber(value) or tostring(value)
+    end
+    local percent = cap > 0 and amount / cap or 0
+    local text = string.format("%s/%s (%d%%)", FormatAmount(amount), FormatAmount(cap), zo_floor(percent * 100))
+    local resourceKey = "currency:" .. tostring(currencyType)
+    local color
+    if forcedLevel then
+        color = this.GetProgressBarColorForLevel(resourceKey, forcedLevel)
+    else
+        color = this.GetProgressBarColorForPercent(resourceKey, percent)
+    end
+    return color and ColorizeText(color, text) or text
+end
+
+-- Untouched locations use the last-known balance, which tracks every event, before the live value.
+local function ResolveBalance(currencyType, balances, location)
+    local amount = balances[location]
+    if amount == nil then
+        amount = notificationBaselines[GetBaselineKey(currencyType, location)]
+    end
+    if amount == nil then
+        amount = GetCurrencyAmount(currencyType, location)
+    end
+    return amount
+end
+
+local function FormatCurrencyBalances(currencyType, balances, abbreviated, forcedLevel)
+    local function FormatAmount(amount)
+        return abbreviated and this.Utils.FormatBigNumber(amount) or tostring(amount)
+    end
+
+    if GetCurrencyPlayerStoredLocation(currencyType) == CURRENCY_LOCATION_ACCOUNT then
+        local amount = ResolveBalance(currencyType, balances, CURRENCY_LOCATION_ACCOUNT)
+        if IsCurrencyCapped(currencyType, CURRENCY_LOCATION_ACCOUNT) then
+            local cap = GetMaxPossibleCurrency(currencyType, CURRENCY_LOCATION_ACCOUNT)
+            if cap and cap > 0 then
+                return this.FormatCappedBalance(currencyType, amount, cap, abbreviated, forcedLevel)
+            end
+        end
+        return FormatAmount(amount)
+    end
+
+    local balanceText = this.FormatBalanceEntry(
+        "bag", FormatAmount(ResolveBalance(currencyType, balances, CURRENCY_LOCATION_CHARACTER))
+    )
+
+    if CanCurrencyBeStoredInLocation(currencyType, CURRENCY_LOCATION_BANK) then
+        balanceText = balanceText .. " · " .. this.FormatBalanceEntry(
+            "bank", FormatAmount(ResolveBalance(currencyType, balances, CURRENCY_LOCATION_BANK))
+        )
+    end
+
+    return balanceText
+end
+
+local function ShowCurrencyNotification(currencyType, delta, balances, forcedLevel)
+    local currencyName = GetCurrencyName(currencyType, false, false)
+    local header = this.FormatCurrencyChangeHeader(currencyType, delta > 0 and "gain" or "spend")
+    local exactChange = tostring(math.abs(delta))
+    local abbreviatedChange = this.Utils.FormatBigNumber(math.abs(delta))
+    local exactBalances = FormatCurrencyBalances(currencyType, balances, false, forcedLevel)
+    local abbreviatedBalances = FormatCurrencyBalances(currencyType, balances, true, forcedLevel)
+    local direction = delta > 0 and "Gained" or "Spent"
+    this.Utils.UserWarning(
+        string.format("%s %s %s %s. You now have %s", header, direction, exactChange, currencyName, exactBalances),
+        string.format("%s %s %s %s. You now have %s", header, direction, abbreviatedChange, currencyName, abbreviatedBalances)
+    )
+end
+
+local function ShowCurrencyTransfer(currencyType, reason, amount, balances)
+    local fromLocation = reason == CURRENCY_CHANGE_REASON_BANK_WITHDRAWAL and "Bank" or "Backpack"
+    local toLocation = reason == CURRENCY_CHANGE_REASON_BANK_WITHDRAWAL and "Backpack" or "Bank"
+    local currencyName = GetCurrencyName(currencyType, false, false)
+    local header = this.FormatCurrencyChangeHeader(currencyType, "transfer")
+    local exactBalances = FormatCurrencyBalances(currencyType, balances, false)
+    local abbreviatedBalances = FormatCurrencyBalances(currencyType, balances, true)
+    this.Utils.UserWarning(
+        string.format(
+            "%s Transferred %s %s from %s to %s. You now have %s",
+            header,
+            tostring(amount),
+            currencyName,
+            fromLocation,
+            toLocation,
+            exactBalances
+        ),
+        string.format(
+            "%s Transferred %s %s from %s to %s. You now have %s",
+            header,
+            this.Utils.FormatBigNumber(amount),
+            currencyName,
+            fromLocation,
+            toLocation,
+            abbreviatedBalances
+        )
+    )
+end
 
 local function FlushCurrencyNotification(key)
     local pending = pendingNotifications[key]
@@ -737,18 +878,58 @@ local function FlushCurrencyNotification(key)
     if pending.timer then
         zo_removeCallLater(pending.timer)
     end
-    if pending.delta == 0 then return false end
 
-    local currencyName = GetCurrencyName(pending.currencyType, false, false)
-    local locationName = GetString("SI_CURRENCYLOCATION", pending.currencyLocation)
-    local direction = pending.delta > 0 and "Gained" or "Spent"
-    local changedText = (this.Utils.FormatBigNumber(math.abs(pending.delta)))
-    local totalText = (this.Utils.FormatBigNumber(pending.total))
-    this.Utils.UserWarning(
-        string.format("%s %s %s (%s total, %s)", direction, changedText, currencyName, totalText, locationName),
-        string.format("%s %s %s", direction, changedText, currencyName)
-    )
-    return true
+    local currencyType = pending.currencyType
+    local characterDelta = pending.deltas[CURRENCY_LOCATION_CHARACTER] or 0
+    local bankDelta = pending.deltas[CURRENCY_LOCATION_BANK] or 0
+    local totalDelta = 0
+    for _, delta in pairs(pending.deltas) do
+        totalDelta = totalDelta + delta
+    end
+
+    -- Opposite bag and bank changes during a bank transaction are a transfer; anything left over
+    -- (e.g. a pickup in the same window) is announced as a normal gain or spend.
+    local transferAmount = 0
+    local transferReason
+    if pending.hasBankTransfer and characterDelta * bankDelta < 0 then
+        transferAmount = math.min(math.abs(characterDelta), math.abs(bankDelta))
+        transferReason = characterDelta > 0 and CURRENCY_CHANGE_REASON_BANK_WITHDRAWAL
+            or CURRENCY_CHANGE_REASON_BANK_DEPOSIT
+    end
+
+    local flushed = false
+    if totalDelta ~= 0 then
+        ShowCurrencyNotification(currencyType, totalDelta, pending.balances)
+        flushed = true
+    end
+    if transferAmount > 0 then
+        ShowCurrencyTransfer(currencyType, transferReason, transferAmount, pending.balances)
+        flushed = true
+    end
+    return flushed
+end
+
+local function QueueCurrencyChange(currencyType, currencyLocation, delta, newAmount, isBankTransfer)
+    local key = tostring(currencyType)
+    local pending = pendingNotifications[key]
+    if not pending then
+        pending = {
+            currencyType = currencyType,
+            deltas = {},
+            balances = {},
+        }
+        pendingNotifications[key] = pending
+    elseif pending.timer then
+        zo_removeCallLater(pending.timer)
+    end
+
+    pending.deltas[currencyLocation] = (pending.deltas[currencyLocation] or 0) + delta
+    pending.balances[currencyLocation] = newAmount
+    pending.hasBankTransfer = pending.hasBankTransfer or isBankTransfer
+    pending.timer = zo_callLater(function()
+        pending.timer = nil
+        FlushCurrencyNotification(key)
+    end, NOTIFICATION_QUIET_MS)
 end
 
 function this.FlushCurrencyNotifications()
@@ -792,19 +973,106 @@ function this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount, re
         return false
     end
 
-    local pending = pendingNotifications[key]
-    if not pending then
-        pending = { currencyType = currencyType, currencyLocation = currencyLocation, delta = 0 }
-        pendingNotifications[key] = pending
-    elseif pending.timer then
-        zo_removeCallLater(pending.timer)
+    local delta = newAmount - previousAmount
+    local isBankTransferReason = (CURRENCY_CHANGE_REASON_BANK_DEPOSIT ~= nil
+            and reason == CURRENCY_CHANGE_REASON_BANK_DEPOSIT)
+        or (CURRENCY_CHANGE_REASON_BANK_WITHDRAWAL ~= nil
+            and reason == CURRENCY_CHANGE_REASON_BANK_WITHDRAWAL)
+    local isBankTransfer = isBankTransferReason
+        and (currencyLocation == CURRENCY_LOCATION_CHARACTER or currencyLocation == CURRENCY_LOCATION_BANK)
+    QueueCurrencyChange(currencyType, currencyLocation, delta, newAmount, isBankTransfer)
+    return true
+end
+
+local CURRENCY_NOTIFICATION_DEMO_START_DELAY_MS = 1500
+local CURRENCY_NOTIFICATION_DEMO_STEP_DELAY_MS = 2200
+local currencyNotificationDemoInProgress = false
+
+local function RunCurrencyNotificationDemo()
+    local characterLocation = CURRENCY_LOCATION_CHARACTER
+    local bankLocation = CURRENCY_LOCATION_BANK
+    local accountLocation = CURRENCY_LOCATION_ACCOUNT
+    -- Virtual balances per currency; account-wide currencies only use the account location.
+    local balancesByCurrency = {
+        [CURT_MONEY] = { [characterLocation] = 500, [bankLocation] = 20000 },
+        [CURT_TRANSMUTE_CRYSTALS] = { [accountLocation] = 2600 },
+        [CURT_TRADE_BARS] = { [accountLocation] = 12 },
+    }
+    local examples = {
+        { currencyType = CURT_MONEY, kind = "gain", amount = 10, label = "Gold ground pickup" },
+        { currencyType = CURT_MONEY, kind = "withdraw", amount = 100, label = "Gold bank withdrawal" },
+        { currencyType = CURT_MONEY, kind = "deposit", amount = 200, label = "Gold bank deposit" },
+        { currencyType = CURT_MONEY, kind = "spend", amount = 250, label = "Gold small spend" },
+        { currencyType = CURT_MONEY, kind = "gain", amount = 2500000, label = "Gold large gain" },
+        { currencyType = CURT_MONEY, kind = "spend", amount = 1234567, label = "Gold very large spend" },
+        { currencyType = CURT_TRANSMUTE_CRYSTALS, kind = "spend", amount = 300, fill = 0.40, level = "normal", label = "Transmute Crystals spend (normal)" },
+        { currencyType = CURT_TRANSMUTE_CRYSTALS, kind = "gain", amount = 50, fill = 0.80, level = "warning", label = "Transmute Crystals gain (warning colour)" },
+        { currencyType = CURT_TRANSMUTE_CRYSTALS, kind = "spend", amount = 20, fill = 0.92, level = "warning", label = "Transmute Crystals spend (warning colour)" },
+        { currencyType = CURT_TRANSMUTE_CRYSTALS, kind = "gain", amount = 100, fill = 0.97, level = "danger", label = "Transmute Crystals gain (danger colour)" },
+        { currencyType = CURT_TRANSMUTE_CRYSTALS, kind = "gain", amount = 5, fill = 1.0, level = "danger", label = "Transmute Crystals gain (at cap)" },
+        { currencyType = CURT_TRADE_BARS, kind = "gain", amount = 5, label = "Trade Bars gain" },
+        { currencyType = CURT_TRADE_BARS, kind = "spend", amount = 3, label = "Trade Bars spend" },
+    }
+
+    local function RunExample(index)
+        local example = examples[index]
+        if not example then
+            currencyNotificationDemoInProgress = false
+            d("[InventoryCompanion] Currency formatting demo complete. Sample balances were virtual; no currency was changed.")
+            return
+        end
+
+        local currencyType = example.currencyType
+        local balances = balancesByCurrency[currencyType]
+        if currencyType ~= nil and balances and IsCurrencyValid(currencyType) then
+            local primaryLocation = balances[accountLocation] ~= nil and accountLocation or characterLocation
+            if example.kind == "gain" or example.kind == "spend" then
+                local delta = example.kind == "gain" and example.amount or -example.amount
+                if example.fill then
+                    -- Capped currencies: show the balance at a chosen fill level of the real cap.
+                    local cap = GetMaxPossibleCurrency(currencyType, primaryLocation)
+                    balances[primaryLocation] = zo_floor(cap * example.fill)
+                else
+                    balances[primaryLocation] = balances[primaryLocation] + delta
+                end
+                ShowCurrencyNotification(currencyType, delta, balances, example.level)
+            else
+                local isWithdrawal = example.kind == "withdraw"
+                local reason = isWithdrawal
+                    and CURRENCY_CHANGE_REASON_BANK_WITHDRAWAL
+                    or CURRENCY_CHANGE_REASON_BANK_DEPOSIT
+                local delta = isWithdrawal and example.amount or -example.amount
+                balances[characterLocation] = balances[characterLocation] + delta
+                balances[bankLocation] = balances[bankLocation] - delta
+                ShowCurrencyTransfer(currencyType, reason, example.amount, balances)
+            end
+            d("[InventoryCompanion] Currency formatting example: " .. example.label)
+        end
+
+        zo_callLater(function()
+            RunExample(index + 1)
+        end, CURRENCY_NOTIFICATION_DEMO_STEP_DELAY_MS)
     end
-    pending.delta = pending.delta + (newAmount - previousAmount)
-    pending.total = newAmount
-    pending.timer = zo_callLater(function()
-        pending.timer = nil
-        FlushCurrencyNotification(key)
-    end, NOTIFICATION_QUIET_MS)
+
+    zo_callLater(function()
+        RunExample(1)
+    end, CURRENCY_NOTIFICATION_DEMO_START_DELAY_MS)
+end
+
+function this.SimulateCurrencyNotificationDemo()
+    if not this.IsCurrencyNotificationEnabled(CURT_MONEY) then
+        d("[InventoryCompanion] Enable Notify for gold in the Currency Summary settings before using the debug key.")
+        return false
+    end
+
+    if currencyNotificationDemoInProgress then
+        d("[InventoryCompanion] Currency formatting demo is already running.")
+        return false
+    end
+
+    currencyNotificationDemoInProgress = true
+    d("[InventoryCompanion] Currency formatting demo starts in 1.5 seconds; displayed balances are virtual.")
+    RunCurrencyNotificationDemo()
     return true
 end
 

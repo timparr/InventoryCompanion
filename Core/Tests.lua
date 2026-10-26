@@ -93,6 +93,324 @@ local function AuditCurrencyNames(accountWide)
     return currencyCount, namesChanged
 end
 
+------------------------------------------------------------------
+-- Currency notification message scenarios
+------------------------------------------------------------------
+-- Each scenario feeds currency events through the real notification path with message output
+-- captured, then compares the exact messages the player would see. The Expect* builders are the
+-- one place that mirrors the message format; update them when the wording changes.
+local function BigText(value)
+    return (this.Utils.FormatBigNumber(value))
+end
+
+local function ExpectedBalances(bag, bank, abbreviated)
+    local format = abbreviated and BigText or tostring
+    return this.FormatBalanceEntry("bag", format(bag)) .. " · " .. this.FormatBalanceEntry("bank", format(bank))
+end
+
+local function ExpectChange(delta, bag, bank)
+    local name = GetCurrencyName(CURT_MONEY, false, false)
+    local header = this.FormatCurrencyChangeHeader(CURT_MONEY, delta > 0 and "gain" or "spend")
+    local direction = delta > 0 and "Gained" or "Spent"
+    local amount = math.abs(delta)
+    return {
+        chat = string.format("%s %s %s %s. You now have %s", header, direction, tostring(amount), name, ExpectedBalances(bag, bank, false)),
+        hud = string.format("%s %s %s %s. You now have %s", header, direction, BigText(amount), name, ExpectedBalances(bag, bank, true)),
+    }
+end
+
+local function ExpectTransfer(amount, isWithdrawal, bag, bank)
+    local name = GetCurrencyName(CURT_MONEY, false, false)
+    local header = this.FormatCurrencyChangeHeader(CURT_MONEY, "transfer")
+    local from = isWithdrawal and "Bank" or "Backpack"
+    local to = isWithdrawal and "Backpack" or "Bank"
+    return {
+        chat = string.format(
+            "%s Transferred %s %s from %s to %s. You now have %s",
+            header, tostring(amount), name, from, to, ExpectedBalances(bag, bank, false)
+        ),
+        hud = string.format(
+            "%s Transferred %s %s from %s to %s. You now have %s",
+            header, BigText(amount), name, from, to, ExpectedBalances(bag, bank, true)
+        ),
+    }
+end
+
+local function GetCurrencyMessageScenarios()
+    local function Bag(amount, reason) return { location = CURRENCY_LOCATION_CHARACTER, amount = amount, reason = reason } end
+    local function Bank(amount, reason) return { location = CURRENCY_LOCATION_BANK, amount = amount, reason = reason } end
+    local Flush = { flush = true }
+    local withdrawal = CURRENCY_CHANGE_REASON_BANK_WITHDRAWAL
+    local deposit = CURRENCY_CHANGE_REASON_BANK_DEPOSIT
+
+    -- Starting balances default to bag 1000 / bank 50000. Steps are events or a quiet period (Flush);
+    -- a final quiet period always follows.
+    return {
+        {
+            name = "Picking up 10 gold",
+            steps = { Bag(1010) },
+            expected = { ExpectChange(10, 1010, 50000) },
+        },
+        {
+            name = "Picking up three 10-gold piles in quick succession merges",
+            steps = { Bag(1010), Bag(1020), Bag(1030) },
+            expected = { ExpectChange(30, 1030, 50000) },
+        },
+        {
+            name = "Picking up three 10-gold piles with quiet periods between",
+            steps = { Bag(1010), Flush, Bag(1020), Flush, Bag(1030) },
+            expected = {
+                ExpectChange(10, 1010, 50000),
+                ExpectChange(10, 1020, 50000),
+                ExpectChange(10, 1030, 50000),
+            },
+        },
+        {
+            name = "Withdrawing 10 gold (bank event first)",
+            steps = { Bank(49990, withdrawal), Bag(1010, withdrawal) },
+            expected = { ExpectTransfer(10, true, 1010, 49990) },
+        },
+        {
+            name = "Withdrawing 10 gold (bag event first)",
+            steps = { Bag(1010, withdrawal), Bank(49990, withdrawal) },
+            expected = { ExpectTransfer(10, true, 1010, 49990) },
+        },
+        {
+            name = "Depositing 10 gold",
+            steps = { Bag(990, deposit), Bank(50010, deposit) },
+            expected = { ExpectTransfer(10, false, 990, 50010) },
+        },
+        {
+            name = "Withdrawing a large amount",
+            bag = 0,
+            bank = 2000000,
+            steps = { Bank(500000, withdrawal), Bag(1500000, withdrawal) },
+            expected = { ExpectTransfer(1500000, true, 1500000, 500000) },
+        },
+        {
+            name = "Depositing a large amount",
+            bag = 3400000,
+            bank = 12345,
+            steps = { Bag(400000, deposit), Bank(3012345, deposit) },
+            expected = { ExpectTransfer(3000000, false, 400000, 3012345) },
+        },
+        {
+            name = "Spending a large amount",
+            bag = 5000000,
+            bank = 123456,
+            steps = { Bag(3765433) },
+            expected = { ExpectChange(-1234567, 3765433, 123456) },
+        },
+        {
+            name = "Spending a small amount",
+            steps = { Bag(750) },
+            expected = { ExpectChange(-250, 750, 50000) },
+        },
+        {
+            name = "Login balance report is silent",
+            steps = { Bag(5000, CURRENCY_CHANGE_REASON_PLAYER_INIT), Bank(60000, CURRENCY_CHANGE_REASON_PLAYER_INIT) },
+            expected = {},
+        },
+        {
+            name = "Withdrawing then depositing the same amount in one window sends nothing",
+            steps = { Bank(49990, withdrawal), Bag(1010, withdrawal), Bag(1000, deposit), Bank(50000, deposit) },
+            expected = {},
+        },
+        {
+            name = "Pickup and withdrawal in one window show consistent balances",
+            steps = { Bag(1010), Bank(49990, withdrawal), Bag(1020, withdrawal) },
+            expected = { ExpectChange(10, 1020, 49990), ExpectTransfer(10, true, 1020, 49990) },
+        },
+    }
+end
+
+-- Alliance Points, Transmute Crystals and Trade Bars are stored differently from gold (and from each
+-- other), so these scenarios read each currency's real storage layout from the game API and expect
+-- the matching balance format: Account for account-wide, bag only, or bag plus bank.
+local function GetCurrencyTypeMessageScenarios()
+    local scenarios = {}
+    local currencyTypes = {
+        { name = "Alliance Points", type = CURT_ALLIANCE_POINTS },
+        { name = "Transmute Crystals", type = CURT_TRANSMUTE_CRYSTALS },
+        { name = "Trade Bars", type = CURT_TRADE_BARS },
+    }
+
+    for _, entry in ipairs(currencyTypes) do
+        local currencyType = entry.type
+        if currencyType ~= nil and IsCurrencyValid(currencyType) then
+            local isAccount = GetCurrencyPlayerStoredLocation(currencyType) == CURRENCY_LOCATION_ACCOUNT
+            local hasBank = not isAccount and CanCurrencyBeStoredInLocation(currencyType, CURRENCY_LOCATION_BANK)
+            local primary = isAccount and CURRENCY_LOCATION_ACCOUNT or CURRENCY_LOCATION_CHARACTER
+            local currencyName = GetCurrencyName(currencyType, false, false)
+
+            local function Balances(primaryAmount, bankAmount, abbreviated)
+                local format = abbreviated and BigText or tostring
+                if isAccount then
+                    if IsCurrencyCapped(currencyType, CURRENCY_LOCATION_ACCOUNT) then
+                        local cap = GetMaxPossibleCurrency(currencyType, CURRENCY_LOCATION_ACCOUNT)
+                        return this.FormatCappedBalance(currencyType, primaryAmount, cap, abbreviated)
+                    end
+                    return format(primaryAmount)
+                end
+                local text = this.FormatBalanceEntry("bag", format(primaryAmount))
+                if hasBank then
+                    text = text .. " · " .. this.FormatBalanceEntry("bank", format(bankAmount))
+                end
+                return text
+            end
+
+            local function Change(delta, primaryAmount, bankAmount)
+                local header = this.FormatCurrencyChangeHeader(currencyType, delta > 0 and "gain" or "spend")
+                local direction = delta > 0 and "Gained" or "Spent"
+                local amount = math.abs(delta)
+                return {
+                    chat = string.format("%s %s %s %s. You now have %s", header, direction, tostring(amount), currencyName,
+                        Balances(primaryAmount, bankAmount, false)),
+                    hud = string.format("%s %s %s %s. You now have %s", header, direction, BigText(amount), currencyName,
+                        Balances(primaryAmount, bankAmount, true)),
+                }
+            end
+
+            local function Transfer(amount, isWithdrawal, bagAmount, bankAmount)
+                local from = isWithdrawal and "Bank" or "Backpack"
+                local to = isWithdrawal and "Backpack" or "Bank"
+                local header = this.FormatCurrencyChangeHeader(currencyType, "transfer")
+                return {
+                    chat = string.format("%s Transferred %s %s from %s to %s. You now have %s", header, tostring(amount), currencyName,
+                        from, to, Balances(bagAmount, bankAmount, false)),
+                    hud = string.format("%s Transferred %s %s from %s to %s. You now have %s", header, BigText(amount), currencyName,
+                        from, to, Balances(bagAmount, bankAmount, true)),
+                }
+            end
+
+            local baselines = { [primary] = 100 }
+            if hasBank then baselines[CURRENCY_LOCATION_BANK] = 500 end
+
+            table.insert(scenarios, {
+                name = entry.name .. " gained",
+                currencyType = currencyType,
+                baselines = baselines,
+                steps = { { location = primary, amount = 110 } },
+                expected = { Change(10, 110, 500) },
+            })
+            table.insert(scenarios, {
+                name = entry.name .. " spent",
+                currencyType = currencyType,
+                baselines = baselines,
+                steps = { { location = primary, amount = 95 } },
+                expected = { Change(-5, 95, 500) },
+            })
+            if hasBank then
+                table.insert(scenarios, {
+                    name = entry.name .. " withdrawn from the bank",
+                    currencyType = currencyType,
+                    baselines = baselines,
+                    steps = {
+                        { location = CURRENCY_LOCATION_BANK, amount = 490, reason = CURRENCY_CHANGE_REASON_BANK_WITHDRAWAL },
+                        { location = CURRENCY_LOCATION_CHARACTER, amount = 110, reason = CURRENCY_CHANGE_REASON_BANK_WITHDRAWAL },
+                    },
+                    expected = { Transfer(10, true, 110, 490) },
+                })
+                table.insert(scenarios, {
+                    name = entry.name .. " deposited in the bank",
+                    currencyType = currencyType,
+                    baselines = baselines,
+                    steps = {
+                        { location = CURRENCY_LOCATION_CHARACTER, amount = 90, reason = CURRENCY_CHANGE_REASON_BANK_DEPOSIT },
+                        { location = CURRENCY_LOCATION_BANK, amount = 510, reason = CURRENCY_CHANGE_REASON_BANK_DEPOSIT },
+                    },
+                    expected = { Transfer(10, false, 90, 510) },
+                })
+            end
+        end
+    end
+
+    return scenarios
+end
+
+local function MessageSummary(message)
+    return string.format(
+        "%s{chat=%s, hud=%s}",
+        message.suppressed and "SUPPRESSED " or "",
+        tostring(message.chat),
+        tostring(message.hud)
+    )
+end
+
+local function SummarizeMessages(messages)
+    local lines = {}
+    for _, message in ipairs(messages) do
+        table.insert(lines, MessageSummary(message))
+    end
+    table.sort(lines)
+    return lines
+end
+
+local function RunCurrencyMessageScenario(scenario, verbose)
+    local currencyType = scenario.currencyType or CURT_MONEY
+    local savedPreferences = this.accountWide.currencyPreferences
+    local clock = 100000
+
+    local ok, err = pcall(function()
+        this.accountWide.currencyPreferences = {}
+        this.SetCurrencyNotificationEnabled(currencyType, true)
+        this.BeginCurrencyNotificationSuppression(0)
+        if scenario.baselines then
+            for location, amount in pairs(scenario.baselines) do
+                this.SetCurrencyNotificationBaseline(currencyType, location, amount)
+            end
+        else
+            this.SetCurrencyNotificationBaseline(currencyType, CURRENCY_LOCATION_CHARACTER, scenario.bag or 1000)
+            this.SetCurrencyNotificationBaseline(currencyType, CURRENCY_LOCATION_BANK, scenario.bank or 50000)
+        end
+
+        this.Utils.BeginMessageCapture(function() return clock end)
+        for _, step in ipairs(scenario.steps) do
+            if step.flush then
+                clock = clock + 1100
+                this.FlushCurrencyNotifications()
+            else
+                clock = clock + 50
+                this.NotifyCurrencyChange(currencyType, step.location, step.amount, step.reason, clock)
+            end
+        end
+        clock = clock + 1100
+        this.FlushCurrencyNotifications()
+    end)
+
+    local captured = this.Utils.EndMessageCapture()
+    this.BeginCurrencyNotificationSuppression(0)
+    this.accountWide.currencyPreferences = savedPreferences
+    if not ok then error(err, 0) end
+
+    local actualLines = SummarizeMessages(captured)
+    local expectedMessages = {}
+    for _, message in ipairs(scenario.expected) do
+        table.insert(expectedMessages, { chat = message.chat, hud = message.hud })
+    end
+    local expectedLines = SummarizeMessages(expectedMessages)
+
+    if verbose then
+        for _, line in ipairs(actualLines) do
+            d("[InventoryCompanion tests] " .. scenario.name .. " -> " .. line)
+        end
+    end
+
+    local matches = #actualLines == #expectedLines
+    for index = 1, #expectedLines do
+        matches = matches and actualLines[index] == expectedLines[index]
+    end
+    if not matches then
+        error(string.format(
+            "Unexpected messages\n  expected (%d):\n    %s\n  actual (%d):\n    %s",
+            #expectedLines,
+            table.concat(expectedLines, "\n    "),
+            #actualLines,
+            table.concat(actualLines, "\n    ")
+        ), 0)
+    end
+end
+
 local function RunBankItems(arguments)
     if not this.state or not this.state.isLoaded then
         d("[InventoryCompanion bank items] Addon is not fully loaded.")
@@ -470,8 +788,16 @@ local function RunTests(arguments)
                     local savedUserWarning = this.Utils.UserWarning
                     local ok, err = pcall(function()
                         local currencyTypes = this.GetCurrencyList()
-                        local currencyType = currencyTypes[1]
+                        local currencyType = CURT_MONEY
                         Check(currencyType ~= nil, "Expected a currency for notification tests")
+                        local isGoldAvailable = false
+                        for _, availableCurrencyType in ipairs(currencyTypes) do
+                            if availableCurrencyType == currencyType then
+                                isGoldAvailable = true
+                                break
+                            end
+                        end
+                        Check(isGoldAvailable, "Expected gold to be initialized for notification tests")
                         this.accountWide.currencyPreferences = {}
                         local notifications = {}
                         this.Utils.UserWarning = function(chat, hud)
@@ -496,13 +822,13 @@ local function RunTests(arguments)
                         CheckEqual(#notifications, 0, "Changes should be held until the quiet period ends")
                         Check(this.FlushCurrencyNotifications(), "A held change should announce when flushed")
                         CheckEqual(#notifications, 1, "One positive change should produce one notification")
-                        Check(notifications[1].chat:find("Gained 5", 1, true) ~= nil, "Gain should identify the amount gained")
+                        Check(notifications[1].chat:find("Gained 5 ", 1, true) ~= nil, "Gain should identify the amount gained")
 
                         this.NotifyCurrencyChange(currencyType, location, 20)
                         this.FlushCurrencyNotifications()
                         CheckEqual(#notifications, 2, "A currency decrease should produce a notification")
                         Check(
-                            notifications[2].chat:find("Spent 5", 1, true) ~= nil,
+                            notifications[2].chat:find("Spent 5 ", 1, true) ~= nil,
                             "Currency decrease notification should identify the amount spent"
                         )
 
@@ -513,9 +839,14 @@ local function RunTests(arguments)
                         this.FlushCurrencyNotifications()
                         CheckEqual(#notifications, 3, "A burst should produce one combined notification")
                         Check(
-                            notifications[3].chat:find("Gained 12k", 1, true) ~= nil
-                                and notifications[3].chat:find("12k total", 1, true) ~= nil,
-                            "Combined notification should use big-number formatting for the net change and total"
+                            notifications[3].chat:find(" 12000 ", 1, true) ~= nil
+                                and notifications[3].chat:find(this.FormatCurrencyChangeHeader(currencyType, "gain"), 1, true) ~= nil
+                                and notifications[3].chat:find(this.FormatBalanceEntry("bag", "12020"), 1, true) ~= nil
+                                and notifications[3].chat:find(this.FormatBalanceIcon("EsoUI/Art/Tooltips/icon_bank.dds"), 1, true) ~= nil
+                                and notifications[3].hud:find(" 12k ", 1, true) ~= nil
+                                and notifications[3].hud:find(this.FormatBalanceEntry("bag", "12k"), 1, true) ~= nil
+                                and notifications[3].hud:find("· " .. this.FormatBalanceIcon("EsoUI/Art/Tooltips/icon_bank.dds"), 1, true) ~= nil,
+                            "Combined notification should use exact chat balances and abbreviated HUD balances with explicit locations"
                         )
 
                         this.NotifyCurrencyChange(currencyType, location, 13020)
@@ -523,13 +854,72 @@ local function RunTests(arguments)
                         Check(not this.FlushCurrencyNotifications(), "Changes that cancel out should not announce")
                         CheckEqual(#notifications, 3, "Net-zero bursts should add no notifications")
 
+                        Check(
+                            CURRENCY_CHANGE_REASON_BANK_WITHDRAWAL ~= nil,
+                            "Expected the bank withdrawal currency change reason"
+                        )
+                        this.SetCurrencyNotificationBaseline(currencyType, CURRENCY_LOCATION_CHARACTER, 12020)
+                        this.SetCurrencyNotificationBaseline(currencyType, CURRENCY_LOCATION_BANK, 500)
+                        this.NotifyCurrencyChange(
+                            currencyType,
+                            CURRENCY_LOCATION_BANK,
+                            490,
+                            CURRENCY_CHANGE_REASON_BANK_WITHDRAWAL
+                        )
+                        this.NotifyCurrencyChange(
+                            currencyType,
+                            CURRENCY_LOCATION_CHARACTER,
+                            12030,
+                            CURRENCY_CHANGE_REASON_BANK_WITHDRAWAL
+                        )
+                        Check(this.FlushCurrencyNotifications(), "A bank withdrawal should announce as one transfer")
+                        CheckEqual(#notifications, 4, "A bank withdrawal should produce one notification")
+                        Check(
+                            notifications[4].chat:find(this.FormatCurrencyChangeHeader(currencyType, "transfer") .. " Transferred 10 ", 1, true) ~= nil
+                                and notifications[4].chat:find("from Bank to Backpack", 1, true) ~= nil
+                                and notifications[4].chat:find(this.FormatBalanceEntry("bag", "12030"), 1, true) ~= nil
+                                and notifications[4].chat:find(this.FormatBalanceEntry("bank", "490"), 1, true) ~= nil
+                                and notifications[4].hud:find(this.FormatCurrencyChangeHeader(currencyType, "transfer") .. " Transferred 10 ", 1, true) ~= nil
+                                and notifications[4].hud:find(this.FormatBalanceEntry("bag", "12k") .. " · " .. this.FormatBalanceEntry("bank", "490"), 1, true) ~= nil,
+                            "Bank withdrawal notification should identify the transfer direction"
+                        )
+
+                        Check(
+                            CURRENCY_CHANGE_REASON_BANK_DEPOSIT ~= nil,
+                            "Expected the bank deposit currency change reason"
+                        )
+                        this.SetCurrencyNotificationBaseline(currencyType, CURRENCY_LOCATION_CHARACTER, 12030)
+                        this.SetCurrencyNotificationBaseline(currencyType, CURRENCY_LOCATION_BANK, 490)
+                        this.NotifyCurrencyChange(
+                            currencyType,
+                            CURRENCY_LOCATION_BANK,
+                            515,
+                            CURRENCY_CHANGE_REASON_BANK_DEPOSIT
+                        )
+                        this.NotifyCurrencyChange(
+                            currencyType,
+                            CURRENCY_LOCATION_CHARACTER,
+                            12005,
+                            CURRENCY_CHANGE_REASON_BANK_DEPOSIT
+                        )
+                        Check(this.FlushCurrencyNotifications(), "A bank deposit should announce as one transfer")
+                        CheckEqual(#notifications, 5, "A bank deposit should produce one notification")
+                        Check(
+                            notifications[5].chat:find(this.FormatCurrencyChangeHeader(currencyType, "transfer") .. " Transferred 25 ", 1, true) ~= nil
+                                and notifications[5].chat:find("from Backpack to Bank", 1, true) ~= nil
+                                and notifications[5].chat:find(this.FormatBalanceEntry("bag", "12005"), 1, true) ~= nil
+                                and notifications[5].chat:find(this.FormatBalanceEntry("bank", "515"), 1, true) ~= nil
+                                and notifications[5].hud:find(this.FormatBalanceEntry("bag", "12k") .. " · " .. this.FormatBalanceEntry("bank", "515"), 1, true) ~= nil,
+                            "Bank deposit notification should identify the transfer direction"
+                        )
+
                         local unseededLocation = CURRENCY_LOCATION_BANK
                         this.SetCurrencyNotificationBaseline(currencyType, unseededLocation, nil)
                         Check(
                             not this.NotifyCurrencyChange(currencyType, unseededLocation, 500),
                             "The first observed balance should initialize silently"
                         )
-                        CheckEqual(#notifications, 3, "Initializing a balance should not add notifications")
+                        CheckEqual(#notifications, 5, "Initializing a balance should not add notifications")
 
                         this.BeginCurrencyNotificationSuppression(1000)
                         this.SetCurrencyNotificationBaseline(currencyType, location, 20)
@@ -547,7 +937,7 @@ local function RunTests(arguments)
                             "Changes after the load window should queue"
                         )
                         this.FlushCurrencyNotifications()
-                        CheckEqual(#notifications, 4, "A change after the load window should notify")
+                        CheckEqual(#notifications, 6, "A change after the load window should notify")
                         this.SetCurrencyNotificationBaseline(currencyType, location, 20)
 
                         this.SetCurrencyNotificationEnabled(currencyType, false)
@@ -558,7 +948,7 @@ local function RunTests(arguments)
                             "Disabled currency notifications should not emit messages"
                         )
                         this.FlushCurrencyNotifications()
-                        CheckEqual(#notifications, 4, "Disabled currency notification should not add messages")
+                        CheckEqual(#notifications, 6, "Disabled currency notification should not add messages")
                     end)
                     this.FlushCurrencyNotifications()
                     this.SeedCurrencyNotificationBaselines()
@@ -1000,6 +1390,8 @@ local function RunTests(arguments)
                         this.HandleTrackedItemInventoryUpdate(bagId, slotIndex, 1)
                     end
                     slotUpdateMs = GetGameTimeMilliseconds() - startedAt
+                    -- Later tests (e.g. currency message scenarios) need the real messaging.
+                    this.Utils.UserWarning = syntheticOriginal.userWarning
 
                     CheckEqual(warningCount, 100, "Every matching synthetic slot update should trigger a notification")
                     Check(
@@ -1351,6 +1743,68 @@ local function RunTests(arguments)
                 end,
             },
         }
+
+        table.insert(tests, {
+            name = "Currency messages: capped balance colours follow the progress bar thresholds",
+            run = function()
+                local currencyType = CURT_TRANSMUTE_CRYSTALS
+                if currencyType == nil or not IsCurrencyValid(currencyType) then return end
+                local location = GetCurrencyPlayerStoredLocation(currencyType)
+                if not IsCurrencyCapped(currencyType, location) then return end
+                local cap = GetMaxPossibleCurrency(currencyType, location)
+                local resourceKey = "currency:" .. tostring(currencyType)
+
+                local savedColors = this.accountWide.progressBarAlertColors
+                local savedPreferences = this.accountWide.progressBarPreferences
+                local ok, err = pcall(function()
+                    this.accountWide.progressBarAlertColors = {}
+                    this.accountWide.progressBarPreferences = {}
+                    this.SetProgressBarAlertColor("warning", { r = 1, g = 0.5, b = 0, a = 1 })
+                    this.SetProgressBarAlertColor("danger", { r = 1, g = 0, b = 0, a = 1 })
+                    local settings = this.GetProgressBarSettings(resourceKey)
+
+                    local function Expected(color, amount)
+                        local text = string.format("%d/%d (%d%%)", amount, cap, math.floor(amount / cap * 100))
+                        return string.format("|c%s%s|r", ZO_ColorDef:New(color.r, color.g, color.b, 1):ToHex(), text)
+                    end
+
+                    local normalAmount = math.floor(cap * settings.warningThreshold * 0.5)
+                    local warningAmount = math.ceil(cap * settings.warningThreshold)
+                    local dangerAmount = math.ceil(cap * settings.dangerThreshold)
+                    CheckEqual(
+                        this.FormatCappedBalance(currencyType, normalAmount, cap, false),
+                        Expected(this.GetProgressBarNormalColor(resourceKey), normalAmount),
+                        "Below the warning threshold the balance should use the bar's normal colour"
+                    )
+                    CheckEqual(
+                        this.FormatCappedBalance(currencyType, warningAmount, cap, false),
+                        Expected({ r = 1, g = 0.5, b = 0 }, warningAmount),
+                        "At the warning threshold the balance should use the warning colour"
+                    )
+                    CheckEqual(
+                        this.FormatCappedBalance(currencyType, dangerAmount, cap, false),
+                        Expected({ r = 1, g = 0, b = 0 }, dangerAmount),
+                        "At the danger threshold the balance should use the danger colour"
+                    )
+                end)
+                this.accountWide.progressBarAlertColors = savedColors
+                this.accountWide.progressBarPreferences = savedPreferences
+                if not ok then error(err, 0) end
+            end,
+        })
+
+        local scenarios = GetCurrencyMessageScenarios()
+        for _, scenario in ipairs(GetCurrencyTypeMessageScenarios()) do
+            table.insert(scenarios, scenario)
+        end
+        for _, scenario in ipairs(scenarios) do
+            table.insert(tests, {
+                name = "Currency messages: " .. scenario.name,
+                run = function()
+                    RunCurrencyMessageScenario(scenario, options.verbose)
+                end,
+            })
+        end
 
         for _, test in ipairs(tests) do
             local ok, err = pcall(test.run)

@@ -74,8 +74,41 @@ local SPAM_WINDOW_SECONDS = 1
 local lastSentText = ""
 local lastSentTimeMS = 0
 
+-- Test support: while capturing, messages that would reach chat/HUD are recorded instead, after
+-- the duplicate and spam handling below, so tests see exactly what the player would. An optional
+-- clock (returning milliseconds) lets tests control that timing.
+local capturedMessages = nil
+local captureClockMs = nil
+local savedLimiterState = nil
+
+local function GetNowMs()
+    if captureClockMs then return captureClockMs() end
+    return GetGameTimeMilliseconds()
+end
+
+function this.BeginMessageCapture(clockMs)
+    capturedMessages = {}
+    captureClockMs = clockMs
+    savedLimiterState = { lastMessageTime, spamCount, lastSentText, lastSentTimeMS }
+    lastMessageTime, spamCount, lastSentText, lastSentTimeMS = -math.huge, 0, "", -math.huge
+end
+
+-- Returns the captured messages as { chat, hud, suppressed } entries, or an empty list if not capturing.
+function this.EndMessageCapture()
+    local messages = capturedMessages or {}
+    if savedLimiterState then
+        lastMessageTime, spamCount, lastSentText, lastSentTimeMS = unpack(savedLimiterState)
+    end
+    capturedMessages, captureClockMs, savedLimiterState = nil, nil, nil
+    return messages
+end
+
 local function SendMessageNow(chatMessage, hudAlert, colorPrefix)
     colorPrefix = colorPrefix or "|cFFFFFF"
+    if capturedMessages then
+        table.insert(capturedMessages, { chat = chatMessage, hud = hudAlert })
+        return
+    end
     if chatMessage then 
         d(colorPrefix .. this.DisplayName() .. ": |r" .. chatMessage) 
     end
@@ -85,12 +118,16 @@ local function SendMessageNow(chatMessage, hudAlert, colorPrefix)
 end
 
 local function HandleSpamAndSend(message, alert, colorPrefix)
-    local now = GetGameTimeSeconds()
-    local nowMS = GetGameTimeMilliseconds()
+    local nowMS = GetNowMs()
+    local now = nowMS / 1000
     local textKey = message or alert or ""
 
     -- Check if it's a duplicate within the 500ms window
     if textKey == lastSentText and (nowMS - lastSentTimeMS < 500) then
+        if capturedMessages then
+            table.insert(capturedMessages, { chat = message, hud = alert, suppressed = true })
+            return
+        end
         local isDebug = this.addon.accountWide and this.addon.accountWide.debugEnabled
 
         if isDebug then

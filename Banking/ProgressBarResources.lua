@@ -315,6 +315,30 @@ function this.SetProgressBarAlertColor(alertType, color)
     GetAlertColors()[alertType] = CopyColor(color)
 end
 
+-- The colour the progress bar shows for a resource at a level ("normal", "warning" or "danger").
+-- Returns nil when no progress bar exists for the resource.
+function this.GetProgressBarColorForLevel(resourceKey, level)
+    if not FindProgressBarResource(resourceKey) then return nil end
+    if level == "danger" or level == "warning" then
+        return this.GetProgressBarAlertColor(level)
+    end
+    return this.GetProgressBarNormalColor(resourceKey)
+end
+
+-- The colour the progress bar shows for a resource at a fill fraction (0-1), using that bar's
+-- warning and danger thresholds. Returns nil when no progress bar exists for the resource.
+function this.GetProgressBarColorForPercent(resourceKey, percent)
+    if not FindProgressBarResource(resourceKey) then return nil end
+    local settings = this.GetProgressBarSettings(resourceKey)
+    local level = "normal"
+    if percent >= settings.dangerThreshold then
+        level = "danger"
+    elseif percent >= settings.warningThreshold then
+        level = "warning"
+    end
+    return this.GetProgressBarColorForLevel(resourceKey, level)
+end
+
 function this.SetProgressBarSetting(resourceKey, setting, value)
     local resource = FindProgressBarResource(resourceKey)
     assert(resource, "Unknown progress bar resource: " .. tostring(resourceKey))
