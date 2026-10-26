@@ -621,7 +621,7 @@ local function RunTests(arguments)
     end
 
     local liveScanIterations = 100
-    local liveScanLimitMs = 1000
+    local liveScanLimitMs = 500
     local liveScanMs
     local liveItemCount
     local bankOpenDuringLiveScan = IsBankOpen()
@@ -719,9 +719,9 @@ local function RunTests(arguments)
     local performanceMs
     local slotMatchMs
     local slotUpdateMs
-    local performanceLimitMs = 2000
-    local slotMatchLimitMs = 1000
-    local slotUpdateLimitMs = 2000
+    local performanceLimitMs = 500
+    local slotMatchLimitMs = 100
+    local slotUpdateLimitMs = 200
     local environmentOk, environmentError = pcall(function()
         this.accountWide = { trackedRules = {} }
         this.character = { useCharacterItemList = false }

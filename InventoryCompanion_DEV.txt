@@ -1,12 +1,14 @@
 ## APIVersion: 101051
-## Title: InventoryCompanion - Auto Bank, Item Tracker & Set Manager
+## Title: InventoryCompanion [DEV] - Auto Bank, Item Tracker & Set Manager
 ## Description: All-in-one inventory automation, item tracking, stack restocking, and gear set management.
 ## Author: @Tim-P
-## Version: 1.01
+## Version: 1.2.0
 ## SavedVariables: InventoryCompanion_SavedVariables
 ## DependsOn: LibAddonMenu-2.0>=43
 ## OptionalDependsOn: None
 
+Core/LoadCheck.lua
+Core/Development.lua
 Bindings.xml
 
 -- 1. Core Framework, Utilities & Settings

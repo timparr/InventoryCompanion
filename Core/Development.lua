@@ -1,0 +1,3 @@
+InventoryCompanion = {
+    IsDevelopment = true,
+}

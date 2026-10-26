@@ -1,8 +1,10 @@
+local isDevelopment = InventoryCompanion and InventoryCompanion.IsDevelopment == true
 InventoryCompanion = {
-    Name = "InventoryCompanion",
+    Name = isDevelopment and "InventoryCompanion_DEV" or "InventoryCompanion",
+    IsDevelopment = isDevelopment,
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
-    Version = 1.01,
+    Version = "1.2.0",
     SettingsVersion = 1.0,
     SettingsName = "InventoryCompanion_SavedVariables",
 }
@@ -40,6 +42,9 @@ local function Initialize()
     this.UpdateEventRegistry()
 
     this.state.isLoaded = true
+    if this.IsDevelopment then
+        d("[InventoryCompanion] DEV version loaded.")
+    end
 end
 
 local function OnAddOnLoaded(eventCode, name)
@@ -92,5 +97,4 @@ end
 ------------------------------------------------------------------
 function this.Debug()
     this.RunTests("verbose copy")
-    -- this.SimulateCurrencyNotificationDemo()
 end

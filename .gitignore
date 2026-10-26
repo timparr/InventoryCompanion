@@ -3,6 +3,7 @@
 /InventoryCompanion_Context.md
 /Project/DevDocs/Archive/*.zip
 /Project/Publishing/Packages/
+/Project/Publishing/.release-test/
 /generated-eso-api/
 
 # ESO character data
