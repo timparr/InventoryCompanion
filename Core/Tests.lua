@@ -411,6 +411,120 @@ local function RunCurrencyMessageScenario(scenario, verbose)
     end
 end
 
+local CAPACITY_TEST_MARKERS = {
+    gain = "|t20:20:EsoUI/Art/Buttons/plus_up.dds|t",
+    spend = "|t20:20:EsoUI/Art/Buttons/minus_up.dds|t",
+    transfer = "|t20:20:EsoUI/Art/Miscellaneous/transform_arrow.dds|t",
+}
+local CAPACITY_TEST_BAG_ICON = "|t20:20:EsoUI/Art/Tooltips/icon_bag.dds|t"
+local CAPACITY_TEST_BANK_ICON = "|t20:20:EsoUI/Art/Tooltips/icon_bank.dds|t"
+
+local function GetCapacityMessageScenarios()
+    local function Balance(kind, used, max)
+        return this.FormatCapacityBalance(kind, used, max)
+    end
+    local function Same(text) return { chat = text, hud = text } end
+    local function Freed(count, used, max)
+        return Same(string.format("%s%s Freed up %d Bag Space. You now have %s",
+            CAPACITY_TEST_MARKERS.gain, CAPACITY_TEST_BAG_ICON, count, Balance("bag", used, max)))
+    end
+    local function Used(count, used, max)
+        return Same(string.format("%s%s Used an additional %d Bag Space. You now have %s",
+            CAPACITY_TEST_MARKERS.spend, CAPACITY_TEST_BAG_ICON, count, Balance("bag", used, max)))
+    end
+    local function Moved(count, fromBank, bagUsed, bankUsed)
+        return Same(string.format("%s You just moved %d %s from your %s to your %s. You now have %s %s · %s %s",
+            CAPACITY_TEST_MARKERS.transfer, count, count == 1 and "item" or "items",
+            fromBank and "bank" or "bag", fromBank and "bag" or "bank",
+            CAPACITY_TEST_BAG_ICON, Balance("bag", bagUsed, 100),
+            CAPACITY_TEST_BANK_ICON, Balance("bank", bankUsed, 200)))
+    end
+    local function Bag(used) return { kind = "bag", used = used, max = 100 } end
+    local function Bank(used, atBank, items) return { kind = "bank", used = used, max = 200, atBank = atBank, items = items } end
+    local function BagAtBank(used, items) return { kind = "bag", used = used, max = 100, atBank = true, items = items } end
+
+    return {
+        { name = "bag space used by looting", steps = { Bag(52) }, expected = { Used(2, 52, 100) } },
+        { name = "bag space freed by selling", steps = { Bag(49), Bag(47) }, expected = { Freed(3, 47, 100) } },
+        { name = "bag changes that cancel out", steps = { Bag(51), Bag(50) }, expected = {} },
+        { name = "bag space crossing the warning and danger thresholds", baselines = { bag = 74 },
+            steps = { Bag(76) }, expected = { Used(2, 76, 100) } },
+        { name = "bank to bag move", steps = { Bank(38, true), BagAtBank(52) },
+            expected = { Moved(2, true, 52, 38) } },
+        { name = "bag to bank move", steps = { BagAtBank(47), Bank(43, true) },
+            expected = { Moved(3, false, 47, 43) } },
+        { name = "moving a stack of 10 counts all items", steps = { Bank(41, true, 10), BagAtBank(49, -10) },
+            expected = { Moved(10, false, 49, 41) } },
+        { name = "stack merged into an existing stack still reports the move",
+            steps = { Bank(40, true, 10), BagAtBank(50, -10) }, expected = { Moved(10, false, 50, 40) } },
+        { name = "bank change away from the bank is silent", steps = { Bank(38) }, expected = {} },
+        { name = "opposite changes without a bank visit are bag-only", steps = { Bank(38), Bag(52) },
+            expected = { Used(2, 52, 100) } },
+        { name = "transfer plus a pickup", steps = { Bank(39, true), BagAtBank(52) },
+            expected = { Moved(1, true, 52, 39), Used(1, 52, 100) } },
+        { name = "bag-only notification during a withdrawal", enabled = { bag = true },
+            steps = { Bank(38, true), BagAtBank(52) }, expected = { Used(2, 52, 100) } },
+        { name = "disabled notifications stay silent", enabled = {}, steps = { Bag(60), Bank(30, true) }, expected = {} },
+        { name = "load-screen reports stay silent", suppressed = true, steps = { Bag(70), Bank(10, true) }, expected = {} },
+    }
+end
+
+local function RunCapacityMessageScenario(scenario, verbose)
+    local savedPreferences = this.accountWide.capacityPreferences
+    local clock = 100000
+
+    local ok, err = pcall(function()
+        this.accountWide.capacityPreferences = {}
+        for _, kind in ipairs({ "bag", "bank" }) do
+            local enabled = scenario.enabled == nil or scenario.enabled[kind] == true
+            this.SetCapacityNotificationEnabled(kind, enabled)
+        end
+        this.BeginCurrencyNotificationSuppression(scenario.suppressed and clock or 0)
+        local baselines = scenario.baselines or {}
+        this.SetCapacityNotificationBaseline("bag", baselines.bag or 50)
+        this.SetCapacityNotificationBaseline("bank", baselines.bank or 40)
+
+        this.Utils.BeginMessageCapture(function() return clock end)
+        for _, step in ipairs(scenario.steps) do
+            clock = clock + 50
+            this.NotifyCapacityChange(step.kind, step.used, step.max, clock, step.atBank == true, step.items)
+        end
+        clock = clock + 1100
+        this.FlushCurrencyNotifications()
+    end)
+
+    local captured = this.Utils.EndMessageCapture()
+    this.BeginCurrencyNotificationSuppression(0)
+    this.accountWide.capacityPreferences = savedPreferences
+    if not ok then error(err, 0) end
+
+    local expectedMessages = {}
+    for _, message in ipairs(scenario.expected) do
+        table.insert(expectedMessages, { chat = message.chat, hud = message.hud })
+    end
+    local actualLines = SummarizeMessages(captured)
+    local expectedLines = SummarizeMessages(expectedMessages)
+    if verbose then
+        for _, line in ipairs(actualLines) do
+            d("[InventoryCompanion tests] " .. scenario.name .. " -> " .. line)
+        end
+    end
+
+    local matches = #actualLines == #expectedLines
+    for index = 1, #expectedLines do
+        matches = matches and actualLines[index] == expectedLines[index]
+    end
+    if not matches then
+        error(string.format(
+            "Unexpected messages\n  expected (%d):\n    %s\n  actual (%d):\n    %s",
+            #expectedLines,
+            table.concat(expectedLines, "\n    "),
+            #actualLines,
+            table.concat(actualLines, "\n    ")
+        ), 0)
+    end
+end
+
 local function RunBankItems(arguments)
     if not this.state or not this.state.isLoaded then
         d("[InventoryCompanion bank items] Addon is not fully loaded.")
@@ -1422,6 +1536,7 @@ local function RunTests(arguments)
                         currencyResourcesToTrack = false,
                         visibleCurrencyProgressBars = false,
                         currencyNotifications = false,
+                        capacityNotifications = false,
                         visibleCappedCurrencyResources = false,
                         visibleCappedProgressBars = false,
                         bagProgressBar = false,
@@ -1435,6 +1550,7 @@ local function RunTests(arguments)
                         "HasCurrencyResourcesToTrack",
                         "HasVisibleCurrencyProgressBars",
                         "HasCurrencyNotifications",
+                        "HasCapacityNotifications",
                         "HasVisibleCappedCurrencyResources",
                         "HasVisibleCappedProgressBars",
                         "IsProgressBarVisible",
@@ -1482,6 +1598,7 @@ local function RunTests(arguments)
                     this.HasCurrencyResourcesToTrack = function() return listenerState.currencyResourcesToTrack end
                     this.HasVisibleCurrencyProgressBars = function() return listenerState.visibleCurrencyProgressBars end
                     this.HasCurrencyNotifications = function() return listenerState.currencyNotifications end
+                    this.HasCapacityNotifications = function() return listenerState.capacityNotifications end
                     this.HasVisibleCappedCurrencyResources = function() return listenerState.visibleCappedCurrencyResources end
                     this.HasVisibleCappedProgressBars = function() return listenerState.visibleCappedProgressBars end
                     this.IsProgressBarVisible = function(resourceKey)
@@ -1647,6 +1764,19 @@ local function RunTests(arguments)
                         )
 
                         ClearCalls()
+                        listenerState.capacityNotifications = true
+                        this.UpdateEventRegistry()
+                        CheckSlotListenersRegistered()
+                        Check(
+                            not HasEventCall(registrationCalls, this.Name .. "_Event_BagCapacity"),
+                            "Capacity notifications alone should not register capacity-change listeners"
+                        )
+                        ClearCalls()
+                        listenerState.capacityNotifications = false
+                        this.UpdateEventRegistry()
+                        CheckEqual(#unregistrationCalls, 4, "Disabling capacity notifications should unregister the slot-update listeners")
+
+                        ClearCalls()
                         listenerState.visibleProgressBars = true
                         listenerState.bagProgressBar = true
                         listenerState.visibleCurrencyProgressBars = true
@@ -1805,6 +1935,79 @@ local function RunTests(arguments)
                 end,
             })
         end
+
+        for _, scenario in ipairs(GetCapacityMessageScenarios()) do
+            table.insert(tests, {
+                name = "Capacity messages: " .. scenario.name,
+                run = function()
+                    RunCapacityMessageScenario(scenario, options.verbose)
+                end,
+            })
+        end
+
+        table.insert(tests, {
+            name = "Capacity messages: balance colours follow the progress bar thresholds",
+            run = function()
+                local savedColors = this.accountWide.progressBarAlertColors
+                local savedPreferences = this.accountWide.progressBarPreferences
+                local ok, err = pcall(function()
+                    this.accountWide.progressBarAlertColors = {}
+                    this.accountWide.progressBarPreferences = {}
+                    this.SetProgressBarAlertColor("warning", { r = 1, g = 0.5, b = 0, a = 1 })
+                    this.SetProgressBarAlertColor("danger", { r = 1, g = 0, b = 0, a = 1 })
+                    for _, kind in ipairs({ "bag", "bank" }) do
+                        local resourceKey = "capacity:" .. kind
+                        local settings = this.GetProgressBarSettings(resourceKey)
+                        local max = 200
+                        local function Expected(color, used)
+                            local text = string.format("%d/%d (%d%%)", used, max, math.floor(used / max * 100))
+                            return string.format("|c%s%s|r", ZO_ColorDef:New(color.r, color.g, color.b, 1):ToHex(), text)
+                        end
+                        local normalUsed = math.floor(max * settings.warningThreshold * 0.5)
+                        local warningUsed = math.ceil(max * settings.warningThreshold)
+                        local dangerUsed = math.ceil(max * settings.dangerThreshold)
+                        CheckEqual(
+                            this.FormatCapacityBalance(kind, normalUsed, max),
+                            Expected(this.GetProgressBarNormalColor(resourceKey), normalUsed),
+                            kind .. " below the warning threshold should use the normal colour"
+                        )
+                        CheckEqual(
+                            this.FormatCapacityBalance(kind, warningUsed, max),
+                            Expected({ r = 1, g = 0.5, b = 0 }, warningUsed),
+                            kind .. " at the warning threshold should use the warning colour"
+                        )
+                        CheckEqual(
+                            this.FormatCapacityBalance(kind, dangerUsed, max),
+                            Expected({ r = 1, g = 0, b = 0 }, dangerUsed),
+                            kind .. " at the danger threshold should use the danger colour"
+                        )
+                    end
+                end)
+                this.accountWide.progressBarAlertColors = savedColors
+                this.accountWide.progressBarPreferences = savedPreferences
+                if not ok then error(err, 0) end
+            end,
+        })
+
+        table.insert(tests, {
+            name = "Capacity notification preferences",
+            run = function()
+                local savedPreferences = this.accountWide.capacityPreferences
+                local ok, err = pcall(function()
+                    this.accountWide.capacityPreferences = {}
+                    Check(not this.HasCapacityNotifications(), "Capacity notifications should default to off")
+                    this.SetCapacityNotificationEnabled("bank", true)
+                    Check(this.IsCapacityNotificationEnabled("bank"), "Bank notifications should turn on")
+                    Check(not this.IsCapacityNotificationEnabled("bag"), "Bag notifications should stay off")
+                    Check(this.HasCapacityNotifications(), "Any enabled capacity notification should be reported")
+                    this.SetCapacityNotificationEnabled("bank", false)
+                    Check(not this.HasCapacityNotifications(), "Turning the last notification off should be reported")
+                    Check(this.accountWide.capacityPreferences.bank == nil, "Empty capacity preferences should be removed")
+                end)
+                this.accountWide.capacityPreferences = savedPreferences
+                if not ok then error(err, 0) end
+            end,
+        })
 
         for _, test in ipairs(tests) do
             local ok, err = pcall(test.run)

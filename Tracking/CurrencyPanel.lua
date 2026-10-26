@@ -716,6 +716,9 @@ function this.SetCapacityNotificationEnabled(resourceKey, enabled)
     EnsurePreferences()
     local preference = GetCapacityPreference(resourceKey, true)
     preference.notify = enabled and true or nil
+    if enabled then
+        this.SeedCapacityNotificationBaselines()
+    end
     if next(preference) == nil then
         this.accountWide.capacityPreferences[resourceKey] = nil
     end
@@ -739,6 +742,7 @@ function this.SeedCurrencyNotificationBaselines()
             this.SetCurrencyNotificationBaseline(currencyType, location, GetCurrencyAmount(currencyType, location))
         end
     end
+    this.SeedCapacityNotificationBaselines()
 end
 
 -- ESO re-sends balances after load screens (login, wayshrines), so changes are ignored briefly afterwards.
@@ -951,6 +955,171 @@ local function QueueCurrencyChange(currencyType, currencyLocation, delta, newAmo
     end, NOTIFICATION_QUIET_MS)
 end
 
+-- Bag and bank space notifications. Baselines and changes are in used slots; the percentage and
+-- colours come from the same thresholds as the capacity progress bars.
+local CAPACITY_KINDS = { "bag", "bank" }
+local capacityBaselines = {}
+local pendingCapacity = nil
+
+local function GetCapacityUsage(kind)
+    if kind == "bag" then
+        return GetNumBagUsedSlots(BAG_BACKPACK), GetBagSize(BAG_BACKPACK)
+    end
+    return GetNumBagUsedSlots(BAG_BANK) + GetNumBagUsedSlots(BAG_SUBSCRIBER_BANK),
+        GetBagSize(BAG_BANK) + GetBagUseableSize(BAG_SUBSCRIBER_BANK)
+end
+
+function this.HasCapacityNotifications()
+    return this.IsCapacityNotificationEnabled("bag") or this.IsCapacityNotificationEnabled("bank")
+end
+
+function this.SetCapacityNotificationBaseline(kind, used)
+    capacityBaselines[kind] = used
+end
+
+function this.SeedCapacityNotificationBaselines()
+    for _, kind in ipairs(CAPACITY_KINDS) do
+        local used = GetCapacityUsage(kind)
+        capacityBaselines[kind] = used
+    end
+end
+
+-- "used/max (percent%)" coloured as that capacity's progress bar would be at that fill level.
+-- forcedLevel ("normal", "warning" or "danger") overrides the thresholds; the debug demo uses it.
+function this.FormatCapacityBalance(kind, used, max, forcedLevel)
+    local percent = max > 0 and used / max or 0
+    local text = string.format("%d/%d (%d%%)", used, max, zo_floor(percent * 100))
+    local resourceKey = BALANCE_PROGRESS_BAR_KEYS[kind]
+    local color
+    if forcedLevel then
+        color = this.GetProgressBarColorForLevel(resourceKey, forcedLevel)
+    else
+        color = this.GetProgressBarColorForPercent(resourceKey, percent)
+    end
+    return color and ColorizeText(color, text) or text
+end
+
+local function FormatCapacityEntry(kind, used, max, forcedLevel)
+    return this.FormatBalanceIcon(CAPACITIES[kind].texture) .. " " .. this.FormatCapacityBalance(kind, used, max, forcedLevel)
+end
+
+local function FormatChangeMarker(kind)
+    return this.FormatBalanceIcon(CHANGE_MARKERS[kind])
+end
+
+local function ShowCapacityChange(delta, used, max, forcedLevel)
+    local marker = FormatChangeMarker(delta < 0 and "gain" or "spend")
+    local header = marker .. this.FormatBalanceIcon(CAPACITIES.bag.texture)
+    local text
+    if delta < 0 then
+        text = string.format("%s Freed up %d Bag Space. You now have %s", header, -delta,
+            this.FormatCapacityBalance("bag", used, max, forcedLevel))
+    else
+        text = string.format("%s Used an additional %d Bag Space. You now have %s", header, delta,
+            this.FormatCapacityBalance("bag", used, max, forcedLevel))
+    end
+    this.Utils.UserWarning(text, text)
+end
+
+-- "toBag" is true when items moved from the bank to the backpack.
+local function ShowCapacityTransfer(toBag, count, bagUsed, bagMax, bankUsed, bankMax, bagLevel, bankLevel)
+    local text = string.format(
+        "%s You just moved %d %s from your %s to your %s. You now have %s · %s",
+        FormatChangeMarker("transfer"),
+        count,
+        count == 1 and "item" or "items",
+        toBag and "bank" or "bag",
+        toBag and "bag" or "bank",
+        FormatCapacityEntry("bag", bagUsed, bagMax, bagLevel),
+        FormatCapacityEntry("bank", bankUsed, bankMax, bankLevel)
+    )
+    this.Utils.UserWarning(text, text)
+end
+
+local function FlushCapacityNotification()
+    local pending = pendingCapacity
+    if not pending then return false end
+    pendingCapacity = nil
+    if pending.timer then
+        zo_removeCallLater(pending.timer)
+    end
+
+    local bagDelta = pending.deltas.bag or 0
+    local bankDelta = pending.deltas.bank or 0
+    local bagUsed = pending.used.bag or capacityBaselines.bag
+    local bankUsed = pending.used.bank or capacityBaselines.bank
+
+    -- Opposite bag and bank changes during a bank visit are a transfer; any remainder
+    -- (e.g. a pickup in the same window) is announced as a normal bag change.
+    -- Item counts (from slot-update stack changes) say how many items moved; slot counts only
+    -- decide what is left over, since a stack merged into an existing one changes no slots.
+    local flushed = false
+    local bagItems = pending.items.bag or 0
+    local bankItems = pending.items.bank or 0
+    local slotMove = bagDelta * bankDelta < 0 and math.min(math.abs(bagDelta), math.abs(bankDelta)) or 0
+    local itemMove = bagItems * bankItems < 0 and math.min(math.abs(bagItems), math.abs(bankItems)) or 0
+    if pending.hasBankTransfer and (itemMove > 0 or slotMove > 0) then
+        local toBag = itemMove > 0 and bagItems > 0 or (itemMove == 0 and bagDelta > 0)
+        ShowCapacityTransfer(toBag, itemMove > 0 and itemMove or slotMove, bagUsed, pending.max.bag, bankUsed, pending.max.bank)
+        if slotMove > 0 then
+            bagDelta = bagDelta > 0 and bagDelta - slotMove or bagDelta + slotMove
+        end
+        flushed = true
+    end
+    if bagDelta ~= 0 then
+        ShowCapacityChange(bagDelta, bagUsed, pending.max.bag)
+        flushed = true
+    end
+    return flushed
+end
+
+local function QueueCapacityChange(kind, delta, used, max, isBankTransfer, itemDelta)
+    if not pendingCapacity then
+        pendingCapacity = { deltas = {}, used = {}, max = {}, items = {} }
+    elseif pendingCapacity.timer then
+        zo_removeCallLater(pendingCapacity.timer)
+    end
+    local pending = pendingCapacity
+    pending.deltas[kind] = (pending.deltas[kind] or 0) + delta
+    if isBankTransfer and itemDelta then
+        pending.items[kind] = (pending.items[kind] or 0) + itemDelta
+    end
+    pending.used[kind] = used
+    pending.max[kind] = max
+    pending.hasBankTransfer = pending.hasBankTransfer or isBankTransfer
+    pending.timer = zo_callLater(function()
+        pending.timer = nil
+        FlushCapacityNotification()
+    end, NOTIFICATION_QUIET_MS)
+end
+
+-- Returns true when the change was queued; the announcement is sent after the quiet period.
+-- itemDelta (optional) is the stack-size change behind this update; it only counts while at the bank.
+function this.NotifyCapacityChange(kind, used, max, now, isBankTransfer, itemDelta)
+    if type(used) ~= "number" or type(max) ~= "number" then return false end
+    local previous = capacityBaselines[kind]
+    capacityBaselines[kind] = used
+    local hasItemMove = isBankTransfer == true and type(itemDelta) == "number" and itemDelta ~= 0
+    if (now or GetGameTimeMilliseconds()) < suppressNotificationsUntil
+        or previous == nil
+        or (previous == used and not hasItemMove)
+        or not this.IsCapacityNotificationEnabled(kind) then
+        return false
+    end
+    QueueCapacityChange(kind, used - previous, used, max, isBankTransfer == true, itemDelta)
+    return true
+end
+
+-- Reads live slot usage; called for every inventory slot update while a capacity notification is enabled.
+-- eventKind ("bag" or "bank") and itemDelta describe the slot update that triggered the read.
+function this.NotifyLiveCapacityChanges(now, eventKind, itemDelta)
+    local isBankTransfer = IsBankOpen()
+    for _, kind in ipairs(CAPACITY_KINDS) do
+        local used, max = GetCapacityUsage(kind)
+        this.NotifyCapacityChange(kind, used, max, now, isBankTransfer, kind == eventKind and itemDelta or nil)
+    end
+end
+
 function this.FlushCurrencyNotifications()
     local flushed = false
     local keys = {}
@@ -960,7 +1129,7 @@ function this.FlushCurrencyNotifications()
     for _, key in ipairs(keys) do
         flushed = FlushCurrencyNotification(key) or flushed
     end
-    return flushed
+    return FlushCapacityNotification() or flushed
 end
 
 function this.BeginCurrencyNotificationSuppression(now)
@@ -971,6 +1140,12 @@ function this.BeginCurrencyNotificationSuppression(now)
             zo_removeCallLater(pending.timer)
         end
         pendingNotifications[key] = nil
+    end
+    if pendingCapacity then
+        if pendingCapacity.timer then
+            zo_removeCallLater(pendingCapacity.timer)
+        end
+        pendingCapacity = nil
     end
 end
 
@@ -1031,13 +1206,34 @@ local function RunCurrencyNotificationDemo()
         { currencyType = CURT_TRANSMUTE_CRYSTALS, kind = "gain", amount = 5, fill = 1.0, level = "danger", label = "Transmute Crystals gain (at cap)" },
         { currencyType = CURT_TRADE_BARS, kind = "gain", amount = 5, label = "Trade Bars gain" },
         { currencyType = CURT_TRADE_BARS, kind = "spend", amount = 3, label = "Trade Bars spend" },
+        { capacity = "freed", count = 4, bag = { 38, 100 }, level = "normal", label = "Bag space freed (normal)" },
+        { capacity = "used", count = 3, bag = { 78, 100 }, level = "warning", label = "Bag space used (warning colour)" },
+        { capacity = "used", count = 2, bag = { 97, 100 }, level = "danger", label = "Bag space used (danger colour)" },
+        { capacity = "toBag", count = 5, bag = { 60, 100 }, bank = { 150, 200 }, level = "normal", bankLevel = "warning", label = "Bank to bag move" },
+        { capacity = "toBank", count = 12, bag = { 48, 100 }, bank = { 196, 200 }, level = "normal", bankLevel = "danger", label = "Bag to bank move" },
     }
 
     local function RunExample(index)
         local example = examples[index]
         if not example then
             currencyNotificationDemoInProgress = false
-            d("[InventoryCompanion] Currency formatting demo complete. Sample balances were virtual; no currency was changed.")
+            d("[InventoryCompanion] Currency formatting demo complete. Sample balances were virtual; nothing was changed.")
+            return
+        end
+
+        if example.capacity then
+            if example.capacity == "freed" then
+                ShowCapacityChange(-example.count, example.bag[1], example.bag[2], example.level)
+            elseif example.capacity == "used" then
+                ShowCapacityChange(example.count, example.bag[1], example.bag[2], example.level)
+            else
+                ShowCapacityTransfer(example.capacity == "toBag", example.count,
+                    example.bag[1], example.bag[2], example.bank[1], example.bank[2], example.level, example.bankLevel)
+            end
+            d("[InventoryCompanion] Capacity formatting example: " .. example.label)
+            zo_callLater(function()
+                RunExample(index + 1)
+            end, CURRENCY_NOTIFICATION_DEMO_STEP_DELAY_MS)
             return
         end
 

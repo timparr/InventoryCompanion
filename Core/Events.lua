@@ -47,7 +47,7 @@ local function ShouldListenSlotUpdate()
     local showTracker  = this.accountWide.showTrackedItemsPanel ~= false
     local showCapacity = this.HasVisibleCapacityResources()
 
-    return showMeters or showTracker or showCapacity
+    return showMeters or showTracker or showCapacity or this.HasCapacityNotifications()
 end
 
 local function ShouldListenCurrencyUpdates()
@@ -76,6 +76,12 @@ end
 
 local function OnInventorySlotUpdate(eventCode, bagId, slotIndex, isNewItem, itemSoundCategory, updateReason, stackCountChange)
     this.HandleTrackedItemInventoryUpdate(bagId, slotIndex, stackCountChange)
+
+    if this.HasCapacityNotifications() then
+        local eventKind = bagId == BAG_BACKPACK and "bag"
+            or ((bagId == BAG_BANK or bagId == BAG_SUBSCRIBER_BANK) and "bank" or nil)
+        this.NotifyLiveCapacityChanges(nil, eventKind, stackCountChange)
+    end
 
     if this.accountWide.showTrackedItemsPanel ~= false then
         Enqueue("RefreshItemTracker", function()
