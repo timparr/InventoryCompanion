@@ -1,0 +1,29 @@
+# Inventory Companion Features
+
+This overview describes features implemented in the current addon. For setup and step-by-step instructions, see [UserManual.md](./UserManual.md).
+
+## Bank and chest helpers
+
+**Crafted-item deposit and withdrawal.** If you are like me, and you craft several days ahead using LazyWritCrafter, you will know that moving a batch of crafted gear between the backpack and bank by hand can be repetitive and annoying. You just want to jump into the trial, but the bank has someone elses crafted items in it, and if you dump your tank's gear in you will have an awful time sorting it out. Well, Inventory Companion can move your characters stuff between the bank and your bag with one keypress! It only moves items crafted by the current character so all other alts stuff is safe! The bank must be open, and you need to map a hotkey to deposit and withdraw for this in the game's keybindings. The addon uses its built-in item list, so this is not a general-purpose transfer of every crafted item. (At present it works for all max level crafting writ items)
+
+**House-chest stack merging.** If you are like me (or are me) then you will have a lot of surveys or treasure maps sitting in your bank or house chests. Every day you will find the chest that has the Blacksmiths survey Auridon and add the ones in your backpack to that chest. Well now all you have to do is open each chest. Inventory Companion will look in the chest, see that you have a stack of Auridon surveys and move any in your backpack to that stack. Just open each of your chests in turn and stuff in your bag that matches stacks in your chest will be automatically deposited onto them. You can turn this off in the settings.
+
+**Partial-stack bank transfers.** Do you ever want to take just one of a stack from the bank, your bag or a house chest? Do you ever want to take all of them **except** one in there? Maybe you have organised your chests to have all the possible surveys in alphabetical order in your first three 30 slot chests, and you want to make sure they keep their slots? Do you hate the ui of having to move the stack into a bag with space, then 'split' the stack into 1 and [the rest] and then move the ones you don't want back into the bank or chest? Inventory Companion gives you handy 'take 1' and 'take n' right click options. One click and you're done!
+
+## Space and currency panels
+
+**Backpack and bank capacity bars.**  It is easy to lose track of how close inventory storage is to full. Inventory Companion  provides movable progress bars showing how full each one is, and you can choose the colours and when they turn amber and red in the settings. You can choose to show ANY capped resource in this way - bank space, bag space and transmute crystals (at the moment) can all have their own bar. 
+
+**Currency Summary Panel.** There are a LOT of currencies in this game. Tel-Var, transmute crystals, crown gems, outfit change tokens, trade bars etc. It can be annoying to have to open your inventory, click on the currency tab and squint at the screen to see how many you have of each. Well..... Inventory Companion will help you out here as well. It will discover all currencies that ZOS has put in the game and list them in the settings panel so you can choose which ones to track. You can turn them on or off, decide if you want to track them only when on your character, only in the bank or both. You can also get it to pop up a message for each one if it changes - Gained 10 gold - you now have 15. You also have the option to only show currencies that have a non-zero balance. Great for things you don't want to carry around - for example - track tel-var on your character and it will be invisible until you gather some. Deposit them in the bank and it will go again. 
+
+## Item tracking
+
+**Live Item Tracker.** It doesn't stop with currencies. There are some items we all care more about than others (sorry lorkhan's tears) What if you wanted to see at a glance how many nirncrux you had? Wanted a notification whenever you gained one? Well inventory companion is here to help once more. It provides another panel on your hud listing the items that are important to you. For each one you can choose to show it on the hud, or just notify you when the amounts change. There is a super-duper settings panel to add items to the hud, or you can right click on one in your bank or bag and add it that way. 
+
+**Custom Groups.** But that seems too much trouble (I hear you say). Well you don't have to stop at individual items, you can define groups with lists of wildcards. For example you can define a 'rare mats' group that will match any items with *nirncrux or perfect roe and if anything matches one of the rules it will show, or notify you on the panel. Even better, the items will appear as a group on the panel (if you like) and the group can be expanded or just show the total. 
+
+**Built-in item groups.** But event *that* seems too much trouble (I hear you say). Well you don't event have to set up your groups - I have a carefully curated list of groups that I personally use already present in the addon! I spent a whole 5 minutes thinking about what other people might like to see and made some groups for you guys too. Admittedly I may be a bit obsessive about some things and laisez faire about others, so that's why the addon will let you take one of my groups and rename it, hide it, alter the patterns or just laugh at it.
+
+## Profiles
+
+**Account-wide and character-specific tracking lists.** A single item list may not fit every character's activities. Your crafter may care about different items than your mules do. The addon operates on an account wide list for the item rules and groups, but you can switch any character to use their own list. You can copy a setup from one character to another, any character to the account wide list and the account wide list to any character. 
