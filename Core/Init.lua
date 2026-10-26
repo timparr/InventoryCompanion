@@ -2,7 +2,7 @@ InventoryCompanion = {
     Name = "InventoryCompanion",
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
-    Version = 1.00,
+    Version = 1.01,
     SettingsVersion = 1.0,
     SettingsName = "InventoryCompanion_SavedVariables",
 }

@@ -19,6 +19,8 @@ The linked forum guidance and dependency-version explanation were reviewed while
 
 ## Before uploading
 
+- AI assistants may perform the source and policy review and prepare `ReleaseReview.md`. Identify the assistant and model when available; do not guess a model that the session does not expose. Name the human author/checker separately. The human must verify author-only claims (including rights, credits, listing details, and test results); do not approve the review until those checks and in-game testing are complete.
+- Ask the author to run the in-game tests against the intended release files and dependencies. Record the results in `ReleaseReview.md`; for the synthetic/read-only suite, `/ictest verbose copy` prints the summary and test cases. Never claim an in-game test was run without its result.
 - [ ] Review the current prohibited-functionality rules and confirm the add-on uses only supported ESO APIs. Ask ESOUI staff for clarification before release if a feature might fall into a restricted category.
 - [ ] Review inventory-transfer behavior: transfers only run after the player opens the bank/chest interaction, use ESO's protected inventory-transfer APIs, and do not start interactions or automate combat/movement. Similar established add-ons provide precedent for bank withdrawals and deposits; seek ESOUI clarification if the behavior or API path differs or remains uncertain.
 - [ ] Keep add-on globals limited to the single `InventoryCompanion` root; prefix saved-variable, UI, binding, scene, and dialog names with the add-on name.
@@ -31,7 +33,7 @@ The linked forum guidance and dependency-version explanation were reviewed while
 
 ## Upload package and listing
 
-- [ ] Complete `ReleaseReviewTemplate.md` after the release inputs are final, save it as `ReleaseReview.md`, and complete each confirmation. Packaging is blocked unless the timestamp is within 24 hours and later than the newest release input.
+- [ ] Complete `ReleaseReviewTemplate.md` after the release inputs are final, save it as `ReleaseReview.md`, and complete each confirmation. Record the AI reviewer/model (if available) and the human author/checker. Packaging is blocked unless the timestamp is within 24 hours and later than the newest release input, the author/checker is identified, and the review is approved.
 - [ ] Create a ZIP using `.\Project\Publishing\PackageRelease.ps1`. It contains the `InventoryCompanion` folder with the manifest and only manifest-listed runtime files, plus an `InventoryCompanion-ReleaseReview.txt` evidence file at the ZIP root. The review is kept outside the installed add-on folder.
 - [ ] Inspect the ZIP before upload. Do not put another ZIP/RAR inside it; do not include executables or `wowmatrix.dat`.
 - [ ] Attach a JPG, PNG, or GIF image when required by the upload form. The package script does not create or include a screenshot.

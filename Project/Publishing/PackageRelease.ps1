@@ -57,6 +57,10 @@ $reviewerMatch = [regex]::Match($reviewContent, '(?m)^Reviewer: (.+?)\s*$')
 if (-not $reviewerMatch.Success -or $reviewerMatch.Groups[1].Value -match '^(<|TODO|TBD|Name here)') {
     throw "Release review must identify the reviewer."
 }
+$checkedByMatch = [regex]::Match($reviewContent, '(?m)^Checked by: (.+?)\s*$')
+if (-not $checkedByMatch.Success -or $checkedByMatch.Groups[1].Value -match '^(<|TODO|TBD|Name here)') {
+    throw "Release review must identify the human author/checker."
+}
 if ($reviewContent -notmatch "(?m)^Release version: $([regex]::Escape($version))\s*$") {
     throw "Release review must name the current manifest version ($version)."
 }

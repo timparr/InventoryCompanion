@@ -1,8 +1,8 @@
-## APIVersion: 101050 101051
+## APIVersion: 101051
 ## Title: InventoryCompanion - Auto Bank, Item Tracker & Set Manager
 ## Description: All-in-one inventory automation, item tracking, stack restocking, and gear set management.
 ## Author: @Tim-P
-## Version: 1.00
+## Version: 1.01
 ## SavedVariables: InventoryCompanion_SavedVariables
 ## DependsOn: LibAddonMenu-2.0>=43
 ## OptionalDependsOn: None
