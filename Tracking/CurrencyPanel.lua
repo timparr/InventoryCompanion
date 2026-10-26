@@ -702,6 +702,25 @@ function this.SetCurrencyNotificationEnabled(currencyType, enabled)
     end
 end
 
+function this.IsCapacityNotificationEnabled(resourceKey)
+    EnsurePreferences()
+    local preference = GetCapacityPreference(resourceKey, false)
+    if preference and preference.notify ~= nil and type(preference.notify) ~= "boolean" then
+        WarnMalformedPreference("capacity notification flag for " .. resourceKey .. " must be boolean")
+    end
+    return preference ~= nil and preference.notify == true
+end
+
+function this.SetCapacityNotificationEnabled(resourceKey, enabled)
+    assert(type(enabled) == "boolean", "Capacity notification state must be boolean")
+    EnsurePreferences()
+    local preference = GetCapacityPreference(resourceKey, true)
+    preference.notify = enabled and true or nil
+    if next(preference) == nil then
+        this.accountWide.capacityPreferences[resourceKey] = nil
+    end
+end
+
 -- Last-known balances per currency/location. ESO reports login balances as changes from 0,
 -- so notifications compare against this baseline instead of the event's old amount.
 local notificationBaselines = {}
@@ -1157,12 +1176,11 @@ ReorderResourceSettingsRows = function(control)
                 end
             end
             if row.notifyCheckbox then
-                ZO_CheckButton_SetCheckState(
-                    row.notifyCheckbox,
-                    this.IsCurrencyNotificationEnabled(entry.currencyType)
-                )
+                ZO_CheckButton_SetCheckState(row.notifyCheckbox, row.isNotifyEnabled())
             end
-            row.visibilityButton:SetText(shown and "Hide" or "Show")
+            row.visibilityButton:SetText(shown and "-" or "+")
+            row.visibilityButton.data.tooltipText = shown and "Hide this entry from the panel"
+                or "Show this entry in the panel"
             if entry.kind == "currency" and not entry.hasSelectedLocation and shown then
                 row.resourceName:SetColor(1, 0.2, 0.2, 1)
             else
@@ -1179,8 +1197,28 @@ ReorderResourceSettingsRows = function(control)
     PlaceRows(hiddenEntries, false)
 end
 
-local function CreateSettingsCheckbox(row, labelText, width, rightOffset, isChecked, onChanged)
+-- Distances from the right edge of a settings row to the left edge of its +/- button, and the gaps
+-- between that button and the checkbox columns to its left.
+local SETTINGS_ACTIONS_WIDTH = 90
+local SETTINGS_BANK_GAP = 25
+local SETTINGS_COLUMN_GAP = 20
+local SETTINGS_CHECKBOX_LABEL_OFFSET = 26
+local settingsMeasureLabel
+
+-- Checkbox plus label width, so the visible gaps between columns are exact for any locale's text.
+local function GetSettingsCheckboxWidth(labelText)
+    if not settingsMeasureLabel then
+        settingsMeasureLabel = WINDOW_MANAGER:CreateControl(nil, GuiRoot, CT_LABEL)
+        settingsMeasureLabel:SetFont("ZoFontGameSmall")
+        settingsMeasureLabel:SetHidden(true)
+    end
+    settingsMeasureLabel:SetText(labelText)
+    return SETTINGS_CHECKBOX_LABEL_OFFSET + zo_ceil(settingsMeasureLabel:GetTextWidth())
+end
+
+local function CreateSettingsCheckbox(row, labelText, rightOffset, isChecked, onChanged)
     settingsCheckboxControlId = settingsCheckboxControlId + 1
+    local width = GetSettingsCheckboxWidth(labelText)
     local option = WINDOW_MANAGER:CreateControl(nil, row, CT_CONTROL)
     option:SetDimensions(width, 26)
     option:SetAnchor(RIGHT, row, RIGHT, rightOffset, 0)
@@ -1206,7 +1244,7 @@ local function CreateSettingsCheckbox(row, labelText, width, rightOffset, isChec
     label:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
     label:SetText(labelText)
     label:SetAnchor(LEFT, checkbox, RIGHT, 2, 0)
-    label:SetDimensions(width - 30, 24)
+    label:SetDimensions(width - SETTINGS_CHECKBOX_LABEL_OFFSET, 24)
     label:SetMouseEnabled(true)
     label:SetHandler("OnMouseDown", function(_, button)
         if button ~= MOUSE_BUTTON_INDEX_LEFT then return end
@@ -1247,15 +1285,24 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
     name:SetVerticalAlignment(TEXT_ALIGN_CENTER)
     name:SetHorizontalAlignment(TEXT_ALIGN_LEFT)
     name:SetWrapMode(TEXT_WRAP_MODE_ELLIPSIS)
+    name:SetMaxLineCount(1)
     name:SetAnchor(LEFT, icon, RIGHT, 8, 0)
+    name:SetDimensions(0, RESOURCE_SETTINGS_ROW_HEIGHT)
     local hasLocationCheckboxes = entry.kind == "currency"
         and entry.location ~= CURRENCY_LOCATION_ACCOUNT
-    local hasCurrencyNotifications = entry.kind == "currency"
+    local characterLabel = GetString("SI_CURRENCYLOCATION", CURRENCY_LOCATION_CHARACTER)
+    local bankLabel = GetString("SI_CURRENCYLOCATION", CURRENCY_LOCATION_BANK)
+    -- Right to left: actions, Notify, Bank, Character. Every row has Notify in the same column.
+    local notifyRight = -(SETTINGS_ACTIONS_WIDTH + SETTINGS_BANK_GAP)
+    local bankRight = notifyRight - GetSettingsCheckboxWidth("Notify") - SETTINGS_COLUMN_GAP
+    local characterRight = bankRight - GetSettingsCheckboxWidth(bankLabel) - SETTINGS_COLUMN_GAP
+    local characterLeft = characterRight - GetSettingsCheckboxWidth(characterLabel)
+    local notifyLeft = notifyRight - GetSettingsCheckboxWidth("Notify")
     name:SetAnchor(
         RIGHT,
         row,
         RIGHT,
-        hasLocationCheckboxes and -480 or (hasCurrencyNotifications and -245 or -130),
+        (hasLocationCheckboxes and characterLeft or notifyLeft) - 10,
         0
     )
     name:SetText(entry.kind == "currency" and entry.name or entry.name .. " space")
@@ -1283,24 +1330,32 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
     row.downButton = CreateArrowButton("↓", "Move this entry down in the panel", 1)
     row.upButton = CreateArrowButton("↑", "Move this entry up in the panel", -1)
 
-    if hasCurrencyNotifications then
-        row.notifyCheckbox = CreateSettingsCheckbox(
-            row,
-            "Notify",
-            90,
-            hasLocationCheckboxes and -390 or -150,
-            this.IsCurrencyNotificationEnabled(entry.currencyType),
-            function(enabled)
-                this.SetCurrencyNotificationEnabled(entry.currencyType, enabled)
-                this.UpdateEventRegistry()
-            end
-        )
+    local isCurrency = entry.kind == "currency"
+    row.isNotifyEnabled = function()
+        if isCurrency then
+            return this.IsCurrencyNotificationEnabled(entry.currencyType)
+        end
+        return this.IsCapacityNotificationEnabled(entry.resourceKey)
     end
+    row.notifyCheckbox = CreateSettingsCheckbox(
+        row,
+        "Notify",
+        notifyRight,
+        row.isNotifyEnabled(),
+        function(enabled)
+            if isCurrency then
+                this.SetCurrencyNotificationEnabled(entry.currencyType, enabled)
+            else
+                this.SetCapacityNotificationEnabled(entry.resourceKey, enabled)
+            end
+            this.UpdateEventRegistry()
+        end
+    )
 
     if entry.kind == "currency" then
         local locationOptions = {
-            { location = CURRENCY_LOCATION_CHARACTER, label = GetString("SI_CURRENCYLOCATION", CURRENCY_LOCATION_CHARACTER), width = 130, rightOffset = -260 },
-            { location = CURRENCY_LOCATION_BANK, label = GetString("SI_CURRENCYLOCATION", CURRENCY_LOCATION_BANK), width = 104, rightOffset = -150 },
+            { location = CURRENCY_LOCATION_CHARACTER, label = characterLabel, rightOffset = characterRight },
+            { location = CURRENCY_LOCATION_BANK, label = bankLabel, rightOffset = bankRight },
         }
         for _, option in ipairs(locationOptions) do
             for _, locationEntry in ipairs(entry.entries) do
@@ -1309,7 +1364,6 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
                     row.locationCheckboxes[locationEntry.key] = CreateSettingsCheckbox(
                         row,
                         option.label,
-                        option.width,
                         option.rightOffset,
                         locationEntry.isVisible,
                         function(visible)
@@ -1325,9 +1379,11 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
     end
 
     local visibilityButton = WINDOW_MANAGER:CreateControlFromVirtual(nil, row, "ZO_DefaultButton")
-    visibilityButton:SetDimensions(54, 26)
-    visibilityButton:SetAnchor(RIGHT, row, RIGHT, -66, 0)
+    visibilityButton:SetDimensions(28, 26)
+    visibilityButton:SetAnchor(RIGHT, row, RIGHT, -62, 0)
     visibilityButton:SetClickSound("Click")
+    visibilityButton:SetHandler("OnMouseEnter", ZO_Options_OnMouseEnter)
+    visibilityButton:SetHandler("OnMouseExit", ZO_Options_OnMouseExit)
     visibilityButton:SetHandler("OnClicked", function()
         local isVisible
         if entry.kind == "currency" then
@@ -1340,6 +1396,10 @@ local function CreateResourceSettingsRow(control, entry, resourceList)
         this.RefreshCurrencyPanel()
         this.UpdateEventRegistry()
     end)
+    visibilityButton.data = {
+        tooltipText = entry.isVisible and "Hide this entry from the panel"
+            or "Show this entry in the panel",
+    }
     row.visibilityButton = visibilityButton
 end
 
@@ -1386,7 +1446,7 @@ function this.GetCurrencyPanelSettingsControls()
         },
         {
             type = "description",
-            text = "Choose which locations appear for each currency. Click a location label or checkbox to toggle it. Use Notify for alerts on currency changes, Show/Hide to control the row, and arrows to reorder shown resources. A shown currency with no selected locations remains in the list in red but contributes no HUD value. Notifications work even when the currency is not shown in this panel.",
+            text = "Choose which locations appear for each currency. Click a location label or checkbox to toggle it. Use Notify for alerts on currency changes, +/− to show or hide a row (hover for details), and arrows to reorder shown resources. A shown currency with no selected locations remains in the list in red but contributes no HUD value. Notifications work even when the currency is not shown in this panel.",
         },
         {
             type = "button",
