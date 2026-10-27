@@ -268,18 +268,28 @@ if ($reviewContent -notmatch "(?m)^Release version: $([regex]::Escape($version))
     $reviewContent -notmatch '(?m)^Review status: APPROVED\s*$') {
     throw "Release review must approve the current version ($version)."
 }
-$requiredReviewItems = @(
-    "ESOUI release guidance, upload rules, and linked prohibited-functionality guidance",
-    "House-chest transfers follow a player-opened interaction and supported protected APIs; record relevant precedent or unresolved concerns",
-    "Addon globals, saved-variable names and scope, UI names, and event filters",
-    "Current API versions and every non-optional dependency minimum version",
-    "Upload description, AI disclosure, credits, licensing, and install information",
-    "Release tests and exact ZIP contents"
-)
-foreach ($reviewItem in $requiredReviewItems) {
-    if ($reviewContent -notmatch "(?m)^- \[x\] $([regex]::Escape($reviewItem))\s*$") {
-        throw "Release review is incomplete: $reviewItem"
+$requiredReviewSections = [ordered]@{
+    "Release process" = 1
+    "Package and installation" = 4
+    "Listing, rights, and uploader certifications" = 7
+    "Supported functionality" = 8
+    "Manifest and dependencies" = 6
+    "Initialization, naming, and saved data" = 3
+    "Rule matching and inventory scope" = 1
+    "Events and lifecycle" = 2
+    "Resources, preferences, and messages" = 2
+    "Performance and error handling" = 2
+    "Human in-game testing" = 9
+}
+foreach ($section in $requiredReviewSections.Keys) {
+    $sectionMatch = [regex]::Match($reviewContent, "(?ms)^#{2,3} $([regex]::Escape($section))\r?\n(?<body>.*?)(?=^#{1,3} |\z)")
+    $completedCount = [regex]::Matches($sectionMatch.Groups["body"].Value, '(?m)^- \[x\] ').Count
+    if (-not $sectionMatch.Success -or $completedCount -lt $requiredReviewSections[$section]) {
+        throw "Release review is incomplete: $section"
     }
+}
+if ($reviewContent -match '(?m)^- \[ \] ') {
+    throw "Release review contains unchecked requirements."
 }
 $nowUtc = [datetime]::UtcNow
 

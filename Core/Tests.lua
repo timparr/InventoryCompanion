@@ -605,6 +605,63 @@ local function RunCleanup()
     end
 end
 
+local function CollectTestDiscovery(lines)
+    local apiVersion = GetAPIVersion()
+    Check(type(apiVersion) == "number" and apiVersion > 0, "Running API version is unavailable")
+    table.insert(lines, string.format(
+        "INFO Environment: timestamp=%s (Unix UTC); game=%s; API=%d; server=%s; language=%s",
+        tostring(GetTimeStamp()), GetESOVersionString(), apiVersion, GetWorldName(), GetCVar("language.2")
+    ))
+    table.insert(lines, string.format(
+        "INFO Installation: %s; runtime version=%s; DEV=%s; ESO Plus=%s; bank=%s",
+        this.Name, this.Version, tostring(this.IsDevelopment == true),
+        tostring(IsESOPlusSubscriber()), IsBankOpen() and "open" or "closed"
+    ))
+
+    local manager = GetAddOnManager()
+    local foundInstallation = false
+    for index = 1, manager:GetNumAddOns() do
+        local name, _, _, _, enabled, state, isOutOfDate = manager:GetAddOnInfo(index)
+        if enabled then
+            local version = manager:GetAddOnVersion(index)
+            Check(type(version) == "number" and version >= 0 and version % 1 == 0,
+                "Integer AddOnVersion is unavailable for " .. tostring(name))
+            table.insert(lines, string.format(
+                "INFO Enabled add-on: %s; AddOnVersion=%s; state=%s; outOfDate=%s",
+                name, tostring(version), tostring(state), tostring(isOutOfDate)
+            ))
+            if name == this.Name then
+                foundInstallation = true
+            end
+        end
+    end
+    Check(foundInstallation, "Running installation was not found among enabled add-ons")
+
+    for _, entry in ipairs({
+        { name = "Alliance Points", id = CURT_ALLIANCE_POINTS },
+        { name = "Transmute Crystals", id = CURT_TRANSMUTE_CRYSTALS },
+        { name = "Trade Bars", id = CURT_TRADE_BARS },
+    }) do
+        local valid = entry.id ~= nil and IsCurrencyValid(entry.id)
+        table.insert(lines, string.format(
+            "INFO Conditional currency coverage: %s; ID=%s; available=%s",
+            entry.name, tostring(entry.id), tostring(valid)
+        ))
+        if not valid then
+            table.insert(lines, "WARN Currency message scenarios unavailable for " .. entry.name)
+        elseif entry.id == CURT_TRANSMUTE_CRYSTALS then
+            local location = GetCurrencyPlayerStoredLocation(entry.id)
+            local capped = IsCurrencyCapped(entry.id, location)
+            table.insert(lines, "INFO Transmute Crystals capped-colour assertions enabled=" .. tostring(capped))
+            if not capped then
+                table.insert(lines, "WARN Transmute Crystals capped-colour assertions are not exercised")
+            end
+        end
+    end
+    table.insert(lines, "INFO Human evidence still required: Live/PTS channel, candidate SHA256/installation verification, manifest API/minimum-version comparison, UI/event delivery, transfers, persistence and collision checks.")
+    table.insert(lines, "INFO Safety: live scans are read-only; synthetic tests temporarily replace runtime state and restore it; no inventory transfers or intentional saved-variable writes.")
+end
+
 local function RunTests(arguments)
     if not this.state or not this.state.isLoaded then
         d("[InventoryCompanion tests] Addon is not fully loaded.")
@@ -633,6 +690,14 @@ local function RunTests(arguments)
 
     local results = {}
     local passed = 0
+    local discovery = {}
+    local discoveryOk, discoveryError = pcall(CollectTestDiscovery, discovery)
+    if discoveryOk then
+        passed = passed + 1
+        table.insert(results, "PASS Runtime and dependency discovery")
+    else
+        table.insert(results, "FAIL Runtime and dependency discovery: " .. tostring(discoveryError))
+    end
 
     local liveBagIds = { BAG_BACKPACK, BAG_BANK, BAG_SUBSCRIBER_BANK }
     if IsESOPlusSubscriber() then
@@ -1576,7 +1641,9 @@ local function RunTests(arguments)
                         if eventId == this.Name .. "_Event_SlotUpdate_Backpack" then
                             slotUpdateHandler = handler
                         end
-                        return savedRegister(manager, eventId, eventCode, handler)
+                        local registered = savedRegister(manager, eventId, eventCode, handler)
+                        Check(registered == true, "Event registration failed for " .. eventId)
+                        return registered
                     end
                     managerProxy.UnregisterForEvent = function(_, eventId, eventCode)
                         table.insert(unregistrationCalls, { eventId = eventId, eventCode = eventCode })
@@ -1589,7 +1656,9 @@ local function RunTests(arguments)
                             filterType = filterType,
                             filterValue = filterValue,
                         })
-                        return savedAddFilter(manager, eventId, eventCode, filterType, filterValue)
+                        local applied = savedAddFilter(manager, eventId, eventCode, filterType, filterValue)
+                        Check(applied == true, "Event filter application failed for " .. eventId)
+                        return applied
                     end
                     EVENT_MANAGER = managerProxy
 
@@ -1649,9 +1718,15 @@ local function RunTests(arguments)
                             for suffix, bagId in pairs(filtersBySuffix) do
                                 local eventId = this.Name .. "_Event_SlotUpdate_" .. suffix
                                 Check(HasEventCall(registrationCalls, eventId), "Expected registration for " .. suffix .. " slot updates")
+                                for _, call in ipairs(registrationCalls) do
+                                    if call.eventId == eventId then
+                                        CheckEqual(call.eventCode, EVENT_INVENTORY_SINGLE_SLOT_UPDATE, "Slot registration should use the inventory event")
+                                    end
+                                end
                                 local filterFound = false
                                 for _, filter in ipairs(filterCalls) do
                                     if filter.eventId == eventId then
+                                        CheckEqual(filter.eventCode, EVENT_INVENTORY_SINGLE_SLOT_UPDATE, "Bag filter should use the registered inventory event")
                                         CheckEqual(filter.filterType, REGISTER_FILTER_BAG_ID, "Slot-update filter should match bag IDs")
                                         CheckEqual(filter.filterValue, bagId, "Slot-update filter should use the expected bag")
                                         filterFound = true
@@ -1685,7 +1760,19 @@ local function RunTests(arguments)
                         CheckSlotListenersRegistered()
 
                         ClearCalls()
+                        this.UpdateEventRegistry()
+                        CheckEqual(#registrationCalls, 0, "An unchanged registry should not register duplicate listeners")
+                        CheckEqual(#unregistrationCalls, 0, "An unchanged registry should not unregister listeners")
+                        CheckEqual(#filterCalls, 0, "An unchanged registry should not apply duplicate filters")
+
+                        listenerState.capacityNotifications = true
+                        this.UpdateEventRegistry()
                         eventTestAccountWide.showTrackedItemsPanel = false
+                        this.UpdateEventRegistry()
+                        CheckEqual(#unregistrationCalls, 0, "A shared slot listener should remain while capacity notifications need it")
+                        listenerState.capacityNotifications = false
+
+                        ClearCalls()
                         this.UpdateEventRegistry()
                         CheckEqual(#unregistrationCalls, 4, "Hiding the tracker should unregister its four slot-update listeners")
 
@@ -2068,6 +2155,9 @@ local function RunTests(arguments)
     end
 
     local reportLines = { summary }
+    for _, line in ipairs(discovery) do
+        table.insert(reportLines, "[InventoryCompanion tests] " .. line)
+    end
     for _, result in ipairs(results) do
         table.insert(reportLines, "[InventoryCompanion tests] " .. result)
     end
@@ -2081,6 +2171,9 @@ local function RunTests(arguments)
         end
     else
         d(summary)
+        for _, line in ipairs(discovery) do
+            d("[InventoryCompanion tests] " .. line)
+        end
         for _, result in ipairs(results) do
             if result:sub(1, 5) == "FAIL " or result:sub(1, 5) == "WARN " then
                 d("[InventoryCompanion tests] " .. result)

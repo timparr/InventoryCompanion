@@ -1,204 +1,124 @@
 # ESOUI Release Standards Review
 
-Complete this review for the exact frozen release candidate described below, not for a changing development checkout. Save the completed review as `ReleaseReview.md` in the development root. Treat the timestamp as an audit record, not a freshness gate. Do not approve while a mandatory requirement, required test, or material compliance question remains unresolved.
+Complete this review for the exact frozen release candidate, not a changing development checkout. Save the completed review as `ReleaseReview.md` in the development root. The timestamp is an audit record, not a freshness gate.
 
 Reviewed (UTC): <YYYY-MM-DDTHH:mm:ssZ>
 Reviewer: <AI assistant and model name, if available; do not guess>
 Checked by: <human author/checker>
 Release version: <manifest version>
-Candidate SHA256: <candidate identity>
+Candidate SHA256: <candidate SHA256>
 Review status: <PENDING or APPROVED>
 
+## Review method and evidence
+
+This template is the self-contained result of the release-guidance research, incorporating the upload rules, prohibited-functionality/removal guidance, release and coding best practices, manifest/structure rules, dependency checks, event filters, saved variables, and patch/takeover requirements. Do not fetch guidance pages, search for similar add-ons, or repeat that research as a release-review step. A material policy or permission question that the recorded requirements cannot settle remains `UNRESOLVED`; the author must supply a documented decision before approval.
+
+Each check below has an evidence owner:
+
+- **AI**: source, manifest, archive, or supplied-document inspection. Cite candidate-relative files/symbols and the finding; inspection does not prove runtime behavior.
+- **TEST**: human runs `/ictest verbose copy` in ESO against the frozen candidate and supplies the complete report. AI assesses that output; it must not claim to have run ESO. The command intentionally opens a copyable Lua error report even when every test passes; judge the reported results, not the presence of the error window.
+- **HUMAN**: author/uploader confirmation or in-game observation that code inspection and synthetic tests cannot establish. Name the person and record actual evidence.
+
+For **every checkbox**, record `PASS`, `ISSUE`, `UNRESOLVED`, or `N/A` with a reason and evidence. A checked box means assessed, not necessarily passed. When a check has multiple owners, provide each owner's evidence. Reuse an evidence reference rather than repeating the same check in multiple sections. Recommendations may have a justified exception; mandatory requirements and required tests may not be waived without an applicable documented exception. Do not approve with missing results, a failed required test, or a material unresolved question.
+
 ## Release process
 
-Describe how the intended release files were copied, extracted into a clean staging installation, staged, and frozen before review. State the staging location or other identifying details as appropriate. Confirm that the version and candidate hash above identify those frozen files, and that review findings and test results below apply to this candidate. Do not describe the changing development checkout as the reviewed release.
+- [ ] **AI + HUMAN** Record how the intended files were staged and frozen, the candidate installation path, version, SHA-256 identity, and who verified the test installation. Confirm DEV is disabled and the tested bytes match the candidate; subsequent DEV edits do not invalidate an unchanged candidate.
 
--- Example --
-## Release process
+<Actual release process and candidate identity.>
 
-A copy of the intended release files was extracted into a clean staging installation, staged, and frozen as the review candidate. Its version and SHA-256 identity are recorded above. The review and release tests apply to that frozen copy; the candidate is not changed during review.
+## Mandatory requirements
 
-Only after the files were frozen were they assessed against ESOUI's mandatory upload rules and prohibited-functionality requirements, together with its release best-practice guidance:
+### Package and installation
 
-- Mandatory upload rules: https://www.esoui.com/forums/showthread.php?t=11
-- Mandatory prohibited-functionality requirements: https://www.esoui.com/forums/showthread.php?t=9865
-- Release best practices: https://www.esoui.com/forums/showthread.php?t=10790
--- /Example --
+- [ ] **AI** Confirm one correctly named top-level add-on folder, a matching manifest basename, and every required runtime file present exactly once. For an existing archive, record filename, format (ZIP or RAR), hash, extraction verification, and comparison of runtime bytes/manifest with the frozen candidate. For this project's stage/finalize workflow, approve the frozen candidate only and record final ZIP verification as delegated to `PackageRelease.ps1 -Action Finalize`; its successful byte/content verification is required before upload. Do not claim a not-yet-produced archive was inspected.
+- [ ] **AI** Exclude executables unless a documented ESOUI exception permits them; exclude nested ZIP/RAR archives, `wowmatrix.dat`, hidden/OS/version-control/editor files, SavedVariables, generated API files, backups, and unrelated project files. Under an approved executable/non-addon-file exception, require purpose/file-access disclosure and, for executables, source code and the required VirusTotal report supplied by the uploader.
+- [ ] **AI + HUMAN** Confirm any upload-form-required image is JPG, PNG, or GIF, and installation help is included when installation is not straightforward. Human confirms the actual form requirements; AI checks the supplied assets/help.
+- [ ] **AI + HUMAN** If this is a compilation, list all included add-ons in the description. If a WTF folder is included, replace personal information with generic information and inspect the submitted copy.
 
-<Record the actual release process and candidate identity.>
+### Listing, rights, and uploader certifications
 
-## Guidance reviewed
+AI inspects the supplied final listing and materials; the human uploader must personally confirm the certifications below. Do not infer ownership, permission, or distribution terms from the absence of suspicious code.
 
-After freezing the candidate, check the current applicable guidance below. Record the date checked and whether each source was accessible/current. A failed or blocked fetch is unresolved, not evidence that the guidance is unchanged. Check conditional sources when applicable (for example, patch/takeover guidance only when modifying another author's add-on).
+- [ ] **AI + HUMAN** The description accurately explains the submitted functionality and installation, lists every required dependency at or near the beginning, and uses English where practical. Update details belong in the Changelog, not in place of the description. For console-only releases, state platform support in the name and description.
+- [ ] **HUMAN** To the uploader's knowledge, all submitted files are free of viruses, trojans, spyware, malware, and worms, and the files and their use conform to ZeniMax's Terms of Service and Add-on Terms.
+- [ ] **AI + HUMAN** The add-on is free of charge (including elsewhere), has no paid/trial/time limit, and contains no advertisements, promotions, or nag screens. Submitted code, description, credits, and images are neither harmful nor offensive; names/descriptions contain no profanity.
+- [ ] **AI + HUMAN** The uploader owns or has submission permission for all material. Credit borrowed code, concepts, assets, and information, including material identified through AI-assisted research; record applicable licenses/permissions. The author confirms they can maintain the resulting code.
+- [ ] **AI + HUMAN** If AI generated code the author cannot personally verify as correct, efficient, maintainable, and safe, place AI disclosure at the beginning of the description. Disclosure is optional for ideation-only use when the author wrote and validated the final code. Record which case applies.
+- [ ] **HUMAN** For a patch/takeover of another author's add-on, record the license, original-author contact and response, and required permission before proceeding. An unanswered request is not permission; unresolved authorization blocks approval.
+- [ ] **HUMAN** Confirm the listing's patch/companion-add-on option matches the author's intent and that the author monitors ESOUI private messages for moderator requests. Confirm the submission meets the upload requirements assessed in this report.
 
-- Mandatory upload rules: [ESOUI upload rules](https://www.esoui.com/forums/showthread.php?t=11)
-- Prohibited functionality: [What AddOns must not do](https://www.esoui.com/forums/showthread.php?t=9865); [add-on removal guidance](https://wiki.esoui.com/How_to_get_your_AddOn_removed)
-- Release practices and AI disclosure: [ESOUI release rules and best practices](https://www.esoui.com/forums/showthread.php?t=10790)
-- Code conventions: [ESOUI add-on coding best practices](https://www.esoui.com/forums/showthread.php?t=9867)
-- Manifest and folder structure: [manifest format](https://wiki.esoui.com/Addon_manifest_%28.txt%29_format); [add-on structure](https://wiki.esoui.com/Addon_Structure)
-- Runtime conventions: [event filters](https://wiki.esoui.com/AddFilterForEvent); [saved variables](https://wiki.esoui.com/Storing_data_and_accessing_files)
-- API and dependency versions: [API versions](https://wiki.esoui.com/APIVersion); [dependency version checks](https://www.esoui.com/forums/showthread.php?t=11595)
-- Conditional patch/takeover guidance: [original-author contact and add-on patch rules](https://www.esoui.com/forums/showthread.php?p=44591#post44591)
-- Add-on licensing reference: [ZeniMax Add-on Terms](https://account.elderscrollsonline.com/add-on-terms)
+### Supported functionality
 
-<For each applicable source, record: checked date; current/access status; review result or limitation. Include any staff clarification relied on.>
+AI traces all relevant call paths. Human checks real interaction/restriction behavior in the in-game section; do not mistake synthetic message tests for proof of safe live transfers.
 
-## Findings against the guidance
+- [ ] **AI** No gameplay actions run before entering the world or during character selection/creation, loading screens, Crown Store use, scrying, or Tales of Tribute. Necessary add-on initialization is distinct from performing gameplay actions.
+- [ ] **AI** No player movement, combat actions, skill casts, movement/combat keybind activation, or quickslot use is triggered by the add-on.
+- [ ] **AI** The player initiates interactions (including banks, companions, scribing, and scrying); the add-on does not start them. Banking actions use supported protected transfer APIs only within a player-opened interaction.
+- [ ] **AI** Public chat is never sent automatically; text may only be prepared for the player to send. Local diagnostic/chat-window output is not public-chat transmission.
+- [ ] **AI** No bypass of combat/gameplay restrictions, private/locked API use, or loophole exploits. If a feature's permissibility is unresolved, require a supplied ESOUI/ZOS clarification before approval rather than inventing an exception.
+- [ ] **AI** No real-time external-service communication or prohibited group-data exchange through MapPings or other workarounds. Runtime file access uses supported saved-variable APIs only; any external non-real-time client must not modify files held in memory by the running game.
+- [ ] **AI** Runtime-loaded code/assets use supported Lua, XML, and DDS formats plus the manifest, stay within `live/AddOns`, and are no more than three subfolder levels below the manifest. Distinguish runtime-loaded assets from permitted archive documentation/images.
+- [ ] **AI** No malicious/disruptive behavior or control of another player's actions. No custom sounds/videos, unsupported external 3D objects, prohibited nameplate/restricted-UI changes, or 2D-projection workaround for restricted 3D markers; any markers use supported APIs and respect location restrictions.
 
-For each applicable check, record the result and brief evidence in the report: `PASS`, `ISSUE`, `UNRESOLVED`, or `N/A` with a reason. A checked box means the check was completed, not automatically that it passed. Do not approve with an unresolved mandatory check or material compliance question.
+### Manifest and dependencies
 
-### Mandatory Guidance
+- [ ] **AI** Use `.txt` for PC-only or `.addon` for console support, not both for the same add-on. The UTF-8 manifest has no BOM. Every line is at most 301 bytes; comment lines must also stay within 1,024 characters (the stricter byte limit still applies).
+- [ ] **AI** Require `Title`, positive-integer `AddOnVersion`, `APIVersion` (one or two integer values), and the ESOUI/Minion `Version`. Directives use `## Name: value`; repeated directives are used only where supported. Required dependencies use space-separated `Name>=integer` entries; optional dependencies must not become required.
+- [ ] **AI** Resolve every manifest/XML include relative to its containing file, confirm existence and intended load order, and inspect any variable expansion or special-folder usage. Assess platform-specific directives if present.
+- [ ] **AI + TEST** Include `Runtime and dependency discovery`, the report's running API and game build, and compare the API with the candidate's `APIVersion`. Identify whether the client is Live or PTS. A run proves compatibility only for that client/API; every additional advertised target needs its own supplied runtime evidence, not an assumption about the latest version.
+- [ ] **AI + TEST** Include installed dependency integer versions from the report and compare each required minimum with the supplied dependency manifest's `AddOnVersion`. An installed version is not proof of the newest published version. Record the tested compatible minimum and rationale; consider raising it for relevant fixes and removing obsolete bundled libraries/LibStub patterns.
+- [ ] **AI + HUMAN** For optional dependencies, inspect absence guards and test loading without them. Mark N/A if there are none.
 
-#### Upload and package requirements
+<Results and evidence for each mandatory check.>
 
-Source: [ESOUI upload rules](https://www.esoui.com/forums/showthread.php?t=11).
+## Code quality and automated evidence
 
-- [ ] Provide the add-on as a ZIP or RAR archive; include a JPG, PNG, or GIF image when required by the upload form.
-- [ ] Include a help file in the archive if the add-on is difficult to install.
-- [ ] Ensure the description is informative and accurately describes the submitted files and functionality.
-- [ ] Exclude executables unless the upload falls within an ESOUI-approved exception.
-- [ ] Exclude `wowmatrix.dat`.
-- [ ] Do not place additional ZIP or RAR archives inside the submitted archive.
-- [ ] Remove hidden files and folders from the archive, including operating-system and version-control metadata.
-- [ ] If this is a compilation, list the included add-ons in the description and exclude executables.
-- [ ] If a WTF folder is included, replace all personal information with generic information.
+Review the complete candidate code, manifest, XML, and relevant configuration, not just changed files. For every TEST check below, include the named case results from the same complete report (or reference its evidence ID). A suite total alone is insufficient. Report conditional/unavailable coverage, not just the pass count.
 
-#### Uploader certifications
+### Initialization, naming, and saved data
 
-The human author/uploader must confirm these statements; the reviewer should not infer them from code inspection alone.
+- [ ] **AI** Prefer locals and one prefixed add-on global table; prefix necessary saved-variable, control, binding, scene, dialog, and event namespace names. Explain necessary global exceptions and material maintainability concerns.
+- [ ] **AI** Initialize saved variables only after the matching `EVENT_ADD_ON_LOADED`, check the add-on name, and unregister completed initialization callbacks. Use supported saved-variable wrappers, appropriate account/character-ID scope, and an intentional NA/EU sharing policy.
+- [ ] **AI + TEST** Check data integrity and preservation of unrelated overrides; include `Profile import copies tracked items and rule overrides`, `Baseline and saved-rule override resolution`, `Display-flag writes preserve other overrides`, and `Prune known saved-variable diagnostic keys only`. The pruning test uses fixtures, not a cleanup of the user's data. If schema/scope changes, require migration-specific test evidence as well; these cases alone do not prove migration correctness.
 
-- [ ] To the best of the uploader's knowledge, the files are free of viruses, trojans, spyware, malware, and worms.
-- [ ] The uploader confirms that the submitted files and their use conform to ZeniMax's current Terms of Service.
-- [ ] The add-on is free of charge and is not available elsewhere for a fee.
-- [ ] The uploader owns the copyright to all submitted material or has permission to submit it.
-- [ ] The add-on and its contents are not harmful or offensive.
-- [ ] The add-on is free of advertisements, promotions, and nag screens.
-- [ ] The add-on has no time limit and is not paid or trial software.
-- [ ] The description accurately reflects the submitted files and their contents.
-- [ ] The upload complies with the ESOUI upload rules above.
+### Rule matching and inventory scope
 
-#### Functionality, AI disclosure, and dependencies
+- [ ] **AI + TEST** Trace empty/invalid data and matching boundaries; include `Case-insensitive substring matching`, `Wildcard matching`, `Literal punctuation and missing names`, `Any-pattern matching`, `Tracked item count respects backpack and craft-bag scope`, and `100-item backpack and craft-bag scan`. Human UI/transfer validation is separate below.
 
-- Sources: [What AddOns must not do](https://www.esoui.com/forums/showthread.php?t=9865) and [Add-ons that can get removed](https://wiki.esoui.com/How_to_get_your_AddOn_removed). The checks below incorporate the supplied removal-guidance text; verify its current version when preparing a release review.
+### Events and lifecycle
 
-- [ ] Confirm the add-on does not act before entering the game world or during character selection, character creation, loading screens, Crown Store use, scrying, or Tales of Tribute.
-- [ ] Confirm the add-on does not trigger player movement, combat actions, skill casts, movement/combat keybinds, or quickslot item use.
-- [ ] Confirm the add-on does not start player interactions (such as banks, companions, scribing, or scrying); the player must initiate the interaction.
-- [ ] Confirm the add-on does not directly send public chat messages; it may only prepare text for the player to send.
-- [ ] Confirm the add-on does not bypass or alter game restrictions, including restrictions that apply during combat.
-- [ ] Confirm the add-on does not perform real-time communication with external websites or services, or exchange group data through MapPings or another prohibited workaround.
-- [ ] Confirm the add-on does not directly read or write files while running; in-game saved variables are accessed through supported APIs. If an external client uses saved variables for non-real-time exchange, confirm it does not modify files that the running game has in memory.
-- [ ] Confirm the add-on does not bundle unsupported external files; code and assets use supported Lua, XML, and DDS formats (in addition to the required manifest), do not load files outside `live/AddOns`, and do not load files more than three subfolder levels below its add-on manifest.
-- [ ] Confirm the add-on does not perform malicious actions, annoy or disrupt other players, or take control of another player's actions.
-- [ ] Confirm it does not use private/locked APIs or exploit loopholes to bypass API or gameplay restrictions.
-- [ ] If the add-on draws 3D markers, confirm it uses supported APIs and does not use 2D projection or another workaround to evade restrictions in dungeons or other restricted locations.
-- [ ] Confirm the add-on does not play custom sounds or videos, introduce unsupported external 3D objects, or make prohibited changes to nameplates or other restricted game UI.
-- [ ] If functionality may fall into a prohibited category or relies on an unsupported API, do not approve release until ESOUI staff and, where appropriate, ZeniMax Online Studios have clarified it.
-- [ ] If AI generated code that the author cannot personally verify as correct, efficient, maintainable, and safe, disclose AI use at the beginning of the add-on description. If AI was used only for ideation and the author wrote and validated the final code, disclosure is optional.
-- [ ] List every non-optional dependency clearly at or near the beginning of the add-on description so users know what is required to run the add-on.
-- [ ] If this release patches or takes over another author's add-on, check its license and contact the original author first; wait for a response and obtain permission where required before proceeding. Follow [ESOUI's patch/takeover process](https://www.esoui.com/forums/showthread.php?p=44591#post44591).
-- [ ] If an executable or other non-addon file is included under an ESOUI-approved exception, describe its purpose and file access in the listing. For executables, provide source code and a VirusTotal report as required by the guidance.
+- [ ] **AI + TEST** Include `Event listener transitions and refresh debounce`: feature-driven registration/unregistration, bag-filter namespaces/values, successful registration/filter application, repeated registry-call stability, shared-consumer retention, and debounced refresh counts/delay. Inspect initialization/permanent listeners and transitions not exercised by that case separately.
+- [ ] **AI** For other high-frequency events, assess applicable filters, matching namespace/event IDs, supported parameters, successful filter application, and no repeated filter type for one registration. Distinct values of one filter type require distinct namespaces. Unregister unused listeners to remove filters. Actual game filter delivery requires the human event test below.
 
-#### Manifest validity and structure
+### Resources, preferences, and messages
 
-- Source: [ESOUI add-on manifest format](https://wiki.esoui.com/Addon_manifest_%28.txt%29_format). These checks reflect the supplied guidance excerpt; verify current details when preparing a release review.
+- [ ] **AI + TEST** Include `Progress bar resource model and preferences`, `Currency panel resource preferences`, `Live currency helper API`, `Currency notification preferences and changes`, and `Capacity notification preferences`.
+- [ ] **AI + TEST** Include all `Currency messages:` and `Capacity messages:` cases: gains/spending/transfers, burst merging/cancellation, suppression during loading, disabled notifications, exact chat/HUD output, and threshold colours. Identify dynamically unavailable currencies/cap-dependent cases; a conditional return is not proof that its assertions ran.
 
-- [ ] Use a `.txt` manifest for PC-only add-ons and a `.addon` manifest only when the add-on is intended to run on console.
-- [ ] Do not ship both `.txt` and `.addon` manifests for the same add-on. Verify that the add-on folder and manifest naming follow the rules for the chosen platform and extension.
-- [ ] Encode the manifest as UTF-8 without a byte-order mark (BOM).
-- [ ] Ensure every manifest line is no longer than 301 bytes; split long directive values across repeated directives where supported.
-- [ ] Include valid `Title`, positive-integer `AddOnVersion`, and `APIVersion` directives; include the ESOUI/Minion `Version` directive when publishing there.
-- [ ] Verify `APIVersion` against current Live and, where applicable, PTS API versions; use no more than two API values.
-- [ ] Use the required `## ` directive prefix and a space after each directive colon; check directive names and values against the manifest guidance.
-- [ ] Keep manifest comment lines within the documented 1,024-character limit.
-- [ ] Verify all listed files and paths exist, are relative to the manifest, and appear in the intended load order; check any variable expansion or special-folder usage.
-- [ ] Confirm the release archive's folder structure and manifest filename meet ESOUI's add-on structure rules.
+### Performance and error handling
 
-### Best-practice guidance
+- [ ] **AI + TEST** Include `Repeated 100-item inventory scan performance`, `100 repeated slot-rule matches`, `100 synthetic tracked-item slot updates`, and `Live read-only scan` results with measured/limit values: 20 synthetic scans of 100 items across 20 rules <= 500 ms; 100 slot-rule matches <= 100 ms; 100 synthetic tracked-item slot updates <= 200 ms; 100 live read-only scans <= 500 ms. Include occupied-entry count, bank-open state, and ESO Plus/craft-bag availability. Timing uses `GetGameTimeMilliseconds`; synthetic workloads must not transfer inventory or persist settings.
+- [ ] **AI** Trace startup, user actions, repeated events, failure/recovery paths, and API assumptions not already covered above. Assess explicit error handling, repeated scans, allocations, inventory-size scaling, data-heavy API/server-wide cost, and maintainability. Record concrete defects/limitations without claiming the code is bug-free. Use local helper references where beneficial, not at the expense of clarity.
 
-- These are recommendations in the guidance; assess applicability and record material risks or reasons a recommendation does not apply.
-- Source: [ESOUI release rules and best practices](https://www.esoui.com/forums/showthread.php?t=10790), [add-on coding best practices](https://www.esoui.com/forums/showthread.php?t=9867), and [dependency version guidance](https://www.esoui.com/forums/showthread.php?t=11595).
+<Per-section evidence references, findings, and uncovered paths.>
 
-- [ ] Review code, description, credits, and images for problematic or inappropriate content that could result in the listing being put on hold.
-- [ ] Credit code, concepts, assets, and information derived from other add-ons, developers, and external sources, including sources identified through AI-assisted research; verify applicable licenses and get permission before copying another add-on's code.
-- [ ] When AI was used, review its sources where practical and confirm the author can maintain the resulting code.
-- [ ] Describe the add-on and its dependencies clearly; use English where practical.
-- [ ] Put update details in the listing's Changelog rather than replacing the main description with release notes.
-- [ ] Ensure the author monitors ESOUI private messages for moderator requests.
-- [ ] Search ESOUI for existing add-ons with similar functionality and consider relevant prior solutions and user expectations.
-- [ ] Prefer documented ESO APIs; if a needed API is unavailable, ask ESOUI for guidance rather than using an unsupported workaround.
-- [ ] For updates, consider cleaning up obsolete bundled libraries or LibStub patterns where applicable.
-- [ ] If console-only, make platform support clear in the add-on name and description; keep names and descriptions free of profanity.
-- [ ] Check that the listing's option to allow patches or companion add-ons matches the author's intent.
-- [ ] Consider the server-wide performance impact of data-heavy APIs and optimize usage for the possibility of many users running the add-on.
+## Human in-game testing
 
-#### Dependency and manifest practices
+Run on the frozen candidate with only its intended dependencies first; record other enabled add-ons from discovery output and any subsequent compatibility runs. Back up saved variables before persistence/collision tests. Use only items and transfers the tester actually intends; no destructive/live-inventory benchmarks. Do not run `/icclean` as part of this review because it intentionally changes saved data.
 
-- Sources: [manifest format](https://wiki.esoui.com/Addon_manifest_%28.txt%29_format), [dependency version checks](https://www.esoui.com/forums/showthread.php?t=11595), and [API versions](https://wiki.esoui.com/APIVersion). If the Wiki pages cannot be accessed, record that limitation and verify against another current source where possible.
+- [ ] **HUMAN + TEST** Record tester, UTC time, client channel (Live/PTS), candidate identity, and relevant settings. Attach the complete `/ictest verbose copy` report, including discovery, every case, warnings/failures, totals, and timings. Run once with bank closed and once with a player-opened bank for live-scan coverage. Discovery reports runtime metadata, not a cryptographic candidate identity; human verifies the installation/hash separately.
+- [ ] **HUMAN** On clean install and `/reloadui`, confirm initialization without unexpected Lua errors; settings and intended account/character scopes persist. Where migration changed, test old data using an isolated, restorable saved-variable fixture and verify retained values; an add-on profile alone does not isolate saved data. State unavailable account/server setups.
+- [ ] **HUMAN** In the item/group editors, exercise matching and saved overrides, per-character/account lists, profile import, grouping/expansion, visibility, notification and banking flags. Confirm displayed counts and saved choices after reload. Reference automated matching evidence rather than repeating its pattern assertions.
+- [ ] **HUMAN** In currency settings and HUDs, exercise resource/location selection, no selected locations, empty-balance filtering, ordering, panel/bar visibility, thresholds/colours, positioning, and notification-only settings. Confirm readable, correctly placed output and persistence; automated formatting tests do not prove rendering.
+- [ ] **HUMAN** Verify real inventory-event delivery using intended backpack, craft-bag (if available), bank/subscriber-bank changes, plus an unrelated bag change where accessible. Confirm relevant counts/capacities/notifications update once without stale UI or duplicate output. Toggle consumers on/off through the real settings UI and confirm it wires the lifecycle tested above. State inaccessible bag types; synthetic callback invocation does not prove ESO filtering.
+- [ ] **HUMAN** Exercise intended deposits, withdrawals, restocking/stack merging, crafted-item handling, and house-chest behavior where supported, including full bags and unavailable items. Confirm correct quantities/direction, no transfer outside a player-opened bank/chest, and safe restriction/combat handling. Record scenarios and actual outcomes, not a blanket "banking works."
+- [ ] **HUMAN** Check reload/loading, cutscene, interaction, editor, and restricted-activity transitions: relevant panels hide/restore correctly, no prohibited gameplay action occurs, and load-time balance reports do not generate spurious notifications.
+- [ ] **HUMAN** With saved variables backed up, enable DEV and release only to test the collision warning, without transfers. Confirm a prominent centred dialog after world entry, persistence until dismissal, and a working Close button; test both load orders where possible. Disable one copy and reload; confirm normal operation and no warning. Never use this invalid dual-loaded session for the suite or other functional tests.
+- [ ] **HUMAN** Record any compatibility/performance observations beyond the suite, with workload, data size, repetitions, timing method, measurements, and acceptance limits chosen before testing. State whether each check is read-only/synthetic or can change inventory/settings; label untested scenarios explicitly.
 
-- [ ] For non-optional dependencies, use a `>=` version check based on the dependency's current manifest `AddOnVersion`; use the correct manifest syntax and space-separate multiple dependencies.
-- [ ] Consider updating minimum dependency versions when newer releases resolve relevant issues, after testing compatibility.
-- [ ] Review the applicable manifest documentation for directive syntax and load-order behavior, especially when using platform-specific or optional dependencies.
-- [ ] Confirm optional dependencies are treated as optional and do not prevent the add-on from loading when absent.
-
-#### Namespace, saved variables, and event efficiency
-
-- Sources: [event filters](https://wiki.esoui.com/AddFilterForEvent) and [saved variables](https://wiki.esoui.com/Storing_data_and_accessing_files).
-
-- [ ] Keep variables local where possible; limit necessary globals to one clearly prefixed add-on table, with local references in Lua files where appropriate.
-- [ ] Give saved variables unique add-on-prefixed names and access them only through supported APIs after they become available at `EVENT_ADD_ON_LOADED`.
-- [ ] In `EVENT_ADD_ON_LOADED` handlers, check the event's add-on name and avoid unnecessary repeat callbacks when initialization is complete.
-- [ ] Choose account-wide and character-specific saved-variable scopes to match the data; prefer character-ID scopes over character-name scopes and decide whether account-wide data should be server-specific.
-- [ ] If changing saved-variable structure or scope, preserve existing user data with a tested migration where needed.
-- [ ] Do not assume saved-variable globals exist before `EVENT_ADD_ON_LOADED`; initialize and access saved data through the supported wrapper/API.
-- [ ] For frequently firing combat, effect, and inventory events, use applicable `AddFilterForEvent` filters to prevent irrelevant callbacks from reaching Lua.
-- [ ] Confirm each filter uses the same event namespace and event ID as its registration, uses supported filter types and matching parameters, and does not repeat a filter type for the same namespace/event pair.
-- [ ] Check that `AddFilterForEvent` reports successful application; treat a failed filter as unresolved rather than assuming it is active.
-- [ ] Register events only while their functionality is needed and unregister them when disabled or no longer needed; unregistering is also required to remove applied filters.
-- [ ] Where the same event needs multiple registrations with the same filter type but different values, use distinct unique event namespaces and manage each registration's lifecycle.
-- [ ] Consider local references for frequently used globals and helpers where this improves clarity or performance without reducing maintainability.
-
-### Release package
-
-- [ ] Record the archive filename and format and verify the submitted archive can be opened and extracted.
-- [ ] Verify the archive has the expected top-level add-on folder and contains the manifest and all required runtime files exactly once.
-- [ ] Compare the archive contents with the frozen candidate and confirm each packaged runtime file matches the reviewed candidate.
-- [ ] Confirm there are no missing, unexpected, duplicate, or hidden entries; no nested archives, `wowmatrix.dat`, SavedVariables, editor/version-control files, generated API files, backups, or unrelated project files.
-- [ ] Confirm any requested image and any necessary installation help are present and in the required format.
-
-<Record package identity, verification method, and findings.>
-
-## Overall code quality
-
-Summarize the release code's correctness, maintainability, and performance-relevant design. Identify material defects or limitations found; distinguish reviewed evidence from guarantees. Do not claim the release is bug-free.
-
-- [ ] Review the complete release code and relevant manifest/XML/configuration, not just changed files.
-- [ ] Trace startup, event-driven behavior, user actions, and relevant state transitions; check invalid or missing data, repeated events, and boundary cases for the add-on's core features.
-- [ ] Check API calls and assumptions against the supported API; assess failure handling, saved-data integrity, and migration behavior where applicable.
-- [ ] Assess event registration and unregistration, callback frequency, repeated scans, allocations, and work that scales with inventory size; identify avoidable performance costs.
-- [ ] Assess whether the implementation remains understandable and maintainable, including the need for local state, comments, and separation of responsibilities.
-- [ ] State material findings, limitations, and areas not inspected; do not treat absence of a discovered defect as proof of being bug-free.
-
-<Overall assessment and any issues>
-
-## User testing and performance
-
-Record who tested the frozen candidate, when, the tested setup and dependency versions, and the actual results. Do not claim tests were run without reported results; disclose incomplete output or untested scenarios.
-
-- [ ] Confirm testing was performed on the identified frozen candidate with its intended dependencies; record game/API version and relevant settings.
-- [ ] Record test coverage, passed/failed counts, failures, and any untested or blocked scenarios. Include relevant functional/user-facing behavior, not only automated or synthetic checks.
-- [ ] Record whether other add-ons were disabled during isolation testing; note any known interactions or compatibility testing.
-- [ ] For performance tests, record workload, data size, repetitions, timing method, measured results, and acceptance limits.
-- [ ] State whether each performance test is synthetic/read-only or can affect live inventory, saved variables, or other persistent state; do not run destructive benchmarks on live data.
-- [ ] Compare actual measurements with the stated limits and report regressions or missing evidence explicitly.
-- [ ] Where practical, test representative normal, edge, and recovery scenarios (including reload/reinitialization and saved-data behavior) and note any setup limitations.
-
-<User-test results and evidence>
-
-<Performance measurements, workloads, and limits>
+<Human scenarios, setup limitations, results, and complete diagnostic reports.>
 
 ## Review conclusion
 
-Summarize whether the frozen release meets the mandatory rules and applicable best practices. List unresolved requirements or required follow-up. Approve only when required checks and human confirmations are complete.
-
-<Conclusion and approval rationale>
+<Summarize material findings and limitations; list each unresolved requirement or follow-up. Approve only when mandatory checks, required tests, and human certifications are complete. Identify any delegated final ZIP verification, which must succeed before upload. Explain any best-practice exceptions and why they are acceptable.>

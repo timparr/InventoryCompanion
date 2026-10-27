@@ -122,7 +122,7 @@ try {
         [pscustomobject]@{ Path = $_.FullName.Substring($candidate.Length + 1); Hash = (Get-FileHash -LiteralPath $_.FullName).Hash }
     })
     $template = Get-Content -LiteralPath (Join-Path $devRoot "Project\Publishing\ReleaseReviewTemplate.md") -Raw
-    $review = $template.Replace("<AI assistant and model name, if available>", "Synthetic fixture").
+    $review = $template.Replace("<AI assistant and model name, if available; do not guess>", "Synthetic fixture").
         Replace("<human author/checker>", "Synthetic fixture").
         Replace("<manifest version>", $version).
         Replace("<PENDING or APPROVED>", "APPROVED").Replace("- [ ]", "- [x]")
@@ -140,6 +140,14 @@ try {
     Set-Content -LiteralPath $reviewPath -Value ((Get-Content -LiteralPath $reviewPath -Raw).Replace($candidateHash, "WRONG"))
     Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "identify the frozen candidate"
     Set-Content -LiteralPath $reviewPath -Value ($review.Replace("<YYYY-MM-DDTHH:mm:ssZ>", "2000-01-01T00:00:00Z"))
+    $completeReview = Get-Content -LiteralPath $reviewPath -Raw
+    Set-Content -LiteralPath $reviewPath -Value ($completeReview.Replace("### Events and lifecycle", "### Missing section"))
+    Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "Release review is incomplete: Events and lifecycle"
+    Set-Content -LiteralPath $reviewPath -Value ($completeReview + "`n- [ ] Unfinished requirement")
+    Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "unchecked requirements"
+    Set-Content -LiteralPath $reviewPath -Value ([regex]::Replace($completeReview, '(?m)^- \[x\] \*\*AI\*\* For other high-frequency events,.*\r?\n', ""))
+    Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "Release review is incomplete: Events and lifecycle"
+    Set-Content -LiteralPath $reviewPath -Value $completeReview
     # Development changes and old source timestamps cannot invalidate a frozen candidate.
     Add-Content -LiteralPath (Join-Path $devRoot "Core\Tests.lua") -Value "`n-- development-only change"
     Remove-Item -LiteralPath $readme

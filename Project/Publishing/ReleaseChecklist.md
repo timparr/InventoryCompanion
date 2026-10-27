@@ -1,61 +1,23 @@
 # ESOUI Release Checklist
 
-Use this checklist before every new upload or update. ESOUI's guidance can change. Check for meaningful changes at release time; use the summary below rather than repeatedly loading unchanged full pages into an AI conversation.
+Use this workflow before every new upload or update. The [release review template](ReleaseReviewTemplate.md) is the authoritative, self-contained set of review checks and evidence requirements.
 
-## Policy summary and change-check approach
+## Review baseline
 
-Summary last checked: 2026-10-26. This is a working summary, not a substitute for changed rules or the uploader's certification.
-
-- **Release best practices** (forum thread 10790): disclose AI involvement at the beginning of the description when required; credit borrowed work; describe required dependencies prominently and require their current integer `AddOnVersion` minimums; keep the manifest/API versions current; prefix addon-owned globals, controls, and saved variables; use appropriate event filters and saved-variable scopes.
-- **Upload rules** (forum thread 11): provide a ZIP and any requested screenshot, accurate description, and installation help if needed. No nested archives, `wowmatrix.dat`, or unapproved executables. The uploader certifies distribution rights, lawful/ToS-compatible and family-friendly content, no malware, no fees, ads, promotions, nag screens, or trial limits.
-- **Prohibited functionality** (forum thread 9865): do not automate combat/movement, start player interactions automatically, bypass game restrictions, send public chat automatically, use unsupported external-file/network access, or misuse group-data channels. Banking must follow a player-opened interaction and supported APIs.
-- **Add-on-removal Wiki**: not summarized as verified. Both HTTP retrieval and the integrated browser were blocked by Cloudflare/403 on the last check. Record this limitation; do not treat a failed fetch or challenge page as unchanged policy.
-
-For future automation, retain a local snapshot of the relevant post/article text, excluding navigation, session IDs, avatars, signatures, view counts, and other page chrome. Fetch and normalize the current policy text, then compare locally before sending it to an AI. Identical text needs no model review; meaningful changes need only the changed sections plus enough context. A single agent may review those differences when useful, rather than rereading every full page. Update the summary and baseline only after reviewing changes. A missing baseline requires a full initial review; failed or blocked retrieval requires an explicit unresolved-status report. A matching page hash says only that the captured text is unchanged, not that the add-on complies.
-
-This describes the intended comparison approach; an automated fetch/snapshot/diff checker has not yet been implemented. The current checklist itself remains the reusable summary.
-
-## Official guidance
-
-- [Before you release or update an addon: rules and best practice](https://www.esoui.com/forums/showthread.php?t=10790)
-- [ESOUI upload rules](https://www.esoui.com/forums/showthread.php?t=11)
-- [What addons must not do](https://www.esoui.com/forums/showthread.php?t=9865)
-- [Add-on coding best practices](https://www.esoui.com/forums/showthread.php?t=9867)
-- [Dependency version checks](https://www.esoui.com/forums/showthread.php?t=11595)
-- [ESOUI add-on manifest format](https://wiki.esoui.com/Addon_manifest_%28.txt%29_format)
-- [Event filters](https://wiki.esoui.com/AddFilterForEvent)
-- [Saved variables](https://wiki.esoui.com/Storing_data_and_accessing_files)
-- [API versions](https://wiki.esoui.com/APIVersion)
-- [Add-ons that can get removed](https://wiki.esoui.com/How_to_get_your_AddOn_removed)
-- [ESOUI Developer FAQ: Git and SVN publishing](https://www.esoui.com/forums/faq.php?faq=developer)
-
-The linked forum guidance and dependency-version explanation were reviewed while preparing this checklist. Automated requests to the ESOUI Wiki's manifest, event-filter, and add-on-removal pages returned HTTP 403; open those and the other linked Wiki references in a browser and confirm the current guidance before release.
+The release-guidance research has been consolidated into the template. Release review assesses the candidate against those recorded requirements; it does not fetch policy pages, search for precedent, or repeat the research. A material question not settled by the baseline requires a documented author-supplied decision before approval. Updating the policy baseline is separate maintenance, not a per-release fetch requirement.
 
 ## Before uploading
 
 - AI assistants may perform the source and policy review and prepare `ReleaseReview.md` in the development add-on root, beside `InventoryCompanion_DEV.txt`. Identify the assistant and model when available; do not guess a model that the session does not expose. Name the human author/checker separately. The human must verify author-only claims (including rights, credits, listing details, and test results); do not approve the review until those checks and in-game testing are complete.
-- Ask the author to run the in-game tests against the intended release files and dependencies. Record the results in `ReleaseReview.md`; for the synthetic/read-only suite, `/ictest verbose copy` prints the summary and test cases. Never claim an in-game test was run without its result.
-- [ ] Review the current prohibited-functionality rules and confirm the add-on uses only supported ESO APIs. Ask ESOUI staff for clarification before release if a feature might fall into a restricted category.
-- [ ] Review inventory-transfer behavior: transfers only run after the player opens the bank/chest interaction, use ESO's protected inventory-transfer APIs, and do not start interactions or automate combat/movement. Similar established add-ons provide precedent for bank withdrawals and deposits; seek ESOUI clarification if the behavior or API path differs or remains uncertain.
-- [ ] Keep add-on globals limited to the single `InventoryCompanion` root; prefix saved-variable, UI, binding, scene, and dialog names with the add-on name.
-- [ ] Review inventory and other frequently firing event registrations for suitable event filters and avoid unnecessary callbacks.
-- [ ] Confirm saved-variable names and scope are appropriate. Character-ID saved variables are already character-specific across servers; decide whether account-wide preferences should be shared across NA/EU.
-- [ ] Update the manifest API versions to the current live/PTS versions, with no more than two entries.
-- [ ] Verify every non-optional dependency is listed at the beginning of the upload description and uses a current minimum version from that dependency's manifest. InventoryCompanion currently depends on `LibAddonMenu-2.0>=43`; verify the version before release.
-- [ ] Make the ESOUI description accurate and informative. The guidance requires an AI disclosure at its beginning when AI-generated code has not been personally verified for correctness, efficiency, maintainability, and safety; it says disclosure is optional when AI was used only for ideation and the author personally wrote and validated the final code. Keep project credits and attributions accurate.
-- [ ] Test the release package in-game with the intended files and dependencies. Do not include SavedVariables, generated API files, editor configuration, backups, or development-only documentation.
-- [ ] Next release: test the DEV/release collision warning with both installations enabled (back up shared saved variables first; do not perform inventory transfers in this invalid session). Confirm a prominent, centred dialog appears after entering the game, remains until dismissed, and closes with its Close button. Test both load orders where possible. Then disable one copy and reload: confirm normal loading without the warning. Record actual results in `ReleaseReview.md`.
+- Follow the template's AI/TEST/HUMAN assignments rather than maintaining a second policy checklist here. Include the named unit-test results in their relevant sections, not only a suite total.
+- Ask the author to run `/ictest verbose copy` on the frozen installation with bank closed and open. Retain the complete discovery/case/timing reports in `ReleaseReview.md`. The copyable Lua error window is intentional even for a passing run. Never claim an in-game test ran without supplied results.
+- Discovery supplies the running API/build and enabled dependency integer versions. Compare with the candidate and dependency manifests locally; it does not certify newest published versions. The author supplies the Live/PTS channel and candidate identity, and performs the template's real UI/event/transfer/persistence/collision scenarios.
 
 ## Upload package and listing
 
 - [ ] Freeze a candidate using the workflow below, then test and review that installation, not the changing DEV checkout. Complete `ReleaseReviewTemplate.md`, save it as `ReleaseReview.md` in the development root, and complete each confirmation. Identify the reviewer and human checker, the candidate version, and its SHA-256 identity. The timestamp is an audit record only; neither DEV timestamps nor DEV changes invalidate a frozen candidate.
 - [ ] Finalize using `.\Project\Publishing\PackageRelease.ps1 -Action Finalize -TestResults '<actual results>'`. The ZIP has one top-level `InventoryCompanion` folder containing the manifest, `ReleaseReview.md`, and only release-manifest-listed runtime files. Runtime bytes and manifest must match the staged candidate. Extracting the ZIP into `live\AddOns` installs the add-on without moving files.
-- [ ] Choose the ESOUI publishing route: upload the ZIP through Upload & Update, or investigate ESOUI-hosted Git/SVN repositories. The Developer FAQ documents SVN's explicit release flow: select "Make Zip", enter the File Version/release type and listing text, generate and inspect the ZIP, then choose "Push Zip Live". It says an unassociated repository can prompt to select an existing listing or create one, so a separate manual first upload may not be necessary; verify the current site flow before relying on that. The FAQ describes Git repository setup and pushing, but does not establish that a Git push alone publishes an ESOUI release.
-- [ ] Inspect the ZIP before upload. Do not put another ZIP/RAR inside it; do not include executables or `wowmatrix.dat`.
-- [ ] Attach a JPG, PNG, or GIF image when required by the upload form. The package script does not create or include a screenshot.
-- [ ] Include an installation help file in the ZIP if installation is difficult; this add-on should otherwise install by extracting the folder into `live\AddOns`.
-- [ ] Ensure the add-on and its contents are lawful to distribute, free of malware, consistent with ZeniMax's ToS, family-friendly, free of charge, free of ads/promotions/nag screens, and not time-limited.
-- [ ] Check ESOUI private messages after submission in case moderators request a change.
+- [ ] Submit the verified ZIP through ESOUI Upload & Update with the listing, release type, changelog, and required image assessed in the review. The script does not create a screenshot or publish the release. A Git push alone is not evidence of publication. Monitor private messages after submission.
 
 ## Packaging script
 
@@ -73,7 +35,7 @@ Staging refuses to overwrite an existing `InventoryCompanion` folder. It creates
 
 1. Start ESO and select **InventoryCompanion**, not **InventoryCompanion [DEV]**, in your release-test profile. Keep your development profile selecting only **InventoryCompanion [DEV]**.
 2. Test the candidate, including `/ictest verbose copy`, rule matching and overrides, and relevant banking/tracking UI checks. Record actual results; never infer success from staging.
-3. Review the frozen candidate against the policy, source, author, and listing checks above. Finish and approve `ReleaseReview.md` using the candidate's version and SHA-256 identity. DEV work may continue independently. If the candidate itself changes, cancel and stage/test/review a new cut. Obtain its identity with:
+3. Complete the template's policy, source, author, listing, automated, and human checks. Finish and approve `ReleaseReview.md` using the candidate's version and SHA-256 identity; delegate final ZIP byte/content verification to finalization if the archive does not yet exist. DEV work may continue independently. If the candidate itself changes, cancel and stage/test/review a new cut. Obtain its identity with:
 
    ```powershell
    $state = Get-Content .\Project\Publishing\.release-test\state.json -Raw | ConvertFrom-Json

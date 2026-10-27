@@ -42,6 +42,8 @@ git -C "$env:USERPROFILE\Documents\ESO-LuaLS-Generator" pull --ff-only
 
 - The Debug Key runs the same diagnostic suite as `/ictest verbose copy`.
 - `/ictest [verbose] [copy]` runs diagnostic tests and live inventory scans. It does not intentionally modify saved variables.
+- Every run reports the UTC Unix timestamp, game build/running API, server/language, DEV/release identity, ESO Plus/bank state, enabled add-ons with integer `AddOnVersion` values, and conditional currency coverage. These are local runtime observations, not proof of the newest published API/dependency version or the candidate hash.
+- For a release review, supply the complete `/ictest verbose copy` report from the frozen candidate with bank closed and open. `copy` intentionally opens a Lua error window for copying even on success; inspect the reported PASS/FAIL results. The listener case checks registration/filter success, feature transitions, shared consumers, duplicate prevention, and debounce behavior; real event delivery and settings-UI wiring still need human testing.
 - Performance limits are 500 ms for 20 synthetic 100-item scans across 20 rules, 500 ms for 100 live scans, 100 ms for 100 slot-rule matches, and 200 ms for 100 tracked-item slot updates.
 - `/icclean` explicitly prunes known diagnostic saved-variable leftovers and updates the currency-name diagnostic history.
 - `/icbankitems [1-20]` lists sample standard-bank and ESO Plus subscriber-bank contents while a bank or house chest is open. It is read-only.
