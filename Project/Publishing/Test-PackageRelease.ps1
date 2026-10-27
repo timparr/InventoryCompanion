@@ -5,8 +5,12 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $sourceRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $fixtureRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("InventoryCompanion-package-test-" + [guid]::NewGuid().ToString("N"))
-$devRoot = Join-Path $fixtureRoot "InventoryCompanion_DEV"
-$candidate = Join-Path $fixtureRoot "InventoryCompanion"
+$liveRoot = Join-Path $fixtureRoot "live"
+$addonsRoot = Join-Path $liveRoot "AddOns"
+$devRoot = Join-Path $addonsRoot "InventoryCompanion_DEV"
+$candidate = Join-Path $addonsRoot "InventoryCompanion"
+$savedVariables = Join-Path $liveRoot "SavedVariables\InventoryCompanion.lua"
+$devSavedVariables = Join-Path $liveRoot "SavedVariables\InventoryCompanion_DEV.lua"
 $script = Join-Path $devRoot "Project\Publishing\PackageRelease.ps1"
 $manifest = Join-Path $devRoot "InventoryCompanion_DEV.txt"
 $passed = 0
@@ -21,7 +25,7 @@ function Start-Process {
 # Every package action below targets the temporary fixture, not the live installation.
 function Get-Process {
     param([string[]]$Name, [string]$ErrorAction)
-    return @()
+    throw "Packaging must not require ESO to be closed."
 }
 
 function Assert([bool]$Condition, [string]$Message) {
@@ -63,8 +67,26 @@ try {
     }
     Copy-Item -LiteralPath $sourceManifest -Destination $manifest
     $version = [regex]::Match(($manifestLines -join "`n"), '(?m)^## Version: (.+)$').Groups[1].Value.Trim()
+    $null = New-Item -ItemType Directory -Path (Split-Path $savedVariables -Parent) -Force
+    Set-Content -LiteralPath $savedVariables -Value "Synthetic saved variables for packaging tests." -Encoding UTF8
 
     $originalManifest = [System.IO.File]::ReadAllBytes($manifest)
+    $originalManifestText = Get-Content -LiteralPath $manifest -Raw
+    foreach ($invalidManifest in @(
+        [regex]::Replace($originalManifestText, '(?m)^## AddOnVersion: .+\r?\n', ""),
+        ($originalManifestText + "`n## AddOnVersion: 1"),
+        [regex]::Replace($originalManifestText, '(?m)^## AddOnVersion: .+$', '## AddOnVersion: 0')
+    )) {
+        Set-Content -LiteralPath $manifest -Value $invalidManifest -NoNewline
+        Assert-Fails { & $script -Action Stage } "must define exactly one ## AddOnVersion"
+        Assert (-not (Test-Path -LiteralPath $candidate)) "Invalid integer version created a candidate."
+    }
+    foreach ($invalidVersion in @("1.2.100", "1.100.0", "0.0.0", "214749.0.0", "1.2.99")) {
+        Set-Content -LiteralPath $manifest -Value ([regex]::Replace($originalManifestText, '(?m)^## Version: .+$', "## Version: $invalidVersion")) -NoNewline
+        Assert-Fails { & $script -Action Stage } "AddOnVersion encoding requires"
+        Assert (-not (Test-Path -LiteralPath $candidate)) "Unencodable version created a candidate."
+    }
+    [System.IO.File]::WriteAllBytes($manifest, $originalManifest)
     Add-Content -LiteralPath $manifest -Value "`n..\outside.lua"
     Assert-Fails { & $script -Action Stage } "must stay inside"
     Assert (-not (Test-Path -LiteralPath $candidate)) "Invalid manifest created a candidate."
@@ -81,14 +103,24 @@ try {
     Remove-Item -LiteralPath $candidate
     $stageOutput = @(& $script -Action Stage)
     Assert (($stageOutput -join "`n") -match 'ESO may remain open during finalization') "Staging gives incorrect finalization instructions."
+    Assert (($stageOutput -join "`n") -match 'then reload the UI') "Staging did not require a reload after selecting the release."
+    Assert (($stageOutput -join "`n") -match "runtime version=$([regex]::Escape($version)), DEV=false") "Staging did not identify the expected loaded release."
+    Assert (($stageOutput -join "`n") -match 'last-on-disk snapshot') "Staging did not explain backup freshness."
+    $backupDirectory = Join-Path $devRoot "SavedVariables"
+    $savedVariablesBackups = @(Get-ChildItem -LiteralPath $backupDirectory -Filter "InventoryCompanion-*.lua" -File)
+    Assert ($savedVariablesBackups.Count -eq 1) "Staging did not create exactly one saved-variables backup."
+    Assert ((Get-FileHash -LiteralPath $savedVariables).Hash -eq (Get-FileHash -LiteralPath $savedVariablesBackups[0].FullName).Hash) "Saved-variables backup differs from the profile file."
     Assert (Test-Path -LiteralPath $manifest) "Staging disabled the development manifest."
     $parts = $version.Split(".")
     $expectedNextBuild = "{0}.{1}.{2}" -f $parts[0], $parts[1], (1 + $(if ($parts.Count -gt 2) { [int]$parts[2] } else { 0 }))
     Assert ((Get-Content -LiteralPath $manifest -Raw) -match ('## Version: ' + [regex]::Escape($expectedNextBuild))) "Staging did not increment the development build."
+    $expectedIntegerVersion = [int]$parts[0] * 10000 + [int]$parts[1] * 100 + $(if ($parts.Count -gt 2) { [int]$parts[2] } else { 0 })
+    Assert ((Get-Content -LiteralPath $manifest -Raw) -match "(?m)^## AddOnVersion: $($expectedIntegerVersion + 1)\s*$") "Staging did not synchronize the DEV integer version."
     $postCutManifestHash = (Get-FileHash -LiteralPath $manifest).Hash
     Assert (Test-Path -LiteralPath (Join-Path $candidate "InventoryCompanion.txt")) "Release manifest is missing."
     Assert (-not (Test-Path -LiteralPath (Join-Path $candidate "Core\Development.lua"))) "Development bootstrap leaked into candidate."
     $releaseManifest = Get-Content -LiteralPath (Join-Path $candidate "InventoryCompanion.txt") -Raw
+    Assert ($releaseManifest -match "(?m)^## AddOnVersion: $expectedIntegerVersion\s*$") "Release integer version differs from the staged version."
     Assert ($releaseManifest -notmatch '\[DEV\]|Development\.lua') "Release manifest contains development markers."
     $releaseFiles = @($releaseManifest -split '\r?\n' | ForEach-Object { $_.Trim() } |
         Where-Object { $_ -and -not $_.StartsWith("#") -and -not $_.StartsWith("--") })
@@ -126,7 +158,22 @@ try {
     Assert ((Get-FileHash -LiteralPath $manifest).Hash -eq $postCutManifestHash) "Cancellation changed development."
     Assert (-not (Test-Path -LiteralPath $candidate)) "Cancellation left the candidate installed."
 
-    & $script -Action Stage | Out-Null
+    Set-Content -LiteralPath $devSavedVariables -Value "Distinct synthetic development preferences." -Encoding UTF8
+    $backupOutput = @(& $script -Action Backup)
+    $releaseBackups = @(Get-ChildItem -LiteralPath $backupDirectory -Filter "InventoryCompanion-*.lua" -File)
+    $devBackups = @(Get-ChildItem -LiteralPath $backupDirectory -Filter "InventoryCompanion_DEV-*.lua" -File)
+    Assert ($releaseBackups.Count -eq 2) "Standalone backup overwrote a release backup."
+    Assert ($devBackups.Count -eq 1) "Standalone backup did not discover the development installation file."
+    Assert ((Get-FileHash -LiteralPath $devBackups[0].FullName).Hash -eq (Get-FileHash -LiteralPath $devSavedVariables).Hash) "Development backup differs from its source."
+    Assert (($backupOutput -join "`n") -match 'last-on-disk snapshot') "Standalone backup did not disclose snapshot freshness."
+    Assert (-not (Test-Path -LiteralPath $candidate)) "Standalone backup created an installation."
+    Assert ((Get-FileHash -LiteralPath $manifest).Hash -eq $postCutManifestHash) "Standalone backup changed development versions."
+    Remove-Item -LiteralPath $savedVariables, $devSavedVariables
+    $missingBackupWarnings = @()
+    & $script -Action Stage -WarningVariable missingBackupWarnings | Out-Null
+    Assert (($missingBackupWarnings -join "`n") -match 'No ESO saved variables files found') "Staging did not warn when saved variables were absent."
+    Assert (@(Get-ChildItem -LiteralPath $backupDirectory -Filter "*.lua" -File).Count -eq 3) "Staging created a backup despite the saved-variables files being absent."
+    Set-Content -LiteralPath $savedVariables -Value "Synthetic saved variables for packaging tests." -Encoding UTF8
     $version = [regex]::Match((Get-Content -LiteralPath (Join-Path $candidate "InventoryCompanion.txt") -Raw), '(?m)^## Version: (.+)$').Groups[1].Value.Trim()
     $testedFiles = @(Get-ChildItem -LiteralPath $candidate -Recurse -File | ForEach-Object {
         [pscustomobject]@{ Path = $_.FullName.Substring($candidate.Length + 1); Hash = (Get-FileHash -LiteralPath $_.FullName).Hash }
@@ -181,6 +228,8 @@ try {
     $parts = $version.Split(".")
     $expectedNextRelease = "{0}.{1}.0" -f $parts[0], (1 + [int]$parts[1])
     Assert ((Get-Content -LiteralPath $manifest -Raw) -match ('## Version: ' + [regex]::Escape($expectedNextRelease))) "Finalization did not advance the development minor version."
+    $expectedNextInteger = [int]$parts[0] * 10000 + (1 + [int]$parts[1]) * 100
+    Assert ((Get-Content -LiteralPath $manifest -Raw) -match "(?m)^## AddOnVersion: $expectedNextInteger\s*$") "Finalization did not synchronize the DEV integer version."
     Assert ((Get-Content -LiteralPath (Join-Path $devRoot "Core\Init.lua") -Raw) -match ('Version = "' + [regex]::Escape($expectedNextRelease) + '"')) "Runtime and manifest versions diverged."
     [System.IO.File]::WriteAllBytes($readme, $originalReadme)
     Assert (Test-Path -LiteralPath $candidate) "Finalization removed the gameplay release installation."

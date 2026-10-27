@@ -1,64 +1,154 @@
 # ESOUI Release Standards Review
 
-Reviewed (UTC): 2026-10-26T15:24:42Z
-Reviewer: AI assistant using Copilot SDK in VS Code (model identifier not exposed in this session)
-Checked by: Tim-P
-Release version: 1.01
-Candidate SHA256: CD164BA0A316C05BDEA26F505EA245FCCCA8F9AEE77959AD8FBC79A2116D2AB8
-Review status: APPROVED
+Reviewed (UTC): 2026-10-27T21:07:19Z
+Reviewer: AI assistant using Copilot SDK in VS Code (GPT-6.1-sol)
+Checked by: Tim-P (supplied in-game diagnostic report and confirmed short transfer check)
+Add-on: InventoryCompanion
+Release version: 1.2.0
+Candidate SHA256: CC87B4FDA534EFC1D68FE6F01DAA1AD37BE2568FB070965641BCC80A891D1BF2
+Candidate identity method: SHA-256 of sorted candidate-relative path and SHA-256 pairs, joined with LF, as recorded by the packaging script
+Report location: ReleaseReview.md in the development checkout
+Review status: PENDING
+
+Testing scope: Live only. PTS is not tested or required for approval; PTS compatibility is not claimed.
 
 ## Release process
 
-A copy of the intended release files was extracted into a clean staging installation, staged, and frozen as the review candidate. Its version and SHA-256 identity are recorded above. The review and release tests apply to that frozen copy; the candidate is not changed during review.
+The packaging script staged version 1.2.0 in the sibling `InventoryCompanion` installation on 2026-10-27 at approximately 00:46 UTC. DEV advanced to 1.2.1. On receipt of the diagnostic report, the reviewer recomputed the recorded file-set identity and compared all installed candidate files against the staging records: zero differences. No runtime files were changed during this assessment.
 
-Only after the files were frozen were they assessed against ESOUI's mandatory upload rules and prohibited-functionality requirements, together with its release best-practice guidance:
+Tim-P supplied the complete diagnostic report below. It identifies the release installation, runtime version 1.2.0, DEV=false, and no enabled development copy. These runtime observations support installation selection; the independent file comparison establishes the currently installed candidate identity.
 
-- Mandatory upload rules: https://www.esoui.com/forums/showthread.php?t=11
-- Mandatory prohibited-functionality requirements: https://www.esoui.com/forums/showthread.php?t=9865
-- Release best practices: https://www.esoui.com/forums/showthread.php?t=10790
+No saved-variable backup was created at the original staging: the script incorrectly looked for `InventoryCompanion_SavedVariables.lua`, confusing the declared global table with ESO's installation-based disk filename. Tim-P questioned the repeated warning on 2026-10-27; investigation found both `live\SavedVariables\InventoryCompanion.lua` and `InventoryCompanion_DEV.lua`. The files were not actually absent. The tooling now infers and backs up both installation filenames, supports `-Action Backup` without restaging, and passed 147 packaging assertions. Verified private backups of both files were created under the ignored DEV `SavedVariables` folder at 2026-10-27T21:23:03Z; each matched its source SHA256 `E8B9D867A673B8A739FC415E2F378D041B86FD8C91C15C55C97E18C0F808FE7D`. These are last-on-disk snapshots, not proof of current in-memory settings. No live saved-variable file was modified.
 
-## Findings against the guidance
+The previous report covered version 1.01, not this candidate. Its approval is not carried forward. The earlier report remains in Git history and the previous release package.
 
-### Prohibited functionality and inventory transfers
+## Package and installation
 
-The reviewed release does not initiate bank or house-chest interactions, automate combat or movement, or send public chat. Bank transfers are gated on the player having opened the bank (`EVENT_OPEN_BANK` and `IsBankOpen()` checks) and use ESO's protected inventory APIs through `CallSecureProtected`. No unresolved transfer-policy concern was identified in the reviewed code.
+PASS: The installed candidate has 28 files matching the staging records. Its top-level folder and manifest are `InventoryCompanion` and `InventoryCompanion.txt`. No final 1.2.0 release archive has been produced or inspected. After approval, `Project\Publishing\PackageRelease.ps1 -Action Finalize` is responsible for archive entry and byte verification.
 
-The current ESOUI forum guidance on release practices, upload rules, and prohibited functionality was reviewed:
+UNRESOLVED: Complete candidate source review, final listing/changelog/image checks, applicable author confirmations, and the remaining template requirements have not been completed in this assessment.
 
-- https://www.esoui.com/forums/showthread.php?t=10790
-- https://www.esoui.com/forums/showthread.php?t=11
-- https://www.esoui.com/forums/showthread.php?t=9865
+## Manifest and dependencies
 
-The linked add-on-removal Wiki page could not be read because HTTP retrieval and the integrated browser returned 403/Cloudflare. Its current guidance is therefore not claimed as verified.
+ISSUE: The frozen manifest has no `## AddOnVersion` directive. The review baseline requires a positive integer; the supplied diagnostic reports InventoryCompanion AddOnVersion=0. Correct the development manifest and version-maintenance tooling, then stage a new identified candidate rather than modifying these frozen files.
 
-### Globals, saved variables, UI identifiers, and events
+PASS: The candidate manifest is UTF-8 without a BOM; its longest line is 106 bytes, below the baseline's 301-byte limit.
 
-Addon-owned Lua state uses the `InventoryCompanion` namespace. Saved variables use `InventoryCompanion_SavedVariables` with account-wide and character-ID scopes through `ZO_SavedVars`. XML controls, scenes, bindings, dialogs, and events use addon-prefixed identifiers, with child controls deriving names from their parents. Frequently firing inventory slot events are individually filtered to relevant bags, registered conditionally, and paired with debounced UI refreshes.
+PASS: Manifest APIVersion=101051 matches the reported running Live API=101051.
 
-### API versions and dependencies
+PASS: The manifest requires LibAddonMenu-2.0>=43; the report records enabled AddOnVersion=43. Its outOfDate=true flag is retained below, not treated as an integer dependency-version failure or proof of incompatibility. The attempted local dependency-manifest lookup was unsuccessful; no current published-version or independent local dependency-manifest claim is made.
 
-The manifest declares API 101051, confirmed by the author's in-game report and the current ESO UI source README (12.1.6, 19 October 2026). No unverified PTS API version is declared. The non-optional dependency `LibAddonMenu-2.0>=43` matches the library's installed `AddOnVersion: 43` and its current public r43 listing.
+## Test discovery and coverage
 
-- https://raw.githubusercontent.com/esoui/esoui/live/README.md
-- https://www.esoui.com/downloads/info7-LibAddonMenu.html
+PASS (human-supplied diagnostic evidence): 58/58 named cases passed at Unix timestamp 1793135208, corresponding to 2026-10-27T21:06:48Z. Environment: eso.live.12.1.6.3309674, API 101051, EU Megaserver, English, ESO Plus active, bank closed. The transcript below is the supplied evidence; the reviewer did not execute ESO tests.
 
-### Description, disclosure, credits, licensing, and installation
+The report covers discovery, resource and currency preferences, saved-data pruning and profile import fixtures, matching and overrides, inventory scopes, event-listener transitions and debounce, notification formatting and suppression, and the four performance workloads. Named results are retained below rather than inferred from the suite total.
 
-The upload description begins with the explicit AI disclosure, lists the required dependency immediately afterward, and accurately describes the addon's tracking, currency, and banking behavior. It includes straightforward extraction-based installation instructions. The author confirmed distribution rights, credits, and listing claims. No third-party runtime library or external asset is bundled; the addon references built-in ESO UI resources.
+## Core behavior and correctness
 
-### Release package
+PASS (automated in-game cases reported by Tim-P): Matching, override resolution, display-flag preservation, profile import copying, tracked-item inventory scope, and synthetic scan cases passed. These cases do not establish real settings-editor input, rendered output, transfer execution, or disk persistence.
 
-The package contains one `InventoryCompanion` folder with the manifest, release runtime files, and a review document. The verified contents exclude SavedVariables, generated API definitions, editor files, executables, nested archives, and development-only documents. The release files match the identified candidate.
+## Events and lifecycle
 
-## Code quality and testing
+PASS (reported case): Event listener transitions and refresh debounce.
 
-The reviewed code follows the addon namespace and saved-variable conventions, filters high-frequency inventory events, and gates transfers on a player-opened bank interaction. The review found no known release-blocking code defect. This is a focused release review, not a guarantee that the addon is bug-free.
+PASS (human-reported normal use): Tim-P confirmed the short transfer check with "everything checks out" on 2026-10-27 and explicitly confirmed ESO Plus enabled. This supplements the diagnostic case with real-use observations, not an instrumented event-delivery trace. Separate settings-input or initialization/reload checks are not routine requirements; request them only for a specific relevant change, source-review finding, or reported problem.
 
-Tim-P reported **57/57 in-game tests passed** on the staged release candidate and confirmed that it looked good in game. Reported performance measurements were:
+## Performance and queued operations
 
-- 20 scans of 100 items against 20 rules: **71 ms / 2,000 ms**
-- 100 slot-rule matches: **1 ms / 1,000 ms**
-- 100 tracked-item slot updates: **1 ms / 2,000 ms**
-- 100 read-only backpack, bank, and craft-bag scans with the bank closed: **305 ms / 1,000 ms**, with 980 occupied entries on the final scan
+| Reported workload | Measured | Candidate limit | Result |
+|---|---:|---:|---|
+| 20 scans of 100 items against 20 rules | 67 ms | 500 ms | PASS |
+| 100 slot-rule matches | 1 ms | 100 ms | PASS |
+| 100 tracked-item slot updates | 3 ms | 200 ms | PASS |
+| 100 read-only live backpack/bank/craft-bag scans | 319 ms | 500 ms | PASS |
 
-All reported timings were below their respective limits. The supplied per-case test output was truncated during the Alliance Points currency scenario; the 57/57 result is the author's reported summary, not an independently complete per-case transcript.
+The final live scan reported 1,068 occupied entries with the bank closed. Inaccessible bank storage is not claimed as exercised. No timing failures or outliers appear in this supplied run. These timings do not establish sustained-event responsiveness or real transfer-queue behavior.
+
+## Human in-game testing
+
+PASS (human report, 2026-10-27): In response to the short check covering transfers between bank and bag, involving the craft bag if available, and between bag and house chests, Tim-P reported "everything checks out" and "eso plus is enabled". No problems or unavailable storage were reported. No per-transfer quantities or exhaustive storage matrix were supplied or required. ESO Plus is explicitly confirmed and agrees with the diagnostic; no PTS testing was reported, so the author's requested reporting default is no PTS testing. Separate quantity-update, settings-toggle, visual, and reload/persistence checks were not requested or claimed. A second full diagnostic run with an open bank is not automatically required merely because the diagnostic report used a closed bank.
+
+UNRESOLVED: Complete the candidate source review and identify any additional justified human checks before requesting further scenarios. No deliberate collision test, clean-data reset, destructive benchmark, or PTS run is required by this handoff.
+
+## Review conclusion
+
+The diagnostic run succeeded, the installed files matched the frozen 1.2.0 identity when checked, and Tim-P subsequently confirmed successful routine transfer testing with ESO Plus enabled. Approval and final packaging remain withheld for the missing manifest AddOnVersion, incomplete candidate source/template assessment, and remaining listing/author evidence, not for additional routine manual tests.
+
+If only metadata/version fields change in a replacement candidate, retain this report with its original version/hash/date, review the exact delta, and determine affected retests plus a basic load/smoke check. Do not silently relabel this transcript as a run of the replacement candidate.
+
+## Supplied complete diagnostic report
+
+```text
+[InventoryCompanion tests] 58/58 passed; 20 x 100-item scans / 20 rules: 67/500 ms; 100 slot-rule matches: 1/100 ms; 100 tracked-item slot updates: 3/200 ms; 100 live backpack/bank/craft-bag scans (bank closed): 319/500 ms, 1068 occupied entries
+[InventoryCompanion tests] INFO Environment: timestamp=1793135208 (Unix UTC); game=eso.live.12.1.6.3309674; API=101051; server=EU Megaserver; language=en
+[InventoryCompanion tests] INFO Installation: InventoryCompanion; runtime version=1.2.0; DEV=false; ESO Plus=true; bank=closed
+[InventoryCompanion tests] INFO Enabled add-on: AddonSelector; AddOnVersion=302030; state=2; outOfDate=false
+[InventoryCompanion tests] INFO Enabled add-on: InventoryCompanion; AddOnVersion=0; state=2; outOfDate=false
+[InventoryCompanion tests] INFO Enabled add-on: LibScrollableMenu; AddOnVersion=20407; state=2; outOfDate=false
+[InventoryCompanion tests] INFO Enabled add-on: LibAddonMenu-2.0; AddOnVersion=43; state=2; outOfDate=true
+[InventoryCompanion tests] INFO Conditional currency coverage: Alliance Points; ID=2; available=true
+[InventoryCompanion tests] INFO Conditional currency coverage: Transmute Crystals; ID=5; available=true
+[InventoryCompanion tests] INFO Transmute Crystals capped-colour assertions enabled=true
+[InventoryCompanion tests] INFO Conditional currency coverage: Trade Bars; ID=9; available=true
+[InventoryCompanion tests] INFO Human evidence still required: Live/PTS channel, candidate SHA256/installation verification, manifest API/minimum-version comparison, UI/event delivery, transfers, persistence and collision checks.
+[InventoryCompanion tests] INFO Safety: live scans are read-only; synthetic tests temporarily replace runtime state and restore it; no inventory transfers or intentional saved-variable writes.
+[InventoryCompanion tests] PASS Runtime and dependency discovery
+[InventoryCompanion tests] PASS Live read-only scan: 100 scans, 1068 occupied entries on final scan, bank closed
+[InventoryCompanion tests] PASS Progress bar resource model and preferences
+[InventoryCompanion tests] PASS Currency notification preferences and changes
+[InventoryCompanion tests] PASS Prune known saved-variable diagnostic keys only
+[InventoryCompanion tests] PASS Currency panel resource preferences
+[InventoryCompanion tests] PASS Live currency helper API
+[InventoryCompanion tests] PASS Profile import copies tracked items and rule overrides
+[InventoryCompanion tests] PASS Tracked item count respects backpack and craft-bag scope
+[InventoryCompanion tests] PASS Case-insensitive substring matching
+[InventoryCompanion tests] PASS Wildcard matching
+[InventoryCompanion tests] PASS Literal punctuation and missing names
+[InventoryCompanion tests] PASS Any-pattern matching
+[InventoryCompanion tests] PASS Baseline and saved-rule override resolution
+[InventoryCompanion tests] PASS Display-flag writes preserve other overrides
+[InventoryCompanion tests] PASS 100-item backpack and craft-bag scan
+[InventoryCompanion tests] PASS Repeated 100-item inventory scan performance
+[InventoryCompanion tests] PASS 100 repeated slot-rule matches
+[InventoryCompanion tests] PASS 100 synthetic tracked-item slot updates
+[InventoryCompanion tests] PASS Event listener transitions and refresh debounce
+[InventoryCompanion tests] PASS Currency messages: capped balance colours follow the progress bar thresholds
+[InventoryCompanion tests] PASS Currency messages: Picking up 10 gold
+[InventoryCompanion tests] PASS Currency messages: Picking up three 10-gold piles in quick succession merges
+[InventoryCompanion tests] PASS Currency messages: Picking up three 10-gold piles with quiet periods between
+[InventoryCompanion tests] PASS Currency messages: Withdrawing 10 gold (bank event first)
+[InventoryCompanion tests] PASS Currency messages: Withdrawing 10 gold (bag event first)
+[InventoryCompanion tests] PASS Currency messages: Depositing 10 gold
+[InventoryCompanion tests] PASS Currency messages: Withdrawing a large amount
+[InventoryCompanion tests] PASS Currency messages: Depositing a large amount
+[InventoryCompanion tests] PASS Currency messages: Spending a large amount
+[InventoryCompanion tests] PASS Currency messages: Spending a small amount
+[InventoryCompanion tests] PASS Currency messages: Login balance report is silent
+[InventoryCompanion tests] PASS Currency messages: Withdrawing then depositing the same amount in one window sends nothing
+[InventoryCompanion tests] PASS Currency messages: Pickup and withdrawal in one window show consistent balances
+[InventoryCompanion tests] PASS Currency messages: Alliance Points gained
+[InventoryCompanion tests] PASS Currency messages: Alliance Points spent
+[InventoryCompanion tests] PASS Currency messages: Alliance Points withdrawn from the bank
+[InventoryCompanion tests] PASS Currency messages: Alliance Points deposited in the bank
+[InventoryCompanion tests] PASS Currency messages: Transmute Crystals gained
+[InventoryCompanion tests] PASS Currency messages: Transmute Crystals spent
+[InventoryCompanion tests] PASS Currency messages: Trade Bars gained
+[InventoryCompanion tests] PASS Currency messages: Trade Bars spent
+[InventoryCompanion tests] PASS Capacity messages: bag space used by looting
+[InventoryCompanion tests] PASS Capacity messages: bag space freed by selling
+[InventoryCompanion tests] PASS Capacity messages: bag changes that cancel out
+[InventoryCompanion tests] PASS Capacity messages: bag space crossing the warning and danger thresholds
+[InventoryCompanion tests] PASS Capacity messages: bank to bag move
+[InventoryCompanion tests] PASS Capacity messages: bag to bank move
+[InventoryCompanion tests] PASS Capacity messages: moving a stack of 10 counts all items
+[InventoryCompanion tests] PASS Capacity messages: stack merged into an existing stack still reports the move
+[InventoryCompanion tests] PASS Capacity messages: bank change away from the bank is silent
+[InventoryCompanion tests] PASS Capacity messages: opposite changes without a bank visit are bag-only
+[InventoryCompanion tests] PASS Capacity messages: transfer plus a pickup
+[InventoryCompanion tests] PASS Capacity messages: bag-only notification during a withdrawal
+[InventoryCompanion tests] PASS Capacity messages: disabled notifications stay silent
+[InventoryCompanion tests] PASS Capacity messages: load-screen reports stay silent
+[InventoryCompanion tests] PASS Capacity messages: balance colours follow the progress bar thresholds
+[InventoryCompanion tests] PASS Capacity notification preferences
+```

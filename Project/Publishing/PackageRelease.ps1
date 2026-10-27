@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("Stage", "Finalize", "Cancel")]
+    [ValidateSet("Stage", "Finalize", "Cancel", "Backup")]
     [string]$Action = "Stage",
     [string]$OutputDirectory = "Project\Publishing\Packages",
     [string]$TestResults,
@@ -20,10 +20,42 @@ $stateDirectory = Join-Path $PSScriptRoot ".release-test"
 $statePath = Join-Path $stateDirectory "state.json"
 $reviewPath = Join-Path $addonRoot "ReleaseReview.md"
 
-function Assert-GameClosed {
-    if (Get-Process -Name "eso", "eso64" -ErrorAction SilentlyContinue) {
-        throw "Exit ESO completely before staging or cancelling a release test. Finalization may run while ESO is open."
+function Backup-SavedVariables {
+    $liveRoot = Split-Path (Split-Path $addonRoot -Parent) -Parent
+    $savedVariablesDirectory = Join-Path $liveRoot "SavedVariables"
+    $installationNames = @((Split-Path $candidateRoot -Leaf), (Split-Path $addonRoot -Leaf))
+    $sourceFiles = @(foreach ($name in $installationNames) {
+        $path = Join-Path $savedVariablesDirectory "$name.lua"
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            Get-Item -LiteralPath $path
+        }
+    })
+    if ($sourceFiles.Count -eq 0) {
+        Write-Warning "No ESO saved variables files found for '$($installationNames -join "', '")' in '$savedVariablesDirectory'; no backup was created. Confirm the active profile before gameplay testing."
+        return
     }
+
+    $backupDirectory = Join-Path $addonRoot "SavedVariables"
+    $null = New-Item -ItemType Directory -Path $backupDirectory -Force
+    $timestamp = [datetime]::UtcNow.ToString("yyyyMMdd-HHmmssfff'Z'")
+    foreach ($sourceFile in $sourceFiles) {
+        $backupPath = Join-Path $backupDirectory "$($sourceFile.BaseName)-$timestamp.lua"
+        $suffix = 1
+        while (Test-Path -LiteralPath $backupPath) {
+            $backupPath = Join-Path $backupDirectory "$($sourceFile.BaseName)-$timestamp-$suffix.lua"
+            $suffix++
+        }
+        Copy-Item -LiteralPath $sourceFile.FullName -Destination $backupPath
+        $sourceHash = (Get-FileHash -LiteralPath $sourceFile.FullName -Algorithm SHA256).Hash
+        $backupHash = (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash
+        if ($sourceHash -ne $backupHash) {
+            throw "SavedVariables backup verification failed: '$backupPath'. Do not begin gameplay testing."
+        }
+        Write-Output "SavedVariables source: $($sourceFile.FullName)"
+        Write-Output "SavedVariables backup: $backupPath"
+        Write-Output "SavedVariables backup SHA256: $backupHash"
+    }
+    Write-Output "Backup is the last-on-disk snapshot, not necessarily ESO's current in-memory settings. Exit ESO before restoring it."
 }
 
 function Assert-NoLinks([string]$Path) {
@@ -46,16 +78,37 @@ function Get-FileRecord([string]$Path, [string]$RelativePath) {
     }
 }
 
+function Get-AddOnVersion([string]$Version) {
+    if ($Version -notmatch '^(\d+)\.(\d+)(?:\.(\d+))?$') {
+        throw "Expected major.minor.build version (legacy major.minor is accepted as build zero)."
+    }
+    $major = [long]$Matches[1]
+    $minor = [long]$Matches[2]
+    $build = [long]$Matches[3]
+    if ($major -gt 214748 -or $minor -gt 99 -or $build -gt 99) {
+        throw "AddOnVersion encoding requires minor/build components from 0 to 99 and a positive 32-bit integer result."
+    }
+    $integerVersion = $major * 10000 + $minor * 100 + $build
+    if ($integerVersion -lt 1 -or $integerVersion -gt [int]::MaxValue) {
+        throw "AddOnVersion encoding requires a positive 32-bit integer result."
+    }
+    return [int]$integerVersion
+}
+
 function Set-DevelopmentVersion([string]$Version) {
+    $integerVersion = Get-AddOnVersion $Version
     $initPath = Join-Path $addonRoot "Core\Init.lua"
     $manifest = Get-Content -LiteralPath $manifestPath -Raw
     $init = Get-Content -LiteralPath $initPath -Raw
     if ([regex]::Matches($manifest, '(?m)^## Version: .+$').Count -ne 1 -or
+        [regex]::Matches($manifest, '(?m)^## AddOnVersion: .+$').Count -ne 1 -or
         [regex]::Matches($init, '(?m)^    Version = .+,\r?$').Count -ne 1) {
-        throw "Cannot update development version: expected one manifest and runtime version."
+        throw "Cannot update development version: expected one manifest Version, AddOnVersion, and runtime version."
     }
+    $updatedManifest = [regex]::Replace($manifest, '(?m)^## Version: .+$', "## Version: $Version")
+    $updatedManifest = [regex]::Replace($updatedManifest, '(?m)^## AddOnVersion: .+$', "## AddOnVersion: $integerVersion")
     try {
-        Set-Content -LiteralPath $manifestPath -Value ([regex]::Replace($manifest, '(?m)^## Version: .+$', "## Version: $Version")) -NoNewline -Encoding UTF8
+        Set-Content -LiteralPath $manifestPath -Value $updatedManifest -NoNewline -Encoding UTF8
         Set-Content -LiteralPath $initPath -Value ([regex]::Replace($init, '(?m)^    Version = .+,\r?$', "    Version = `"$Version`",")) -NoNewline -Encoding UTF8
     } catch {
         Set-Content -LiteralPath $manifestPath -Value $manifest -NoNewline -Encoding UTF8
@@ -103,8 +156,12 @@ function Remove-Candidate {
     Write-Output "Script-owned release installation removed. Development was left unchanged."
 }
 
-if ($Action -ne "Finalize") {
-    Assert-GameClosed
+if ($Action -eq "Backup") {
+    Backup-SavedVariables
+    return
+}
+if ($Action -in @("Stage", "Cancel")) {
+    Write-Warning "ESO may remain open. Do not reload the UI or change characters while installed files are being changed."
 }
 if ($Action -eq "Cancel") {
     $null = Read-TestState
@@ -144,6 +201,13 @@ if ($version -notmatch '^(\d+)\.(\d+)(?:\.(\d+))?$') {
     throw "Expected major.minor.build version (legacy major.minor is accepted as build zero)."
 }
 $nextBuildVersion = "{0}.{1}.{2}" -f [int]$Matches[1], [int]$Matches[2], (1 + [int]$Matches[3])
+$integerVersion = Get-AddOnVersion $version
+$null = Get-AddOnVersion $nextBuildVersion
+$integerVersionLines = @($manifestLines | Where-Object { $_ -match '^##\s*AddOnVersion:' })
+if ($integerVersionLines.Count -ne 1 -or
+    $integerVersionLines[0] -notmatch "^## AddOnVersion: $integerVersion\s*$") {
+    throw "The manifest must define exactly one ## AddOnVersion: $integerVersion matching Version $version."
+}
 
 $manifestFiles = [System.Collections.Generic.List[string]]::new()
 $seenPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -181,6 +245,7 @@ $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
     Get-FileRecord $path $relativePath
 })
 
+    Backup-SavedVariables
     $releaseManifest = @($manifestLines | Where-Object {
         $_.Trim().Replace('/', '\') -ne "Core\Development.lua"
     } | ForEach-Object {
@@ -214,10 +279,11 @@ $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
         throw
     }
     Write-Output "Staged release $version at $candidateRoot"
-    Write-Output "Development remains available. Select only InventoryCompanion in your release-test add-on profile."
-    Write-Output "Both versions share saved variables; back them up before testing."
+    Write-Output "Staging finished. Select only InventoryCompanion in your release-test add-on profile, then reload the UI."
+    Write-Output "Run /ictest verbose copy after reloading. Verify Installation=InventoryCompanion, runtime version=$version, DEV=false, AddOnVersion=$integerVersion, and no enabled DEV copy."
+    Write-Output "Both versions share saved variables. Any automatic backup is only the last-on-disk snapshot."
     Write-Output "After review and testing, complete ReleaseReview.md, then run -Action Finalize -TestResults '<actual results>'. ESO may remain open during finalization."
-    Write-Output "To remove this installation, exit ESO and run -Action Cancel."
+    Write-Output "To remove this installation, run -Action Cancel without reloading during removal; then select DEV only and reload."
     return
 }
 

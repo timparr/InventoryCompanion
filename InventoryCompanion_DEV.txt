@@ -2,7 +2,8 @@
 ## Title: InventoryCompanion [DEV] - Auto Bank, Item Tracker & Set Manager
 ## Description: All-in-one inventory automation, item tracking, stack restocking, and gear set management.
 ## Author: @Tim-P
-## Version: 1.2.0
+## Version: 1.2.2
+## AddOnVersion: 10202
 ## SavedVariables: InventoryCompanion_SavedVariables
 ## DependsOn: LibAddonMenu-2.0>=43
 ## OptionalDependsOn: None

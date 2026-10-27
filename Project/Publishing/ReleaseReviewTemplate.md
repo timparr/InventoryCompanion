@@ -12,7 +12,7 @@ Candidate identity method: <archive hash or deterministic file-set hash; describ
 Report location: <completed report location>
 Review status: <PENDING or APPROVED>
 
-Testing scope: Live only. PTS is not tested or required for approval; PTS compatibility is not claimed.
+Testing scope: Live by default. Record PTS as untested unless the tester reports PTS testing; record any such evidence separately. PTS is not required for approval; compatibility is not claimed without evidence.
 
 ## Review method and evidence
 
@@ -26,7 +26,7 @@ Each check below has an evidence owner:
 
 For **every checkbox**, record `PASS`, `ISSUE`, `UNRESOLVED`, or `N/A` with a reason and evidence. A checked box means assessed, not necessarily passed. When a check has multiple owners, provide each applicable owner's evidence. Mark absent features N/A; do not require an add-on to implement features just to satisfy this template. Attach test output once and reference the relevant cases in each section rather than duplicating transcripts or manually repeating automated assertions.
 
-The source review covers the complete candidate. Human testing is a focused smoke test derived from the add-on's actual features plus scenarios justified by changes or findings, not an exhaustive matrix on every release. Missing automated tests are a coverage limitation to assess, not an automatic requirement to build a new suite or alter the frozen candidate. Identify essential evidence before testing and use targeted inspection/manual checks where automation is absent.
+The source review covers the complete candidate. Keep routine human testing to a short representative normal-use check, using the project's documented minimum when available. Additional scenarios require a specific relevant change, source-review finding, or reported problem, not an exhaustive matrix on every release. Missing automated tests are a coverage limitation to assess, not an automatic requirement to build a new suite, alter the frozen candidate, or add manual checks for every gap.
 
 Use a project-supplied reviewer reference, if available, to locate test commands, coverage, and known risk areas quickly. Verify it against the candidate; it is navigation/context, not proof of compliance or a replacement for reviewing the code.
 
@@ -125,11 +125,11 @@ Review the complete candidate code, manifest, XML, and relevant configuration, n
 
 ## Human in-game testing
 
-Derive a small smoke-test plan from the add-on's actual responsibilities and source-review risks. There is no prescribed feature list, test command, number of test runs, or benchmark workload. Record other enabled add-ons; require dependency-only isolation only for a failure or suspected interaction. Live is the only required client; explicitly record PTS as untested and out of scope.
+Use a short representative normal-use check based on the add-on's responsibilities and any project-specific minimum. Ask whether problems occurred and use exception-only environment reporting where the project defines defaults. Label unconfirmed defaults as reporting assumptions, not verified observations; explicit reports and diagnostics take precedence. Record unavailable features without requiring the tester to acquire access. Prefer existing diagnostic metadata and reviewer-side candidate verification to repeated questions. There is no prescribed feature list, test command, number of test runs, or benchmark workload. Record other enabled add-ons from available diagnostics; require dependency-only isolation only for a failure or suspected interaction. Live is the only required client; default to no PTS testing unless reported and record any PTS evidence separately.
 
 - [ ] **HUMAN + TEST** Record tester, UTC time, Live client/API/build, candidate identity, dependencies, and relevant settings. Supply available test output once, including cases, warnings/failures, totals, timings, and conditional coverage. Obtain missing metadata through suitable in-game observation; runtime discovery does not establish the candidate's cryptographic identity.
 - [ ] **HUMAN** Perform representative normal use of the main feature(s), including a real event-driven or queued path if present. Record actions, expected/observed outcomes, errors, stale state, or duplicated effects. Choose safe actions the tester intends; do not create destructive/live-state benchmarks or assume features absent from the add-on.
-- [ ] **HUMAN** Where present, check readable UI/output and a representative setting or command through the real input path. Reload and verify initialization and intended persistence. Mark absent UI/settings/persistence features N/A; automated logic/format checks do not prove rendering or input wiring.
+- [ ] **HUMAN** Require separate UI/output, settings/command-input, or reload/persistence checks only for a specific relevant change, source-review finding, or reported problem. Otherwise record that these were not separately exercised, with the risk-based rationale; do not treat them as routine prerequisites or claim automated logic/format checks prove rendering or input wiring. Mark absent features N/A.
 - [ ] **HUMAN** Add edge, interruption/recovery, migration, restriction, pending-work cancellation, or compatibility scenarios only where changes/findings warrant them. Use backed-up, restorable fixtures for risky persistence tests; add-on profiles alone do not isolate saved data. Do not routinely require clean-data, cross-server, alternate-load-order, or deliberate dual-installation tests.
 - [ ] **HUMAN** Record additional performance/compatibility observations if justified, their method and state-changing potential, and any untested scenarios, carried-forward evidence, or accepted limitations. Unavailable features/environments are disclosed, not invented as tested; PTS remains optional and unclaimed.
 
