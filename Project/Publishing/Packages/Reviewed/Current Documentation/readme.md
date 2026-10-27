@@ -9,15 +9,12 @@ Parts of this add-on's codebase and structure were generated with AI assistance.
 [SIZE="2"][B]At a glance[/B][/SIZE]
 
 [LIST]
-[*]Keep an eye on important items with a movable tracker and ready-made item groups.
-[*]See currency balances and how much backpack or bank space you have left.
-[*]Choose which item gains, currency changes, and capacity changes notify you.
-[*]Move supported items crafted by your current character to or from the bank with a keypress.
-[*]Merge matching backpack stacks into house chests when you open them.
-[*]Move one item, or all but one, with handy right-click deposit and withdrawal options.
+[*]Track the items that matter to you.
+[*]See your currencies and free backpack and bank space at a glance.
+[*]Get alerts for item gains, currency changes, and storage space.
+[*]Bank or retrieve your character's crafted items with a keypress.
+[*]Top up matching house-chest stacks from your backpack.
+[*]Deposit or withdraw one item in a stack, or all but one, with a right-click.
 [/LIST]
 
-You can customise the panels and tracking lists whenever you like. Crafted-item transfers need assigned keybindings and an open bank or storage chest; the detailed features below explain the options.
-
-[SIZE="2"][B]Installation[/B][/SIZE]
-Extract the ZIP into Elder Scrolls Online\live\AddOns so it contains InventoryCompanion\InventoryCompanion.txt. Install the required dependency and enable InventoryCompanion in ESO's Add-Ons menu. If you also have the development installation, select only one version in each add-on profile. Both versions share saved variables.
+Out of the box, InventoryCompanion will decide which items and currencies to track, and notify you about. It offers a lot of customization though - you can change almost everything using the game's addon settings and the built in editor.
