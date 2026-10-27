@@ -22,7 +22,7 @@ $reviewPath = Join-Path $addonRoot "ReleaseReview.md"
 
 function Assert-GameClosed {
     if (Get-Process -Name "eso", "eso64" -ErrorAction SilentlyContinue) {
-        throw "Exit ESO completely before staging, finalizing, or cancelling a release test."
+        throw "Exit ESO completely before staging or cancelling a release test. Finalization may run while ESO is open."
     }
 }
 
@@ -216,7 +216,7 @@ $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
     Write-Output "Staged release $version at $candidateRoot"
     Write-Output "Development remains available. Select only InventoryCompanion in your release-test add-on profile."
     Write-Output "Both versions share saved variables; back them up before testing."
-    Write-Output "After testing, exit ESO, complete ReleaseReview.md, then run -Action Finalize -TestResults '<actual results>'."
+    Write-Output "After review and testing, complete ReleaseReview.md, then run -Action Finalize -TestResults '<actual results>'. ESO may remain open during finalization."
     Write-Output "To remove this installation, exit ESO and run -Action Cancel."
     return
 }
@@ -274,12 +274,13 @@ $requiredReviewSections = [ordered]@{
     "Listing, rights, and uploader certifications" = 7
     "Supported functionality" = 8
     "Manifest and dependencies" = 6
+    "Test discovery and coverage" = 2
     "Initialization, naming, and saved data" = 3
-    "Rule matching and inventory scope" = 1
+    "Core behavior and correctness" = 2
     "Events and lifecycle" = 2
-    "Resources, preferences, and messages" = 2
-    "Performance and error handling" = 2
-    "Human in-game testing" = 9
+    "User interface and configuration" = 2
+    "Performance and queued operations" = 3
+    "Human in-game testing" = 5
 }
 foreach ($section in $requiredReviewSections.Keys) {
     $sectionMatch = [regex]::Match($reviewContent, "(?ms)^#{2,3} $([regex]::Escape($section))\r?\n(?<body>.*?)(?=^#{1,3} |\z)")
@@ -361,19 +362,33 @@ try {
         Remove-Item -LiteralPath $packagingRoot -Recurse -Force
     }
 }
-$state.Completed = $true
-$state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath -Encoding UTF8
-if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+$archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash
+Write-Output "Created verified release package: $archivePath"
+Write-Output "Archive SHA256: $archiveHash"
+Write-Output "Candidate file-set SHA256: $candidateHash"
+try {
+    $state.Completed = $true
+    $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath -Encoding UTF8
+} catch {
+    throw "Package verified at '$archivePath' (archive SHA256: $archiveHash), but completion-state recording failed: $($_.Exception.Message) Do not overwrite or re-finalize the package; repair the managed completion state before further release actions."
+}
+try {
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw "Development manifest is missing."
+    }
     $devVersionMatch = [regex]::Match((Get-Content -LiteralPath $manifestPath -Raw), '(?m)^## Version: (\d+)\.(\d+)(?:\.(\d+))?\s*$')
     $releasedVersionMatch = [regex]::Match($version, '^(\d+)\.(\d+)(?:\.(\d+))?$')
-    if ($devVersionMatch.Success -and $releasedVersionMatch.Success -and
-        $devVersionMatch.Groups[1].Value -eq $releasedVersionMatch.Groups[1].Value -and
+    if (-not $devVersionMatch.Success -or -not $releasedVersionMatch.Success) {
+        throw "Cannot determine development/release version series."
+    }
+    if ($devVersionMatch.Groups[1].Value -eq $releasedVersionMatch.Groups[1].Value -and
         [int]$devVersionMatch.Groups[2].Value -eq [int]$releasedVersionMatch.Groups[2].Value) {
         $nextReleaseVersion = "{0}.{1}.{2}" -f $releasedVersionMatch.Groups[1].Value,
             (1 + [int]$releasedVersionMatch.Groups[2].Value), 0
         Set-DevelopmentVersion $nextReleaseVersion
     }
+} catch {
+    throw "Package verified at '$archivePath' (archive SHA256: $archiveHash) and finalization is recorded as completed, but development-version housekeeping failed: $($_.Exception.Message) Do not re-finalize; repair the DEV manifest/runtime versions together before the next stage. The verified package and installed candidate remain valid."
 }
-Write-Output "Created verified release package: $archivePath"
 Write-Output "Release installation retained for gameplay. Use your add-on profiles to select release OR development."
 Start-Process explorer.exe -ArgumentList ('"' + $resolvedOutputDirectory + '"')
