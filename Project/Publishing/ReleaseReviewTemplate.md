@@ -1,6 +1,6 @@
 # ESOUI Release Standards Review
 
-Use this template for any ESO add-on, regardless of its features, test framework, or release tooling. Complete the review for an identified, frozen release candidate, not a changing development checkout. Record where the completed report is saved. The timestamp is an audit record, not a freshness gate.
+Use this template for any ESO add-on, regardless of its features, test framework, or release tooling. Complete the compact report below for an identified, frozen release candidate, not a changing development checkout. Stop copying at "Review method and evidence": the rest of this document is a standing criteria reference, not a per-release report to fill out. The timestamp is an audit record, not a freshness gate.
 
 Reviewed (UTC): <YYYY-MM-DDTHH:mm:ssZ>
 Reviewer: <AI assistant and model name, if available; do not guess>
@@ -11,8 +11,31 @@ Candidate SHA256: <candidate SHA256>
 Candidate identity method: <archive hash or deterministic file-set hash; describe how to reproduce>
 Report location: <completed report location>
 Review status: <PENDING or APPROVED>
+Review format: compact-v1
+Review mode: <DELTA or FULL>
+Baseline review: <approved report location, candidate version/hash and review date; NONE for a full review without a baseline>
 
 Testing scope: Live by default. Record PTS as untested unless the tester reports PTS testing; record any such evidence separately. PTS is not required for approval; compatibility is not claimed without evidence.
+
+## Review scope
+
+- [ ] Record the candidate installation, reproducible identity method, staging/test-installation verification, and comparison baseline. Use DELTA for routine releases with an identifiable approved baseline; explain FULL for a first baseline, unavailable/unverifiable baseline, broad architectural changes, or a specific concern requiring complete inspection. A previous ZIP or test report alone is not an approved source-review baseline.
+
+## Changes reviewed
+
+- [ ] Summarize the actual candidate-to-baseline diff, inspect changed code plus affected callers/data flows, and record findings with candidate-relative locations. Carry forward unchanged source-review evidence by baseline reference and explain its applicability. For FULL, inspect the complete runtime source, XML, manifest and relevant configuration. Record the scope and any material gaps; do not imply uninspected code was freshly reviewed.
+
+## Release checks
+
+- [ ] Check candidate identity, package contents, manifest/dependencies, and final listing/changelog/assets once. Summarize applicable mandatory criteria from the reference below, grouping unchanged requirements under the approved baseline where justified. Reference the named author's consolidated rights/policy declaration and any remaining confirmations. Identify final archive verification still required before upload; candidate approval does not verify a future archive.
+
+## Test evidence
+
+- [ ] Reference one complete diagnostic/test report and the short representative human check, with tester/date/environment and candidate identity. Name relevant cases and actual results for changed or risky behavior; do not repeat every case across policy sections. Record failures, conditional coverage, accepted performance exceptions and unavailable features. Identify carried-forward evidence by original candidate/date and explain why it remains applicable. Request additional tests only for a specific change, finding or reported problem.
+
+## Findings and decision
+
+- [ ] Summarize findings (or explicitly none), limitations, unresolved items and the approval decision. Approve only with applicable mandatory requirements, essential functional evidence and author confirmations satisfied, and no unresolved material issue. Separate candidate approval, final archive verification and upload readiness.
 
 ## Review method and evidence
 
@@ -24,11 +47,11 @@ Each check below has an evidence owner:
 - **TEST**: discover the add-on's existing unit, integration, diagnostic, and performance tests and their supported invocation. AI may execute suitable offline tests; a human runs tests requiring ESO. Record who ran each test, the environment, command/workload, candidate identity, and actual output. Never assume a particular command/framework or claim an in-game run without supplied results.
 - **HUMAN**: author/uploader confirmation or in-game observation that code inspection and synthetic tests cannot establish. Name the person and record actual evidence.
 
-For **every checkbox**, record `PASS`, `ISSUE`, `UNRESOLVED`, or `N/A` with a reason and evidence. A checked box means assessed, not necessarily passed. When a check has multiple owners, provide each applicable owner's evidence. Mark absent features N/A; do not require an add-on to implement features just to satisfy this template. Attach test output once and reference the relevant cases in each section rather than duplicating transcripts or manually repeating automated assertions.
+The detailed checkboxes below define the standing criteria, not required report rows. In the compact report, group related results as `PASS`, `ISSUE`, `UNRESOLVED`, or `N/A` with evidence or an applicable approved-baseline reference; record exceptions individually. A checked report box means assessed, not necessarily passed. Include each applicable evidence owner's contribution. Mark absent features N/A; do not require an add-on to implement features just to satisfy this template. Attach test output once.
 
-The source review covers the complete candidate. Keep routine human testing to a short representative normal-use check, using the project's documented minimum when available. Additional scenarios require a specific relevant change, source-review finding, or reported problem, not an exhaustive matrix on every release. Missing automated tests are a coverage limitation to assess, not an automatic requirement to build a new suite, alter the frozen candidate, or add manual checks for every gap.
+Default to a delta review against the last identified approved candidate: inspect the actual diff and affected callers/data flows, carrying forward unchanged source and human evidence with provenance. Use a full source review for a first baseline, unavailable/unverifiable baseline, broad architectural changes, or a specific concern requiring it; record why. Do not silently use an unfinished review as an approved baseline. Keep routine human testing to a short representative normal-use check, using the project's documented minimum when available. Additional scenarios require a specific relevant change, source-review finding, or reported problem, not an exhaustive matrix on every release. Missing automated tests are a coverage limitation to assess, not an automatic requirement to build a new suite, alter the frozen candidate, or add manual checks for every gap.
 
-Use a project-supplied reviewer reference, if available, to locate test commands, coverage, and known risk areas quickly. Verify it against the candidate; it is navigation/context, not proof of compliance or a replacement for reviewing the code.
+Use a project-supplied reviewer reference, if available, to locate test commands, coverage, and known risk areas quickly. Verify relevant entries against the candidate; it is navigation/context, not proof of compliance or a replacement for reviewing the selected scope. Read guidance once, batch related source reads, and follow concrete risks rather than re-reading every hotspot. Resume an interrupted review from recorded coverage; do not restart completed work unless the candidate or evidence changed. Keep routine reviews in one reviewer context; delegate only genuinely substantial independent work, without duplicating its scope.
 
 Prior human evidence for unchanged behavior may be reused with its candidate identity, date, and an explanation of continued applicability; never relabel it as a fresh run or hide incomplete output. Do not approve with a failed functional test, missing essential evidence, or a material unresolved compliance/safety question. Performance outliers follow the investigation process below rather than automatically blocking release.
 
@@ -37,8 +60,6 @@ If candidate bytes change, assign a new identity, review the changes and their i
 ## Release process
 
 - [ ] **AI + HUMAN** Record how the intended files were staged and frozen, the candidate installation path, version, reproducible SHA-256 identity, and who verified the test installation. Confirm that no other development/release copy of the same add-on is loaded and the tested bytes match the candidate; subsequent development edits do not invalidate an unchanged candidate.
-
-<Actual release process and candidate identity.>
 
 ## Mandatory requirements
 
@@ -83,11 +104,9 @@ AI traces relevant call paths for the functionality actually implemented. Human 
 - [ ] **AI + TEST** Determine how dependency versions are reported, using diagnostics or supplied local manifests. Compare installed integer `AddOnVersion` values with required minimums. An installed version is not proof of the newest published version. Record tested versions and minimum-version rationale; consider relevant fixes and obsolete bundled libraries/LibStub patterns. Mark N/A if there are no dependencies.
 - [ ] **AI + HUMAN** For optional dependencies, inspect absence guards and test loading without them. Mark N/A if there are none.
 
-<Results and evidence for each mandatory check.>
-
 ## Code quality and automated evidence
 
-Review the complete candidate code, manifest, XML, and relevant configuration, not just changed files. Discover the implemented behavior first, then map existing tests to the checks below. Reference actual case names/results, not assumed test names or a suite total alone. Record absent, skipped, conditional, mocked-only, or unavailable coverage and explain how remaining risks are assessed.
+Apply these criteria to changed code and affected behavior in a delta review, or to the complete candidate in a full review. Reuse the approved baseline's unchanged coverage map instead of rediscovering every test. Reference actual relevant case names/results, not assumed test names or a suite total alone. Record significant absent, skipped, conditional, mocked-only, or unavailable coverage and explain how remaining risks are assessed.
 
 ### Test discovery and coverage
 
@@ -121,8 +140,6 @@ Review the complete candidate code, manifest, XML, and relevant configuration, n
 - [ ] **AI + TEST** Assess how identified costs are mitigated through filtering, debounce, coalescing, caching, batching, bounded work, or other appropriate design, and how well existing tests exercise those mitigations. It is acceptable to cite a specific code comment as the author's assertion that monitoring or a mitigation is unnecessary, impractical, or would compromise behavior. Record its location and rationale as attributed evidence, not measured proof; accept it when consistent with the code and risk. Do not demand instrumentation or debounce for every routine, and do not let an assertion override contradictory behavior or material risk.
 - [ ] **AI + TEST** For available measurements, record workload/data size, repetitions, timing method, environment, measured values, and the limits used by the frozen suite or agreed before testing; do not impose universal millisecond targets. Preserve timing-only FAIL/outlier results, repeat under comparable conditions where useful, compare prior measurements, and assess gameplay impact. Document accepted exceptions and missing measurements; unexplained material regressions or stalls block approval. Do not mutate live data to obtain benchmarks.
 
-<Per-section evidence references, findings, and uncovered paths.>
-
 ## Human in-game testing
 
 Use a short representative normal-use check based on the add-on's responsibilities and any project-specific minimum. Ask whether problems occurred and use exception-only environment reporting where the project defines defaults. Label unconfirmed defaults as reporting assumptions, not verified observations; explicit reports and diagnostics take precedence. Record unavailable features without requiring the tester to acquire access. Prefer existing diagnostic metadata and reviewer-side candidate verification to repeated questions. There is no prescribed feature list, test command, number of test runs, or benchmark workload. Record other enabled add-ons from available diagnostics; require dependency-only isolation only for a failure or suspected interaction. Live is the only required client; default to no PTS testing unless reported and record any PTS evidence separately.
@@ -133,8 +150,6 @@ Use a short representative normal-use check based on the add-on's responsibiliti
 - [ ] **HUMAN** Add edge, interruption/recovery, migration, restriction, pending-work cancellation, or compatibility scenarios only where changes/findings warrant them. Use backed-up, restorable fixtures for risky persistence tests; add-on profiles alone do not isolate saved data. Do not routinely require clean-data, cross-server, alternate-load-order, or deliberate dual-installation tests.
 - [ ] **HUMAN** Record additional performance/compatibility observations if justified, their method and state-changing potential, and any untested scenarios, carried-forward evidence, or accepted limitations. Unavailable features/environments are disclosed, not invented as tested; PTS remains optional and unclaimed.
 
-<Human scenarios, setup limitations, results, and complete diagnostic reports.>
-
 ## Review conclusion
 
-<Summarize findings, Live-only testing scope, the author's consolidated declaration, carried-forward evidence, and limitations; list unresolved requirements or follow-up. Approve only when mandatory checks, essential functional evidence, and applicable author confirmations are complete. Explain conditional checks not rerun and any accepted performance/best-practice exceptions. Identify delegated final ZIP verification, which must succeed before upload. PTS being untested is not an approval blocker.>
+Use the compact report's findings and decision section to summarize findings, Live-only testing scope, the author's consolidated declaration, carried-forward evidence, and limitations. Approve only when mandatory checks, essential functional evidence, and applicable author confirmations are complete. Explain conditional checks not rerun and any accepted performance/best-practice exceptions. Identify final ZIP verification, which must succeed before upload. PTS being untested is not an approval blocker.

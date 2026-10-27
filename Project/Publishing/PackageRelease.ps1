@@ -19,6 +19,7 @@ $manifestPath = Join-Path $addonRoot "InventoryCompanion_DEV.txt"
 $stateDirectory = Join-Path $PSScriptRoot ".release-test"
 $statePath = Join-Path $stateDirectory "state.json"
 $reviewPath = Join-Path $addonRoot "ReleaseReview.md"
+$releaseDocuments = @("readme.md", "Changelog.md")
 
 function Backup-SavedVariables {
     $liveRoot = Split-Path (Split-Path $addonRoot -Parent) -Parent
@@ -233,13 +234,19 @@ if ($manifestFiles.Count -eq 0 -or -not $manifestFiles.Contains("Core\Developmen
     throw "The development manifest must include runtime files and Core/Development.lua."
 }
 $runtimeFiles = @($manifestFiles | Where-Object { $_ -ne "Core\Development.lua" })
+foreach ($relativePath in $releaseDocuments) {
+    $documentPath = Join-Path $addonRoot $relativePath
+    if (-not (Test-Path -LiteralPath $documentPath -PathType Leaf) -or
+        [string]::IsNullOrWhiteSpace((Get-Content -LiteralPath $documentPath -Raw))) {
+        throw "Prepare nonempty release documentation before staging: $relativePath"
+    }
+}
 $sourcePaths = @(
     "InventoryCompanion_DEV.txt"
-    "readme.md"
     "Project\Publishing\ReleaseChecklist.md"
     "Project\Publishing\ReleaseReviewTemplate.md"
     "Project\Publishing\PackageRelease.ps1"
-) + @($manifestFiles)
+) + $releaseDocuments + @($manifestFiles)
 $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
     $path = if ($relativePath -eq "InventoryCompanion_DEV.txt") { $sourceManifestPath } else { Join-Path $addonRoot $relativePath }
     Get-FileRecord $path $relativePath
@@ -255,7 +262,7 @@ $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
     $null = New-Item -ItemType Directory -Path $candidateRoot
     try {
         Set-Content -LiteralPath (Join-Path $candidateRoot "InventoryCompanion.txt") -Value $releaseManifest -Encoding UTF8
-        foreach ($relativePath in $runtimeFiles) {
+        foreach ($relativePath in @($runtimeFiles) + $releaseDocuments) {
             $destination = Join-Path $candidateRoot $relativePath
             $null = New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force
             Copy-Item -LiteralPath (Join-Path $addonRoot $relativePath) -Destination $destination
@@ -334,19 +341,44 @@ if ($reviewContent -notmatch "(?m)^Release version: $([regex]::Escape($version))
     $reviewContent -notmatch '(?m)^Review status: APPROVED\s*$') {
     throw "Release review must approve the current version ($version)."
 }
-$requiredReviewSections = [ordered]@{
-    "Release process" = 1
-    "Package and installation" = 4
-    "Listing, rights, and uploader certifications" = 7
-    "Supported functionality" = 8
-    "Manifest and dependencies" = 6
-    "Test discovery and coverage" = 2
-    "Initialization, naming, and saved data" = 3
-    "Core behavior and correctness" = 2
-    "Events and lifecycle" = 2
-    "User interface and configuration" = 2
-    "Performance and queued operations" = 3
-    "Human in-game testing" = 5
+$formatMatch = [regex]::Match($reviewContent, '(?m)^Review format: ([^\r\n]*)')
+if ($formatMatch.Success) {
+    if ($formatMatch.Groups[1].Value.Trim() -ne "compact-v1") {
+        throw "Release review has an unsupported Review format."
+    }
+    $modeMatch = [regex]::Match($reviewContent, '(?m)^Review mode: (DELTA|FULL)\s*$')
+    if (-not $modeMatch.Success) {
+        throw "Release review must specify 'Review mode: DELTA' or 'Review mode: FULL'."
+    }
+    $baselineMatch = [regex]::Match($reviewContent, '(?m)^Baseline review: ([^\r\n]+)')
+    $baseline = $baselineMatch.Groups[1].Value.Trim()
+    if (-not $baselineMatch.Success -or -not $baseline -or $baseline -match '^(<|TODO|TBD)' -or
+        ($modeMatch.Groups[1].Value -eq "DELTA" -and $baseline -match '^NONE\b')) {
+        throw "Release review must identify its approved Baseline review (or NONE for FULL)."
+    }
+    $requiredReviewSections = [ordered]@{
+        "Review scope" = 1
+        "Changes reviewed" = 1
+        "Release checks" = 1
+        "Test evidence" = 1
+        "Findings and decision" = 1
+    }
+} else {
+    # Keep previously completed detailed reports valid.
+    $requiredReviewSections = [ordered]@{
+        "Release process" = 1
+        "Package and installation" = 4
+        "Listing, rights, and uploader certifications" = 7
+        "Supported functionality" = 8
+        "Manifest and dependencies" = 6
+        "Test discovery and coverage" = 2
+        "Initialization, naming, and saved data" = 3
+        "Core behavior and correctness" = 2
+        "Events and lifecycle" = 2
+        "User interface and configuration" = 2
+        "Performance and queued operations" = 3
+        "Human in-game testing" = 5
+    }
 }
 foreach ($section in $requiredReviewSections.Keys) {
     $sectionMatch = [regex]::Match($reviewContent, "(?ms)^#{2,3} $([regex]::Escape($section))\r?\n(?<body>.*?)(?=^#{1,3} |\z)")

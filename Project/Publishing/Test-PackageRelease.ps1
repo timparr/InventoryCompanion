@@ -56,7 +56,7 @@ try {
     $sourceManifest = Join-Path $sourceRoot "InventoryCompanion_DEV.txt"
     $manifestLines = @(Get-Content -LiteralPath $sourceManifest)
     $paths = @("Project\Publishing\PackageRelease.ps1", "Project\Publishing\ReleaseChecklist.md",
-        "Project\Publishing\ReleaseReviewTemplate.md", "readme.md") + @(
+        "Project\Publishing\ReleaseReviewTemplate.md", "readme.md", "Changelog.md") + @(
         $manifestLines | ForEach-Object { $_.Trim().Replace('/', '\') } |
             Where-Object { $_ -and -not $_.StartsWith("#") -and -not $_.StartsWith("--") }
     )
@@ -98,6 +98,18 @@ try {
     Assert-Fails { & $script -Action Stage } "Manifest-listed file does not exist"
     [System.IO.File]::WriteAllBytes($manifest, $originalManifest)
 
+    foreach ($document in @("readme.md", "Changelog.md")) {
+        $documentPath = Join-Path $devRoot $document
+        $originalDocument = [System.IO.File]::ReadAllBytes($documentPath)
+        Remove-Item -LiteralPath $documentPath
+        Assert-Fails { & $script -Action Stage } "Prepare nonempty release documentation"
+        Assert (-not (Test-Path -LiteralPath $candidate)) "Missing documentation created a candidate."
+        Set-Content -LiteralPath $documentPath -Value "   "
+        Assert-Fails { & $script -Action Stage } "Prepare nonempty release documentation"
+        Assert (-not (Test-Path -LiteralPath $candidate)) "Empty documentation created a candidate."
+        [System.IO.File]::WriteAllBytes($documentPath, $originalDocument)
+    }
+
     $null = New-Item -ItemType Directory -Path $candidate
     Assert-Fails { & $script -Action Stage } "Refusing to overwrite"
     Remove-Item -LiteralPath $candidate
@@ -122,6 +134,19 @@ try {
     $releaseManifest = Get-Content -LiteralPath (Join-Path $candidate "InventoryCompanion.txt") -Raw
     Assert ($releaseManifest -match "(?m)^## AddOnVersion: $expectedIntegerVersion\s*$") "Release integer version differs from the staged version."
     Assert ($releaseManifest -notmatch '\[DEV\]|Development\.lua') "Release manifest contains development markers."
+    $initialState = Get-Content -LiteralPath (Join-Path $devRoot "Project\Publishing\.release-test\state.json") -Raw | ConvertFrom-Json
+    foreach ($document in @("readme.md", "Changelog.md")) {
+        $documentHash = (Get-FileHash -LiteralPath (Join-Path $devRoot $document)).Hash
+        Assert ((Get-FileHash -LiteralPath (Join-Path $candidate $document)).Hash -eq $documentHash) "Staged documentation differs: $document"
+        Assert (@($initialState.Candidate | Where-Object { $_.Path -eq $document -and $_.Hash -eq $documentHash }).Count -eq 1) "Documentation is not frozen exactly once: $document"
+        $stagedDocument = Join-Path $candidate $document
+        $originalDocument = [System.IO.File]::ReadAllBytes($stagedDocument)
+        Add-Content -LiteralPath $stagedDocument -Value "Unexpected documentation change"
+        Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "candidate files changed"
+        Remove-Item -LiteralPath $stagedDocument
+        Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "candidate files changed"
+        [System.IO.File]::WriteAllBytes($stagedDocument, $originalDocument)
+    }
     $releaseFiles = @($releaseManifest -split '\r?\n' | ForEach-Object { $_.Trim() } |
         Where-Object { $_ -and -not $_.StartsWith("#") -and -not $_.StartsWith("--") })
     Assert ($releaseFiles[0] -eq "Core/LoadCheck.lua") "Duplicate-load warning is not first in release."
@@ -182,7 +207,13 @@ try {
     Assert ($template -notmatch 'InventoryCompanion|Tim-P|/ictest|/icclean|PackageRelease\.ps1|bag scan|craft-bag|Currency messages:') "Generic review template contains project-specific assumptions."
     Assert ($template -match 'state explicitly when no suite exists') "Template must account for add-ons without automated tests."
     Assert ($template -match 'specific code comment as the author''s assertion') "Template must allow attributed mitigation rationale."
-    $review = $template.Replace("<AI assistant and model name, if available; do not guess>", "Synthetic fixture").
+    $compactTemplate = ($template -split '(?m)^## Review method and evidence', 2)[0]
+    Assert ($compactTemplate -match 'Review format: compact-v1') "Template must provide the compact report format."
+    Assert ($compactTemplate -notmatch '### Supported functionality') "Compact report must not include the detailed criteria."
+    # Exercise legacy reports as well as the new compact format.
+    $legacyTemplate = [regex]::Replace($template, '(?ms)^## Review scope\r?\n.*?(?=^## Review method and evidence)', "")
+    $legacyTemplate = [regex]::Replace($legacyTemplate, '(?m)^(Review format|Review mode|Baseline review):.*\r?\n', "")
+    $review = $legacyTemplate.Replace("<AI assistant and model name, if available; do not guess>", "Synthetic fixture").
         Replace("<human author/checker>", "Synthetic fixture").
         Replace("<manifest version>", $version).
         Replace("<PENDING or APPROVED>", "APPROVED").Replace("- [ ]", "- [x]")
@@ -206,10 +237,46 @@ try {
     Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "Release review is incomplete: Test discovery and coverage"
     Set-Content -LiteralPath $reviewPath -Value ($completeReview.Replace("### Performance and queued operations", "### Missing section"))
     Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "Release review is incomplete: Performance and queued operations"
-    Set-Content -LiteralPath $reviewPath -Value $completeReview
+    $compactReview = $compactTemplate.Replace("<AI assistant and model name, if available; do not guess>", "Synthetic fixture").
+        Replace("<human author/checker>", "Synthetic fixture").
+        Replace("<manifest version>", $version).
+        Replace("<candidate SHA256>", $candidateHash).
+        Replace("<YYYY-MM-DDTHH:mm:ssZ>", "2000-01-01T00:00:00Z").
+        Replace("<PENDING or APPROVED>", "APPROVED").
+        Replace("<DELTA or FULL>", "DELTA").
+        Replace("<approved report location, candidate version/hash and review date; NONE for a full review without a baseline>",
+            "Synthetic approved baseline report; version 1.0.0; SHA256 fixture; 2000-01-01 (fixture only)").
+        Replace("- [ ]", "- [x]")
+    foreach ($section in @("Review scope", "Changes reviewed", "Release checks", "Test evidence", "Findings and decision")) {
+        Set-Content -LiteralPath $reviewPath -Value ($compactReview.Replace("## $section", "## Missing section"))
+        Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "Release review is incomplete: $section"
+    }
+    Set-Content -LiteralPath $reviewPath -Value ($compactReview.Replace("Review format: compact-v1", "Review format: unknown"))
+    Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "unsupported Review format"
+    Set-Content -LiteralPath $reviewPath -Value ($compactReview.Replace("Review mode: DELTA", "Review mode: UNKNOWN"))
+    Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "Review mode:"
+    foreach ($baseline in @("NONE", "<baseline>", "TODO", "")) {
+        Set-Content -LiteralPath $reviewPath -Value ([regex]::Replace($compactReview, '(?m)^Baseline review:.*', "Baseline review: $baseline"))
+        Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "approved Baseline review"
+    }
+    Set-Content -LiteralPath $reviewPath -Value ([regex]::Replace($compactReview, '(?m)^Baseline review:.*\r?\n', ""))
+    Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "approved Baseline review"
+    Set-Content -LiteralPath $reviewPath -Value ($compactReview.Replace("- [x] Record the candidate", "- [ ] Record the candidate"))
+    Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "Release review is incomplete: Review scope"
+    Set-Content -LiteralPath $reviewPath -Value ($compactReview.Replace("Review status: APPROVED", "Review status: PENDING"))
+    Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "approve the current version"
+    Set-Content -LiteralPath $reviewPath -Value ($compactReview.Replace($candidateHash, "WRONG"))
+    Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "identify the frozen candidate"
+    $fullReview = [regex]::Replace($compactReview.Replace("Review mode: DELTA", "Review mode: FULL"), '(?m)^Baseline review:.*', "Baseline review: NONE")
+    Set-Content -LiteralPath $reviewPath -Value $fullReview
+    Assert-Fails { & $script -Action Finalize -TestResults "fixture only" -OutputDirectory $candidate } "outside the staged installation"
+    Set-Content -LiteralPath $reviewPath -Value $compactReview
     # Development changes and old source timestamps cannot invalidate a frozen candidate.
     Add-Content -LiteralPath (Join-Path $devRoot "Core\Tests.lua") -Value "`n-- development-only change"
     Remove-Item -LiteralPath $readme
+    $changelog = Join-Path $devRoot "Changelog.md"
+    $originalChangelog = [System.IO.File]::ReadAllBytes($changelog)
+    Set-Content -LiteralPath $changelog -Value "Development-only changelog edits must not enter the ZIP."
     Assert-Fails { & $script -Action Finalize -TestResults "fixture only" -OutputDirectory $candidate } "outside the staged installation"
     $packageDirectory = Join-Path $devRoot "Project\Publishing\Packages"
     $null = New-Item -ItemType Directory -Path $packageDirectory -Force
@@ -232,6 +299,7 @@ try {
     Assert ((Get-Content -LiteralPath $manifest -Raw) -match "(?m)^## AddOnVersion: $expectedNextInteger\s*$") "Finalization did not synchronize the DEV integer version."
     Assert ((Get-Content -LiteralPath (Join-Path $devRoot "Core\Init.lua") -Raw) -match ('Version = "' + [regex]::Escape($expectedNextRelease) + '"')) "Runtime and manifest versions diverged."
     [System.IO.File]::WriteAllBytes($readme, $originalReadme)
+    [System.IO.File]::WriteAllBytes($changelog, $originalChangelog)
     Assert (Test-Path -LiteralPath $candidate) "Finalization removed the gameplay release installation."
     Assert (@(Get-ChildItem -LiteralPath $candidate -Recurse -File).Count -eq $testedFiles.Count) "Finalization modified the installed candidate."
     Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "already finalized"
@@ -244,6 +312,9 @@ try {
     }
     Assert (@(Get-ChildItem -LiteralPath $extractedAddon -Recurse -File).Count -eq ($testedFiles.Count + 1)) "ZIP has unexpected contents."
     Assert ((Get-Content -LiteralPath (Join-Path $extractedAddon "ReleaseReview.md") -Raw) -match "Synthetic packaging fixture only") "Test confirmation is missing."
+    foreach ($document in @("readme.md", "Changelog.md")) {
+        Assert (Test-Path -LiteralPath (Join-Path $extractedAddon $document) -PathType Leaf) "ZIP root documentation is missing: $document"
+    }
     Assert ((Get-Content -LiteralPath $reviewPath -Raw) -match "Staged release test confirmation") "Final review was not persisted."
 
     & $script -Action Cancel | Out-Null

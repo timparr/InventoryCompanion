@@ -4,10 +4,10 @@ This is a navigation and evidence-discovery aid, not a completed review or an ad
 
 ## Fast starting point
 
-1. Follow the [release checklist](ReleaseChecklist.md) to identify the installed candidate, reproduce its file-set SHA-256, and locate the intended listing and existing evidence. Inspect its manifest and complete runtime code, not just DEV or changed files.
-2. Read the candidate's copy of [the test harness](../../Core/Tests.lua) before requesting a run. Links here point to DEV for navigation; use the corresponding candidate files for review.
+1. Follow the [release checklist](ReleaseChecklist.md) to identify the installed candidate, reproduce its file-set SHA-256, and locate the intended listing and approved review baseline. Default to the actual candidate-to-baseline diff plus affected callers/data flows, not a fresh inspection of unchanged runtime files. Use a full review only for the template's escalation cases and record why. A prior ZIP or test run alone does not establish an approved baseline.
+2. Verify the candidate's [test harness](../../Core/Tests.lua) invocation and safety before requesting a run; reuse the approved coverage map if the harness and affected behavior are unchanged. Links here point to DEV for navigation; use the corresponding candidate files for review.
 3. After staging finishes, switch to release-only and reload the UI, then request one `/ictest verbose copy` report on **Live**. Compare installation/runtime version, DEV=false, integer AddOnVersion, and enabled installations against the staged candidate; DEV=false alone does not exclude an older loaded release. Independently verify disk hashes. ESO need not close; do not reload or change characters while staging/cancelling. Additional isolation or bank-state runs are conditional on specific findings, not routine requirements. Default to no PTS testing unless reported; record any PTS evidence separately. PTS is not required and compatibility is not claimed without evidence.
-4. Reference the actual case results under the template's relevant sections. Use the short transfer check below for routine manual testing; do not ask the tester to repeat automated pattern/message assertions or expand every coverage gap into a manual test.
+4. Write the template's compact report, referencing one complete diagnostic report and naming cases relevant to changed or risky behavior in the test-evidence summary. Do not copy the detailed criteria or repeat test evidence across sections. Use the short transfer check below for routine manual testing; do not ask the tester to repeat automated pattern/message assertions or expand every coverage gap into a manual test.
 
 Follow the [preparation and review sequence](ReleaseChecklist.md#preparation-and-review-sequence) for early pre-review, rollback readiness, one consolidated testing handoff, impact-based retesting, and approval/package/upload milestones. Use this guide's coverage map to select the handoff and affected retests, not to create a second release workflow. The handoff should distinguish checks required now from conditional scenarios; do not present every hotspot below as a mandatory manual test.
 
@@ -57,7 +57,7 @@ Timing uses `GetGameTimeMilliseconds`. Record the candidate's actual embedded li
 
 ## Review hotspots and known coverage limits
 
-These are areas requiring scrutiny, **not declarations of confirmed bugs**. Record any newly established defect separately with candidate-relative evidence.
+These are navigation aids for changed or implicated paths, **not a mandatory per-release sweep or declarations of confirmed bugs**. Inspect all runtime files only when a full review is warranted. Record any newly established defect separately with candidate-relative evidence.
 
 | Location | What to trace | Existing mitigation/evidence and remaining questions |
 |---|---|---|
