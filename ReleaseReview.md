@@ -1,91 +1,91 @@
 # ESOUI Release Standards Review
 
-Reviewed (UTC): 2026-10-27T21:07:19Z
-Reviewer: AI assistant using Copilot SDK in VS Code (GPT-6.1-sol)
-Checked by: Tim-P (supplied in-game diagnostic report and confirmed short transfer check)
+Reviewed (UTC): 2026-10-27T22:04:15Z
+Reviewer: AI assistant using Copilot SDK in VS Code (model identifier not exposed)
+Checked by: Tim-P (supplied the v1.2.1 diagnostic, prior transfer observations, and grouped author confirmation)
 Add-on: InventoryCompanion
-Release version: 1.2.0
-Candidate SHA256: CC87B4FDA534EFC1D68FE6F01DAA1AD37BE2568FB070965641BCC80A891D1BF2
-Candidate identity method: SHA-256 of sorted candidate-relative path and SHA-256 pairs, joined with LF, as recorded by the packaging script
+Release version: 1.2.1
+Candidate SHA256: F7F3E3B1F06177608871B3FC5A9880D66CDF96F62D4A672C132CB52050E9AC09
+Candidate identity method: SHA-256 of sorted candidate-relative Windows-path and file-SHA256 pairs, joined with LF and encoded as UTF-8, as recorded by the staging script
 Report location: ReleaseReview.md in the development checkout
-Review status: PENDING
+Review status: APPROVED
+Review format: compact-v1
+Review mode: DELTA
+Baseline review: ReleaseReview.md approved in commit 8ea56fa213b1001fc43fa1bff4052732f7b1d3b2; version 1.01, candidate SHA256 CD164BA0A316C05BDEA26F505EA245FCCCA8F9AEE77959AD8FBC79A2116D2AB8, reviewed 2026-10-26T15:24:42Z. Its identity reproduces from both `Project/Publishing/Packages/Reviewed/InventoryCompanion-v1.01.zip` (archive SHA256 186D82B785E5C18D9E1DB162DFAC206C12CE98E4FF8CD63175F4BD47562F9721) and `InventoryCompanion-v1.01-rc1.zip` (archive SHA256 79D5FF4F4C333AF090EC774A0923FEEE369F9281234E63D89D4ADB68F1142E08).
 
-Testing scope: Live only. PTS is not tested or required for approval; PTS compatibility is not claimed.
+Testing scope: Live only. PTS is untested and not required for approval; compatibility is not claimed.
 
-## Release process
+## Review scope
 
-The packaging script staged version 1.2.0 in the sibling `InventoryCompanion` installation on 2026-10-27 at approximately 00:46 UTC. DEV advanced to 1.2.1. On receipt of the diagnostic report, the reviewer recomputed the recorded file-set identity and compared all installed candidate files against the staging records: zero differences. No runtime files were changed during this assessment.
+- [x] Candidate identity and staging records match; approved baseline identity is verified against the archived v1.01 release. Runtime report metadata matches the staged 1.2.1 manifest.
 
-Tim-P supplied the complete diagnostic report below. It identifies the release installation, runtime version 1.2.0, DEV=false, and no enabled development copy. These runtime observations support installation selection; the independent file comparison establishes the currently installed candidate identity.
+PASS: The frozen release installation is `live/AddOns/InventoryCompanion`, staged as version 1.2.1 at 2026-10-27T21:21:39Z. Its 28 files exactly match the staging records; their reproducible file-set identity is the SHA-256 above. Tim-P's 2026-10-27T22:04:07Z diagnostic reports runtime version 1.2.1, DEV=false, AddOnVersion=10201; disk identity was independently recomputed and matches the frozen candidate. No DEV copy is listed as enabled.
 
-No saved-variable backup was created at the original staging: the script incorrectly looked for `InventoryCompanion_SavedVariables.lua`, confusing the declared global table with ESO's installation-based disk filename. Tim-P questioned the repeated warning on 2026-10-27; investigation found both `live\SavedVariables\InventoryCompanion.lua` and `InventoryCompanion_DEV.lua`. The files were not actually absent. The tooling now infers and backs up both installation filenames, supports `-Action Backup` without restaging, and passed 147 packaging assertions. Verified private backups of both files were created under the ignored DEV `SavedVariables` folder at 2026-10-27T21:23:03Z; each matched its source SHA256 `E8B9D867A673B8A739FC415E2F378D041B86FD8C91C15C55C97E18C0F808FE7D`. These are last-on-disk snapshots, not proof of current in-memory settings. No live saved-variable file was modified.
+PASS: The approved v1.01 source baseline was verified against archived candidate bytes before reuse. No source-review evidence is carried forward from an unapproved report.
 
-The previous report covered version 1.01, not this candidate. Its approval is not carried forward. The earlier report remains in Git history and the previous release package.
+## Changes reviewed
 
-## Package and installation
+- [x] Compared all candidate files with the verified baseline, inspected all four changed files and affected behavior, and recorded applicability limits for unchanged baseline evidence.
 
-PASS: The installed candidate has 28 files matching the staging records. Its top-level folder and manifest are `InventoryCompanion` and `InventoryCompanion.txt`. No final 1.2.0 release archive has been produced or inspected. After approval, `Project\Publishing\PackageRelease.ps1 -Action Finalize` is responsible for archive entry and byte verification.
+PASS: Compared every frozen candidate file with the verified v1.01 archive. Twenty-four files are byte-identical. The four changed candidate-relative files were inspected:
 
-UNRESOLVED: Complete candidate source review, final listing/changelog/image checks, applicable author confirmations, and the remaining template requirements have not been completed in this assessment.
+- `InventoryCompanion.txt`: release version is now 1.2.1 and positive `AddOnVersion` is 10201.
+- `Core/Init.lua`: runtime version metadata is 1.2.1; the only other difference is removal of a commented-out demo call.
+- `Core/LoadCheck.lua`: duplicate-load detection now displays a warning dialog on player activation in addition to the chat warning. It warns but does not prevent loading; no gameplay action or transfer is initiated.
+- `Core/Tests.lua`: adds runtime/dependency/currency discovery and report output, checks event-registration/filter success and repeated/shared-listener transitions, and tightens the existing timing limits. These are diagnostic/test changes, not additional inventory actions.
 
-## Manifest and dependencies
+No material defect was found in the reviewed delta. The approved baseline's source assessment remains applicable to the other 24 unchanged files and their call paths. In particular, transfer implementation and protected-call paths are unchanged. The deliberate dual-load warning path was inspected statically; no deliberate double-load test was run.
 
-ISSUE: The frozen manifest has no `## AddOnVersion` directive. The review baseline requires a positive integer; the supplied diagnostic reports InventoryCompanion AddOnVersion=0. Correct the development manifest and version-maintenance tooling, then stage a new identified candidate rather than modifying these frozen files.
+## Release checks
 
-PASS: The candidate manifest is UTF-8 without a BOM; its longest line is 106 bytes, below the baseline's 301-byte limit.
+- [x] Candidate identity, contents, manifest/dependency, listing/assets, author evidence, and final-archive requirements were assessed; unresolved listing and uploader confirmations are recorded below.
 
-PASS: Manifest APIVersion=101051 matches the reported running Live API=101051.
+PASS: Candidate root and manifest names match. All 28 runtime files are present once at their manifest paths; no executables, nested archives, SavedVariables, generated API definitions, or development-only files are in the candidate. The final archive has not been produced or inspected; `PackageRelease.ps1 -Action Finalize` must verify it after candidate approval.
 
-PASS: The manifest requires LibAddonMenu-2.0>=43; the report records enabled AddOnVersion=43. Its outOfDate=true flag is retained below, not treated as an integer dependency-version failure or proof of incompatibility. The attempted local dependency-manifest lookup was unsuccessful; no current published-version or independent local dependency-manifest claim is made.
+PASS: Candidate manifest is UTF-8 without a BOM; longest line is 106 bytes. `APIVersion` is 101051; `AddOnVersion` is the positive integer 10201, consistent with version 1.2.1. Required dependency is `LibAddonMenu-2.0>=43`. The 2026-10-27 diagnostic reports enabled LibAddonMenu-2.0 AddOnVersion 43; its outOfDate flag is retained and is not treated as an integer minimum-version failure or incompatibility evidence. A local dependency manifest was not found, so no newest-published-version claim is made. PTS is not claimed.
 
-## Test discovery and coverage
+PASS: `Test-PackageRelease.ps1` passed 185 isolated packaging assertions after adding staged-document coverage, including root-level document copies, their frozen hashes, missing/empty inputs, tamper rejection, and archive byte verification. No live installation or saved variables were modified. The existing 28-file candidate remains unchanged and does not gain documents from this tooling update.
 
-PASS (human-supplied diagnostic evidence): 58/58 named cases passed at Unix timestamp 1793135208, corresponding to 2026-10-27T21:06:48Z. Environment: eso.live.12.1.6.3309674, API 101051, EU Megaserver, English, ESO Plus active, bank closed. The transcript below is the supplied evidence; the reviewer did not execute ESO tests.
+PASS (HUMAN): On 2026-10-27, Tim-P confirmed the grouped remaining author statements: conformity with ESOUI terms; no paid/trial/time limits, ads, promotions, or nag screens; non-harmful/non-offensive submitted materials with appropriate rights and credits; accurate listing claims; monitoring ESOUI private messages; and patch/companion intent. This records author assertions, not independent AI verification. The standing ownership/no-malicious-material assertion and v1.01 rights/credit confirmations are also retained.
 
-The report covers discovery, resource and currency preferences, saved-data pruning and profile import fixtures, matching and overrides, inventory scopes, event-listener transitions and debounce, notification formatting and suppression, and the four performance workloads. Named results are retained below rather than inferred from the suite total.
+PASS (source materials found): The workspace contains [Features.md](./Features.md) and [UserManual.md](./UserManual.md) as product-description and installation references, plus [COMPLETED.md](./Project/DevDocs/COMPLETED.md), an internal record explicitly intended as source material for user-facing release notes. The AI disclosure and dependency line are present in `readme.md`; that file is not a candidate runtime file.
 
-## Core behavior and correctness
+PASS (HUMAN): Tim-P subsequently confirmed that the existing documentation is suitable for their use in preparing the upload. No separate listing rewrite is required by this review. A root-level `Changelog.md` has now been drafted from the verified v1.01-to-v1.2.1 delta.
 
-PASS (automated in-game cases reported by Tim-P): Matching, override resolution, display-flag preservation, profile import copying, tracked-item inventory scope, and synthetic scan cases passed. These cases do not establish real settings-editor input, rendered output, transfer execution, or disk persistence.
+PASS (author-approved packaging exception, 2026-10-27): Tim-P explicitly chose not to add the readme/changelog inside this release's ZIP. Finalize the original approved 28-file candidate without restaging, and provide current publishing documents alongside the ZIP in its versioned handoff folder. Future staging includes both documents. No candidate files or staging records were changed for this exception.
 
-## Events and lifecycle
+PASS (asset located): `InventoryCompanion CurrencyConfig.png` is beside the root user documentation in the development checkout. It is a 642 x 531 PNG showing the currency settings UI, with SHA256 `99C8C8AAF6AC054878AEECC7F4B64FE2DD37E2A3A4E353D4AAC2A95E03E69D5D`. It is not part of the frozen runtime candidate. The existing local shortcut under `Project/Publishing/Packages/Reviewed` now resolves to this moved file. The visible capture is cropped at the top and bottom; confirm it meets the upload form's image requirement and intended presentation before upload.
 
-PASS (reported case): Event listener transitions and refresh debounce.
+## Test evidence
 
-PASS (human-reported normal use): Tim-P confirmed the short transfer check with "everything checks out" on 2026-10-27 and explicitly confirmed ESO Plus enabled. This supplements the diagnostic case with real-use observations, not an instrumented event-delivery trace. Separate settings-input or initialization/reload checks are not routine requirements; request them only for a specific relevant change, source-review finding, or reported problem.
+- [x] Reviewed the complete v1.2.1 diagnostic supplied by Tim-P, with runtime metadata consistent with the identified frozen installation, and prior short transfer evidence with provenance.
 
-## Performance and queued operations
+PASS (human-supplied diagnostic evidence): Tim-P supplied the complete `/ictest verbose copy` report below for InventoryCompanion 1.2.1. It reports 58/58 named cases passed on Live at 2026-10-27T22:04:07Z, game `eso.live.12.1.6.3309674`, API 101051, EU Megaserver, English, ESO Plus active, bank closed. The enabled add-on list reports InventoryCompanion AddOnVersion=10201 and LibAddonMenu-2.0 AddOnVersion=43. Runtime metadata is consistent with the candidate; candidate disk identity is independently verified above.
 
-| Reported workload | Measured | Candidate limit | Result |
-|---|---:|---:|---|
-| 20 scans of 100 items against 20 rules | 67 ms | 500 ms | PASS |
-| 100 slot-rule matches | 1 ms | 100 ms | PASS |
-| 100 tracked-item slot updates | 3 ms | 200 ms | PASS |
-| 100 read-only live backpack/bank/craft-bag scans | 319 ms | 500 ms | PASS |
+PASS: All four reported workloads are within the candidate limits: 20 x 100-item scans against 20 rules, 65/500 ms; 100 slot-rule matches, 0/100 ms; 100 synthetic tracked-item slot updates, 1/200 ms; 100 live read-only backpack/bank/craft-bag scans, 324/500 ms. The final scan reported 1,072 occupied entries with the bank closed. Inaccessible bank storage is not claimed as exercised. Conditional currency coverage for Alliance Points, Transmute Crystals (including capped-colour assertions), and Trade Bars was available and included.
 
-The final live scan reported 1,068 occupied entries with the bank closed. Inaccessible bank storage is not claimed as exercised. No timing failures or outliers appear in this supplied run. These timings do not establish sustained-event responsiveness or real transfer-queue behavior.
+PASS (human evidence applicable to unchanged transfer paths): On 2026-10-27, Tim-P reported “everything checks out” for the short bank/bag/craft-bag/house-chest transfer check and explicitly confirmed ESO Plus enabled. This observation was reported on v1.2.0, not relabeled as a v1.2.1 run. It remains applicable to the transfer implementation because the reviewed transfer code is byte-identical to the approved v1.01 baseline. No PTS testing was reported; use no PTS testing as the reporting default. No extra transfer matrix is indicated by the reviewed delta.
 
-## Human in-game testing
+PASS (carried-forward, with limits): The approved v1.01 report records 57/57 in-game cases and successful normal use. Its pasted per-case output was truncated and its timings used older limits; this is historical evidence only. The previous v1.2.0 diagnostic is superseded by the candidate-specific v1.2.1 run and is not used as evidence for this candidate.
 
-PASS (human report, 2026-10-27): In response to the short check covering transfers between bank and bag, involving the craft bag if available, and between bag and house chests, Tim-P reported "everything checks out" and "eso plus is enabled". No problems or unavailable storage were reported. No per-transfer quantities or exhaustive storage matrix were supplied or required. ESO Plus is explicitly confirmed and agrees with the diagnostic; no PTS testing was reported, so the author's requested reporting default is no PTS testing. Separate quantity-update, settings-toggle, visual, and reload/persistence checks were not requested or claimed. A second full diagnostic run with an open bank is not automatically required merely because the diagnostic report used a closed bank.
+## Findings and decision
 
-UNRESOLVED: Complete the candidate source review and identify any additional justified human checks before requesting further scenarios. No deliberate collision test, clean-data reset, destructive benchmark, or PTS run is required by this handoff.
+- [x] No material source defect was identified in the delta. The original identified candidate is approved, with the author's explicit exception to supply publishing documents outside this ZIP. Final ZIP verification and upload readiness are separate milestones.
 
-## Review conclusion
+PASS: The identified 1.2.1 candidate is approved. The approved v1.01 baseline is verified, all delta paths were reviewed, required author declarations are recorded, and the candidate-specific Live diagnostic passed. No material source finding remains.
 
-The diagnostic run succeeded, the installed files matched the frozen 1.2.0 identity when checked, and Tim-P subsequently confirmed successful routine transfer testing with ESO Plus enabled. Approval and final packaging remain withheld for the missing manifest AddOnVersion, incomplete candidate source/template assessment, and remaining listing/author evidence, not for additional routine manual tests.
+PASS (handoff authorization): Tim-P requested final packaging of this unchanged candidate and a versioned folder containing the ZIP and current publishing resources. Verify the archive through Finalize and verify its handoff copy before declaring completion. Tim-P accepts the existing documentation and image for upload preparation; the actual upload form remains a separate author action. The BBCode manual's local schematic URLs need hosted URLs for online publication. No extra manual UI, persistence, or deliberate collision scenario is required absent a specific finding.
 
-If only metadata/version fields change in a replacement candidate, retain this report with its original version/hash/date, review the exact delta, and determine affected retests plus a basic load/smoke check. Do not silently relabel this transcript as a run of the replacement candidate.
-
-## Supplied complete diagnostic report
+## Supplied complete v1.2.1 diagnostic report
 
 ```text
-[InventoryCompanion tests] 58/58 passed; 20 x 100-item scans / 20 rules: 67/500 ms; 100 slot-rule matches: 1/100 ms; 100 tracked-item slot updates: 3/200 ms; 100 live backpack/bank/craft-bag scans (bank closed): 319/500 ms, 1068 occupied entries
-[InventoryCompanion tests] INFO Environment: timestamp=1793135208 (Unix UTC); game=eso.live.12.1.6.3309674; API=101051; server=EU Megaserver; language=en
-[InventoryCompanion tests] INFO Installation: InventoryCompanion; runtime version=1.2.0; DEV=false; ESO Plus=true; bank=closed
+[InventoryCompanion tests] 58/58 passed; 20 x 100-item scans / 20 rules: 65/500 ms; 100 slot-rule matches: 0/100 ms; 100 tracked-item slot updates: 1/200 ms; 100 live backpack/bank/craft-bag scans (bank closed): 324/500 ms, 1072 occupied entries
+[InventoryCompanion tests] INFO Environment: timestamp=1793138647 (Unix UTC); game=eso.live.12.1.6.3309674; API=101051; server=EU Megaserver; language=en
+[InventoryCompanion tests] INFO Installation: InventoryCompanion; runtime version=1.2.1; DEV=false; ESO Plus=true; bank=closed
 [InventoryCompanion tests] INFO Enabled add-on: AddonSelector; AddOnVersion=302030; state=2; outOfDate=false
-[InventoryCompanion tests] INFO Enabled add-on: InventoryCompanion; AddOnVersion=0; state=2; outOfDate=false
+[InventoryCompanion tests] INFO Enabled add-on: InventoryCompanion; AddOnVersion=10201; state=2; outOfDate=false
 [InventoryCompanion tests] INFO Enabled add-on: LibScrollableMenu; AddOnVersion=20407; state=2; outOfDate=false
+[InventoryCompanion tests] INFO Enabled add-on: VotansKeybinder; AddOnVersion=0; state=2; outOfDate=true
 [InventoryCompanion tests] INFO Enabled add-on: LibAddonMenu-2.0; AddOnVersion=43; state=2; outOfDate=true
 [InventoryCompanion tests] INFO Conditional currency coverage: Alliance Points; ID=2; available=true
 [InventoryCompanion tests] INFO Conditional currency coverage: Transmute Crystals; ID=5; available=true
@@ -94,7 +94,7 @@ If only metadata/version fields change in a replacement candidate, retain this r
 [InventoryCompanion tests] INFO Human evidence still required: Live/PTS channel, candidate SHA256/installation verification, manifest API/minimum-version comparison, UI/event delivery, transfers, persistence and collision checks.
 [InventoryCompanion tests] INFO Safety: live scans are read-only; synthetic tests temporarily replace runtime state and restore it; no inventory transfers or intentional saved-variable writes.
 [InventoryCompanion tests] PASS Runtime and dependency discovery
-[InventoryCompanion tests] PASS Live read-only scan: 100 scans, 1068 occupied entries on final scan, bank closed
+[InventoryCompanion tests] PASS Live read-only scan: 100 scans, 1072 occupied entries on final scan, bank closed
 [InventoryCompanion tests] PASS Progress bar resource model and preferences
 [InventoryCompanion tests] PASS Currency notification preferences and changes
 [InventoryCompanion tests] PASS Prune known saved-variable diagnostic keys only
@@ -152,3 +152,11 @@ If only metadata/version fields change in a replacement candidate, retain this r
 [InventoryCompanion tests] PASS Capacity messages: balance colours follow the progress bar thresholds
 [InventoryCompanion tests] PASS Capacity notification preferences
 ```
+
+## Staged release test confirmation
+
+Staged (UTC): 10/27/2026 21:21:39
+Confirmed (UTC): 2026-10-27T22:27:04.8514657Z
+
+Tim-P supplied candidate-specific Live diagnostic at 2026-10-27T22:04:07Z: 58/58 passed; synthetic scans 65/500 ms, slot-rule matches 0/100 ms, tracked-item updates 1/200 ms, live scans 324/500 ms with 1072 entries and bank closed. Runtime 1.2.1, DEV=false, AddOnVersion=10201; disk candidate identity verified. Prior normal transfer evidence carried forward for unchanged paths with provenance in the review. Author confirmations recorded. Author explicitly waived readme/changelog inclusion inside this ZIP; current publishing resources supplied alongside it.
+
