@@ -2,7 +2,15 @@
 /*.zip
 /InventoryCompanion_Context.md
 /Project/DevDocs/Archive/*.zip
-/Project/Publishing/Packages/
+/Project/Publishing/Packages/*
+!/Project/Publishing/Packages/Reviewed/
+/Project/Publishing/Packages/Reviewed/*
+!/Project/Publishing/Packages/Reviewed/Current Documentation/
+/Project/Publishing/Packages/Reviewed/Current Documentation/*
+!/Project/Publishing/Packages/Reviewed/Current Documentation/Changelog.md
+!/Project/Publishing/Packages/Reviewed/Current Documentation/readme.md
+!/Project/Publishing/Packages/Reviewed/Current Documentation/UserManual.md
+!/Project/Publishing/Packages/Reviewed/Current Documentation/Features.md
 /Project/Publishing/.release-test/
 /generated-eso-api/
 

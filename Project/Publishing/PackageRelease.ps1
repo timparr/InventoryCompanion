@@ -19,7 +19,10 @@ $manifestPath = Join-Path $addonRoot "InventoryCompanion_DEV.txt"
 $stateDirectory = Join-Path $PSScriptRoot ".release-test"
 $statePath = Join-Path $stateDirectory "state.json"
 $reviewPath = Join-Path $addonRoot "ReleaseReview.md"
-$releaseDocuments = @("readme.md", "Changelog.md")
+$releaseDocuments = [ordered]@{
+    "readme.md" = "readme.md"
+    "Changelog.md" = "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.md"
+}
 
 function Backup-SavedVariables {
     $liveRoot = Split-Path (Split-Path $addonRoot -Parent) -Parent
@@ -234,7 +237,7 @@ if ($manifestFiles.Count -eq 0 -or -not $manifestFiles.Contains("Core\Developmen
     throw "The development manifest must include runtime files and Core/Development.lua."
 }
 $runtimeFiles = @($manifestFiles | Where-Object { $_ -ne "Core\Development.lua" })
-foreach ($relativePath in $releaseDocuments) {
+foreach ($relativePath in $releaseDocuments.Values) {
     $documentPath = Join-Path $addonRoot $relativePath
     if (-not (Test-Path -LiteralPath $documentPath -PathType Leaf) -or
         [string]::IsNullOrWhiteSpace((Get-Content -LiteralPath $documentPath -Raw))) {
@@ -246,7 +249,7 @@ $sourcePaths = @(
     "Project\Publishing\ReleaseChecklist.md"
     "Project\Publishing\ReleaseReviewTemplate.md"
     "Project\Publishing\PackageRelease.ps1"
-) + $releaseDocuments + @($manifestFiles)
+) + @($releaseDocuments.Values) + @($manifestFiles)
 $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
     $path = if ($relativePath -eq "InventoryCompanion_DEV.txt") { $sourceManifestPath } else { Join-Path $addonRoot $relativePath }
     Get-FileRecord $path $relativePath
@@ -262,10 +265,11 @@ $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
     $null = New-Item -ItemType Directory -Path $candidateRoot
     try {
         Set-Content -LiteralPath (Join-Path $candidateRoot "InventoryCompanion.txt") -Value $releaseManifest -Encoding UTF8
-        foreach ($relativePath in @($runtimeFiles) + $releaseDocuments) {
+        foreach ($relativePath in @($runtimeFiles) + @($releaseDocuments.Keys)) {
             $destination = Join-Path $candidateRoot $relativePath
             $null = New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force
-            Copy-Item -LiteralPath (Join-Path $addonRoot $relativePath) -Destination $destination
+            $sourcePath = if ($releaseDocuments.Contains($relativePath)) { $releaseDocuments[$relativePath] } else { $relativePath }
+            Copy-Item -LiteralPath (Join-Path $addonRoot $sourcePath) -Destination $destination
         }
         $state = [ordered]@{
             Schema = 1

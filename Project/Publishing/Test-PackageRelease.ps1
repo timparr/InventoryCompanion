@@ -56,7 +56,7 @@ try {
     $sourceManifest = Join-Path $sourceRoot "InventoryCompanion_DEV.txt"
     $manifestLines = @(Get-Content -LiteralPath $sourceManifest)
     $paths = @("Project\Publishing\PackageRelease.ps1", "Project\Publishing\ReleaseChecklist.md",
-        "Project\Publishing\ReleaseReviewTemplate.md", "readme.md", "Changelog.md") + @(
+        "Project\Publishing\ReleaseReviewTemplate.md", "readme.md", "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.md") + @(
         $manifestLines | ForEach-Object { $_.Trim().Replace('/', '\') } |
             Where-Object { $_ -and -not $_.StartsWith("#") -and -not $_.StartsWith("--") }
     )
@@ -98,7 +98,7 @@ try {
     Assert-Fails { & $script -Action Stage } "Manifest-listed file does not exist"
     [System.IO.File]::WriteAllBytes($manifest, $originalManifest)
 
-    foreach ($document in @("readme.md", "Changelog.md")) {
+    foreach ($document in @("readme.md", "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.md")) {
         $documentPath = Join-Path $devRoot $document
         $originalDocument = [System.IO.File]::ReadAllBytes($documentPath)
         Remove-Item -LiteralPath $documentPath
@@ -136,7 +136,8 @@ try {
     Assert ($releaseManifest -notmatch '\[DEV\]|Development\.lua') "Release manifest contains development markers."
     $initialState = Get-Content -LiteralPath (Join-Path $devRoot "Project\Publishing\.release-test\state.json") -Raw | ConvertFrom-Json
     foreach ($document in @("readme.md", "Changelog.md")) {
-        $documentHash = (Get-FileHash -LiteralPath (Join-Path $devRoot $document)).Hash
+        $documentSource = if ($document -eq "Changelog.md") { "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.md" } else { $document }
+        $documentHash = (Get-FileHash -LiteralPath (Join-Path $devRoot $documentSource)).Hash
         Assert ((Get-FileHash -LiteralPath (Join-Path $candidate $document)).Hash -eq $documentHash) "Staged documentation differs: $document"
         Assert (@($initialState.Candidate | Where-Object { $_.Path -eq $document -and $_.Hash -eq $documentHash }).Count -eq 1) "Documentation is not frozen exactly once: $document"
         $stagedDocument = Join-Path $candidate $document
@@ -274,7 +275,7 @@ try {
     # Development changes and old source timestamps cannot invalidate a frozen candidate.
     Add-Content -LiteralPath (Join-Path $devRoot "Core\Tests.lua") -Value "`n-- development-only change"
     Remove-Item -LiteralPath $readme
-    $changelog = Join-Path $devRoot "Changelog.md"
+    $changelog = Join-Path $devRoot "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.md"
     $originalChangelog = [System.IO.File]::ReadAllBytes($changelog)
     Set-Content -LiteralPath $changelog -Value "Development-only changelog edits must not enter the ZIP."
     Assert-Fails { & $script -Action Finalize -TestResults "fixture only" -OutputDirectory $candidate } "outside the staged installation"

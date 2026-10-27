@@ -1,0 +1,98 @@
+[SIZE="4"][B]Inventory Companion User Manual[/B][/SIZE]
+
+Inventory Companion is an Elder Scrolls Online addon for inventory transfers, item tracking, currency monitoring, and capacity alerts. This guide explains the current in-game controls and workflows.
+
+[SIZE="2"][B]Open the addon and tracking editor[/B][/SIZE]
+
+[LIST=1]
+[*]In ESO, open [B]Settings > Add-Ons > Inventory Companion[/B] to change addon options.
+[*]Open the tracked-items editor from the tracker panel's right-click menu, its edit icon, or the key assigned to [B]Show/Hide Tracking Settings[/B] under [B]Settings > Controls > Keybindings > Inventory Companion[/B].
+[*]The editor has [B]Edit Items[/B] and [B]Edit Groups[/B] buttons to switch views. Right-click the tracker HUD for quick display options.
+[/LIST]
+
+[SIZE="2"][B]Show currency and inventory resources[/B][/SIZE]
+
+[LIST=1]
+[*]In the addon settings, open [B]Currency Summary Panel[/B].
+[*]For a currency, use its [B]Character[/B] and [B]Bank[/B] controls to choose which balances appear. Account-wide currencies do not have those location controls.
+[*]Use the row's show/hide button to include or exclude the resource from the panel. Hidden rows appear under [B]Not shown in panel[/B]. Use the up/down arrows to change the order of shown rows.
+[*][B]Show Empty Currencies[/B] keeps currencies with a zero balance in the panel. Turn it off to show only currencies with a positive balance in at least one selected location.
+[*]Drag the currency panel to move it. Right-click it to toggle whether zero-balance currencies are shown.
+[/LIST]
+
+[URL=./images/currency-panel-settings.svg]Schematic of Currency Summary Panel settings, including location, Notify, visibility, and ordering controls[/URL]
+
+The Currency Summary Panel and [B]Standalone Progress Bars[/B] are independent. The progress-bar settings let you show or hide a separate bar for backpack space, bank space, or a supported capped currency. Drag a bar to reposition it. Its advanced settings control warning and danger thresholds and the normal bar color; shared alert colors control warning and danger colors.
+
+[SIZE="2"][B]What the Notify controls do[/B][/SIZE]
+
+There are two different kinds of Notify settings:
+
+[LIST]
+[*][B]Item or group Notify:[/B] In the tracked-items editor, click an item's [B]Notify[/B] label to toggle an alert when the item is gained in the backpack. For a group, click [B]Notify[/B] on the group entry to alert for items matching that group's patterns. This is separate from [B]Show[/B]: an item can notify without being displayed on the tracker. Use the [B]Notify[/B] filter at the top of the editor to find entries whose notifications are enabled.
+[*][B]Currency or capacity Notify:[/B] In [B]Currency Summary Panel[/B] settings, check [B]Notify[/B] on a currency or on [B]Backpack space[/B] / [B]Bank space[/B] to receive an alert when that resource changes. Currency notifications work even if the currency row is hidden. These settings are separate from item and group notifications.
+[/LIST]
+
+The item editor's [B]Show[/B], [B]Notify[/B], [B]Inactive[/B], and [B]Untracked[/B] filters control which entries are listed for editing; they do not themselves enable or disable alerts. Click the label or checkbox to toggle a filter. [B]Untracked[/B] adds currently carried or banked items to the editor so they can be added to your tracked list.
+
+Currency and capacity alerts combine rapid changes into a single update and suppress startup/login changes. To disable one type of alert, clear Notify for its row.
+
+[SIZE="2"][B]Track an individual item[/B][/SIZE]
+
+[LIST=1]
+[*]Open the tracked-items editor.
+[*]To add an item currently in your inventory, right-click its item slot and choose [B]Add to Tracked Items[/B]. Alternatively, enable [B]Untracked[/B] in the editor. This will show ALL items you have, then you can just click [B]Show[/B] or [B]Notify[/B] on that item's row; this will add it to the current tracked list while enabling that option.
+[*]In the editor, click the item's [B]Show[/B] label to show or hide it on the tracker, and click [B]Notify[/B] to toggle gain alerts.
+[*]Click [B]Totals[/B] to include bank holdings in the displayed count. By default, the tracker focuses on backpack counts.
+[*]Click the remove button on an item row to remove that item from the tracking list.
+[/LIST]
+
+[URL=./images/tracked-items-editor.svg]Schematic of the tracked-items editor, including list selection, filters, and item options[/URL]
+
+On the tracker HUD, left-click a group header to expand or collapse it. Right-click the HUD to show/hide empty tracked items, switch between single-line and multiline names, or open the editor.
+
+[SIZE="2"][B]Create and edit a custom group[/B][/SIZE]
+
+[LIST=1]
+[*]Open the tracked-items editor and select [B]Edit Groups[/B].
+[*]Select [B]+ New Group[/B]. A new group is created and its name field opens; enter a name and press Enter or move focus away to save it.
+[[I]]Select [B]+ Add Pattern[/B] to add a matching rule. Enter an item-name pattern, then move focus away from the field to save it. Add multiple patterns if needed; an item matching any one of them belongs to the group. Matching ignores letter case, and [/I] matches any part of an item name. For example, [I]treasure map[/I] matches names containing “treasure map”.
+[*]Return to [B]Edit Items[/B] to adjust the group's [B]Show[/B], [B]Notify[/B], [B]Totals[/B], and [B]Group[/B] settings. [B]Notify[/B] alerts when a matching item is gained; [B]Totals[/B] includes bank holdings; [B]Group[/B] controls whether the rule is displayed as a group on the tracker.
+[*]In [B]Edit Groups[/B], use the group action buttons to hide/unhide or delete a custom group. Predefined groups can be reset to their defaults. The [B]Miscellaneous[/B] group is a special catch-all and does not have editable patterns.
+[/LIST]
+
+[URL=./images/custom-groups-editor.svg]Schematic of the custom-groups editor, showing the group list and pattern rules[/URL]
+
+If the image does not appear in your viewer, [URL=./images/custom-groups-editor.svg]open the custom-groups schematic directly[/URL].
+
+[SIZE="2"][B]Use account-wide or character-specific lists[/B][/SIZE]
+
+In the tracked-items editor, use [B]Use Character List[/B] to switch between the shared account-wide list and a list specific to the current character. The character-list preference is stored per character.
+
+To copy another list into the active destination:
+
+[LIST=1]
+[*]Choose a source in [B]Import from:[/B].
+[*]Check the preview to see how many entries will be replaced and imported.
+[*]Select [B]Import[/B] and confirm the replacement.
+[/LIST]
+
+Import replaces the destination list and its rule overrides; it does not merge two lists.
+
+[SIZE="2"][B]Deposit and withdraw crafted items[/B][/SIZE]
+
+Assign keys for [B]Deposit Crafted Items[/B] and [B]Withdraw Crafted Items[/B] under [B]Settings > Controls > Keybindings > Inventory Companion[/B]. Open a bank or storage chest, then use the relevant key. The addon queues supported items crafted by the current character and reports transfer progress. It will not transfer items outside its built-in crafted-item list.
+
+[B]Auto-Merge Chest Stacks[/B] in the addon settings controls whether matching backpack stacks are automatically moved into house storage chest stacks when the chest opens. This setting does not enable merging for the regular bank.
+
+[SIZE="2"][B]Move part of a stack[/B][/SIZE]
+
+With a bank, subscriber bank, or house chest open, right-click a stack with more than one item. Choose [B]Deposit 1[/B] / [B]Withdraw 1[/B] or the corresponding option for all but one item. These actions move only that stack quantity and are separate from the bulk crafted-item keybindings.
+
+[SIZE="2"][B]Adjust tracker and transfer settings[/B][/SIZE]
+
+[LIST]
+[*]In [B]Item Tracker Panel[/B] settings, [B]Show Tracked Items Panel[/B] is the master visibility switch. [B]Tracker Group Threshold[/B] determines when group headers are used; below the threshold, visible entries are shown as a flat alphabetized list. [B]Multiline Item Names[/B] and [B]Show Empty Tracked Items[/B] adjust the display.
+[*][B]Item Transfer Delay (ms)[/B] controls spacing between queued bank transfers. Lower values may make transfers faster but can risk an ESO disconnect; keep the value conservative.
+[*]In [B]Standalone Progress Bars[/B], each resource can be shown independently and has advanced threshold/color settings.
+[/LIST]
