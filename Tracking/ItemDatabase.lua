@@ -315,18 +315,18 @@ CompilePatterns = function(patterns)
             local p = cleaned:gsub("([%^%$%(%)%%%.%[%+%-%?])", "%%%1")
             table.insert(compiled, p)
         end
-
-        function this.ItemMatchesRuntimeRule(itemLink, rule)
-            local name = GetItemLinkName(itemLink)
-            if not name then return false end
-            local lowerName = name:lower()
-            for _, pattern in ipairs(rule.compiledPatterns) do
-                if lowerName:match(pattern) ~= nil then return true end
-            end
-            return false
-        end
     end
     return compiled
+end
+
+function this.ItemMatchesRuntimeRule(itemLink, rule)
+    local name = GetItemLinkName(itemLink)
+    if not name then return false end
+    local lowerName = name:lower()
+    for _, pattern in ipairs(rule.compiledPatterns) do
+        if lowerName:match(pattern) ~= nil then return true end
+    end
+    return false
 end
 
 function this.ItemMatchesRule(itemLink, pattern)

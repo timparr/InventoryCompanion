@@ -49,7 +49,6 @@ function ZO_Dialogs_RegisterCustomDialog(name, data) dialogs[name] = data end
 function ZO_Dialogs_ShowDialog(name, data) dialogs[name].buttons[1].callback({ data = data }) end
 function zo_callLater(callback) callback() end
 function SetGameCameraUIMode() end
-function GetGameTimeMilliseconds() return 100 end
 this.RefreshItemTrackerPanel = function() hudRefreshes = hudRefreshes + 1 end
 this.Utils = { UserWarning = function(message) error(message) end, UserMessage = function() end }
 
@@ -152,6 +151,8 @@ function this.GetGroupEditorTests()
     end)
 
     Add("Group editor creates and deletes sparse custom groups", function()
+        local originalClock = GetGameTimeMilliseconds
+        GetGameTimeMilliseconds = function() return 100 end
         Click(GetControl(GetControl(InventoryCompanion_GroupsWindow, "TopActionBar"), "BtnNewGroup"))
         local saved = this.accountWide.trackedRules.custom_100
         assert(saved, "New group is saved")
@@ -166,6 +167,7 @@ function this.GetGroupEditorTests()
         Click(Action("BtnDelete"))
         Equal(this.accountWide.trackedRules.custom_100, nil, "Delete removes saved group")
         Equal(this.GetRuntimeRules().custom_100, nil, "Delete removes cached group")
+        GetGameTimeMilliseconds = originalClock
     end)
 
     return tests

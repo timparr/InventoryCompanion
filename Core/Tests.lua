@@ -1568,7 +1568,6 @@ local function RunTests(arguments)
                     slotUpdateMs = GetGameTimeMilliseconds() - startedAt
                     -- Later tests (e.g. currency message scenarios) need the real messaging.
                     this.Utils.UserWarning = syntheticOriginal.userWarning
-                    this.InvalidateRuleCache()
 
                     CheckEqual(warningCount, 100, "Every matching synthetic slot update should trigger a notification")
                     Check(
@@ -2120,6 +2119,7 @@ local function RunTests(arguments)
     _G.GetItemLink = syntheticOriginal.getItemLink
     _G.IsESOPlusSubscriber = syntheticOriginal.isESOPlusSubscriber
     this.Utils.UserWarning = syntheticOriginal.userWarning
+    this.InvalidateRuleCache()
 
     if not environmentOk then
         table.insert(results, "FAIL test setup: " .. tostring(environmentError))

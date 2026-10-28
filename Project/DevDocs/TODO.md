@@ -6,9 +6,9 @@
 * Implement a safeguard so that if expanding a group makes the item tracker panel window too tall, it automatically collapses other expanded groups to show only the active one. Set a max height in the settings for this.
 
 
-* **A2.** **Refactor Rule Edits for Delta-Only Saved Variables (Explicit Surgical Setters):**
-* Implement explicit, single-responsibility helpers (`SetRuleProperty` for root-level properties like `displayName` and `patterns`, alongside existing flag setters) so that group renames, pattern edits, and display toggles write *only* the modified data as clean delta overrides in saved variables without redundant duplication.
-* Detailed design and verification notes: [Delta-Only Saved Variables](Tasks/DeltaOnlySavedVariables.md).
+* **A2.** **Delta-Only Saved Variables - In-Game Acceptance:**
+* Implementation and automated regression checks are complete: focused setters, pattern deltas, legacy conversion, and the shared lazy compiled cache. Verify native editor focus behavior, UI reload persistence, profile switching/imports, and real-client timings in game.
+* Subtask log, test commands, and acceptance checklist: [Delta-Only Saved Variables](Tasks/DeltaOnlySavedVariables.md).
 
 
 ---

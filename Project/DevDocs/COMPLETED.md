@@ -2,6 +2,10 @@
 
 Completed work is recorded here for project history and future release-note drafting. This is an internal record; summarize user-facing changes in a release changelog when publishing.
 
+## Implemented - Awaiting In-Game Acceptance
+
+- **Delta-only saved rules and lazy matching cache:** Built-in rules persist only edited names/flags and sorted pattern additions/removals. Group mutations and imports invalidate a shared compiled cache. Automated Lua 5.1 rule, editor-handler, persistence, performance, and packaging checks pass; native ESO UI/persistence acceptance is still pending. See the [subtask log and acceptance checklist](Tasks/DeltaOnlySavedVariables.md).
+
 ## Verified Addon Work
 
 - **Tracker visibility and smart positioning:** Keeps the tracker visible during bank, store, fence, and inventory interactions and adjusts its position to avoid UI overlap. Implemented in `Core/Events.lua` and `Tracking/ItemTrackerPanel.lua`.

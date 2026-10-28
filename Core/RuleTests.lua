@@ -39,6 +39,7 @@ function this.GetRuleTests()
                 for _, entry in ipairs(globals) do _G[entry.key] = entry.value end
                 this.InvalidateRuleCache()
                 if not ok then error(err, 0) end
+                return err
             end,
         })
     end
@@ -275,6 +276,97 @@ function this.GetRuleTests()
         assert(not pcall(this.DeleteCustomRule, "default"), "Built-ins cannot be deleted")
         assert(not pcall(this.CreateCustomRule, "default", "Duplicate"), "Built-ins cannot be replaced")
         assert(not pcall(this.ResetRule, "custom"), "Custom groups cannot be reset as built-ins")
+    end)
+
+    Add("Untouched defaults allocate no saved rule data", function()
+        local matcher = this.ItemMatchesRuntimeRule
+        Equal(type(matcher), "function", "Runtime matcher exists before cache construction")
+        local cache = this.GetRuntimeRules()
+        Equal(this.ItemMatchesRuntimeRule, matcher, "Compiling patterns must not redefine the matcher")
+        Equal(next(this.accountWide.trackedRules), nil, "Reading defaults must not persist rules")
+        List(cache.default.patterns, { "a", "b", "c" }, "Defaults are sorted")
+        this.UpdateRuleFlag("default", "show", true)
+        this.UpdateRuleProperty("default", "displayName", "Default")
+        this.UpdateRulePatterns("default", { "c", "a", "b", "a" })
+        Equal(next(this.accountWide.trackedRules), nil, "Writing baseline values must not persist rules")
+        this.UpdateRuleProperty("default", "displayName", "Renamed")
+        this.preLoadedRulesets.default.display.notify = true
+        this.preLoadedRulesets.default.patterns = { "new default" }
+        this.InvalidateRuleCache()
+        local updated = this.GetRuntimeRules().default
+        Equal(updated.displayName, "Renamed", "Explicit name is preserved")
+        Equal(updated.display.notify, true, "Unmodified flag follows updated baseline")
+        List(updated.patterns, { "new default" }, "Unmodified patterns follow updated baseline")
+    end)
+
+    Add("Reconciled pattern deltas obey set invariants across repeated edits", function()
+        local candidates = { "a", "b", "c", "d", "e", "f" }
+        for iteration = 0, 63 do
+            local edited, expected, added, removed = {}, {}, {}, {}
+            for index, pattern in ipairs(candidates) do
+                local included = math.floor(iteration / (2 ^ (index - 1))) % 2 == 1
+                if included then
+                    table.insert(edited, pattern)
+                    table.insert(edited, pattern)
+                    table.insert(expected, pattern)
+                    if index > 3 then table.insert(added, pattern) end
+                elseif index <= 3 then
+                    table.insert(removed, pattern)
+                end
+            end
+            this.UpdateRulePatterns("default", edited)
+            local saved = this.accountWide.trackedRules.default or {}
+            List(saved.addedPatterns or {}, added, "Exact addition delta " .. iteration)
+            List(saved.removedPatterns or {}, removed, "Exact removal delta " .. iteration)
+            List(this.GetRuntimeRules().default.patterns, expected, "Exact effective set " .. iteration)
+            for key in pairs(saved) do
+                assert(key == "addedPatterns" or key == "removedPatterns", "Unexpected saved field: " .. key)
+            end
+        end
+    end)
+
+    Add("Cached synthetic scans and inventory bursts stay within thresholds", function()
+        _G.BAG_BACKPACK, _G.BAG_BANK, _G.BAG_VIRTUAL = 1, 2, 3
+        _G.GetItemLinkName = function(link) return link end
+        _G.GetItemId = function(_, slotIndex) return 990000 + slotIndex end
+        _G.GetItemLink = function(_, slotIndex) return "Synthetic Item " .. slotIndex end
+        _G.IsESOPlusSubscriber = function() return false end
+        local entries = {}
+        for index = 1, 100 do
+            entries[index] = { itemId = 990000 + index, link = "Synthetic Item " .. index, icon = "icon", count = 1 }
+        end
+        this.Scanning = { GetBagContents = function() return entries end }
+        local warnings = 0
+        this.Utils = { FormatBigNumber = tostring, UserWarning = function() warnings = warnings + 1 end }
+        this.preLoadedRulesets = {}
+        for index = 1, 20 do
+            this.preLoadedRulesets["synthetic_" .. index] = {
+                patterns = { "Synthetic Item *" }, display = { show = true, notify = true },
+            }
+        end
+        local cache = this.GetRuntimeRules()
+        local started = GetGameTimeMilliseconds()
+        for _ = 1, 20 do
+            local snapshot = this.GetMasterItemList({}, this.GetActiveTrackedRules(), { BAG_BACKPACK })
+            Equal(#snapshot.ruleIndex.synthetic_1, 100, "All items matched")
+            Equal(#snapshot.ruleIndex.synthetic_20, 100, "All rules matched")
+        end
+        local scanMs = GetGameTimeMilliseconds() - started
+        started = GetGameTimeMilliseconds()
+        for index = 1, 100 do
+            assert(this.ItemMatchesRuntimeRule("Synthetic Item " .. index, cache.synthetic_1), "Burst rule match")
+        end
+        local matchMs = GetGameTimeMilliseconds() - started
+        started = GetGameTimeMilliseconds()
+        for index = 1, 100 do this.HandleTrackedItemInventoryUpdate(BAG_BACKPACK, index, 1) end
+        local updateMs = GetGameTimeMilliseconds() - started
+        Equal(warnings, 100, "Every synthetic update notifies")
+        Equal(this.GetRuntimeRules(), cache, "Bursts reuse the cache")
+        Equal(next(this.accountWide.trackedRules), nil, "Bursts do not write saved rules")
+        local timings = string.format("20 scans: %d/500 ms; 100 matches: %d/100 ms; 100 updates: %d/200 ms",
+            scanMs, matchMs, updateMs)
+        assert(scanMs <= 500 and matchMs <= 100 and updateMs <= 200, timings)
+        return timings
     end)
 
     return tests

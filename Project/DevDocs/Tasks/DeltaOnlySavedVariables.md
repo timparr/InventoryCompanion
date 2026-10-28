@@ -1,6 +1,6 @@
 # Delta-Only Saved Variables
 
-**Status:** In progress
+**Status:** Implemented; automated verification complete; in-game acceptance pending
 
 ## Goal
 
@@ -131,7 +131,7 @@ All implementation remains on the existing branch unless a branch switch is appr
 - [x] 1. Implement delta storage, focused setters, legacy conversion, and isolated rule unit tests.
 - [x] 2. Add the lazy compiled runtime cache and wire scanning, notifications, profile copying, and list switching; extend tests.
 - [x] 3. Route group-editor mutations through the new APIs, including create/delete/reset/unhide; preserve focus-loss behavior and test editor paths.
-- [ ] 4. Run final regression checks, document the storage contract and in-game verification steps, and update task tracking.
+- [x] 4. Run final regression checks, document the storage contract and in-game verification steps, and update task tracking.
 
 ### Subtask 0 - checkpoint and breakdown
 
@@ -167,3 +167,67 @@ All implementation remains on the existing branch unless a branch switch is appr
 - Focus-loss saves refresh the HUD and action buttons without rebuilding/reanchoring group or pattern rows.
 - Added one shared lifecycle unit test and five headless tests that exercise the actual group-editor handlers using fake ESO controls. Fake controls are never loaded by the addon.
 - Validation: 16/16 isolated rule/editor cases pass under Lua 5.1; all addon Lua syntax checks and `git diff --check` pass. Native ESO focus/event ordering still needs the in-game check below.
+
+### Subtask 4 - regression checks and documentation
+
+- Extended shared tests to cover untouched-default storage, updated baseline inheritance, all 64 subsets of a six-pattern input (including duplicate inputs), stable matcher identity, and cached synthetic performance thresholds.
+- Added headless serialization/reinitialization and actual `/icclearoverrides` handler checks in an isolated Lua state.
+- Final code review corrected matcher declaration scope and ensured `/ictest` invalidates the synthetic cache after restoring live runtime references; added a regression assertion for matcher stability.
+- Updated the user manual's reset/default-inheritance behavior and project task tracking. Kept in-game acceptance explicitly pending rather than claiming client testing.
+- Validation: 21/21 headless cases pass; all addon Lua sources parse under Lua 5.1; `git diff --check` passes. The existing isolated packaging suite passes 187 assertions, including the new manifest entry.
+- Synthetic reference timings: 20 scans of 100 items across 20 rules took 41 ms (limit 500 ms), 100 cached matches took 1 ms (limit 100 ms), and 100 inventory updates took less than 1 ms at millisecond clock resolution (limit 200 ms). Host timings are not ESO-client evidence.
+
+## Implemented storage contract
+
+The active account/character `trackedRules` table stores rule slugs with these optional fields:
+
+```lua
+trackedRules = {
+    default_group = {
+        displayName = "My name",
+        display = { notify = false },
+        addedPatterns = { "new pattern" },
+        removedPatterns = { "removed default pattern" },
+    },
+    custom_group = {
+        displayName = "My custom group",
+        addedPatterns = { "custom*" },
+    },
+}
+```
+
+- Missing fields inherit the installed built-in baseline; custom groups inherit the standard custom display defaults and have no baseline patterns.
+- Patterns are unique, case-preserving values sorted for display/storage; matching remains case-insensitive, with the existing wildcard and literal-substring behavior.
+- Baseline-equivalent edits and empty collections are absent. An empty built-in override is removed; an empty custom-rule table remains because its key defines the group.
+- `UpdateRulePatterns` reconciles the complete edited list. `UpdateRuleProperty` accepts `displayName`; `UpdateRuleFlag` accepts existing display flags. `SetRuleFlag` remains a compatibility alias.
+- `GetRuntimeRules` exposes the shared read-only-by-contract cache, including hidden rules. `GetActiveTrackedRules` returns filtered private pattern/display views; its compiled arrays are shared and must not be modified.
+- Legacy full `patterns` arrays are converted against the installed baseline on first resolution/import without changing the source profile during import. Only the active profile is converted on read. Equal legacy name/display values are pruned.
+- Conversion preserves the old effective list at migration time, but cannot distinguish an intentional old override from a default copied by an older editor. Once converted, subsequent baseline additions appear unless explicitly removed.
+- No compiled patterns or cache fields are saved. The saved-variable namespace/version is unchanged; older addon builds do not understand the new delta fields. Back up saved variables before client testing or downgrading; restore that backup when reverting to an older build.
+- Reset clears the entire selected built-in override, including display flags. Deletion is restricted to custom rules. Both operations affect only the active profile.
+
+## Repeatable automated verification
+
+From the development checkout:
+
+```powershell
+python -m pip install lupa
+python Project\Tests\Run-RuleTests.py
+& .\Project\Publishing\Test-PackageRelease.ps1
+git diff --check
+```
+
+The headless runner executes 14 shared rule cases, five actual group-editor handler cases with fake controls, and two persistence/command cases under Lua 5.1. The packaging suite uses its own temporary installation fixture. Neither reads or modifies live saved-variable files or live inventory. In game, `/ictest verbose` includes the 14 shared cases alongside the existing suite; synthetic fixtures restore the original runtime references even on test failure.
+
+## In-game acceptance checklist (not yet executed)
+
+Back up saved variables before testing migration. The existing publishing script's `-Action Backup` copies and hash-verifies the last-on-disk snapshot; it does not capture ESO's unsaved in-memory state.
+
+- [ ] Run `/ictest verbose`; confirm shared rule tests and real-client timing thresholds pass.
+- [ ] Rename a built-in group, edit a pattern, and toggle flags. Confirm each persists independently and pattern editing never resets the name.
+- [ ] Follow the sequential pattern scenarios above, including reversion, duplicate edits, and removing all patterns. Confirm the effective HUD/matching results.
+- [ ] Move focus between pattern rows; confirm text/rows do not jump and Reset becomes available without a list rebuild. Confirm explicit add/delete operations rebuild normally.
+- [ ] Hide/unhide built-in and custom groups, create/delete a custom group, and reset a built-in group. Confirm immediate HUD/notification behavior and the full-reset confirmation.
+- [ ] Switch account/character lists through both settings and the editor; import a profile and confirm no stale matches or lost partial defaults.
+- [ ] Reload the UI, inspect the saved rule fields, and confirm only raw deltas remain while unmodified values still follow defaults.
+- [ ] On a disposable test profile only, verify `/icclearoverrides` clears the active list, restores baseline behavior immediately, and leaves the other list unchanged.
