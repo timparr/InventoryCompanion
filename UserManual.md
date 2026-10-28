@@ -63,6 +63,10 @@ On the tracker HUD, left-click a group header to expand or collapse it. Right-cl
 
 Only your edits to predefined groups are saved. Unmodified names, patterns, and display settings can follow updated defaults in future addon versions. Restoring an edited value to its default removes that override.
 
+[B]Saved settings upgrades and rollback:[/B] This release upgrades saved settings from version 1 to version 2, preserving tracked items, group edits, and other settings. All stored account and character lists are converted at startup, including inactive characters. Back up your saved variables before upgrading. No automatic backup is created.
+
+If saved settings require a newer version than the installed addon supports, the addon stops initialization with an error before loading or changing those settings. Install a compatible newer addon or restore a compatible backup. This protection only exists in builds containing the version check: older releases without it cannot safely read the new group format. To return to one of those releases, restore a backup from before migration; reinstalling the older addon alone is not sufficient.
+
 [URL=./custom-groups-editor.svg]Schematic of the custom-groups editor, showing the group list and pattern rules[/URL]
 
 [SIZE="4"][B]Use account-wide or character-specific lists[/B][/SIZE]

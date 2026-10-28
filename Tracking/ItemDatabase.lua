@@ -222,8 +222,9 @@ function this.PrepareSavedVariables()
                 string.format("[InventoryCompanion] %s uses saved-variable version %s, but this addon supports version %s. "
                     .. "Initialization stopped without changing saved data. Install a compatible newer addon or restore a compatible backup.",
                     context, tostring(version), tostring(this.SettingsVersion)))
-            assert(version == 1 or version == this.SettingsVersion,
-                context .. " has no supported migration from version " .. tostring(version))
+            assert(version == this.SettingsVersion or (version == 1 and this.SettingsVersion == 2),
+                context .. " has no supported migration from version " .. tostring(version)
+                    .. " to version " .. tostring(this.SettingsVersion))
             table.insert(profiles, { data = profile, context = context })
         end
     end

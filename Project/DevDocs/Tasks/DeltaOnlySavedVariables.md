@@ -203,9 +203,10 @@ trackedRules = {
 - Baseline-equivalent edits and empty collections are absent. An empty built-in override is removed; an empty custom-rule table remains because its key defines the group.
 - `UpdateRulePatterns` reconciles the complete edited list. `UpdateRuleProperty` accepts `displayName`; `UpdateRuleFlag` accepts existing display flags. `SetRuleFlag` remains a compatibility alias.
 - `GetRuntimeRules` exposes the shared read-only-by-contract cache, including hidden rules. `GetActiveTrackedRules` returns filtered private pattern/display views; its compiled arrays are shared and must not be modified.
-- Legacy full `patterns` arrays are converted against the installed baseline on first resolution/import without changing the source profile during import. Only the active profile is converted on read. Equal legacy name/display values are pruned.
+- Saved-variable version 2 replaces the original on-read migration policy. Before ZOS constructors run, `PrepareSavedVariables` checks versions for every stored account/character profile in `Default`, then stages version-1 rule conversion against the installed baseline. Only after every profile validates/converts are replacement rules and version 2 published. This includes inactive characters, other accounts, and version-1 development data already containing deltas. Equal legacy name/display values are pruned. Import still normalizes a destination copy without changing its source; recognized legacy fields can also be normalized by the runtime resolver.
 - Conversion preserves the old effective list at migration time, but cannot distinguish an intentional old override from a default copied by an older editor. Once converted, subsequent baseline additions appear unless explicitly removed.
-- No compiled patterns or cache fields are saved. The saved-variable namespace/version is unchanged; older addon builds do not understand the new delta fields. Back up saved variables before client testing or downgrading; restore that backup when reverting to an older build.
+- No compiled patterns or cache fields are saved. The saved-variable namespace is unchanged; its ESO version is now 2. Newer stored versions cause a contextual Lua error before either ZOS constructor, UI setup, or module initialization, leaving saved data untouched and the addon unloaded. Malformed versions/containers/rules are rejected rather than silently reset; existing unversioned profiles are rejected, but absent profiles initialize normally.
+- Older builds without the new guard still do not understand delta fields and cannot safely downgrade. Back up saved variables before upgrading/client testing and restore a pre-migration backup when reverting to such a build. No automatic backup or on-disk rewriting is performed by the migration; ESO persists the in-memory changes normally.
 - Reset clears only the selected built-in group's name and pattern overrides (including legacy full-pattern lists). All display settings, including hidden state, are retained. Empty rule entries are pruned only when no overrides remain. Display-only overrides do not offer Reset. Deletion is restricted to custom rules. Both operations affect only the active profile.
 
 ## Repeatable automated verification
@@ -219,13 +220,19 @@ python Project\Tests\Run-RuleTests.py
 git diff --check
 ```
 
-The headless runner now executes 20 shared rule cases, six actual group-editor handler cases with fake controls, and three production-baseline/persistence/command cases under Lua 5.1. The packaging suite uses its own temporary installation fixture. Neither reads or modifies live saved-variable files or live inventory. In game, `/ictest verbose` includes the 20 shared cases alongside the existing suite; synthetic fixtures restore the original runtime references even on test failure.
+The headless runner now executes 39 cases under Lua 5.1: 20 shared rule cases, six actual group-editor handler cases with fake controls, three production-baseline/persistence/command cases, and ten isolated startup/version/migration cases. The startup tests invoke the actual addon-loaded handler with a ZOS double reproducing its destructive version handling. The packaging suite uses its own temporary installation fixture. Neither reads or modifies live saved-variable files or live inventory. In game, `/ictest verbose` includes the 20 shared cases alongside the existing suite; synthetic fixtures restore the original runtime references even on test failure.
+
+### Future saved-variable changes
+
+Keep the pre-load version check before all ZOS constructors. Increment `SettingsVersion` only with an explicit data-preserving migration for each supported older schema; do not rely on ZOS's version argument to migrate data. ZOS clears missing/older versions and overwrites higher version numbers with the requested version, so neither direction is safe without our preflight. Unknown future versions must remain rejected. The migration path currently supports version 1 to 2 only.
 
 ## In-game acceptance checklist (not yet executed)
 
 Back up saved variables before testing migration. The existing publishing script's `-Action Backup` copies and hash-verifies the last-on-disk snapshot; it does not capture ESO's unsaved in-memory state.
 
 - [ ] Run `/ictest verbose`; confirm shared rule tests and real-client timing thresholds pass.
+- [ ] With disposable version-1 account/character fixtures, verify startup upgrades every profile to version 2 while preserving effective rules, tracked items, and unrelated settings. Reload and verify persisted version-2 data.
+- [ ] With a disposable version-3 profile (including an inactive character), verify initialization raises a clear compatibility error, leaves the addon unloaded, and does not change saved settings or their versions. Do not use a live profile for this check.
 - [ ] Rename a built-in group, edit a pattern, and toggle flags. Confirm each persists independently and pattern editing never resets the name.
 - [ ] Follow the sequential pattern scenarios above, including reversion, duplicate edits, and removing all patterns. Confirm the effective HUD/matching results.
 - [ ] Move focus between pattern rows; confirm text/rows do not jump and Reset becomes available without a list rebuild. Confirm explicit add/delete operations rebuild normally.

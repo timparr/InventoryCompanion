@@ -165,6 +165,16 @@ function GetSavedVariablesTests()
             end,
         },
         {
+            name = "Increasing the expected version cannot silently skip an unimplemented migration",
+            run = function()
+                local profile = { version = 1, trackedRules = { custom = { patterns = { "Keep*" } } } }
+                local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
+                addon.SettingsVersion = 3
+                AssertStopped(addon, calls, "no supported migration from version 1 to version 3")
+                assert(profile.version == 1 and profile.trackedRules.custom.patterns[1] == "Keep*")
+            end,
+        },
+        {
             name = "Malformed saved versions and namespace containers fail without reset",
             run = function()
                 for _, version in ipairs({ false, "2", 0, -1, 1.5, math.huge, 0 / 0 }) do

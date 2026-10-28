@@ -100,7 +100,7 @@ In [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
 1. **Storage names and shape:** used sorted arrays named `addedPatterns` and `removedPatterns`, rather than a nested collection object.
 2. **Full-list reconciliation:** the UI supplies its complete edited list. The database calculates the delta; it does not expose separate public add/remove/modify-pattern methods. The design's `GetList()` behavior is provided by the internal `GetPatternList`, not a public object method named `GetList`.
 3. **Equality rules:** pattern uniqueness is case-sensitive and exact, while matching remains case-insensitive. `"Rune"` and `"rune"` are therefore distinct saved values.
-4. **Automatic legacy conversion:** old `patterns` arrays are converted when active rules are resolved. Reading rules can therefore modify the active saved-variable table in memory; this is not a separate migration command.
+4. **Automatic legacy conversion (original decision, superseded by the versioned-startup follow-up below):** old `patterns` arrays were converted when active rules were resolved. Reading rules could therefore modify the active saved-variable table in memory; this was not a separate migration command.
 5. **Migration against the installed baseline:** preserves the old effective list at conversion time, apart from intentional uniqueness/sorting. It cannot distinguish an intentional edit from a default copied by an older editor.
 6. **Prune baseline-equivalent values:** names and flags equal to the current baseline are removed. A choice equal to today's default is not retained as a permanent pin against future default changes.
 7. **Custom groups use the same delta format:** custom groups have no baseline patterns, so their patterns are additions. An empty custom-group table is retained because its key defines the group.
@@ -290,7 +290,7 @@ All addon Lua syntax checks and `git diff --check` passed. Native ESO focus/even
 6. **Exercise the actual slash handler.** The persistence harness loads the real initialization module with minimal event/printing stubs, then invokes `/icclearoverrides` for account and character lists.
 7. **Run existing packaging regression after the manifest change.** The suite uses its own temporary installation fixture, not the real adjacent installation.
 8. **Do not claim client acceptance.** Project tracking explicitly leaves native UI behavior, actual UI reload persistence, and real-client timing pending.
-9. **Do not change the saved-variable namespace or version.** Legacy conversion occurs in the existing namespace. Older addon builds do not understand delta fields; the documentation therefore warns to restore a backup when downgrading. This is a compatibility decision worth explicit review.
+9. **Do not change the saved-variable namespace or version (original decision, superseded below).** Initially, legacy conversion occurred in the existing namespace without a version bump. The versioned-startup follow-up keeps the namespace but increments the ESO saved-variable version to 2 and adds pre-load downgrade refusal.
 10. **Do not automatically back up or migrate on-disk files during development checks.** All new execution used synthetic data. The client checklist recommends backing up before migration testing.
 
 ### Verification at this point
@@ -415,7 +415,7 @@ git diff --check
 
 The package install is needed only if `lupa` is not already available. These checks do not transfer inventory or modify live saved-variable files.
 
-In ESO, `/ictest verbose` includes the fourteen shared cases alongside the existing suite. Fake UI and serialization harnesses are headless-only. Shared fixtures restore original runtime references after execution, including test failures.
+In ESO, `/ictest verbose` includes the twenty shared cases alongside the existing suite. Fake UI, serialization, and startup/version harnesses are headless-only. Shared fixtures restore original runtime references after execution, including test failures.
 
 ## Remaining review and client acceptance
 
@@ -435,13 +435,15 @@ The user approved preserving settings through explicit migration from ESO saved-
 ### Subtasks
 
 1. [x] Implement version-2 startup migration and pre-load downgrade refusal, with isolated unit tests. Validate every stored profile in the addon's `Default` namespace before publishing any migration; preserve unrelated settings. Newer or malformed versions must stop initialization before ZOS can reset or overwrite them.
-2. [ ] Update user/design documentation, run the focused rule and packaging checks, and record the results and remaining client checks.
+2. [x] Update user/design documentation, run the focused rule and packaging checks, and record the results and remaining client checks.
 
 Commit each completed subtask and append its changes/results here.
 
 ### Compatibility decision
 
 The ZOS loader clears data when its stored version is missing or lower than the requested version, and assigns the requested version even when the stored version is higher. Therefore our check and data-preserving migration must run before either ZOS constructor. Version 1 profiles already converted by the earlier development implementation must also migrate without losing deltas. Already-released builds without this guard still cannot safely downgrade; restore a pre-migration backup instead.
+
+Source verified during implementation: [ZOS saved-variable implementation](https://github.com/esoui/esoui/blob/master/esoui/libraries/utility/zo_savedvars.lua), `CreateExposedInterface`. This follow-up uses ESO's existing per-profile `version`, not an additional addon-owned schema marker.
 
 ### Subtask 1 completed - startup migration and tests
 
@@ -452,6 +454,15 @@ The ZOS loader clears data when its stored version is missing or lower than the 
 - [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py): runs the startup tests in their own Lua state, without live inventory or saved variables.
 - Validation: 38/38 isolated tests pass; all addon Lua parses under Lua 5.1; `git diff --check` passes. Latest synthetic burst checks: 46/500 ms for scans, 0/100 ms for matches, 1/200 ms for updates.
 - The guard throws before constructors/modules/UI setup, leaving `state.isLoaded` false. It does not silently continue, reset data, or implement an automatic downgrade conversion.
+
+### Subtask 2 completed - documentation and final validation
+
+- Subtask 1 implementation/tests committed as `a862f50`; the pre-work plan was committed as `306dfca`.
+- [UserManual.md](../../../UserManual.md) explains the settings-preserving upgrade, inactive-profile scope, compatibility error, lack of automatic backup, and the need to restore a backup when reverting to builds without the guard.
+- [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) now records the current versioned startup policy, future migration requirements, updated test inventory, and disposable-profile client acceptance checks. Earlier decisions here are explicitly marked superseded rather than silently rewritten as though they were original choices.
+- Final verification also made the supported upgrade pair explicitly version 1 to 2, rather than allowing a version-1 conversion to stamp any future expected version. A tenth startup test raises the expected version to 3 and verifies refusal until that migration is implemented.
+- Final validation: 39/39 isolated cases passed; addon Lua 5.1 syntax checks passed; 187 isolated packaging assertions passed without touching the live installation or saved variables. Whitespace and relative documentation links were checked.
+- Remaining: verify native ESO error presentation, startup migration, persistence across reloads, and refusal using disposable higher-version profiles. No live saved-variable file or inventory was used for development checks.
 
 ## Follow-up - fail-fast internals and saved-data ownership boundary
 
