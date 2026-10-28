@@ -1,5 +1,13 @@
 # Project Instructions
 
+## Fail Hard, Fail Fast - All Work
+
+- Do not guard addon-owned functions or required internal state that should exist. Call/use them directly so defects we can fix throw errors as close to the root cause as possible.
+- Do not hide broken internal assumptions with nil checks, silent early returns, fallback values/tables, or catches that continue as though the operation succeeded. Validate internal API contracts at entry when useful and throw on violations.
+- Availability checks for external ZOS APIs are allowed (for example, checking whether a ZOS function is nil before calling it); this is not permission to guard our own functions.
+- Missing optional saved fields may inherit documented defaults, and recognized legacy data may follow explicit migration rules. Do not infer a blanket saved-data exception or generalize scoped recovery rules; any other exception must be explicitly agreed and documented.
+- Apply this rule to every implementation, refactor, bug fix, and review.
+
 ## Instruction Maintenance
 
 - Keep this file concise; move context-specific guidance into scoped instruction files when it grows enough to justify the extra files.
