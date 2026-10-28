@@ -124,6 +124,8 @@ Start with default patterns `{a, b, c}` and empty Added and Removed collections.
 
 ## Implementation subtasks and work log
 
+For the detailed per-subtask file/method inventory, implementation decisions, and corrections, see the separate [implementation and decision review](Don_DeltaOnlySavedVariables.md).
+
 Each numbered subtask is committed separately, with its results appended here.
 All implementation remains on the existing branch unless a branch switch is approved.
 
