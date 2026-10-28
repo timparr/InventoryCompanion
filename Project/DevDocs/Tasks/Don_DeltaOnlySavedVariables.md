@@ -464,6 +464,16 @@ Source verified during implementation: [ZOS saved-variable implementation](https
 - Final validation: 39/39 isolated cases passed; addon Lua 5.1 syntax checks passed; 187 isolated packaging assertions passed without touching the live installation or saved variables. Whitespace and relative documentation links were checked.
 - Remaining: verify native ESO error presentation, startup migration, persistence across reloads, and refusal using disposable higher-version profiles. No live saved-variable file or inventory was used for development checks.
 
+### Native-client evidence retained for the future release review - 2026-10-28
+
+- Tim supplied the [complete diagnostic report](../../Tests/Evidence/1.3.0-20261028-client-tests.txt): **78/78 passed**, release installation `InventoryCompanion`, runtime 1.3.0, DEV=false, AddOnVersion 10300. Environment: live build `eso.live.12.1.6.3309674`, API 101051, EU Megaserver, English, ESO Plus enabled, bank closed.
+- Performance: synthetic scans 50/500 ms, slot-rule matches 0/100 ms, tracked-item updates 2/200 ms; 100 read-only live scans 332/500 ms with 1106 occupied entries. All reported thresholds passed.
+- All 31 staged file hashes were independently checked against the staging records after receipt. Candidate SHA256: `AF8430F1232A06A6C4290117614BDBC1FA64B6106916C016D099FB24ECF057E5`. These results apply to that candidate, not unspecified later DEV changes.
+- After Tim's UI reload, both on-disk installation saved-variable files were written at approximately **17:25:31 UTC**. A read-only comparison with the pre-staging backups confirmed all 11 profiles at version 2, no missing original profiles, no legacy pattern lists, six added-pattern lists, four removed-pattern lists, and no persisted runtime rule fields.
+- Every profile's saved rules exactly matched the expected conversion of its pre-staging backup using the production migration/current baseline. No unrelated profile fields, including tracked items, changed. Private saved data and account/character identifiers are not copied into this record.
+- This supplies native startup/reload-persistence evidence and the full diagnostic run for later review. It does **not** prove native higher-version refusal/error presentation, visual/editor behavior, actual transfers, or every other release-review requirement.
+- No review, approval, finalization, or publication was performed. Reuse this evidence when reviewing the unchanged staged 1.3.0 candidate; repeat affected checks only if candidate changes or findings justify it.
+
 ## Follow-up - fail-fast internals and saved-data ownership boundary
 
 The user clarified the project-wide rule: defensive checks belong at boundaries with code/data we do not maintain. ZOS and dependent addons are examples. Our saved data also crosses a boundary because users can edit it outside the addon. Within maintained code, required functions and state must not be hidden behind guards or silent fallbacks.

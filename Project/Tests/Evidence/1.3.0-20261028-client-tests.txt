@@ -1,0 +1,97 @@
+Author-supplied diagnostic report, received 2026-10-28 at 17:26 UTC.
+Candidate disk hashes verified separately at 17:27 UTC against all 31 staged file records.
+Candidate SHA256: AF8430F1232A06A6C4290117614BDBC1FA64B6106916C016D099FB24ECF057E5
+This records evidence, not release approval. No transfers or visual/UI behavior are inferred.
+
+[InventoryCompanion tests] 78/78 passed; 20 x 100-item scans / 20 rules: 50/500 ms; 100 slot-rule matches: 0/100 ms; 100 tracked-item slot updates: 2/200 ms; 100 live backpack/bank/craft-bag scans (bank closed): 332/500 ms, 1106 occupied entries
+[InventoryCompanion tests] INFO Environment: timestamp=1793208353 (Unix UTC); game=eso.live.12.1.6.3309674; API=101051; server=EU Megaserver; language=en
+[InventoryCompanion tests] INFO Installation: InventoryCompanion; runtime version=1.3.0; DEV=false; ESO Plus=true; bank=closed
+[InventoryCompanion tests] INFO Enabled add-on: AddonSelector; AddOnVersion=302030; state=2; outOfDate=false
+[InventoryCompanion tests] INFO Enabled add-on: InventoryCompanion; AddOnVersion=10300; state=2; outOfDate=false
+[InventoryCompanion tests] INFO Enabled add-on: LibScrollableMenu; AddOnVersion=20407; state=2; outOfDate=false
+[InventoryCompanion tests] INFO Enabled add-on: VotansKeybinder; AddOnVersion=0; state=2; outOfDate=true
+[InventoryCompanion tests] INFO Enabled add-on: LibAddonMenu-2.0; AddOnVersion=43; state=2; outOfDate=true
+[InventoryCompanion tests] INFO Conditional currency coverage: Alliance Points; ID=2; available=true
+[InventoryCompanion tests] INFO Conditional currency coverage: Transmute Crystals; ID=5; available=true
+[InventoryCompanion tests] INFO Transmute Crystals capped-colour assertions enabled=true
+[InventoryCompanion tests] INFO Conditional currency coverage: Trade Bars; ID=9; available=true
+[InventoryCompanion tests] INFO Human evidence still required: Live/PTS channel, candidate SHA256/installation verification, manifest API/minimum-version comparison, UI/event delivery, transfers, persistence and collision checks.
+[InventoryCompanion tests] INFO Safety: live scans are read-only; synthetic tests temporarily replace runtime state and restore it; no inventory transfers or intentional saved-variable writes.
+[InventoryCompanion tests] PASS Runtime and dependency discovery
+[InventoryCompanion tests] PASS Live read-only scan: 100 scans, 1106 occupied entries on final scan, bank closed
+[InventoryCompanion tests] PASS Progress bar resource model and preferences
+[InventoryCompanion tests] PASS Currency notification preferences and changes
+[InventoryCompanion tests] PASS Prune known saved-variable diagnostic keys only
+[InventoryCompanion tests] PASS Currency panel resource preferences
+[InventoryCompanion tests] PASS Live currency helper API
+[InventoryCompanion tests] PASS Profile import copies tracked items and rule overrides
+[InventoryCompanion tests] PASS Tracked item count respects backpack and craft-bag scope
+[InventoryCompanion tests] PASS Case-insensitive substring matching
+[InventoryCompanion tests] PASS Wildcard matching
+[InventoryCompanion tests] PASS Literal punctuation and missing names
+[InventoryCompanion tests] PASS Any-pattern matching
+[InventoryCompanion tests] PASS Baseline and saved-rule override resolution
+[InventoryCompanion tests] PASS Display-flag writes preserve other overrides
+[InventoryCompanion tests] PASS 100-item backpack and craft-bag scan
+[InventoryCompanion tests] PASS Repeated 100-item inventory scan performance
+[InventoryCompanion tests] PASS 100 repeated slot-rule matches
+[InventoryCompanion tests] PASS 100 synthetic tracked-item slot updates
+[InventoryCompanion tests] PASS Event listener transitions and refresh debounce
+[InventoryCompanion tests] PASS Currency messages: capped balance colours follow the progress bar thresholds
+[InventoryCompanion tests] PASS Currency messages: Picking up 10 gold
+[InventoryCompanion tests] PASS Currency messages: Picking up three 10-gold piles in quick succession merges
+[InventoryCompanion tests] PASS Currency messages: Picking up three 10-gold piles with quiet periods between
+[InventoryCompanion tests] PASS Currency messages: Withdrawing 10 gold (bank event first)
+[InventoryCompanion tests] PASS Currency messages: Withdrawing 10 gold (bag event first)
+[InventoryCompanion tests] PASS Currency messages: Depositing 10 gold
+[InventoryCompanion tests] PASS Currency messages: Withdrawing a large amount
+[InventoryCompanion tests] PASS Currency messages: Depositing a large amount
+[InventoryCompanion tests] PASS Currency messages: Spending a large amount
+[InventoryCompanion tests] PASS Currency messages: Spending a small amount
+[InventoryCompanion tests] PASS Currency messages: Login balance report is silent
+[InventoryCompanion tests] PASS Currency messages: Withdrawing then depositing the same amount in one window sends nothing
+[InventoryCompanion tests] PASS Currency messages: Pickup and withdrawal in one window show consistent balances
+[InventoryCompanion tests] PASS Currency messages: Alliance Points gained
+[InventoryCompanion tests] PASS Currency messages: Alliance Points spent
+[InventoryCompanion tests] PASS Currency messages: Alliance Points withdrawn from the bank
+[InventoryCompanion tests] PASS Currency messages: Alliance Points deposited in the bank
+[InventoryCompanion tests] PASS Currency messages: Transmute Crystals gained
+[InventoryCompanion tests] PASS Currency messages: Transmute Crystals spent
+[InventoryCompanion tests] PASS Currency messages: Trade Bars gained
+[InventoryCompanion tests] PASS Currency messages: Trade Bars spent
+[InventoryCompanion tests] PASS Capacity messages: bag space used by looting
+[InventoryCompanion tests] PASS Capacity messages: bag space freed by selling
+[InventoryCompanion tests] PASS Capacity messages: bag changes that cancel out
+[InventoryCompanion tests] PASS Capacity messages: bag space crossing the warning and danger thresholds
+[InventoryCompanion tests] PASS Capacity messages: bank to bag move
+[InventoryCompanion tests] PASS Capacity messages: bag to bank move
+[InventoryCompanion tests] PASS Capacity messages: moving a stack of 10 counts all items
+[InventoryCompanion tests] PASS Capacity messages: stack merged into an existing stack still reports the move
+[InventoryCompanion tests] PASS Capacity messages: bank change away from the bank is silent
+[InventoryCompanion tests] PASS Capacity messages: opposite changes without a bank visit are bag-only
+[InventoryCompanion tests] PASS Capacity messages: transfer plus a pickup
+[InventoryCompanion tests] PASS Capacity messages: bag-only notification during a withdrawal
+[InventoryCompanion tests] PASS Capacity messages: disabled notifications stay silent
+[InventoryCompanion tests] PASS Capacity messages: load-screen reports stay silent
+[InventoryCompanion tests] PASS Capacity messages: balance colours follow the progress bar thresholds
+[InventoryCompanion tests] PASS Capacity notification preferences
+[InventoryCompanion tests] PASS Delta patterns follow the sequential specification
+[InventoryCompanion tests] PASS Delta patterns are unique and support empty lists and custom groups
+[InventoryCompanion tests] PASS Rule setters write only selected fields and prune restored defaults
+[InventoryCompanion tests] PASS Legacy rules convert to sparse overrides without altering the baseline
+[InventoryCompanion tests] PASS Invalid rule mutations fail without writing saved state
+[InventoryCompanion tests] PASS Saved rule boundary rejects malformed data without discarding it
+[InventoryCompanion tests] PASS Initialization validates inactive saved profiles and optional absence
+[InventoryCompanion tests] PASS Internal mutation contracts reject sparse lists and invalid list switches
+[InventoryCompanion tests] PASS Broken maintained baselines fail before normalization or writes
+[InventoryCompanion tests] PASS Scans require compiled rules instead of silently compiling raw input
+[InventoryCompanion tests] PASS Runtime cache rebuilds lazily and keeps editor views isolated
+[InventoryCompanion tests] PASS Hidden groups stay cached and list switching invalidates immediately
+[InventoryCompanion tests] PASS Failed runtime rebuilds do not publish partial caches
+[InventoryCompanion tests] PASS Profile copy preserves sparse deltas and never aliases its source
+[InventoryCompanion tests] PASS Malformed imported rules fail before clearing the destination
+[InventoryCompanion tests] PASS Scanning and notifications use current compiled rules
+[InventoryCompanion tests] PASS Group lifecycle mutations invalidate and clear only the active profile
+[InventoryCompanion tests] PASS Untouched defaults allocate no saved rule data
+[InventoryCompanion tests] PASS Reconciled pattern deltas obey set invariants across repeated edits
+[InventoryCompanion tests] PASS Cached synthetic scans and inventory bursts stay within thresholds
