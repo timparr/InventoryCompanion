@@ -1,6 +1,6 @@
 # Delta-Only Saved Variables
 
-**Status:** Planned
+**Status:** In progress
 
 ## Goal
 
@@ -121,3 +121,21 @@ Start with default patterns `{a, b, c}` and empty Added and Removed collections.
 5. Rename a group and toggle a display flag; verify each operation changes only its own saved property.
 6. Reload the UI and confirm saved overrides are applied while unmodified properties continue to use the baseline.
 7. Edit a pattern and move focus; confirm the HUD refreshes without the group editor rows jumping or rebuilding unexpectedly.
+
+## Implementation subtasks and work log
+
+Each numbered subtask is committed separately, with its results appended here.
+All implementation remains on the existing branch unless a branch switch is approved.
+
+- [x] 0. Checkpoint the existing work and record this implementation breakdown.
+- [ ] 1. Implement delta storage, focused setters, legacy conversion, and isolated rule unit tests.
+- [ ] 2. Add the lazy compiled runtime cache and wire scanning, notifications, profile copying, and list switching; extend tests.
+- [ ] 3. Route group-editor mutations through the new APIs, including create/delete/reset/unhide; preserve focus-loss behavior and test editor paths.
+- [ ] 4. Run final regression checks, document the storage contract and in-game verification steps, and update task tracking.
+
+### Subtask 0 - checkpoint and breakdown
+
+- Committed the pre-existing documentation changes before implementation (`d5eaf6a`).
+- Inspected rule resolution, group editing, profile copying, matching, and existing synthetic tests.
+- Existing full pattern lists will be reconciled against the installed baseline on first use; explicit edits are preserved, redundant baseline values are removed. Historical intent cannot be recovered when an older release copied a default that has since changed.
+- Additional tests will use isolated fixtures, never live inventory or saved variables. Native ESO UI behavior and real-client timings still require in-game verification.
