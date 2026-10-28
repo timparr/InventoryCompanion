@@ -378,7 +378,7 @@ SetActionButtons = function(activeRules)
         btnHide:SetHidden(true)
         btnDelete:SetHidden(true)
         
-        local hasOverride = this.HasRuleOverrides(groupId)
+        local hasOverride = this.HasResettableRuleOverrides(groupId)
         if hasOverride then
             btnReset:SetHidden(false)
             btnReset:ClearAnchors()
@@ -399,7 +399,7 @@ SetActionButtons = function(activeRules)
     end
 
     local basePreloaded = this.preLoadedRulesets[groupId]
-    local hasOverride = this.HasRuleOverrides(groupId)
+    local hasOverride = this.HasResettableRuleOverrides(groupId)
 
     local ruleData = activeRules[groupId]
     local isHidden = ruleData and ruleData.display.isHidden == true
@@ -628,7 +628,7 @@ ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_CONFIRM_RESET_GROUP_DIALOG",
         text = function(dialog)
             local data = dialog.data
             return string.format(
-                "Are you sure you want to reset '%s' to its default state?\n\n|cFF5252Its custom name, pattern edits, and display settings will be cleared.|r",
+                "Are you sure you want to reset the name and patterns for '%s' to their defaults?\n\n|cFF5252Its custom name and pattern edits will be cleared. Display settings will be kept.|r",
                 data.groupName
             )
         end

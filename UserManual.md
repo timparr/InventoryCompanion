@@ -58,7 +58,7 @@ On the tracker HUD, left-click a group header to expand or collapse it. Right-cl
 [*]Select [B]+ New Group[/B]. A new group is created and its name field opens; enter a name and press Enter or move focus away to save it.
 [*]Select [B]+ Add Pattern[/B] to add a matching rule. Enter an item-name pattern, then move focus away from the field to save it. Add multiple patterns if needed; an item matching any one of them belongs to the group. Matching ignores letter case, and [B]*[/B] matches any part of an item name. For example, [B]*treasure map*[/B] matches names containing "treasure map".
 [*]Return to [B]Edit Items[/B] to adjust the group's [B]Show[/B], [B]Notify[/B], [B]Totals[/B], and [B]Group[/B] settings. [B]Notify[/B] alerts when a matching item is gained; [B]Totals[/B] includes bank holdings; [B]Group[/B] controls whether the rule is displayed as a group on the tracker.
-[*]In [B]Edit Groups[/B], use the group action buttons to hide/unhide or delete a custom group. Resetting a predefined group clears its custom name, pattern edits, and display settings, restoring the current addon defaults. The [B]Miscellaneous[/B] group is a special catch-all and does not have editable patterns.
+[*]In [B]Edit Groups[/B], use the group action buttons to hide/unhide or delete a custom group. Resetting a predefined group restores only its name and pattern list to the current addon defaults. All display settings, including hidden state, are retained. The [B]Miscellaneous[/B] group is a special catch-all and does not have editable patterns.
 [/LIST]
 
 Only your edits to predefined groups are saved. Unmodified names, patterns, and display settings can follow updated defaults in future addon versions. Restoring an edited value to its default removes that override.

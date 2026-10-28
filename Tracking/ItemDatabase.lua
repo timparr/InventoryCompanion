@@ -208,9 +208,10 @@ function this.UpdateRulePatterns(ruleName, uiPatterns)
     this.InvalidateRuleCache()
 end
 
-function this.HasRuleOverrides(ruleName)
+function this.HasResettableRuleOverrides(ruleName)
     local saved = GetRawSavedRules()[ruleName]
-    return saved ~= nil and next(saved) ~= nil
+    return saved ~= nil and (saved.displayName ~= nil or saved.patterns ~= nil
+        or saved.addedPatterns ~= nil or saved.removedPatterns ~= nil)
 end
 
 function this.CreateCustomRule(ruleName, displayName)
@@ -227,7 +228,15 @@ end
 
 function this.ResetRule(ruleName)
     assert(this.preLoadedRulesets[ruleName], "Only built-in rules can be reset")
-    GetRawSavedRules()[ruleName] = nil
+    local savedRules = GetRawSavedRules()
+    local saved = savedRules[ruleName]
+    if saved then
+        saved.displayName = nil
+        saved.patterns = nil
+        saved.addedPatterns = nil
+        saved.removedPatterns = nil
+        PruneRule(savedRules, ruleName)
+    end
     this.InvalidateRuleCache()
 end
 

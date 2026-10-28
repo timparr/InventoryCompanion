@@ -83,7 +83,7 @@ Other rule-state changes that invalidate the cache:
 - Successfully copying/importing a profile, which replaces the active list's saved rule overrides.
 - Creating a custom group.
 - Deleting a group.
-- Resetting a group, which clears its saved overrides.
+- Resetting a group, which clears only its saved name and pattern overrides and retains all display settings.
 - Unhiding a group. Route this through `UpdateRuleFlag`/`SetRuleFlag` where possible rather than writing the flag directly.
 - Clearing all rule overrides with `/icclearoverrides`.
 
@@ -163,7 +163,7 @@ All implementation remains on the existing branch unless a branch switch is appr
 
 - Group renaming and pattern editing now call the focused setters; pattern edits no longer overwrite a renamed group or copy display defaults.
 - Creation, deletion, reset, and both built-in/custom unhide paths use invalidating mutation APIs. New custom groups persist only their edited name.
-- Reset follows the design's full-override-clear behavior, including display flags. Updated the confirmation to name the settings being cleared, and made display-only overrides eligible for Reset.
+- The initial implementation incorrectly cleared display flags on Reset. The post-implementation correction below restores the required name-and-pattern-only behavior; display-only overrides do not offer Reset.
 - Focus-loss saves refresh the HUD and action buttons without rebuilding/reanchoring group or pattern rows.
 - Added one shared lifecycle unit test and five headless tests that exercise the actual group-editor handlers using fake ESO controls. Fake controls are never loaded by the addon.
 - Validation: 16/16 isolated rule/editor cases pass under Lua 5.1; all addon Lua syntax checks and `git diff --check` pass. Native ESO focus/event ordering still needs the in-game check below.
@@ -204,7 +204,7 @@ trackedRules = {
 - Legacy full `patterns` arrays are converted against the installed baseline on first resolution/import without changing the source profile during import. Only the active profile is converted on read. Equal legacy name/display values are pruned.
 - Conversion preserves the old effective list at migration time, but cannot distinguish an intentional old override from a default copied by an older editor. Once converted, subsequent baseline additions appear unless explicitly removed.
 - No compiled patterns or cache fields are saved. The saved-variable namespace/version is unchanged; older addon builds do not understand the new delta fields. Back up saved variables before client testing or downgrading; restore that backup when reverting to an older build.
-- Reset clears the entire selected built-in override, including display flags. Deletion is restricted to custom rules. Both operations affect only the active profile.
+- Reset clears only the selected built-in group's name and pattern overrides (including legacy full-pattern lists). All display settings, including hidden state, are retained. Empty rule entries are pruned only when no overrides remain. Display-only overrides do not offer Reset. Deletion is restricted to custom rules. Both operations affect only the active profile.
 
 ## Repeatable automated verification
 
@@ -227,7 +227,15 @@ Back up saved variables before testing migration. The existing publishing script
 - [ ] Rename a built-in group, edit a pattern, and toggle flags. Confirm each persists independently and pattern editing never resets the name.
 - [ ] Follow the sequential pattern scenarios above, including reversion, duplicate edits, and removing all patterns. Confirm the effective HUD/matching results.
 - [ ] Move focus between pattern rows; confirm text/rows do not jump and Reset becomes available without a list rebuild. Confirm explicit add/delete operations rebuild normally.
-- [ ] Hide/unhide built-in and custom groups, create/delete a custom group, and reset a built-in group. Confirm immediate HUD/notification behavior and the full-reset confirmation.
+- [ ] Hide/unhide built-in and custom groups, create/delete a custom group, and reset a built-in group. Confirm Reset restores only the name and patterns while retaining all display settings, including hidden state, and that its confirmation explains this.
 - [ ] Switch account/character lists through both settings and the editor; import a profile and confirm no stale matches or lost partial defaults.
 - [ ] Reload the UI, inspect the saved rule fields, and confirm only raw deltas remain while unmodified values still follow defaults.
 - [ ] On a disposable test profile only, verify `/icclearoverrides` clears the active list, restores baseline behavior immediately, and leaves the other list unchanged.
+
+## Post-implementation correction - group Reset
+
+- Requirement clarified: Reset must restore only a built-in group's name and pattern list. Display settings must be retained, including `show`, `notify`, `bank`, `group`, `isExpanded`, and `isHidden`.
+- Corrected `ResetRule` to remove only name/pattern fields, preserve the display override table, prune an otherwise empty rule, and invalidate the runtime cache.
+- Reset availability now checks only name/pattern overrides; display-only changes do not expose an ineffective Reset button.
+- Updated the confirmation and user manual. Extended shared and actual editor-handler tests to cover every display flag, hidden-state retention, repeated resets, empty-rule pruning, cache invalidation, and account/character isolation.
+- Validation: 21/21 isolated rule/editor/persistence cases pass; all addon sources parse under Lua 5.1; `git diff --check` passes. Native ESO acceptance remains pending.
