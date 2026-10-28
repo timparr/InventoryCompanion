@@ -3,6 +3,14 @@ InventoryCompanion = InventoryCompanion or {}
 local this = InventoryCompanion
 
 local itemCountsCache = {}
+local cacheInvalid = true
+local customDisplayDefaults = {
+    show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false,
+}
+
+function this.InvalidateRuleCache()
+    cacheInvalid = true
+end
 
 -- Items
 function this.GetActiveTrackedItems()
@@ -28,78 +36,138 @@ local function GetRawSavedRules()
     end
 end
 
-------------------------------------------------------------------
--- Get Active Tracked Rules 
-------------------------------------------------------------------
-function this.GetActiveTrackedRules(includeHidden)	 
-	local resolvedRules = {}
-    	
-    -- 1. Load pre-defined rules as authoritative baseline defaults
-    for ruleSlug, ruleData in pairs(this.preLoadedRulesets) do
-        resolvedRules[ruleSlug] = {
-            displayName = ruleData.displayName,
-            patterns = ruleData.patterns,
-            display = {
-                show = ruleData.display.show,
-                notify = ruleData.display.notify,
-                bank = ruleData.display.bank,
-                group = ruleData.display.group,
-                isExpanded = ruleData.display.isExpanded,
-                isHidden = ruleData.display.isHidden,
-            },
-            isPreloaded = true,
-        }
+local function PatternSet(patterns)
+    local values = {}
+    for _, pattern in ipairs(patterns or {}) do
+        assert(type(pattern) == "string", "Rule patterns must be strings")
+        values[pattern] = true
     end
-    	
-    -- 2. Apply partial user saved overrides
-    for key, savedData in pairs(GetRawSavedRules()) do
-        if resolvedRules[key] then
-            -- Pre-defined rule: only override properties explicitly modified by the user
-            if savedData.displayName ~= nil then
-                resolvedRules[key].displayName = savedData.displayName
-            end
-            if savedData.patterns ~= nil then
-                resolvedRules[key].patterns = savedData.patterns
-            end
-            if savedData.display then
-                for k, v in pairs(savedData.display) do
-                    if v ~= nil then
-                        resolvedRules[key].display[k] = v
-                    end
-                end
-            end
-        else
-            -- Custom user-created group
-            resolvedRules[key] = {
-                displayName = savedData.displayName or key,
-                patterns = savedData.patterns or {},
-                display = savedData.display or { show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false },
-                isPreloaded = false,
+    return values
+end
+
+local function SortedPatterns(values)
+    local patterns = {}
+    for pattern in pairs(values) do
+        table.insert(patterns, pattern)
+    end
+    table.sort(patterns)
+    return patterns
+end
+
+local function GetPatternList(base, saved)
+    local values = PatternSet(base and base.patterns)
+    for _, pattern in ipairs(saved.removedPatterns or {}) do
+        values[pattern] = nil
+    end
+    for _, pattern in ipairs(saved.addedPatterns or {}) do
+        values[pattern] = true
+    end
+    return SortedPatterns(values)
+end
+
+local function ReconcilePatterns(base, saved, patterns)
+    local defaults = PatternSet(base and base.patterns)
+    local edited = PatternSet(patterns)
+    local added, removed = {}, {}
+    for pattern in pairs(edited) do
+        if not defaults[pattern] then added[pattern] = true end
+    end
+    for pattern in pairs(defaults) do
+        if not edited[pattern] then removed[pattern] = true end
+    end
+    saved.addedPatterns = next(added) and SortedPatterns(added) or nil
+    saved.removedPatterns = next(removed) and SortedPatterns(removed) or nil
+    saved.patterns = nil
+end
+
+local function PruneRule(savedRules, ruleName)
+    local saved = savedRules[ruleName]
+    if saved.display and not next(saved.display) then saved.display = nil end
+    if this.preLoadedRulesets[ruleName] and not next(saved) then
+        savedRules[ruleName] = nil
+    end
+end
+
+local function NormalizeRule(savedRules, ruleName)
+    local saved = savedRules[ruleName]
+    local base = this.preLoadedRulesets[ruleName]
+    if saved.patterns ~= nil then
+        ReconcilePatterns(base, saved, saved.patterns)
+    end
+    local defaultName = base and base.displayName or ruleName
+    if saved.displayName == defaultName then saved.displayName = nil end
+    local defaults = base and base.display or customDisplayDefaults
+    for key, value in pairs(saved.display or {}) do
+        if value == defaults[key] then saved.display[key] = nil end
+    end
+    PruneRule(savedRules, ruleName)
+end
+
+function this.GetActiveTrackedRules(includeHidden)
+    local savedRules = GetRawSavedRules()
+    for ruleName in pairs(savedRules) do NormalizeRule(savedRules, ruleName) end
+    local resolvedRules = {}
+    local function Resolve(ruleName, base)
+        local saved = savedRules[ruleName] or {}
+        local display = {}
+        for key, value in pairs(base and base.display or customDisplayDefaults) do
+            display[key] = value
+        end
+        for key, value in pairs(saved.display or {}) do display[key] = value end
+        if includeHidden or ruleName == "miscellaneous" or not display.isHidden then
+            resolvedRules[ruleName] = {
+                displayName = saved.displayName or (base and base.displayName) or ruleName,
+                patterns = GetPatternList(base, saved),
+                display = display,
+                isPreloaded = base ~= nil,
             }
         end
     end
-    
-	-- 3. Filter out rules where isHidden == true (Excluding system fallback "miscellaneous")
-    for ruleName, ruleData in pairs(resolvedRules) do
-        if ruleName ~= "miscellaneous" and ruleData.display.isHidden == true and not includeHidden then
-            resolvedRules[ruleName] = nil
-        end
+    for ruleName, base in pairs(this.preLoadedRulesets) do Resolve(ruleName, base) end
+    for ruleName in pairs(savedRules) do
+        if not this.preLoadedRulesets[ruleName] then Resolve(ruleName) end
     end
-    
     return resolvedRules
 end
 
-
-------------------------------------------------------------------
--- Set Rule Flag (Ephemeral Toggle Writer)
-------------------------------------------------------------------
-function this.SetRuleFlag(ruleName, flagKey, value)
+function this.UpdateRuleFlag(ruleName, flagKey, value)
+    assert(customDisplayDefaults[flagKey] ~= nil, "Unknown rule display flag: " .. tostring(flagKey))
+    assert(value == nil or type(value) == "boolean", "Rule display flags must be boolean or nil")
     local savedRules = GetRawSavedRules()
-    
-    -- Ensure we only write the specific display flag, avoiding full pattern/name clones
     savedRules[ruleName] = savedRules[ruleName] or {}
-    savedRules[ruleName].display = savedRules[ruleName].display or {}
-    savedRules[ruleName].display[flagKey] = value
+    local saved = savedRules[ruleName]
+    local base = this.preLoadedRulesets[ruleName]
+    local defaults = base and base.display or customDisplayDefaults
+    saved.display = saved.display or {}
+    if value == defaults[flagKey] then value = nil end
+    saved.display[flagKey] = value
+    PruneRule(savedRules, ruleName)
+    this.InvalidateRuleCache()
+end
+
+this.SetRuleFlag = this.UpdateRuleFlag
+
+function this.UpdateRuleProperty(ruleName, propertyKey, value)
+    assert(propertyKey == "displayName", "Use UpdateRulePatterns for pattern edits")
+    assert(value == nil or type(value) == "string", "Rule display name must be a string or nil")
+    local savedRules = GetRawSavedRules()
+    savedRules[ruleName] = savedRules[ruleName] or {}
+    local base = this.preLoadedRulesets[ruleName]
+    if value == (base and base.displayName or ruleName) then value = nil end
+    savedRules[ruleName][propertyKey] = value
+    PruneRule(savedRules, ruleName)
+    this.InvalidateRuleCache()
+end
+
+function this.UpdateRulePatterns(ruleName, uiPatterns)
+    assert(type(uiPatterns) == "table", "Rule patterns must be a list")
+    -- Validate before creating an override, so failed edits leave saved state unchanged.
+    PatternSet(uiPatterns)
+    local savedRules = GetRawSavedRules()
+    savedRules[ruleName] = savedRules[ruleName] or {}
+    ReconcilePatterns(this.preLoadedRulesets[ruleName], savedRules[ruleName], uiPatterns)
+    PruneRule(savedRules, ruleName)
+    this.InvalidateRuleCache()
 end
 
 ------------------------------------------------------------------

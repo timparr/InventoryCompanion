@@ -128,7 +128,7 @@ Each numbered subtask is committed separately, with its results appended here.
 All implementation remains on the existing branch unless a branch switch is approved.
 
 - [x] 0. Checkpoint the existing work and record this implementation breakdown.
-- [ ] 1. Implement delta storage, focused setters, legacy conversion, and isolated rule unit tests.
+- [x] 1. Implement delta storage, focused setters, legacy conversion, and isolated rule unit tests.
 - [ ] 2. Add the lazy compiled runtime cache and wire scanning, notifications, profile copying, and list switching; extend tests.
 - [ ] 3. Route group-editor mutations through the new APIs, including create/delete/reset/unhide; preserve focus-loss behavior and test editor paths.
 - [ ] 4. Run final regression checks, document the storage contract and in-game verification steps, and update task tracking.
@@ -139,3 +139,12 @@ All implementation remains on the existing branch unless a branch switch is appr
 - Inspected rule resolution, group editing, profile copying, matching, and existing synthetic tests.
 - Existing full pattern lists will be reconciled against the installed baseline on first use; explicit edits are preserved, redundant baseline values are removed. Historical intent cannot be recovered when an older release copied a default that has since changed.
 - Additional tests will use isolated fixtures, never live inventory or saved variables. Native ESO UI behavior and real-client timings still require in-game verification.
+
+### Subtask 1 - delta storage and focused setters
+
+- Added `UpdateRuleProperty`, `UpdateRuleFlag` (with the existing `SetRuleFlag` alias), and `UpdateRulePatterns`.
+- Persist sorted unique `addedPatterns`/`removedPatterns` arrays; baseline-equivalent values and empty baseline overrides are removed. Empty custom groups remain valid.
+- Resolve defaults plus deltas without sharing baseline pattern/display tables. Convert legacy `patterns` lists on read and prune redundant legacy names/flags.
+- Added five isolated unit tests covering every sequential specification state, duplicate edits, empty/custom groups, surgical writes, reversion, migration, baseline updates, and invalid input.
+- Added a reusable Lua 5.1 runner at `Project/Tests/Run-RuleTests.py` (requires Python package `lupa`) and included the same cases in `/ictest`.
+- Validation: `python Project\Tests\Run-RuleTests.py` passed 5/5 cases and syntax-checked all addon Lua sources under Lua 5.1; `git diff --check` passed.

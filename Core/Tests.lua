@@ -1476,12 +1476,12 @@ local function RunTests(arguments)
                         },
                     }
 
-                    this.SetRuleFlag("default", "show", true)
+                    this.SetRuleFlag("default", "show", false)
                     local savedRule = this.accountWide.trackedRules.default
                     CheckEqual(savedRule.displayName, "Existing Name", "Flag update should preserve display name")
                     CheckEqual(savedRule.patterns[1], "Existing *", "Flag update should preserve patterns")
                     CheckEqual(savedRule.display.notify, false, "Flag update should preserve other flags")
-                    CheckEqual(savedRule.display.show, true, "Flag update should write selected flag")
+                    CheckEqual(savedRule.display.show, false, "Flag update should write selected flag")
                     CheckEqual(CountEntries(savedRule), 3, "Flag update should not add unrelated root properties")
                     CheckEqual(CountEntries(savedRule.display), 2, "Flag update should not add unrelated display flags")
                 end,
@@ -2095,6 +2095,10 @@ local function RunTests(arguments)
                 if not ok then error(err, 0) end
             end,
         })
+
+        for _, test in ipairs(this.GetRuleTests()) do
+            table.insert(tests, test)
+        end
 
         for _, test in ipairs(tests) do
             local ok, err = pcall(test.run)
