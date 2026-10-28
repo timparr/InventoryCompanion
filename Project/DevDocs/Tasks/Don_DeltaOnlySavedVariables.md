@@ -434,14 +434,24 @@ The user approved preserving settings through explicit migration from ESO saved-
 
 ### Subtasks
 
-1. Implement version-2 startup migration and pre-load downgrade refusal, with isolated unit tests. Validate every stored profile in the addon's `Default` namespace before publishing any migration; preserve unrelated settings. Newer or malformed versions must stop initialization before ZOS can reset or overwrite them.
-2. Update user/design documentation, run the focused rule and packaging checks, and record the results and remaining client checks.
+1. [x] Implement version-2 startup migration and pre-load downgrade refusal, with isolated unit tests. Validate every stored profile in the addon's `Default` namespace before publishing any migration; preserve unrelated settings. Newer or malformed versions must stop initialization before ZOS can reset or overwrite them.
+2. [ ] Update user/design documentation, run the focused rule and packaging checks, and record the results and remaining client checks.
 
 Commit each completed subtask and append its changes/results here.
 
 ### Compatibility decision
 
 The ZOS loader clears data when its stored version is missing or lower than the requested version, and assigns the requested version even when the stored version is higher. Therefore our check and data-preserving migration must run before either ZOS constructor. Version 1 profiles already converted by the earlier development implementation must also migrate without losing deltas. Already-released builds without this guard still cannot safely downgrade; restore a pre-migration backup instead.
+
+### Subtask 1 completed - startup migration and tests
+
+- [Core/Init.lua](../../../Core/Init.lua): increased `SettingsVersion` to 2; calls required `PrepareSavedVariables()` first, before string registration, ZOS constructors, and module initialization.
+- [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua): added `PrepareSavedVariables()`. It checks every stored account/character profile in `Default`, including inactive characters and other accounts. Newer versions raise a contextual error with update/backup guidance. Malformed containers/versions also throw rather than being reset; existing unversioned profiles are rejected, while genuinely absent profiles remain normal fresh installations.
+- Conversion reuses `NormalizeRule` and the shallow-copy helpers. It stages separate rule/display tables for every version-1 profile; only after all validation/conversion succeeds does it publish replacement rules and version 2. Items, unrelated settings, metadata, and other namespaces remain unchanged. Version-1 development data already containing deltas is supported. Version-2 data is validated but not remigrated.
+- [Project/Tests/SavedVariablesTests.lua](../../Tests/SavedVariablesTests.lua): nine headless startup cases exercise the actual addon-loaded handler with a ZOS double reproducing its destructive version behavior. Coverage includes fresh installs, every stored profile, effective patterns/flags/items preservation, already-converted data, empty custom groups, idempotency/reload, dynamic expected-version refusal, malformed versions/containers/rules, broken maintained baselines, and missing optional legacy rules.
+- [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py): runs the startup tests in their own Lua state, without live inventory or saved variables.
+- Validation: 38/38 isolated tests pass; all addon Lua parses under Lua 5.1; `git diff --check` passes. Latest synthetic burst checks: 46/500 ms for scans, 0/100 ms for matches, 1/200 ms for updates.
+- The guard throws before constructors/modules/UI setup, leaving `state.isLoaded` false. It does not silently continue, reset data, or implement an automatic downgrade conversion.
 
 ## Follow-up - fail-fast internals and saved-data ownership boundary
 

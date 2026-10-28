@@ -5,7 +5,7 @@ InventoryCompanion = {
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
     Version = "1.3.0",
-    SettingsVersion = 1.0,
+    SettingsVersion = 2,
     SettingsName = "InventoryCompanion_SavedVariables",
 }
 local this = InventoryCompanion
@@ -19,6 +19,8 @@ this.state = {
 -- Core Initialization
 ------------------------------------------------------------------
 local function Initialize()
+    this.PrepareSavedVariables()
+
     -- Register keybind display names in ESO controls menu
     ZO_CreateStringId("SI_BINDING_NAME_InventoryCompanion_Deposit_Crafted_Items", "Deposit Items to Bank")
     ZO_CreateStringId("SI_BINDING_NAME_InventoryCompanion_Withdraw_Crafted_Items", "Withdraw Items from Bank")

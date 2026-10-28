@@ -190,6 +190,75 @@ local function NormalizeRule(savedRules, ruleName)
     PruneRule(savedRules, ruleName)
 end
 
+local function CopyValues(values)
+    local copy = {}
+    for key, value in pairs(values) do copy[key] = value end
+    return copy
+end
+
+local function CopyOptionalValues(values)
+    if values == nil then return nil end
+    return CopyValues(values)
+end
+
+function this.PrepareSavedVariables()
+    local saved = _G[this.SettingsName]
+    if saved == nil then return end
+    assert(type(saved) == "table", this.SettingsName .. " must be a table; initialization stopped")
+    if saved.Default == nil then return end
+    assert(type(saved.Default) == "table", this.SettingsName .. ".Default must be a table; initialization stopped")
+
+    local profiles = {}
+    for accountName, account in pairs(saved.Default) do
+        local accountPath = this.SettingsName .. ".Default[" .. tostring(accountName) .. "]"
+        assert(type(account) == "table", accountPath .. " must be a table; initialization stopped")
+        for profileName, profile in pairs(account) do
+            local context = accountPath .. "[" .. tostring(profileName) .. "]"
+            assert(type(profile) == "table", context .. " must be a table; initialization stopped")
+            local version = profile.version
+            assert(type(version) == "number" and version >= 1 and version < math.huge and version % 1 == 0,
+                context .. ".version must be a positive integer; saved data was not changed")
+            assert(version <= this.SettingsVersion,
+                string.format("[InventoryCompanion] %s uses saved-variable version %s, but this addon supports version %s. "
+                    .. "Initialization stopped without changing saved data. Install a compatible newer addon or restore a compatible backup.",
+                    context, tostring(version), tostring(this.SettingsVersion)))
+            assert(version == 1 or version == this.SettingsVersion,
+                context .. " has no supported migration from version " .. tostring(version))
+            table.insert(profiles, { data = profile, context = context })
+        end
+    end
+
+    for ruleName in pairs(this.preLoadedRulesets) do GetBaseline(ruleName) end
+    local migrations = {}
+    for _, entry in ipairs(profiles) do
+        local profile, context = entry.data, entry.context
+        if profile.trackedRules ~= nil then
+            ValidateSavedRules(profile.trackedRules, context .. ".trackedRules")
+        end
+        assert(profile.useCharacterItemList == nil or type(profile.useCharacterItemList) == "boolean",
+            context .. ".useCharacterItemList must be boolean")
+        if profile.version == 1 then
+            local rules = {}
+            if profile.trackedRules ~= nil then
+                for ruleName, rule in pairs(profile.trackedRules) do
+                    local copy = CopyValues(rule)
+                    copy.display = CopyOptionalValues(rule.display)
+                    rules[ruleName] = copy
+                    NormalizeRule(rules, ruleName)
+                end
+            end
+            table.insert(migrations, { profile = profile, rules = rules })
+        end
+    end
+
+    -- Publish only after every profile has passed validation and conversion.
+    for _, migration in ipairs(migrations) do
+        migration.profile.trackedRules = migration.rules
+        migration.profile.version = this.SettingsVersion
+    end
+    this.InvalidateRuleCache()
+end
+
 function this.GetRuntimeRules()
     local savedRules = GetRawSavedRules()
     if not cacheInvalid and cachedSavedRules == savedRules and cachedBaseline == this.preLoadedRulesets then
@@ -228,17 +297,6 @@ function this.GetRuntimeRules()
     cachedSavedRules, cachedBaseline = savedRules, this.preLoadedRulesets
     cacheInvalid = false
     return runtimeRules
-end
-
-local function CopyValues(values)
-    local copy = {}
-    for key, value in pairs(values) do copy[key] = value end
-    return copy
-end
-
-local function CopyOptionalValues(values)
-    if values == nil then return nil end
-    return CopyValues(values)
 end
 
 function this.GetActiveTrackedRules(includeHidden)

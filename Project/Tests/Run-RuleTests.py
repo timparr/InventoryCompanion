@@ -33,11 +33,16 @@ for relative in ("Core\\Init.lua", "Tracking\\ItemDatabase.lua", "Project\\Tests
     persistence_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
 persistence_lua.globals().RuleDatabaseSource = (root / "Tracking\\ItemDatabase.lua").read_text(encoding="utf-8-sig")
 persistence_lua.globals().RuleConstantsSource = (root / "Core\\Constants.lua").read_text(encoding="utf-8-sig")
+saved_variables_lua = LuaRuntime(unpack_returned_tuples=True)
+saved_variables_lua.globals().SavedVariablesInitSource = (root / "Core\\Init.lua").read_text(encoding="utf-8-sig")
+saved_variables_lua.globals().SavedVariablesDatabaseSource = (root / "Tracking\\ItemDatabase.lua").read_text(encoding="utf-8-sig")
+saved_variables_lua.execute((root / "Project\\Tests\\SavedVariablesTests.lua").read_text(encoding="utf-8-sig"))
 tests = []
 for suite in (
     lua.globals().InventoryCompanion.GetRuleTests(),
     lua.globals().InventoryCompanion.GetGroupEditorTests(),
     persistence_lua.globals().InventoryCompanion.GetRulePersistenceTests(),
+    saved_variables_lua.globals().GetSavedVariablesTests(),
 ):
     tests.extend(suite[index] for index in range(1, len(suite) + 1))
 
