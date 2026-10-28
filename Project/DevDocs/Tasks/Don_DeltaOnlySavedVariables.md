@@ -419,7 +419,7 @@ In ESO, `/ictest verbose` includes the fourteen shared cases alongside the exist
 
 ## Remaining review and client acceptance
 
-- Review automatic on-read migration, current-baseline reconciliation, pruning equal values, unchanged saved-variable version, and downgrade requirements.
+- Review current-baseline reconciliation, pruning equal values, and the versioned startup migration/downgrade policy documented below.
 - Back up saved variables before client migration testing.
 - Verify native focus-loss behavior, HUD/notification updates, and exact persisted fields after a UI reload.
 - Verify both list-switch controls, profile imports, custom lifecycle actions, and Reset preserving every display setting.
@@ -427,6 +427,21 @@ In ESO, `/ictest verbose` includes the fourteen shared cases alongside the exist
 - Test `/icclearoverrides` only on a disposable profile because it deliberately clears all overrides for that active list.
 
 The [design and acceptance checklist](DeltaOnlySavedVariables.md) contains the detailed sequential pattern scenarios and client checklist. No claim is made that these native-client checks have been executed.
+
+## Follow-up - saved-variable version and downgrade protection
+
+The user approved preserving settings through explicit migration from ESO saved-variable version 1 to 2, remaining on `main`. The working tree was clean at `84dbc01`; this document records the plan before implementation.
+
+### Subtasks
+
+1. Implement version-2 startup migration and pre-load downgrade refusal, with isolated unit tests. Validate every stored profile in the addon's `Default` namespace before publishing any migration; preserve unrelated settings. Newer or malformed versions must stop initialization before ZOS can reset or overwrite them.
+2. Update user/design documentation, run the focused rule and packaging checks, and record the results and remaining client checks.
+
+Commit each completed subtask and append its changes/results here.
+
+### Compatibility decision
+
+The ZOS loader clears data when its stored version is missing or lower than the requested version, and assigns the requested version even when the stored version is higher. Therefore our check and data-preserving migration must run before either ZOS constructor. Version 1 profiles already converted by the earlier development implementation must also migrate without losing deltas. Already-released builds without this guard still cannot safely downgrade; restore a pre-migration backup instead.
 
 ## Follow-up - fail-fast internals and saved-data ownership boundary
 
