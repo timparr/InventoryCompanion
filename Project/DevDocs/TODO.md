@@ -2,8 +2,8 @@
 
 ## Section A: 🛠️ In Progress & Immediate Tasks
 
-* **A1.** **Group Editor Height Constraints:**
-* Implement a safeguard so that if expanding a group makes the editor window too tall, it automatically collapses other expanded groups to show only the active one.
+* **A1.** **Trecker panel Height Constraints:**
+* Implement a safeguard so that if expanding a group makes the item tracker panel window too tall, it automatically collapses other expanded groups to show only the active one. Set a max height in the settings for this.
 
 
 * **A2.** **Refactor Rule Edits for Delta-Only Saved Variables (Explicit Surgical Setters):**
@@ -14,10 +14,6 @@
 ---
 
 ## Section B: 🐛 Bug Fixes (Pending)
-
-* **B1.** **Group Color Determination:**
-* Fix item quality color aggregation so the group header reflects the scanned items, not the best quality anywhere in the account (for example, gold in the bank can incorrectly color a group when only purple items are in the backpack).
-
 
 * **B2.** **Tracker Window Placement Persistence:**
 * Save item tracker window placement on a per-character basis while keeping other settings account-wide.
@@ -62,10 +58,6 @@
 
 * **D3.** **Tracked Item List Sharing & Untracked Filter:**
 * Expand the editor filter view to inspect all owned untracked items.
-
-
-* **D4.** **Expanded Currency Panel:**
-* Unify configurable ESO currencies and addon-defined capacity resources, with compact and optional progress-bar presentations. See [Currency Panel Implementation Plan](Tasks/CurrencyPanelImplementationPlan.md) for the proposed UX, resource identities, migration, and phases, and [Currency Preferences](Tasks/CurrencyPreferences.md) for currency-specific saved-variable, pruning, and compatibility requirements.
 
 
 * **D5.** **Global Panel Show/Hide Context Menu:**
