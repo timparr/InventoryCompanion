@@ -4,8 +4,9 @@
 
 - Do not guard addon-owned functions or required internal state that should exist. Call/use them directly so defects we can fix throw errors as close to the root cause as possible.
 - Do not hide broken internal assumptions with nil checks, silent early returns, fallback values/tables, or catches that continue as though the operation succeeded. Validate internal API contracts at entry when useful and throw on violations.
-- Availability checks for external ZOS APIs are allowed (for example, checking whether a ZOS function is nil before calling it); this is not permission to guard our own functions.
-- Missing optional saved fields may inherit documented defaults, and recognized legacy data may follow explicit migration rules. Do not infer a blanket saved-data exception or generalize scoped recovery rules; any other exception must be explicitly agreed and documented.
+- Defensive guarding starts at the boundary between our maintained code and externally controlled code/data: ZOS APIs, dependent addons/libraries, and other external inputs. ZOS is an example, not the only permitted boundary; this is not permission to guard our own required functions or state.
+- Treat our own saved data as externally controlled input because users can modify it outside the addon. Validate/normalize it at the loading/import boundary, preserve unrelated data, and report malformed values rather than silently concealing them. Missing optional fields may inherit documented defaults; recognized legacy data may follow explicit migration rules.
+- After boundary validation, maintained internal code must rely on its established contracts and fail near the root cause when they are violated, rather than repeatedly guarding against defects we can fix.
 - Apply this rule to every implementation, refactor, bug fix, and review.
 
 ## Instruction Maintenance
