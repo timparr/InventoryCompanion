@@ -16,6 +16,13 @@ function this.GetRuleTests()
             name = name,
             run = function()
                 local accountWide, character, baseline = this.accountWide, this.character, this.preLoadedRulesets
+                local scanning, utils = this.Scanning, this.Utils
+                local globalNames = {
+                    this.SettingsName, "ZO_ClearTable", "GetItemLinkName", "GetItemId", "GetItemLink",
+                    "IsESOPlusSubscriber", "BAG_BACKPACK", "BAG_BANK", "BAG_VIRTUAL", "GetGameTimeMilliseconds",
+                }
+                local globals = {}
+                for _, key in ipairs(globalNames) do table.insert(globals, { key = key, value = _G[key] }) end
                 this.accountWide = { trackedRules = {}, trackedItems = {} }
                 this.character = { trackedRules = {}, trackedItems = {}, useCharacterItemList = false }
                 this.preLoadedRulesets = {
@@ -28,6 +35,8 @@ function this.GetRuleTests()
                 this.InvalidateRuleCache()
                 local ok, err = pcall(run)
                 this.accountWide, this.character, this.preLoadedRulesets = accountWide, character, baseline
+                this.Scanning, this.Utils = scanning, utils
+                for _, entry in ipairs(globals) do _G[entry.key] = entry.value end
                 this.InvalidateRuleCache()
                 if not ok then error(err, 0) end
             end,
@@ -116,6 +125,126 @@ function this.GetRuleTests()
         assert(not pcall(this.UpdateRuleFlag, "default", "show", "yes"), "Invalid flag values should fail")
         assert(not pcall(this.UpdateRuleProperty, "default", "patterns", {}), "Wrong mutation API should fail")
         Equal(next(this.accountWide.trackedRules), nil, "Failed edits leave no overrides")
+    end)
+
+    Add("Runtime cache rebuilds lazily and keeps editor views isolated", function()
+        local original = this.GetRuntimeRules()
+        Equal(this.GetRuntimeRules(), original, "Unchanged rules reuse cache")
+        this.UpdateRulePatterns("default", { "new*" })
+        List(original.default.patterns, { "a", "b", "c" }, "Mutation does not eagerly rebuild")
+        local updated = this.GetRuntimeRules()
+        assert(updated ~= original, "Pattern mutation should replace the cache")
+        Equal(this.GetRuntimeRules(), updated, "Rebuilt cache reused")
+        List(updated.default.compiledPatterns, { "^new.*$" }, "Compiled wildcard")
+        this.UpdateRuleProperty("default", "displayName", "Changed")
+        local renamed = this.GetRuntimeRules()
+        assert(renamed ~= updated, "Rename should invalidate")
+        Equal(renamed.default.displayName, "Changed", "Cached name updates")
+        this.UpdateRuleFlag("default", "notify", true)
+        local flagged = this.GetRuntimeRules()
+        assert(flagged ~= renamed, "Flag should invalidate")
+        Equal(flagged.default.display.notify, true, "Cached flag updates")
+        local view = this.GetActiveTrackedRules()
+        view.default.patterns[1] = "editor-only"
+        view.default.display.notify = false
+        Equal(flagged.default.patterns[1], "new*", "Editor list cannot corrupt cache")
+        Equal(flagged.default.display.notify, true, "Editor flags cannot corrupt cache")
+        Equal(this.accountWide.trackedRules.default.compiledPatterns, nil, "No compiled saved data")
+    end)
+
+    Add("Hidden groups stay cached and list switching invalidates immediately", function()
+        this.UpdateRuleFlag("default", "isHidden", true)
+        assert(this.GetRuntimeRules().default, "Hidden rule must be cached")
+        Equal(this.GetActiveTrackedRules().default, nil, "Hidden rule excluded from normal view")
+        assert(this.GetActiveTrackedRules(true).default, "Editor includes hidden rules")
+        this.UpdateRuleFlag("default", "isHidden", false)
+        assert(this.GetActiveTrackedRules().default, "Unhide invalidates")
+        this.UpdateRulePatterns("default", { "account" })
+        local account = this.GetRuntimeRules()
+        this.SetUseCharacterItemList(true)
+        List(this.GetRuntimeRules().default.patterns, { "a", "b", "c" }, "Character inherits baseline")
+        this.UpdateRulePatterns("default", { "character" })
+        List(this.GetRuntimeRules().default.patterns, { "character" }, "Character override")
+        this.SetUseCharacterItemList(false)
+        local restored = this.GetRuntimeRules()
+        assert(restored ~= account, "Switching rebuilds cache")
+        List(restored.default.patterns, { "account" }, "Account override retained")
+    end)
+
+    Add("Failed runtime rebuilds do not publish partial caches", function()
+        local original = this.GetRuntimeRules()
+        this.preLoadedRulesets.default.patterns = { true }
+        this.InvalidateRuleCache()
+        assert(not pcall(this.GetRuntimeRules), "Invalid baseline should surface an error")
+        List(original.default.patterns, { "a", "b", "c" }, "Published cache unchanged after failure")
+        this.preLoadedRulesets.default.patterns = { "repaired" }
+        List(this.GetRuntimeRules().default.patterns, { "repaired" }, "Failed rebuild remains invalid")
+    end)
+
+    Add("Profile copy preserves sparse deltas and never aliases its source", function()
+        _G.ZO_ClearTable = function(values) for key in pairs(values) do values[key] = nil end end
+        this.preLoadedRulesets.default.display.notify = true
+        local source = {
+            trackedItems = { [123] = { link = "item", mode = 3, display = { show = false } } },
+            trackedRules = {
+                default = { addedPatterns = { "d" }, removedPatterns = { "a" }, display = { show = false } },
+                custom = { patterns = { "custom" } },
+            },
+        }
+        _G[this.SettingsName] = { Default = { account = { source = source } } }
+        local before = this.GetRuntimeRules()
+        assert(this.CopyProfile("source"), "Profile copy should succeed")
+        local copied = this.accountWide.trackedRules
+        Equal(copied.default.display.notify, nil, "Missing source flag stays absent")
+        Equal(this.GetRuntimeRules().default.display.notify, true, "Missing flag inherits baseline")
+        assert(this.GetRuntimeRules() ~= before, "Profile copy invalidates")
+        List(this.GetRuntimeRules().default.patterns, { "b", "c", "d" }, "Copied effective patterns")
+        this.UpdateRulePatterns("default", { "b", "c", "d", "e" })
+        List(source.trackedRules.default.addedPatterns, { "d" }, "Source additions isolated")
+        this.UpdateRuleFlag("default", "show", true)
+        Equal(source.trackedRules.default.display.show, false, "Source flags isolated")
+        Equal(source.trackedRules.custom.patterns[1], "custom", "Source legacy data not migrated in place")
+        local valid = this.GetRuntimeRules()
+        assert(not this.CopyProfile("missing"), "Unknown profile should fail")
+        Equal(this.GetRuntimeRules(), valid, "Failed copy does not invalidate")
+        _G[this.SettingsName].Default.account.self = this.accountWide
+        assert(this.CopyProfile("self"), "Self-copy should preserve data")
+        Equal(this.accountWide.trackedItems[123].link, "item", "Self-copy retains items")
+        List(this.GetRuntimeRules().default.patterns, { "b", "c", "d", "e" }, "Self-copy retains rules")
+    end)
+
+    Add("Scanning and notifications use current compiled rules", function()
+        _G.BAG_BACKPACK, _G.BAG_BANK, _G.BAG_VIRTUAL = 1, 2, 3
+        _G.GetItemLinkName = function(link) return link == "item" and "Target +1" or nil end
+        _G.GetItemId = function() return 987654321 end
+        _G.GetItemLink = function() return "item" end
+        _G.IsESOPlusSubscriber = function() return false end
+        local entries = { { itemId = 987654321, link = "item", icon = "icon", count = 2 } }
+        this.Scanning = { GetBagContents = function() return entries end }
+        local warnings = 0
+        this.Utils = {
+            FormatBigNumber = tostring,
+            UserWarning = function() warnings = warnings + 1 end,
+        }
+        this.UpdateRulePatterns("default", { "Target +1" })
+        this.UpdateRuleFlag("default", "notify", true)
+        local cache = this.GetRuntimeRules()
+        assert(this.ItemMatchesRuntimeRule("item", cache.default), "Literal punctuation matches")
+        assert(not this.ItemMatchesRuntimeRule("missing", cache.default), "Missing item never matches")
+        local snapshot = this.GetMasterItemList({}, this.GetActiveTrackedRules(), { BAG_BACKPACK })
+        Equal(#snapshot.ruleIndex.default, 1, "Scan uses compiled rule")
+        this.HandleTrackedItemInventoryUpdate(BAG_BACKPACK, 1, 1)
+        Equal(warnings, 1, "Notification uses compiled rule")
+        this.UpdateRulePatterns("default", { "Other*" })
+        this.HandleTrackedItemInventoryUpdate(BAG_BACKPACK, 1, 1)
+        Equal(warnings, 1, "Notification sees pattern change before any scan")
+        this.UpdateRulePatterns("default", { "Target*" })
+        this.UpdateRuleFlag("default", "isHidden", true)
+        this.HandleTrackedItemInventoryUpdate(BAG_BACKPACK, 1, 1)
+        Equal(warnings, 1, "Hidden groups do not notify")
+        this.UpdateRuleFlag("default", "isHidden", false)
+        this.HandleTrackedItemInventoryUpdate(BAG_BACKPACK, 1, 1)
+        Equal(warnings, 2, "Unhiding takes effect immediately")
     end)
 
     return tests

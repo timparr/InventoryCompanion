@@ -4,6 +4,8 @@ local this = InventoryCompanion
 
 local itemCountsCache = {}
 local cacheInvalid = true
+local runtimeRules, cachedSavedRules, cachedBaseline
+local CompilePatterns
 local customDisplayDefaults = {
     show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false,
 }
@@ -103,8 +105,12 @@ local function NormalizeRule(savedRules, ruleName)
     PruneRule(savedRules, ruleName)
 end
 
-function this.GetActiveTrackedRules(includeHidden)
+function this.GetRuntimeRules()
     local savedRules = GetRawSavedRules()
+    if not cacheInvalid and cachedSavedRules == savedRules and cachedBaseline == this.preLoadedRulesets then
+        return runtimeRules
+    end
+    cacheInvalid = true
     for ruleName in pairs(savedRules) do NormalizeRule(savedRules, ruleName) end
     local resolvedRules = {}
     local function Resolve(ruleName, base)
@@ -114,20 +120,52 @@ function this.GetActiveTrackedRules(includeHidden)
             display[key] = value
         end
         for key, value in pairs(saved.display or {}) do display[key] = value end
-        if includeHidden or ruleName == "miscellaneous" or not display.isHidden then
-            resolvedRules[ruleName] = {
-                displayName = saved.displayName or (base and base.displayName) or ruleName,
-                patterns = GetPatternList(base, saved),
-                display = display,
-                isPreloaded = base ~= nil,
-            }
-        end
+        local patterns = GetPatternList(base, saved)
+        resolvedRules[ruleName] = {
+            displayName = saved.displayName or (base and base.displayName) or ruleName,
+            patterns = patterns,
+            compiledPatterns = CompilePatterns(patterns),
+            display = display,
+            isPreloaded = base ~= nil,
+        }
     end
     for ruleName, base in pairs(this.preLoadedRulesets) do Resolve(ruleName, base) end
     for ruleName in pairs(savedRules) do
         if not this.preLoadedRulesets[ruleName] then Resolve(ruleName) end
     end
-    return resolvedRules
+    runtimeRules = resolvedRules
+    cachedSavedRules, cachedBaseline = savedRules, this.preLoadedRulesets
+    cacheInvalid = false
+    return runtimeRules
+end
+
+local function CopyValues(values)
+    if not values then return nil end
+    local copy = {}
+    for key, value in pairs(values) do copy[key] = value end
+    return copy
+end
+
+function this.GetActiveTrackedRules(includeHidden)
+    local rules = {}
+    for ruleName, rule in pairs(this.GetRuntimeRules()) do
+        if includeHidden or ruleName == "miscellaneous" or not rule.display.isHidden then
+            -- Editors and HUD layout may change their view without changing cached rules.
+            rules[ruleName] = {
+                displayName = rule.displayName,
+                patterns = CopyValues(rule.patterns),
+                compiledPatterns = rule.compiledPatterns,
+                display = CopyValues(rule.display),
+                isPreloaded = rule.isPreloaded,
+            }
+        end
+    end
+    return rules
+end
+
+function this.SetUseCharacterItemList(value)
+    this.character.useCharacterItemList = value
+    this.InvalidateRuleCache()
 end
 
 function this.UpdateRuleFlag(ruleName, flagKey, value)
@@ -197,13 +235,12 @@ function this.CopyProfile(sourceKey)
     local destRules = GetRawSavedRules()
 
     if sourceBlock and destTable and destRules then
-        -- Copy Tracked Items
-        ZO_ClearTable(destTable)
+        local copiedItems, copiedRules = {}, {}
         if sourceBlock.trackedItems then
             for itemId, data in pairs(sourceBlock.trackedItems) do
                 local srcDisplay = data.display or {}
                 local mode = data.mode or 1
-                destTable[itemId] = {
+                copiedItems[itemId] = {
                     link = data.link,
                     icon = data.icon,
                     display = {
@@ -216,26 +253,24 @@ function this.CopyProfile(sourceKey)
             end
         end
 
-        -- Copy Tracked Rule Overrides & Custom Rules
-        ZO_ClearTable(destRules)
         if sourceBlock.trackedRules then
-            for ruleKey, ruleData in pairs(sourceBlock.trackedRules) do -- NEW FOR KEY CHANGE
-                local ruleDisplay = ruleData.display or {}
-                destRules[ruleKey] = { -- NEW FOR KEY CHANGE
-                    displayName = ruleData.displayName, -- NEW FOR KEY CHANGE
-                    patterns = ruleData.patterns,
-                    display = {
-                        show = ruleDisplay.show ~= false,
-                        notify = ruleDisplay.notify == true,
-                        bank = ruleDisplay.bank == true,
-                        group = ruleDisplay.group == true,
-                        isExpanded = ruleDisplay.isExpanded,
-                        isHidden = ruleDisplay.isHidden == true,
-                    }
+            for ruleKey, ruleData in pairs(sourceBlock.trackedRules) do
+                copiedRules[ruleKey] = {
+                    displayName = ruleData.displayName,
+                    patterns = CopyValues(ruleData.patterns),
+                    addedPatterns = CopyValues(ruleData.addedPatterns),
+                    removedPatterns = CopyValues(ruleData.removedPatterns),
+                    display = CopyValues(ruleData.display),
                 }
+                NormalizeRule(copiedRules, ruleKey)
             end
         end
 
+        ZO_ClearTable(destTable)
+        for key, value in pairs(copiedItems) do destTable[key] = value end
+        ZO_ClearTable(destRules)
+        for key, value in pairs(copiedRules) do destRules[key] = value end
+        this.InvalidateRuleCache()
         return true
     end
 
@@ -245,7 +280,7 @@ end
 ------------------------------------------------------------------
 -- Pattern Compilation & Matching
 ------------------------------------------------------------------
-local function CompilePatterns(patterns)
+CompilePatterns = function(patterns)
     local compiled = {}
     for _, pattern in ipairs(patterns or {}) do
         local cleaned = pattern:lower()
@@ -256,6 +291,16 @@ local function CompilePatterns(patterns)
         else
             local p = cleaned:gsub("([%^%$%(%)%%%.%[%+%-%?])", "%%%1")
             table.insert(compiled, p)
+        end
+
+        function this.ItemMatchesRuntimeRule(itemLink, rule)
+            local name = GetItemLinkName(itemLink)
+            if not name then return false end
+            local lowerName = name:lower()
+            for _, pattern in ipairs(rule.compiledPatterns) do
+                if lowerName:match(pattern) ~= nil then return true end
+            end
+            return false
         end
     end
     return compiled
@@ -312,15 +357,15 @@ function this.HandleTrackedItemInventoryUpdate(bagId, slotIndex, stackCountChang
     if not itemLink or itemLink == "" then return end
 
     local trackedList = this.GetActiveTrackedItems()
-    local trackedRules = this.GetActiveTrackedRules()
+    local trackedRules = this.GetRuntimeRules()
     
     local targetData = trackedList[itemId]
     local isNotified = targetData and targetData.display.notify
 
     if not isNotified then
-        for _, ruleData in pairs(trackedRules) do
-            local patterns = ruleData.patterns or { ruleData.pattern }
-            if (ruleData.display.notify) and this.ItemMatchesAnyRule(itemLink, patterns) then
+        for ruleName, ruleData in pairs(trackedRules) do
+            if (ruleName == "miscellaneous" or not ruleData.display.isHidden)
+                and ruleData.display.notify and this.ItemMatchesRuntimeRule(itemLink, ruleData) then
                 isNotified = true
                 break
             end
@@ -448,7 +493,7 @@ function this.GetMasterItemList(trackedItems, activeRules, bagIdList)
 
     local compiledRules = {}
     for ruleName, ruleData in pairs(activeRules) do
-        compiledRules[ruleName] = CompilePatterns(ruleData.patterns or { ruleData.pattern })
+        compiledRules[ruleName] = ruleData.compiledPatterns or CompilePatterns(ruleData.patterns or { ruleData.pattern })
     end
 
     for _, bagId in ipairs(bagIdList) do

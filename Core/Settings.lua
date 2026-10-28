@@ -223,7 +223,7 @@ function this.CreateSettingsPanel()
                     tooltip = "If enabled, this character uses their own independent tracked items list instead of the shared account-wide list.",
                     getFunc = function() return this.character.useCharacterItemList == true end,
                     setFunc = function(v) 
-                        this.character.useCharacterItemList = v 
+                        this.SetUseCharacterItemList(v)
                         if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
                         if this.RefreshTrackedItemsEditor then this.RefreshTrackedItemsEditor() end
                     end,

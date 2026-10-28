@@ -238,7 +238,7 @@ local function InitCharacterToggle(topBar)
     ZO_CheckButton_SetCheckState(chkUseChar, this.character.useCharacterItemList == true)
 
     local function ApplyUseChar(checked)
-        this.character.useCharacterItemList = checked
+        this.SetUseCharacterItemList(checked)
         
         local copyDropdownControl = GetControl(topBar, "CopyDropdown")
         local btnExecuteCopy = GetControl(topBar, "BtnExecuteCopy")
@@ -259,7 +259,6 @@ local function InitCharacterToggle(topBar)
 
     lblUseChar:SetHandler("OnMouseDown", function()
         local newState = not (this.character.useCharacterItemList == true)
-        this.character.useCharacterItemList = newState
         ZO_CheckButton_SetCheckState(chkUseChar, newState)
         ApplyUseChar(newState)
     end)
@@ -464,8 +463,7 @@ local function CollectUntrackedItems(trackedRules, seenItemIds, sortedEntries)
         if seenItemIds[item.itemId] or untrackedSeen[item.itemId] then return false end
         
         for _, ruleData in pairs(trackedRules) do
-            local patterns = ruleData.patterns or { ruleData.pattern }
-            if this.ItemMatchesAnyRule and this.ItemMatchesAnyRule(item.link, patterns) then
+            if this.ItemMatchesRuntimeRule(item.link, ruleData) then
                 return false
             end
         end
@@ -656,4 +654,3 @@ function this.RefreshTrackedItemsEditor()
         end
     end
 end
-

@@ -1346,7 +1346,7 @@ local function RunTests(arguments)
                         local copiedRules = this.accountWide.trackedRules
                         CheckEqual(CountEntries(copiedRules), 2, "Import should replace the destination rule list")
                         CheckEqual(copiedRules.baseline.displayName, "Renamed baseline", "Rule name override should be copied")
-                        CheckEqual(copiedRules.baseline.patterns[1], "Custom *", "Rule patterns should be copied")
+                        CheckEqual(copiedRules.baseline.addedPatterns[1], "Custom *", "Rule pattern deltas should be copied")
                         CheckEqual(copiedRules.baseline.display.isHidden, true, "Rule display overrides should be copied")
                         CheckEqual(copiedRules.custom.displayName, "Custom group", "Custom rule should be copied")
                         Check(not this.CopyProfile("missingCharacter"), "An unknown profile should not import")
@@ -1547,17 +1547,14 @@ local function RunTests(arguments)
                 name = "100 synthetic tracked-item slot updates",
                 run = function()
                     local warningCount = 0
-                    this.GetActiveTrackedItems = function()
-                        return {}
-                    end
-                    this.GetActiveTrackedRules = function()
-                        return {
-                            synthetic = {
-                                patterns = { "Synthetic Item *" },
-                                display = { notify = true },
-                            },
-                        }
-                    end
+                    this.accountWide.trackedItems = {}
+                    this.preLoadedRulesets = {
+                        synthetic = {
+                            patterns = { "Synthetic Item *" },
+                            display = { notify = true },
+                        },
+                    }
+                    this.InvalidateRuleCache()
                     this.Utils.UserWarning = function()
                         warningCount = warningCount + 1
                     end
@@ -1571,6 +1568,7 @@ local function RunTests(arguments)
                     slotUpdateMs = GetGameTimeMilliseconds() - startedAt
                     -- Later tests (e.g. currency message scenarios) need the real messaging.
                     this.Utils.UserWarning = syntheticOriginal.userWarning
+                    this.InvalidateRuleCache()
 
                     CheckEqual(warningCount, 100, "Every matching synthetic slot update should trigger a notification")
                     Check(

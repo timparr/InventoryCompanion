@@ -129,7 +129,7 @@ All implementation remains on the existing branch unless a branch switch is appr
 
 - [x] 0. Checkpoint the existing work and record this implementation breakdown.
 - [x] 1. Implement delta storage, focused setters, legacy conversion, and isolated rule unit tests.
-- [ ] 2. Add the lazy compiled runtime cache and wire scanning, notifications, profile copying, and list switching; extend tests.
+- [x] 2. Add the lazy compiled runtime cache and wire scanning, notifications, profile copying, and list switching; extend tests.
 - [ ] 3. Route group-editor mutations through the new APIs, including create/delete/reset/unhide; preserve focus-loss behavior and test editor paths.
 - [ ] 4. Run final regression checks, document the storage contract and in-game verification steps, and update task tracking.
 
@@ -148,3 +148,13 @@ All implementation remains on the existing branch unless a branch switch is appr
 - Added five isolated unit tests covering every sequential specification state, duplicate edits, empty/custom groups, surgical writes, reversion, migration, baseline updates, and invalid input.
 - Added a reusable Lua 5.1 runner at `Project/Tests/Run-RuleTests.py` (requires Python package `lupa`) and included the same cases in `/ictest`.
 - Validation: `python Project\Tests\Run-RuleTests.py` passed 5/5 cases and syntax-checked all addon Lua sources under Lua 5.1; `git diff --check` passed.
+
+### Subtask 2 - lazy cache and runtime consumers
+
+- Added one lazy runtime cache containing all effective rules (including hidden ones) and compiled Lua patterns. Replacement caches publish only after successful construction.
+- Scans reuse cached compiled patterns; notifications and the untracked-items filter match compiled rules directly. Normal views still exclude hidden groups.
+- `GetActiveTrackedRules` returns private name/pattern/display views so existing editor toggles and HUD-only miscellaneous-group adjustments cannot corrupt cached state.
+- Wired list switching in both settings/editor controls, successful profile imports, and `/icclearoverrides` to invalidation.
+- Profile import now copies only explicit override fields, converts legacy lists, avoids source-array/display aliases, and snapshots before clearing so self-copy is safe.
+- Added five more isolated cases for lazy reuse/invalidation, editor-view isolation, hidden groups/list switching, failed cache builds, profile copying, and real scanning/notification paths.
+- Validation: 10/10 isolated cases pass; all addon Lua syntax checks and `git diff --check` pass. In-game timing and UI verification remain pending.

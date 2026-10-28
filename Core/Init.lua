@@ -84,6 +84,7 @@ SLASH_COMMANDS["/icclearoverrides"] = function()
         this.accountWide.trackedRules = {}
         modeText = "Account-wide"
     end
+    this.InvalidateRuleCache()
     
     d(string.format("[InventoryCompanion] Cleared all rule overrides for current mode (%s). All rules restored to baseline defaults.", modeText))
     

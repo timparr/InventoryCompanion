@@ -7,6 +7,7 @@ from lupa.lua51 import LuaRuntime
 
 root = Path(__file__).resolve().parents[2]
 lua = LuaRuntime(unpack_returned_tuples=True)
+lua.execute('InventoryCompanion = { SettingsName = "InventoryCompanion_RuleTests" }')
 compile_lua = lua.eval("function(source, name) assert(loadstring(source, name)) end")
 for folder in ("Core", "Banking", "Tracking"):
     for path in sorted((root / folder).glob("*.lua")):
