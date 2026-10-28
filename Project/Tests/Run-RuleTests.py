@@ -13,10 +13,18 @@ for folder in ("Core", "Banking", "Tracking"):
     for path in sorted((root / folder).glob("*.lua")):
         compile_lua(path.read_text(encoding="utf-8-sig"), str(path.relative_to(root)))
 
-for relative in ("Tracking\\ItemDatabase.lua", "Core\\RuleTests.lua"):
+for relative in (
+    "Tracking\\ItemDatabase.lua",
+    "Core\\RuleTests.lua",
+    "Project\\Tests\\GroupEditorTests.lua",
+    "Tracking\\EditPanelGroupsTab.lua",
+):
     lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
 
 tests = lua.globals().InventoryCompanion.GetRuleTests()
+editor_tests = lua.globals().InventoryCompanion.GetGroupEditorTests()
+for index in range(1, len(editor_tests) + 1):
+    tests[len(tests) + 1] = editor_tests[index]
 failures = []
 for index in range(1, len(tests) + 1):
     test = tests[index]

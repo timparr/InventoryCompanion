@@ -4,6 +4,7 @@ local this = InventoryCompanion
 local groupRows = {}
 local patternRows = {}
 local selectedGroupName = nil
+local SetActionButtons
 
 ------------------------------------------------------------------
 -- Constants
@@ -25,30 +26,6 @@ local function SanitizeGroupName(name)
     -- Escape pipes (| to ||) to prevent ESO formatting injection
     name = name:gsub("|", "||")
     return name
-end
-
-local function HasMeaningfulOverride(groupId)
-    local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
-    if not savedRules or not savedRules[groupId] then return false end
-
-    local saved = savedRules[groupId]
-    local base = this.preLoadedRulesets[groupId]
-
-    if not base then return true end
-
-    if saved.displayName ~= nil and saved.displayName ~= base.displayName then 
-        return true 
-    end
-    
-    if saved.patterns ~= nil then 
-        return true 
-    end
-
-    if saved.display and saved.display.isHidden == true then 
-        return true 
-    end
-
-    return false
 end
 
 local function GetSortedGroupNames()
@@ -171,7 +148,7 @@ local function GetQuirkyDefaultNames()
     return names
 end
 
-local function DoesGroupNameExist(savedRules, targetName, excludeKey)
+local function DoesGroupNameExist(targetName, excludeKey)
     local activeRules = this.GetActiveTrackedRules(true)
     for key, rule in pairs(activeRules) do
         if key ~= excludeKey and rule.displayName and rule.displayName:lower() == targetName:lower() then
@@ -181,18 +158,18 @@ local function DoesGroupNameExist(savedRules, targetName, excludeKey)
     return false
 end
 
-local function GenerateUniqueGroupName(savedRules, baseName, excludeKey)
+local function GenerateUniqueGroupName(baseName, excludeKey)
     baseName = baseName or constants.newGroupBaseName
 
     if baseName ~= constants.newGroupBaseName and baseName ~= "" then
-        if not DoesGroupNameExist(savedRules, baseName, excludeKey) then
+        if not DoesGroupNameExist(baseName, excludeKey) then
             return baseName
         end
         
         local counter = 2
         while true do
             local candidate = string.format("%s %d", baseName, counter)
-            if not DoesGroupNameExist(savedRules, candidate, excludeKey) then
+            if not DoesGroupNameExist(candidate, excludeKey) then
                 return candidate
             end
             counter = counter + 1
@@ -201,7 +178,7 @@ local function GenerateUniqueGroupName(savedRules, baseName, excludeKey)
 
     local quirkyNames = GetQuirkyDefaultNames()
     for _, name in ipairs(quirkyNames) do
-        if not DoesGroupNameExist(savedRules, name, excludeKey) then
+        if not DoesGroupNameExist(name, excludeKey) then
             return name
         end
     end
@@ -209,7 +186,7 @@ local function GenerateUniqueGroupName(savedRules, baseName, excludeKey)
     local counter = 5
     while true do
         local candidate = string.format("%s %d", constants.newGroupBaseName, counter)
-        if not DoesGroupNameExist(savedRules, candidate, excludeKey) then
+        if not DoesGroupNameExist(candidate, excludeKey) then
             return candidate
         end
         counter = counter + 1
@@ -229,30 +206,13 @@ local function CommitGroupNameEdit(editBox, titleLabel, pencilBtn)
         return
     end
 
-    local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
-    local finalName = GenerateUniqueGroupName(savedRules, sanitized, selectedGroupName)
+    local finalName = GenerateUniqueGroupName(sanitized, selectedGroupName)
 
     if finalName ~= sanitized then
         this.Utils.UserMessage(string.format("Group name already exists. Automatically renamed to '%s'.", finalName))
     end
 
-    local basePredefined = this.preLoadedRulesets[selectedGroupName]
-
-    if basePredefined then
-        savedRules[selectedGroupName] = savedRules[selectedGroupName] or {}
-        savedRules[selectedGroupName].displayName = finalName
-        savedRules[selectedGroupName].patterns = savedRules[selectedGroupName].patterns or basePredefined.patterns
-        savedRules[selectedGroupName].display = savedRules[selectedGroupName].display or {}
-        for k, v in pairs(basePredefined.display) do
-            if savedRules[selectedGroupName].display[k] == nil then
-                savedRules[selectedGroupName].display[k] = v
-            end
-        end
-    else
-        savedRules[selectedGroupName] = savedRules[selectedGroupName] or {}
-        savedRules[selectedGroupName].displayName = finalName
-        savedRules[selectedGroupName].patterns = savedRules[selectedGroupName].patterns or {}
-    end
+    this.UpdateRuleProperty(selectedGroupName, "displayName", finalName)
 
     editBox:SetHidden(true)
     titleLabel:SetHidden(false)
@@ -291,24 +251,7 @@ local function GetOrCreatePatternRow(scrollChild, index)
 end
 
 local function SaveRulePatterns(groupName, patterns)
-    local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
-    local basePredefined = this.preLoadedRulesets[groupName]
-    
-    if basePredefined then
-        savedRules[groupName] = savedRules[groupName] or {}
-        savedRules[groupName].displayName = basePredefined.displayName
-        savedRules[groupName].patterns = patterns
-        savedRules[groupName].display = savedRules[groupName].display or {}
-        for k, v in pairs(basePredefined.display) do
-            if savedRules[groupName].display[k] == nil then
-                savedRules[groupName].display[k] = v
-            end
-        end
-    else
-        savedRules[groupName] = savedRules[groupName] or {}
-        savedRules[groupName].displayName = savedRules[groupName].displayName or groupName
-        savedRules[groupName].patterns = patterns
-    end
+    this.UpdateRulePatterns(groupName, patterns)
 end
 
 local function HandlePatternTextChanged(self, patterns, index)
@@ -321,6 +264,7 @@ local function HandlePatternFocusLost(self, patterns, index, targetGroup)
     if targetGroup == selectedGroupName then
         SaveRulePatterns(targetGroup, patterns)
         if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
+        SetActionButtons(this.GetActiveTrackedRules(true))
     end
 end
 
@@ -337,7 +281,7 @@ local function HandleAddRule(patterns)
     this.RefreshGroupsEditor()
 end
 
-local function ConfigureCustomGroupActionBar(btnReset, btnHide, btnDelete, actionBar, savedRules, groupId, activeRules, isHidden)
+local function ConfigureCustomGroupActionBar(btnReset, btnHide, btnDelete, actionBar, groupId, activeRules, isHidden)
     btnReset:SetHidden(true)
     
     -- Show and position the Hide/Unhide button on the far left
@@ -348,9 +292,7 @@ local function ConfigureCustomGroupActionBar(btnReset, btnHide, btnDelete, actio
     if isHidden then
         btnHide:SetText("Unhide Group")
         btnHide:SetHandler("OnClicked", function()
-            if savedRules and savedRules[groupId] and savedRules[groupId].display then
-                savedRules[groupId].display.isHidden = false
-            end
+            this.SetRuleFlag(groupId, "isHidden", false)
             this.RefreshGroupsEditor()
             if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
         end)
@@ -378,14 +320,12 @@ local function ConfigureCustomGroupActionBar(btnReset, btnHide, btnDelete, actio
     end)
 end
 
-local function ConfigurePreloadedHideButton(btnHide, savedRules, groupId, isHidden)
+local function ConfigurePreloadedHideButton(btnHide, groupId, isHidden)
     btnHide:SetHidden(false)
     if isHidden then
         btnHide:SetText("Unhide Group")
         btnHide:SetHandler("OnClicked", function()
-            if savedRules and savedRules[groupId] and savedRules[groupId].display then
-                savedRules[groupId].display.isHidden = false
-            end
+            this.SetRuleFlag(groupId, "isHidden", false)
             this.RefreshGroupsEditor()
             if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
         end)
@@ -399,7 +339,7 @@ local function ConfigurePreloadedHideButton(btnHide, savedRules, groupId, isHidd
     end
 end
 
-local function ConfigurePreloadedResetButton(btnReset, btnHide, actionBar, hasOverride, savedRules, groupId, activeRules)
+local function ConfigurePreloadedResetButton(btnReset, btnHide, actionBar, hasOverride, groupId, activeRules)
     if hasOverride then
         btnReset:SetHidden(false)
         btnReset:ClearAnchors()
@@ -424,7 +364,7 @@ local function ConfigurePreloadedResetButton(btnReset, btnHide, actionBar, hasOv
     end
 end
 
-local function SetActionButtons(activeRules)
+SetActionButtons = function(activeRules)
     local rightPane = InventoryCompanion_GroupsWindowRightPane
     local actionBar = GetControl(rightPane, "ActionBar")
     local btnReset = GetControl(actionBar, "BtnReset")
@@ -433,12 +373,12 @@ local function SetActionButtons(activeRules)
 
     local groupId = selectedGroupName
     
-    -- Miscellaneous can never be hidden or deleted, but can be reset if renamed
+    -- Miscellaneous can never be hidden or deleted.
     if groupId == "miscellaneous" then
         btnHide:SetHidden(true)
         btnDelete:SetHidden(true)
         
-        local hasOverride = HasMeaningfulOverride(groupId)
+        local hasOverride = this.HasRuleOverrides(groupId)
         if hasOverride then
             btnReset:SetHidden(false)
             btnReset:ClearAnchors()
@@ -459,18 +399,17 @@ local function SetActionButtons(activeRules)
     end
 
     local basePreloaded = this.preLoadedRulesets[groupId]
-    local hasOverride = HasMeaningfulOverride(groupId)
+    local hasOverride = this.HasRuleOverrides(groupId)
 
-    local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
-    local savedData = savedRules and savedRules[groupId]
-    local isHidden = savedData and savedData.display and savedData.display.isHidden == true
+    local ruleData = activeRules[groupId]
+    local isHidden = ruleData and ruleData.display.isHidden == true
 
     if not basePreloaded then
-		ConfigureCustomGroupActionBar(btnReset, btnHide, btnDelete, actionBar, savedRules, groupId, activeRules, isHidden) 
+		ConfigureCustomGroupActionBar(btnReset, btnHide, btnDelete, actionBar, groupId, activeRules, isHidden)
     else
         btnDelete:SetHidden(true)
-        ConfigurePreloadedHideButton(btnHide, savedRules, groupId, isHidden)
-        ConfigurePreloadedResetButton(btnReset, btnHide, actionBar, hasOverride, savedRules, groupId, activeRules)
+        ConfigurePreloadedHideButton(btnHide, groupId, isHidden)
+        ConfigurePreloadedResetButton(btnReset, btnHide, actionBar, hasOverride, groupId, activeRules)
     end	
 end
 
@@ -563,21 +502,9 @@ local function InitNewGroupButton()
     
     btnNewGroup:SetHandler("OnClicked", function()
         local timestampKey = string.format("custom_%d", GetGameTimeMilliseconds())
-        local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
-        local uniqueDisplayName = GenerateUniqueGroupName(savedRules, nil, nil)
+        local uniqueDisplayName = GenerateUniqueGroupName(nil, nil)
         
-        savedRules[timestampKey] = {
-            displayName = uniqueDisplayName,
-            patterns = {},
-            display = {
-                show = true,
-                notify = false,
-                bank = false,
-                group = true,
-                isExpanded = true,
-                isHidden = false,
-            }
-        }
+        this.CreateCustomRule(timestampKey, uniqueDisplayName)
         
         selectedGroupName = timestampKey
         this.RefreshGroupsEditor()
@@ -647,10 +574,7 @@ end)
 ------------------------------------------------------------------
 local function DoDeleteGroup(dialog)
     local data = dialog.data
-    local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
-    if savedRules then
-        savedRules[data.groupId] = nil
-    end
+    this.DeleteCustomRule(data.groupId)
     selectedGroupName = nil
     this.RefreshGroupsEditor()
     if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
@@ -663,16 +587,7 @@ local function DoResetGroup(dialog)
     local groupId = type(dialog.data) == "table" and dialog.data.groupId or dialog.data
     if not groupId then return end
     
-    local savedRules = this.character.useCharacterItemList and this.character.trackedRules or this.accountWide.trackedRules
-    local ruleEntry = savedRules[groupId]
-    
-    if ruleEntry then
-        ruleEntry.displayName = nil
-        ruleEntry.patterns = nil
-        if ruleEntry.display then 
-            ruleEntry.display.isHidden = nil 
-        end
-    end
+    this.ResetRule(groupId)
     
     this.RefreshGroupsEditor()
     if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
@@ -713,7 +628,7 @@ ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_CONFIRM_RESET_GROUP_DIALOG",
         text = function(dialog)
             local data = dialog.data
             return string.format(
-                "Are you sure you want to reset '%s' to its default state?\n\n|cFF5252All custom patterns for this group will be lost.|r",
+                "Are you sure you want to reset '%s' to its default state?\n\n|cFF5252Its custom name, pattern edits, and display settings will be cleared.|r",
                 data.groupName
             )
         end

@@ -130,7 +130,7 @@ All implementation remains on the existing branch unless a branch switch is appr
 - [x] 0. Checkpoint the existing work and record this implementation breakdown.
 - [x] 1. Implement delta storage, focused setters, legacy conversion, and isolated rule unit tests.
 - [x] 2. Add the lazy compiled runtime cache and wire scanning, notifications, profile copying, and list switching; extend tests.
-- [ ] 3. Route group-editor mutations through the new APIs, including create/delete/reset/unhide; preserve focus-loss behavior and test editor paths.
+- [x] 3. Route group-editor mutations through the new APIs, including create/delete/reset/unhide; preserve focus-loss behavior and test editor paths.
 - [ ] 4. Run final regression checks, document the storage contract and in-game verification steps, and update task tracking.
 
 ### Subtask 0 - checkpoint and breakdown
@@ -158,3 +158,12 @@ All implementation remains on the existing branch unless a branch switch is appr
 - Profile import now copies only explicit override fields, converts legacy lists, avoids source-array/display aliases, and snapshots before clearing so self-copy is safe.
 - Added five more isolated cases for lazy reuse/invalidation, editor-view isolation, hidden groups/list switching, failed cache builds, profile copying, and real scanning/notification paths.
 - Validation: 10/10 isolated cases pass; all addon Lua syntax checks and `git diff --check` pass. In-game timing and UI verification remain pending.
+
+### Subtask 3 - editor mutations and group lifecycle
+
+- Group renaming and pattern editing now call the focused setters; pattern edits no longer overwrite a renamed group or copy display defaults.
+- Creation, deletion, reset, and both built-in/custom unhide paths use invalidating mutation APIs. New custom groups persist only their edited name.
+- Reset follows the design's full-override-clear behavior, including display flags. Updated the confirmation to name the settings being cleared, and made display-only overrides eligible for Reset.
+- Focus-loss saves refresh the HUD and action buttons without rebuilding/reanchoring group or pattern rows.
+- Added one shared lifecycle unit test and five headless tests that exercise the actual group-editor handlers using fake ESO controls. Fake controls are never loaded by the addon.
+- Validation: 16/16 isolated rule/editor cases pass under Lua 5.1; all addon Lua syntax checks and `git diff --check` pass. Native ESO focus/event ordering still needs the in-game check below.

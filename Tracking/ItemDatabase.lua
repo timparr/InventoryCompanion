@@ -208,6 +208,29 @@ function this.UpdateRulePatterns(ruleName, uiPatterns)
     this.InvalidateRuleCache()
 end
 
+function this.HasRuleOverrides(ruleName)
+    local saved = GetRawSavedRules()[ruleName]
+    return saved ~= nil and next(saved) ~= nil
+end
+
+function this.CreateCustomRule(ruleName, displayName)
+    local savedRules = GetRawSavedRules()
+    assert(not this.preLoadedRulesets[ruleName] and not savedRules[ruleName], "Rule already exists: " .. ruleName)
+    this.UpdateRuleProperty(ruleName, "displayName", displayName)
+end
+
+function this.DeleteCustomRule(ruleName)
+    assert(not this.preLoadedRulesets[ruleName], "Built-in rules cannot be deleted")
+    GetRawSavedRules()[ruleName] = nil
+    this.InvalidateRuleCache()
+end
+
+function this.ResetRule(ruleName)
+    assert(this.preLoadedRulesets[ruleName], "Only built-in rules can be reset")
+    GetRawSavedRules()[ruleName] = nil
+    this.InvalidateRuleCache()
+end
+
 ------------------------------------------------------------------
 -- Profile Copying Logic
 ------------------------------------------------------------------
