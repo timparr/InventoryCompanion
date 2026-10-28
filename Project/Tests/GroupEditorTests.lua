@@ -176,5 +176,23 @@ function this.GetGroupEditorTests()
         GetGameTimeMilliseconds = originalClock
     end)
 
+    Add("Missing maintained editor functions and controls fail at their use", function()
+        local refresh = this.RefreshItemTrackerPanel
+        this.RefreshItemTrackerPanel = nil
+        local ok, err = pcall(function() Click(Action("BtnHide")) end)
+        this.RefreshItemTrackerPanel = refresh
+        assert(not ok and tostring(err):find("RefreshItemTrackerPanel", 1, true), "Missing required refresh must throw")
+        local getControl = GetControl
+        GetControl = function(parent, name)
+            if parent == InventoryCompanion_GroupsWindowLeftPane and name == "ScrollChild" then return nil end
+            return getControl(parent, name)
+        end
+        ok, err = pcall(this.RefreshGroupsEditor)
+        GetControl = getControl
+        assert(not ok and tostring(err):find("ScrollChild", 1, true), "Missing required scroll child must throw")
+        ok, err = pcall(dialogs.InventoryCompanion_CONFIRM_RESET_GROUP_DIALOG.buttons[1].callback, { data = {} })
+        assert(not ok and tostring(err):find("requires a group ID", 1, true), "Missing internal dialog payload must throw")
+    end)
+
     return tests
 end

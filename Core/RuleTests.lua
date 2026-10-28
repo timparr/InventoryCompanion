@@ -9,6 +9,12 @@ local function List(actual, expected, message)
     for index, value in ipairs(expected) do Equal(actual[index], value, message .. " #" .. index) end
 end
 
+local function FailsWith(run, fragment)
+    local ok, err = pcall(run)
+    assert(not ok, "Expected failure containing: " .. fragment)
+    assert(tostring(err):find(fragment, 1, true), "Unexpected error: " .. tostring(err))
+end
+
 function this.GetRuleTests()
     local tests = {}
     local function Add(name, run)
@@ -128,6 +134,94 @@ function this.GetRuleTests()
         Equal(next(this.accountWide.trackedRules), nil, "Failed edits leave no overrides")
     end)
 
+    Add("Saved rule boundary rejects malformed data without discarding it", function()
+        local cases = {
+            { rules = false, field = "Account-wide.trackedRules" },
+            { rules = { bad = false }, field = "[bad]" },
+            { rules = { [12] = {} }, field = "invalid rule key" },
+            { rules = { bad = { displayName = 12 } }, field = "[bad].displayName" },
+            { rules = { bad = { display = false } }, field = "[bad].display" },
+            { rules = { bad = { display = { show = "yes" } } }, field = ".display.show" },
+            { rules = { bad = { display = { typo = true } } }, field = "unknown flag" },
+            { rules = { bad = { addedPatterns = false } }, field = "[bad].addedPatterns" },
+            { rules = { bad = { removedPatterns = { true } } }, field = "removedPatterns[1]" },
+            { rules = { bad = { patterns = { [2] = "hole" } } }, field = "must not contain holes" },
+            { rules = { bad = { addedPatterns = { named = "ignored" } } }, field = "positive integer indices" },
+        }
+        for _, case in ipairs(cases) do
+            this.accountWide.trackedRules = case.rules
+            this.accountWide.unrelated = "preserved"
+            FailsWith(this.GetRuntimeRules, case.field)
+            Equal(this.accountWide.trackedRules, case.rules, "Rejected saved table is not replaced")
+            Equal(this.accountWide.unrelated, "preserved", "Unrelated settings retained")
+        end
+        local legacy = { patterns = { "legacy*" }, displayName = "Legacy" }
+        this.accountWide.trackedRules = { valid = legacy, broken = { removedPatterns = false } }
+        FailsWith(this.GetRuntimeRules, "broken")
+        Equal(legacy.patterns[1], "legacy*", "Reject before migrating any rule")
+        Equal(legacy.addedPatterns, nil, "No partial conversion")
+        this.accountWide.trackedRules = { custom = { patterns = { "valid*" }, extra = { keep = true } } }
+        local extra = this.accountWide.trackedRules.custom.extra
+        this.GetRuntimeRules()
+        Equal(this.accountWide.trackedRules.custom.extra, extra, "Unrelated rule fields retained through validation/migration")
+        Equal(extra.keep, true, "Unrelated rule data not modified")
+    end)
+
+    Add("Initialization validates inactive saved profiles and optional absence", function()
+        this.accountWide.trackedRules = nil
+        this.character.trackedRules = { broken = { addedPatterns = false } }
+        FailsWith(this.ValidateSavedRuleProfiles, "Character.trackedRules[broken].addedPatterns")
+        Equal(this.character.trackedRules.broken.addedPatterns, false, "Invalid inactive data retained")
+        this.character.trackedRules = nil
+        this.ValidateSavedRuleProfiles()
+        Equal(type(this.accountWide.trackedRules), "table", "Missing account rules initialize")
+        Equal(type(this.character.trackedRules), "table", "Missing character rules initialize")
+        this.character.useCharacterItemList = "yes"
+        FailsWith(this.ValidateSavedRuleProfiles, "useCharacterItemList must be boolean")
+    end)
+
+    Add("Internal mutation contracts reject sparse lists and invalid list switches", function()
+        for _, patterns in ipairs({
+            { [2] = "hole" }, { [1] = "a", [3] = "c" },
+            { named = "ignored" }, { [0] = "zero" }, { [1.5] = "fraction" },
+        }) do
+            FailsWith(function() this.UpdateRulePatterns("default", patterns) end, "Rule patterns")
+            Equal(next(this.accountWide.trackedRules), nil, "Invalid internal list does not write")
+        end
+        FailsWith(function() this.SetUseCharacterItemList("yes") end, "must be boolean")
+        Equal(this.character.useCharacterItemList, false, "Bad switch does not change mode")
+        this.ValidateSavedRuleProfiles()
+        this.accountWide.trackedRules = nil
+        FailsWith(this.GetRuntimeRules, "Account-wide.trackedRules must be a table")
+        Equal(this.accountWide.trackedRules, nil, "Internal loss of required rules is not silently repaired")
+    end)
+
+    Add("Broken maintained baselines fail before normalization or writes", function()
+        local base = this.preLoadedRulesets.default
+        this.accountWide.trackedRules = { default = { displayName = "Default", patterns = { "legacy" } } }
+        local patterns = base.patterns
+        base.patterns = nil
+        FailsWith(this.GetRuntimeRules, "Built-in rule default.patterns")
+        Equal(this.accountWide.trackedRules.default.patterns[1], "legacy", "Broken baseline does not migrate saved rules")
+        base.patterns = patterns
+        local display = base.display
+        base.display = nil
+        FailsWith(function() this.UpdateRuleFlag("default", "show", false) end, "Built-in rule default.display")
+        Equal(this.accountWide.trackedRules.default.display, nil, "Broken baseline does not create flag overrides")
+        base.display = display
+        base.display.show = nil
+        FailsWith(this.GetRuntimeRules, "display.show must be boolean")
+        base.display.show = true
+        base.displayName = nil
+        FailsWith(function() this.UpdateRuleProperty("default", "displayName", "Changed") end, ".displayName must be a string")
+    end)
+
+    Add("Scans require compiled rules instead of silently compiling raw input", function()
+        FailsWith(function()
+            this.GetMasterItemList({}, { broken = { patterns = { "raw*" } } }, {})
+        end, "Rule broken is missing compiledPatterns")
+    end)
+
     Add("Runtime cache rebuilds lazily and keeps editor views isolated", function()
         local original = this.GetRuntimeRules()
         Equal(this.GetRuntimeRules(), original, "Unchanged rules reuse cache")
@@ -212,6 +306,32 @@ function this.GetRuleTests()
         assert(this.CopyProfile("self"), "Self-copy should preserve data")
         Equal(this.accountWide.trackedItems[123].link, "item", "Self-copy retains items")
         List(this.GetRuntimeRules().default.patterns, { "b", "c", "d", "e" }, "Self-copy retains rules")
+    end)
+
+    Add("Malformed imported rules fail before clearing the destination", function()
+        local source = {
+            trackedItems = {},
+            trackedRules = { broken = { addedPatterns = false } },
+        }
+        _G[this.SettingsName] = { Default = { account = { source = source } } }
+        this.UpdateRuleProperty("default", "displayName", "Keep")
+        this.accountWide.trackedItems[123] = { link = "keep" }
+        local rules, items = this.accountWide.trackedRules, this.accountWide.trackedItems
+        local cache = this.GetRuntimeRules()
+        FailsWith(function() this.CopyProfile("source") end, "Imported profile source.trackedRules[broken].addedPatterns")
+        Equal(this.accountWide.trackedRules, rules, "Destination rules table retained")
+        Equal(rules.default.displayName, "Keep", "Destination overrides retained")
+        Equal(this.accountWide.trackedItems, items, "Destination items table retained")
+        Equal(items[123].link, "keep", "Destination items retained")
+        Equal(this.GetRuntimeRules(), cache, "Rejected import does not invalidate")
+        Equal(source.trackedRules.broken.addedPatterns, false, "Malformed source retained for repair")
+        _G[this.SettingsName].Default.account.source = false
+        FailsWith(function() this.CopyProfile("source") end, "Imported profile source must be a table")
+        source.trackedRules.broken = {}
+        source.trackedItems = false
+        _G[this.SettingsName].Default.account.source = source
+        FailsWith(function() this.CopyProfile("source") end, "Imported profile source.trackedItems must be a table")
+        Equal(items[123].link, "keep", "Malformed item container cannot clear destination")
     end)
 
     Add("Scanning and notifications use current compiled rules", function()
@@ -362,7 +482,9 @@ function this.GetRuleTests()
         this.preLoadedRulesets = {}
         for index = 1, 20 do
             this.preLoadedRulesets["synthetic_" .. index] = {
-                patterns = { "Synthetic Item *" }, display = { show = true, notify = true },
+                displayName = "Synthetic " .. index,
+                patterns = { "Synthetic Item *" },
+                display = { show = true, notify = true, bank = false, group = true, isExpanded = true, isHidden = false },
             }
         end
         local cache = this.GetRuntimeRules()

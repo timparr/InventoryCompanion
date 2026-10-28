@@ -1,5 +1,4 @@
 -- Tracking/ItemDatabase.lua
-InventoryCompanion = InventoryCompanion or {}
 local this = InventoryCompanion
 
 local itemCountsCache = {}
@@ -9,6 +8,89 @@ local CompilePatterns
 local customDisplayDefaults = {
     show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false,
 }
+local validatedSavedRules = setmetatable({}, { __mode = "k" })
+
+local function CheckPatternList(patterns, context)
+    assert(type(patterns) == "table", context .. " must be a dense array of strings")
+    local count = 0
+    for key, pattern in pairs(patterns) do
+        assert(type(key) == "number" and key >= 1 and key % 1 == 0,
+            context .. " must contain only positive integer indices")
+        assert(type(pattern) == "string", context .. "[" .. tostring(key) .. "] must be a string")
+        count = count + 1
+    end
+    for index = 1, count do
+        assert(rawget(patterns, index) ~= nil, context .. " must not contain holes")
+    end
+end
+
+local function ValidateSavedRules(rules, context)
+    assert(type(rules) == "table", context .. " must be a table; saved data was not changed")
+    for ruleName, saved in pairs(rules) do
+        assert(type(ruleName) == "string" and ruleName ~= "", context .. " has an invalid rule key")
+        local path = context .. "[" .. ruleName .. "]"
+        assert(type(saved) == "table", path .. " must be a table")
+        assert(saved.displayName == nil or type(saved.displayName) == "string",
+            path .. ".displayName must be a string")
+        for _, field in ipairs({ "patterns", "addedPatterns", "removedPatterns" }) do
+            if saved[field] ~= nil then CheckPatternList(saved[field], path .. "." .. field) end
+        end
+        if saved.display ~= nil then
+            assert(type(saved.display) == "table", path .. ".display must be a table")
+            for key, value in pairs(saved.display) do
+                assert(customDisplayDefaults[key] ~= nil, path .. ".display has an unknown flag: " .. tostring(key))
+                assert(type(value) == "boolean", path .. ".display." .. key .. " must be boolean")
+            end
+        end
+    end
+end
+
+local function LoadSavedRules(profile, context, initializeMissing)
+    assert(type(profile) == "table", "Required profile is missing: " .. context)
+    local rules = profile.trackedRules
+    if rules == nil and initializeMissing then
+        rules = {}
+        profile.trackedRules = rules
+    end
+    if not validatedSavedRules[rules] then
+        ValidateSavedRules(rules, context .. ".trackedRules")
+        validatedSavedRules[rules] = true
+    end
+    return rules
+end
+
+function this.ValidateSavedRuleProfiles()
+    assert(type(this.character.useCharacterItemList) == "boolean",
+        "Character.useCharacterItemList must be boolean")
+    LoadSavedRules(this.accountWide, "Account-wide", true)
+    LoadSavedRules(this.character, "Character", true)
+end
+
+local function GetBaseline(ruleName)
+    assert(type(ruleName) == "string" and ruleName ~= "", "Rule name must be a non-empty string")
+    local base = this.preLoadedRulesets[ruleName]
+    if base ~= nil then
+        local context = "Built-in rule " .. ruleName
+        assert(type(base) == "table", context .. " must be a table")
+        assert(type(base.displayName) == "string", context .. ".displayName must be a string")
+        CheckPatternList(base.patterns, context .. ".patterns")
+        assert(type(base.display) == "table", context .. ".display must be a table")
+        for flag in pairs(customDisplayDefaults) do
+            assert(type(base.display[flag]) == "boolean", context .. ".display." .. flag .. " must be boolean")
+        end
+    end
+    return base
+end
+
+local function GetDisplayDefaults(base)
+    if base ~= nil then return base.display end
+    return customDisplayDefaults
+end
+
+local function GetDefaultName(ruleName, base)
+    if base ~= nil then return base.displayName end
+    return ruleName
+end
 
 function this.InvalidateRuleCache()
     cacheInvalid = true
@@ -16,7 +98,7 @@ end
 
 -- Items
 function this.GetActiveTrackedItems()
-    if this.character and this.character.useCharacterItemList then
+    if this.character.useCharacterItemList then
         this.character.trackedItems = this.character.trackedItems or {}
         return this.character.trackedItems
     else
@@ -29,19 +111,18 @@ end
 -- Rules
 ------------------------------------------------------------------
 local function GetRawSavedRules()
+    assert(type(this.character.useCharacterItemList) == "boolean", "Character list preference must be boolean")
     if this.character.useCharacterItemList then
-        this.character.trackedRules = this.character.trackedRules or {}
-        return this.character.trackedRules
+        return LoadSavedRules(this.character, "Character")
     else
-        this.accountWide.trackedRules = this.accountWide.trackedRules or {}
-        return this.accountWide.trackedRules
+        return LoadSavedRules(this.accountWide, "Account-wide")
     end
 end
 
 local function PatternSet(patterns)
+    CheckPatternList(patterns, "Rule patterns")
     local values = {}
-    for _, pattern in ipairs(patterns or {}) do
-        assert(type(pattern) == "string", "Rule patterns must be strings")
+    for _, pattern in ipairs(patterns) do
         values[pattern] = true
     end
     return values
@@ -57,18 +138,20 @@ local function SortedPatterns(values)
 end
 
 local function GetPatternList(base, saved)
-    local values = PatternSet(base and base.patterns)
-    for _, pattern in ipairs(saved.removedPatterns or {}) do
-        values[pattern] = nil
+    local values = {}
+    if base ~= nil then values = PatternSet(base.patterns) end
+    if saved.removedPatterns ~= nil then
+        for _, pattern in ipairs(saved.removedPatterns) do values[pattern] = nil end
     end
-    for _, pattern in ipairs(saved.addedPatterns or {}) do
-        values[pattern] = true
+    if saved.addedPatterns ~= nil then
+        for _, pattern in ipairs(saved.addedPatterns) do values[pattern] = true end
     end
     return SortedPatterns(values)
 end
 
 local function ReconcilePatterns(base, saved, patterns)
-    local defaults = PatternSet(base and base.patterns)
+    local defaults = {}
+    if base ~= nil then defaults = PatternSet(base.patterns) end
     local edited = PatternSet(patterns)
     local added, removed = {}, {}
     for pattern in pairs(edited) do
@@ -84,7 +167,7 @@ end
 
 local function PruneRule(savedRules, ruleName)
     local saved = savedRules[ruleName]
-    if saved.display and not next(saved.display) then saved.display = nil end
+    if saved.display ~= nil and not next(saved.display) then saved.display = nil end
     if this.preLoadedRulesets[ruleName] and not next(saved) then
         savedRules[ruleName] = nil
     end
@@ -92,15 +175,17 @@ end
 
 local function NormalizeRule(savedRules, ruleName)
     local saved = savedRules[ruleName]
-    local base = this.preLoadedRulesets[ruleName]
+    local base = GetBaseline(ruleName)
     if saved.patterns ~= nil then
         ReconcilePatterns(base, saved, saved.patterns)
     end
-    local defaultName = base and base.displayName or ruleName
+    local defaultName = GetDefaultName(ruleName, base)
     if saved.displayName == defaultName then saved.displayName = nil end
-    local defaults = base and base.display or customDisplayDefaults
-    for key, value in pairs(saved.display or {}) do
-        if value == defaults[key] then saved.display[key] = nil end
+    local defaults = GetDisplayDefaults(base)
+    if saved.display ~= nil then
+        for key, value in pairs(saved.display) do
+            if value == defaults[key] then saved.display[key] = nil end
+        end
     end
     PruneRule(savedRules, ruleName)
 end
@@ -111,18 +196,24 @@ function this.GetRuntimeRules()
         return runtimeRules
     end
     cacheInvalid = true
+    for ruleName in pairs(this.preLoadedRulesets) do GetBaseline(ruleName) end
     for ruleName in pairs(savedRules) do NormalizeRule(savedRules, ruleName) end
     local resolvedRules = {}
     local function Resolve(ruleName, base)
-        local saved = savedRules[ruleName] or {}
+        local saved = savedRules[ruleName]
+        if saved == nil then saved = {} end
         local display = {}
-        for key, value in pairs(base and base.display or customDisplayDefaults) do
+        for key, value in pairs(GetDisplayDefaults(base)) do
             display[key] = value
         end
-        for key, value in pairs(saved.display or {}) do display[key] = value end
+        if saved.display ~= nil then
+            for key, value in pairs(saved.display) do display[key] = value end
+        end
         local patterns = GetPatternList(base, saved)
+        local displayName = saved.displayName
+        if displayName == nil then displayName = GetDefaultName(ruleName, base) end
         resolvedRules[ruleName] = {
-            displayName = saved.displayName or (base and base.displayName) or ruleName,
+            displayName = displayName,
             patterns = patterns,
             compiledPatterns = CompilePatterns(patterns),
             display = display,
@@ -140,10 +231,14 @@ function this.GetRuntimeRules()
 end
 
 local function CopyValues(values)
-    if not values then return nil end
     local copy = {}
     for key, value in pairs(values) do copy[key] = value end
     return copy
+end
+
+local function CopyOptionalValues(values)
+    if values == nil then return nil end
+    return CopyValues(values)
 end
 
 function this.GetActiveTrackedRules(includeHidden)
@@ -164,6 +259,7 @@ function this.GetActiveTrackedRules(includeHidden)
 end
 
 function this.SetUseCharacterItemList(value)
+    assert(type(value) == "boolean", "Character list preference must be boolean")
     this.character.useCharacterItemList = value
     this.InvalidateRuleCache()
 end
@@ -171,12 +267,12 @@ end
 function this.UpdateRuleFlag(ruleName, flagKey, value)
     assert(customDisplayDefaults[flagKey] ~= nil, "Unknown rule display flag: " .. tostring(flagKey))
     assert(value == nil or type(value) == "boolean", "Rule display flags must be boolean or nil")
+    local base = GetBaseline(ruleName)
     local savedRules = GetRawSavedRules()
-    savedRules[ruleName] = savedRules[ruleName] or {}
+    if savedRules[ruleName] == nil then savedRules[ruleName] = {} end
     local saved = savedRules[ruleName]
-    local base = this.preLoadedRulesets[ruleName]
-    local defaults = base and base.display or customDisplayDefaults
-    saved.display = saved.display or {}
+    local defaults = GetDisplayDefaults(base)
+    if saved.display == nil then saved.display = {} end
     if value == defaults[flagKey] then value = nil end
     saved.display[flagKey] = value
     PruneRule(savedRules, ruleName)
@@ -188,10 +284,10 @@ this.SetRuleFlag = this.UpdateRuleFlag
 function this.UpdateRuleProperty(ruleName, propertyKey, value)
     assert(propertyKey == "displayName", "Use UpdateRulePatterns for pattern edits")
     assert(value == nil or type(value) == "string", "Rule display name must be a string or nil")
+    local base = GetBaseline(ruleName)
     local savedRules = GetRawSavedRules()
-    savedRules[ruleName] = savedRules[ruleName] or {}
-    local base = this.preLoadedRulesets[ruleName]
-    if value == (base and base.displayName or ruleName) then value = nil end
+    if savedRules[ruleName] == nil then savedRules[ruleName] = {} end
+    if value == GetDefaultName(ruleName, base) then value = nil end
     savedRules[ruleName][propertyKey] = value
     PruneRule(savedRules, ruleName)
     this.InvalidateRuleCache()
@@ -201,9 +297,10 @@ function this.UpdateRulePatterns(ruleName, uiPatterns)
     assert(type(uiPatterns) == "table", "Rule patterns must be a list")
     -- Validate before creating an override, so failed edits leave saved state unchanged.
     PatternSet(uiPatterns)
+    local base = GetBaseline(ruleName)
     local savedRules = GetRawSavedRules()
-    savedRules[ruleName] = savedRules[ruleName] or {}
-    ReconcilePatterns(this.preLoadedRulesets[ruleName], savedRules[ruleName], uiPatterns)
+    if savedRules[ruleName] == nil then savedRules[ruleName] = {} end
+    ReconcilePatterns(base, savedRules[ruleName], uiPatterns)
     PruneRule(savedRules, ruleName)
     this.InvalidateRuleCache()
 end
@@ -244,69 +341,86 @@ end
 -- Profile Copying Logic
 ------------------------------------------------------------------
 function this.CopyProfile(sourceKey)
+    assert(type(sourceKey) == "string" and sourceKey ~= "", "Profile source key must be a non-empty string")
     local sv = _G[this.SettingsName]
-    if not sv or not sv.Default then return false end
+    if sv == nil then return false end
+    assert(type(sv) == "table", "Saved profile namespace must be a table")
+    if sv.Default == nil then return false end
+    assert(type(sv.Default) == "table", "Saved profile namespace.Default must be a table")
 
     local sourceBlock = nil
 
     for _, accData in pairs(sv.Default) do
+        assert(type(accData) == "table", "Saved account profile block must be a table")
         if sourceKey == "$AccountWide" then
-            if accData["$AccountWide"] then
+            if accData["$AccountWide"] ~= nil then
                 sourceBlock = accData["$AccountWide"]
                 break
             end
         else
-            if accData[sourceKey] then
+            if accData[sourceKey] ~= nil then
                 sourceBlock = accData[sourceKey]
                 break
             end
         end
     end
 
+    if sourceBlock == nil then return false end
+    local context = "Imported profile " .. sourceKey
+    assert(type(sourceBlock) == "table", context .. " must be a table")
+    if sourceBlock.trackedRules ~= nil then
+        ValidateSavedRules(sourceBlock.trackedRules, context .. ".trackedRules")
+    end
+    if sourceBlock.trackedItems ~= nil then
+        assert(type(sourceBlock.trackedItems) == "table", context .. ".trackedItems must be a table")
+        for itemId, data in pairs(sourceBlock.trackedItems) do
+            local path = context .. ".trackedItems[" .. tostring(itemId) .. "]"
+            assert(type(data) == "table", path .. " must be a table")
+            if data.display ~= nil then
+                assert(type(data.display) == "table", path .. ".display must be a table")
+            end
+        end
+    end
     local destTable = this.GetActiveTrackedItems()
     local destRules = GetRawSavedRules()
 
-    if sourceBlock and destTable and destRules then
-        local copiedItems, copiedRules = {}, {}
-        if sourceBlock.trackedItems then
-            for itemId, data in pairs(sourceBlock.trackedItems) do
-                local srcDisplay = data.display or {}
-                local mode = data.mode or 1
-                copiedItems[itemId] = {
-                    link = data.link,
-                    icon = data.icon,
-                    display = {
-                        show = srcDisplay.show ~= false or (mode ~= 3),
-                        notify = srcDisplay.notify == true or (mode == 2),
-                        bank = srcDisplay.bank == true,
-                        group = srcDisplay.group == true,
-                    },
-                }
-            end
+    local copiedItems, copiedRules = {}, {}
+    if sourceBlock.trackedItems ~= nil then
+        for itemId, data in pairs(sourceBlock.trackedItems) do
+            local srcDisplay = data.display or {}
+            local mode = data.mode or 1
+            copiedItems[itemId] = {
+                link = data.link,
+                icon = data.icon,
+                display = {
+                    show = srcDisplay.show ~= false or (mode ~= 3),
+                    notify = srcDisplay.notify == true or (mode == 2),
+                    bank = srcDisplay.bank == true,
+                    group = srcDisplay.group == true,
+                },
+            }
         end
-
-        if sourceBlock.trackedRules then
-            for ruleKey, ruleData in pairs(sourceBlock.trackedRules) do
-                copiedRules[ruleKey] = {
-                    displayName = ruleData.displayName,
-                    patterns = CopyValues(ruleData.patterns),
-                    addedPatterns = CopyValues(ruleData.addedPatterns),
-                    removedPatterns = CopyValues(ruleData.removedPatterns),
-                    display = CopyValues(ruleData.display),
-                }
-                NormalizeRule(copiedRules, ruleKey)
-            end
-        end
-
-        ZO_ClearTable(destTable)
-        for key, value in pairs(copiedItems) do destTable[key] = value end
-        ZO_ClearTable(destRules)
-        for key, value in pairs(copiedRules) do destRules[key] = value end
-        this.InvalidateRuleCache()
-        return true
     end
 
-    return false
+    if sourceBlock.trackedRules ~= nil then
+        for ruleKey, ruleData in pairs(sourceBlock.trackedRules) do
+            copiedRules[ruleKey] = {
+                displayName = ruleData.displayName,
+                patterns = CopyOptionalValues(ruleData.patterns),
+                addedPatterns = CopyOptionalValues(ruleData.addedPatterns),
+                removedPatterns = CopyOptionalValues(ruleData.removedPatterns),
+                display = CopyOptionalValues(ruleData.display),
+            }
+            NormalizeRule(copiedRules, ruleKey)
+        end
+    end
+
+    ZO_ClearTable(destTable)
+    for key, value in pairs(copiedItems) do destTable[key] = value end
+    ZO_ClearTable(destRules)
+    for key, value in pairs(copiedRules) do destRules[key] = value end
+    this.InvalidateRuleCache()
+    return true
 end
 
 ------------------------------------------------------------------
@@ -314,7 +428,7 @@ end
 ------------------------------------------------------------------
 CompilePatterns = function(patterns)
     local compiled = {}
-    for _, pattern in ipairs(patterns or {}) do
+    for _, pattern in ipairs(patterns) do
         local cleaned = pattern:lower()
         if cleaned:find("*", 1, true) then
             local p = cleaned:gsub("([%^%$%(%)%%%.%[%+%-%?])", "%%%1")
@@ -525,7 +639,8 @@ function this.GetMasterItemList(trackedItems, activeRules, bagIdList)
 
     local compiledRules = {}
     for ruleName, ruleData in pairs(activeRules) do
-        compiledRules[ruleName] = ruleData.compiledPatterns or CompilePatterns(ruleData.patterns or { ruleData.pattern })
+        assert(type(ruleData.compiledPatterns) == "table", "Rule " .. ruleName .. " is missing compiledPatterns")
+        compiledRules[ruleName] = ruleData.compiledPatterns
     end
 
     for _, bagId in ipairs(bagIdList) do

@@ -19,6 +19,7 @@ The [design and acceptance checklist](DeltaOnlySavedVariables.md) remains the co
 | 3. Editor and lifecycle | `703035e` | Routed editor mutations through database APIs; added handler tests. |
 | 4. Final regression and documentation | `47e67a7` | Persistence/performance coverage and acceptance documentation. |
 | Post-implementation Reset correction | `ae25468` | Preserved display settings and restricted Reset to name/pattern edits. |
+| Ownership-boundary follow-up | Follow-up after `199df83` | Validates external saved rules and removes guards/fallbacks that hide maintained-code defects; see the final section. |
 
 No branch switch was made. The initial workflow warning recommended a separate branch because persistence changes are substantial, but branch switching required approval.
 
@@ -172,7 +173,7 @@ In [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
 3. **Do not eagerly rebuild in setters.** Setters invalidate; the next reader rebuilds, including notification readers that run before another scan.
 4. **Copy mutable views rather than change existing UI assumptions.** The item editor mutates its display view, and HUD layout changes miscellaneous-group display fields. Copying those views keeps them from corrupting the shared cache.
 5. **Share compiled arrays by convention.** Active views reference the cached compiled arrays. These arrays, and the cache returned by `GetRuntimeRules`, are read-only by contract, not protected with Lua metatables.
-6. **Keep the raw-rule compilation fallback.** This preserves the existing `GetMasterItemList` calling contract for supplied synthetic/raw rules. Normal resolved addon rules reuse compiled arrays.
+6. **Originally keep the raw-rule compilation fallback.** This preserved the existing `GetMasterItemList` calling contract for supplied synthetic/raw rules. The ownership-boundary follow-up below supersedes this choice: scans now require compiled rules, and tests supply real resolved rules.
 7. **Detect replaced tables, not arbitrary nested edits.** Replacing the active saved-rule or baseline table triggers rebuilding even without explicit invalidation. In-place nested changes still require a setter or `InvalidateRuleCache`.
 8. **Preserve missing imported flags.** Import no longer fills every rule display flag with a boolean fallback, which would mask baseline defaults.
 9. **Isolate copied profiles.** Pattern arrays and display tables do not alias the source. Normalization operates on the copied rule rather than migrating the source profile in place.
@@ -426,3 +427,65 @@ In ESO, `/ictest verbose` includes the fourteen shared cases alongside the exist
 - Test `/icclearoverrides` only on a disposable profile because it deliberately clears all overrides for that active list.
 
 The [design and acceptance checklist](DeltaOnlySavedVariables.md) contains the detailed sequential pattern scenarios and client checklist. No claim is made that these native-client checks have been executed.
+
+## Follow-up - fail-fast internals and saved-data ownership boundary
+
+The user clarified the project-wide rule: defensive checks belong at boundaries with code/data we do not maintain. ZOS and dependent addons are examples. Our saved data also crosses a boundary because users can edit it outside the addon. Within maintained code, required functions and state must not be hidden behind guards or silent fallbacks.
+
+### Baseline and scope
+
+- The working tree was clean at `199df83`; no extra pre-work checkpoint was needed.
+- Work remained on `main`, without a branch switch.
+- This follow-up covers the delta-rule database and its editor/settings/import/clear consumers. It is not a claim that every unrelated pre-existing addon subsystem has been audited.
+- The persisted schema and Reset semantics are unchanged.
+
+### Files and methods changed
+
+| File | Changes |
+|---|---|
+| [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) | Added boundary and internal contract helpers; removed custom-default fallbacks for broken built-in definitions and the raw-rule scan compilation fallback. Tightened profile import before destination replacement. |
+| [Core/Init.lua](../../../Core/Init.lua) | Calls `ValidateSavedRuleProfiles` immediately after ZOS saved-variable loading, before module initialization. The clear command directly calls required refresh functions. |
+| [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua) | Direct calls to required addon methods; explicit missing-control/payload errors; removed name/pattern fallbacks for required resolved fields. |
+| [Tracking/EditPanelItemsTab.lua](../../../Tracking/EditPanelItemsTab.lua) | Direct required-method calls in import, list-switch, scene, and toggle paths; required import/scroll controls fail explicitly; resolved rule names no longer fall back to slugs. |
+| [Core/Settings.lua](../../../Core/Settings.lua) | Character-list changes directly call required editor/HUD refresh methods. |
+| [Core/Tests.lua](../../../Core/Tests.lua) | Synthetic scans use real resolved/compiled rules instead of depending on production fallback behavior. Built-in fixtures supply all required baseline fields. |
+| [Core/RuleTests.lua](../../../Core/RuleTests.lua) | Added six boundary/internal-failure cases, retaining isolated fixture restoration. |
+| [Project/Tests/GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) | Added actual handler checks for missing maintained methods, missing required controls, and invalid internal dialog data. |
+| [Project/Tests/RulePersistenceTests.lua](../../Tests/RulePersistenceTests.lua) | Added an actual production-baseline contract check and provided required refresh stubs for clear-command tests. |
+| [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py) | Supplies the production constants source to the isolated baseline test. |
+| [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) | Records the updated boundary policy and current verification commands/counts. |
+
+New helpers/API in the database:
+
+- **`CheckPatternList(patterns, context)`** requires a dense, positive-integer-indexed array of strings. Holes, named keys, non-string elements, zero/negative/fractional indices, and non-table values fail at validation.
+- **`ValidateSavedRules(rules, context)`** validates rule keys, rule tables, optional names, legacy/delta lists, and known boolean display flags. It is a read-only check.
+- **`LoadSavedRules(profile, context, initializeMissing)`** validates each newly encountered saved-rule table. A weak-key in-memory set avoids revalidating the same trusted table on each consumer access.
+- **`ValidateSavedRuleProfiles()`** is the public initialization entry point. Checks both account and character rule profiles, even when one is inactive, and validates the character-list preference.
+- **`GetBaseline(ruleName)`** enforces maintained built-in definitions: string name, dense pattern list, and all six boolean display flags. Runs before baseline-dependent mutations and before cache normalization.
+- **`GetDisplayDefaults(base)` / `GetDefaultName(ruleName, base)`** explicitly distinguish a custom group from an existing built-in definition. A broken built-in definition cannot silently become a custom default.
+- **`CopyOptionalValues(values)`** handles legitimately absent imported fields; ordinary `CopyValues` now requires its table argument.
+
+### Decisions made
+
+1. **Reject malformed saved rules rather than guess a repair.** Invalid present data throws a contextual Lua error naming the account/character/import profile, rule key, and field. Initialization/import stops; malformed entries are not silently skipped, reset, or replaced with success-shaped defaults. The boundary exception permits deliberate recovery but does not require guessing at user intent.
+2. **Preserve evidence and unrelated data.** Validation does not delete malformed entries. Validated legacy conversion still applies afterward. Source import validation occurs before clearing destination items/rules, and unrelated saved fields are preserved by active-profile normalization.
+3. **Treat missing and malformed differently.** Missing optional name/display/delta fields still inherit defaults. A missing `trackedRules` table can be initialized at the explicit loading boundary. Losing that required table later in maintained code throws instead of recreating it silently.
+4. **Validate inactive rules during initialization.** Corruption in the inactive account/character rule list is reported before module initialization rather than surfacing only when the user switches lists.
+5. **Validate newly encountered table identities once.** Explicit loading validates both profiles; first access also validates newly supplied/replaced rule tables, including test fixtures. Subsequent in-memory edits are our code's responsibility and must use the mutation APIs. There is no repeated defensive schema pass in matching/scan loops.
+6. **Check complete baselines before migration.** A malformed built-in definition raises a maintained-code error before cache rebuilding normalizes saved overrides. This avoids converting valid legacy lists against an incomplete built-in definition.
+7. **Strengthen internal entry contracts.** Pattern setters reject sparse/dictionary input before writing. List switching requires a boolean. No fallback masks missing compiled rule data in scans.
+8. **Fix tests to meet production contracts.** Synthetic raw-rule callers were changed to construct real resolved rules, not retained as a reason to silently compile missing runtime fields in production.
+9. **Remove guards around our own code.** Required refresh/layout functions are called directly. Missing editor controls and missing Reset dialog IDs produce explicit errors. Group-name/pattern views rely on the resolved cache contract.
+10. **Keep legitimate control flow.** No selected group, no matching item, empty external inventory slots, no source profile found, optional saved overrides, and empty custom groups remain valid cases. Test catches still restore fixtures and report/rethrow failures.
+11. **Do not broaden tracked-item migration.** Import checks item container/entry/display-table shapes before replacement because they are part of the same transaction, but this follow-up does not introduce a new full tracked-item schema or alter existing legacy item-mode semantics.
+
+### Verification
+
+- **29/29 headless cases pass:** twenty shared rule cases, six actual group-editor handler cases, and three production-baseline/persistence/command cases.
+- Malformed saved cases include false/scalar containers, invalid keys/names/flags, unknown display flags, sparse/named arrays, and invalid pattern elements. Tests verify failed imports retain the destination and leave source data available for repair.
+- Internal failure cases verify invalid list switches, missing built-in fields, absent compiled scan rules, missing required refresh functions/controls, and invalid Reset dialog payloads.
+- The actual production built-in definitions pass the strict contract, and existing delta, Reset, serialization, notification, and burst tests still pass.
+- All addon Lua sources parse under Lua 5.1; `git diff --check` passes.
+- The existing isolated packaging suite passes **187 assertions**, without modifying live installations or saved-variable files.
+- A reference run measured 50 ms for twenty 100-item/twenty-rule scans, 0 ms at millisecond resolution for 100 matches, and 0 ms for 100 updates, all below existing thresholds. These are host measurements, not ESO-client evidence.
+- Native ESO initialization, focus/event behavior, saved-file reload persistence, and real-client timings still need client acceptance.

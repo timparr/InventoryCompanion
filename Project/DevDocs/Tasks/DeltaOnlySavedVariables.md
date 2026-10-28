@@ -219,7 +219,7 @@ python Project\Tests\Run-RuleTests.py
 git diff --check
 ```
 
-The headless runner executes 14 shared rule cases, five actual group-editor handler cases with fake controls, and two persistence/command cases under Lua 5.1. The packaging suite uses its own temporary installation fixture. Neither reads or modifies live saved-variable files or live inventory. In game, `/ictest verbose` includes the 14 shared cases alongside the existing suite; synthetic fixtures restore the original runtime references even on test failure.
+The headless runner now executes 20 shared rule cases, six actual group-editor handler cases with fake controls, and three production-baseline/persistence/command cases under Lua 5.1. The packaging suite uses its own temporary installation fixture. Neither reads or modifies live saved-variable files or live inventory. In game, `/ictest verbose` includes the 20 shared cases alongside the existing suite; synthetic fixtures restore the original runtime references even on test failure.
 
 ## In-game acceptance checklist (not yet executed)
 
@@ -241,3 +241,12 @@ Back up saved variables before testing migration. The existing publishing script
 - Reset availability now checks only name/pattern overrides; display-only changes do not expose an ineffective Reset button.
 - Updated the confirmation and user manual. Extended shared and actual editor-handler tests to cover every display flag, hidden-state retention, repeated resets, empty-rule pruning, cache invalidation, and account/character isolation.
 - Validation: 21/21 isolated rule/editor/persistence cases pass; all addon sources parse under Lua 5.1; `git diff --check` passes. Native ESO acceptance remains pending.
+
+## Ownership-boundary follow-up
+
+- Saved-rule validation now runs for both account/character profiles immediately after loading and for source profiles before import. Newly encountered saved-rule tables are checked once before use.
+- Malformed present fields are rejected with a profile/rule/field Lua error, leaving data available for repair. No guessed repairs, silent skips, or discarded unrelated entries. Missing optional fields and valid legacy data retain their documented behavior.
+- Maintained code now calls required addon functions directly; missing required controls/dialog data and broken built-in definitions fail near the cause. Scans require compiled rules; synthetic tests use real resolved rules instead of relying on fallback compilation.
+- Pattern setters require dense string arrays, list switching requires a boolean, and valid Reset behavior still retains all display flags.
+- Validation: 29/29 headless cases and 187 isolated packaging assertions pass; all addon Lua syntax checks and `git diff --check` pass. In-game acceptance remains pending.
+- The separate [implementation and decision review](Don_DeltaOnlySavedVariables.md#follow-up---fail-fast-internals-and-saved-data-ownership-boundary) records the affected methods, files, and explicit handling decisions.

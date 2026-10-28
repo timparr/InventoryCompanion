@@ -1,4 +1,3 @@
-InventoryCompanion = InventoryCompanion or {}
 local this = InventoryCompanion
 
 local groupRows = {}
@@ -18,7 +17,6 @@ local constants = {
 -- Sanitization & Commit Logic
 ------------------------------------------------------------------
 local function SanitizeGroupName(name)
-    if not name then return "" end
     -- Trim whitespace
     name = name:match("^%s*(.-)%s*$")
     -- Strip control characters (\0-\31, \127)
@@ -36,10 +34,8 @@ local function GetSortedGroupNames()
     end
 	
 	table.sort(groupNames, function(a, b)
-        local ruleA = activeRules[a]
-        local ruleB = activeRules[b]
-        local nameA = (ruleA and ruleA.displayName) or a
-        local nameB = (ruleB and ruleB.displayName) or b
+        local nameA = activeRules[a].displayName
+        local nameB = activeRules[b].displayName
         return nameA:lower() < nameB:lower()
     end)
     
@@ -74,10 +70,10 @@ local function PopulateGroupRow(row, groupName, index, scrollChild, activeRules)
     local nameLabel = GetControl(row, "Name")
 
     local ruleData = activeRules[groupName]
-    local displayName = ruleData and ruleData.displayName or groupName
+    local displayName = ruleData.displayName
 
     -- Apply hidden styling (Red text with "(hidden)" suffix)
-    if ruleData and ruleData.display and ruleData.display.isHidden == true then
+    if ruleData.display.isHidden == true then
         displayName = string.format("|cFF5252%s (hidden)|r", displayName)
     end
 
@@ -120,7 +116,7 @@ local function PopulateGroupListPane(groupNames, activeRules)
     HideAllGroupRows()
 
     local scrollChild = GetControl(InventoryCompanion_GroupsWindowLeftPane, "ScrollChild")
-    if not scrollChild then return end
+    assert(scrollChild, "Groups editor is missing its group-list ScrollChild")
 
     if not selectedGroupName or not activeRules[selectedGroupName] then
         selectedGroupName = groupNames[1]
@@ -151,7 +147,7 @@ end
 local function DoesGroupNameExist(targetName, excludeKey)
     local activeRules = this.GetActiveTrackedRules(true)
     for key, rule in pairs(activeRules) do
-        if key ~= excludeKey and rule.displayName and rule.displayName:lower() == targetName:lower() then
+        if key ~= excludeKey and rule.displayName:lower() == targetName:lower() then
             return true
         end
     end
@@ -218,12 +214,12 @@ local function CommitGroupNameEdit(editBox, titleLabel, pencilBtn)
     titleLabel:SetHidden(false)
     pencilBtn:SetHidden(false)
     this.RefreshGroupsEditor()
-    if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
+    this.RefreshItemTrackerPanel()
 end
 
 local function HandlePencilClick(titleLabel, pencilBtn, editBox, activeRules)
     local ruleData = activeRules[selectedGroupName]
-    local displayName = ruleData and ruleData.displayName or selectedGroupName
+    local displayName = ruleData.displayName
 
     editBox:SetText(displayName)
     titleLabel:SetHidden(true)
@@ -263,7 +259,7 @@ local function HandlePatternFocusLost(self, patterns, index, targetGroup)
     
     if targetGroup == selectedGroupName then
         SaveRulePatterns(targetGroup, patterns)
-        if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
+        this.RefreshItemTrackerPanel()
         SetActionButtons(this.GetActiveTrackedRules(true))
     end
 end
@@ -272,7 +268,7 @@ local function HandlePatternDelete(patterns, index)
     table.remove(patterns, index)
     SaveRulePatterns(selectedGroupName, patterns)
     this.RefreshGroupsEditor()
-    if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
+    this.RefreshItemTrackerPanel()
 end
 
 local function HandleAddRule(patterns)
@@ -294,14 +290,14 @@ local function ConfigureCustomGroupActionBar(btnReset, btnHide, btnDelete, actio
         btnHide:SetHandler("OnClicked", function()
             this.SetRuleFlag(groupId, "isHidden", false)
             this.RefreshGroupsEditor()
-            if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
+            this.RefreshItemTrackerPanel()
         end)
     else
         btnHide:SetText("Hide Group")
         btnHide:SetHandler("OnClicked", function()
             this.SetRuleFlag(groupId, "isHidden", true)
             this.RefreshGroupsEditor()
-            if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
+            this.RefreshItemTrackerPanel()
         end)
     end
 
@@ -311,7 +307,7 @@ local function ConfigureCustomGroupActionBar(btnReset, btnHide, btnDelete, actio
     btnDelete:SetAnchor(TOPLEFT, btnHide, TOPRIGHT, 10, 0)
     btnDelete:SetHandler("OnClicked", function()
         local ruleData = activeRules[groupId]
-        local displayName = ruleData and ruleData.displayName or groupId
+        local displayName = ruleData.displayName
 
         ZO_Dialogs_ShowDialog("InventoryCompanion_CONFIRM_DELETE_GROUP_DIALOG", {
             groupId = groupId,
@@ -327,14 +323,14 @@ local function ConfigurePreloadedHideButton(btnHide, groupId, isHidden)
         btnHide:SetHandler("OnClicked", function()
             this.SetRuleFlag(groupId, "isHidden", false)
             this.RefreshGroupsEditor()
-            if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
+            this.RefreshItemTrackerPanel()
         end)
     else
         btnHide:SetText("Hide Group")
         btnHide:SetHandler("OnClicked", function()
             this.SetRuleFlag(groupId, "isHidden", true)
             this.RefreshGroupsEditor()
-            if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
+            this.RefreshItemTrackerPanel()
         end)
     end
 end
@@ -350,7 +346,7 @@ local function ConfigurePreloadedResetButton(btnReset, btnHide, actionBar, hasOv
 
         btnReset:SetHandler("OnClicked", function()
             local ruleData = activeRules[groupId]
-            local displayName = ruleData and ruleData.displayName or groupId
+            local displayName = ruleData.displayName
 
             ZO_Dialogs_ShowDialog("InventoryCompanion_CONFIRM_RESET_GROUP_DIALOG", {
                 groupId = groupId,
@@ -385,7 +381,7 @@ SetActionButtons = function(activeRules)
             btnReset:SetAnchor(TOPLEFT, actionBar, TOPLEFT, 0, 0)
             btnReset:SetHandler("OnClicked", function()
                 local ruleData = activeRules[groupId]
-                local displayName = ruleData and ruleData.displayName or groupId
+                local displayName = ruleData.displayName
 
                 ZO_Dialogs_ShowDialog("InventoryCompanion_CONFIRM_RESET_GROUP_DIALOG", {
                     groupId = groupId,
@@ -402,7 +398,7 @@ SetActionButtons = function(activeRules)
     local hasOverride = this.HasResettableRuleOverrides(groupId)
 
     local ruleData = activeRules[groupId]
-    local isHidden = ruleData and ruleData.display.isHidden == true
+    local isHidden = ruleData.display.isHidden == true
 
     if not basePreloaded then
 		ConfigureCustomGroupActionBar(btnReset, btnHide, btnDelete, actionBar, groupId, activeRules, isHidden)
@@ -429,7 +425,7 @@ local function PopulateSingleGroupPane(activeRules)
     pencilBtn:SetHidden(false)
 
     local ruleData = activeRules[selectedGroupName]
-    local displayName = ruleData and ruleData.displayName or selectedGroupName
+    local displayName = ruleData.displayName
 
     if selectedGroupName == "miscellaneous" then
         titleLabel:SetText(string.format("Group Name: %s (Special Group)", displayName))
@@ -446,10 +442,8 @@ local function PopulateSingleGroupPane(activeRules)
         btnAddRule:SetHidden(false)
 
         local patterns = {}
-        if ruleData and ruleData.patterns then
-            for _, p in ipairs(ruleData.patterns) do
-                table.insert(patterns, p)
-            end
+        for _, p in ipairs(ruleData.patterns) do
+            table.insert(patterns, p)
         end
 
         titleLabel:SetText(string.format("Group Name: %s (%d patterns/rules)", displayName, #patterns))
@@ -561,13 +555,13 @@ end)
 -- ...so I put these in
 InventoryCompanion_GroupsWindow:SetHandler("OnEffectivelyShown", function()
     SetGameCameraUIMode(true)
-    if this.RefreshGroupsEditor then this.RefreshGroupsEditor() end
-    if this.UpdateEditorLayout then this.UpdateEditorLayout() end
+    this.RefreshGroupsEditor()
+    this.UpdateEditorLayout()
 end)
 
 InventoryCompanion_GroupsWindow:SetHandler("OnEffectivelyHidden", function()
     SetGameCameraUIMode(false)
-    if this.UpdateEditorLayout then this.UpdateEditorLayout() end
+    this.UpdateEditorLayout()
 end)
 ------------------------------------------------------------------
 -- Custom Confirmation Dialog Registrations
@@ -577,7 +571,7 @@ local function DoDeleteGroup(dialog)
     this.DeleteCustomRule(data.groupId)
     selectedGroupName = nil
     this.RefreshGroupsEditor()
-    if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
+    this.RefreshItemTrackerPanel()
     
     zo_callLater(function() SetGameCameraUIMode(true) end, 50)
 end
@@ -585,12 +579,12 @@ end
 local function DoResetGroup(dialog)
     -- Support dialog.data being either a table with .groupId or a direct string key
     local groupId = type(dialog.data) == "table" and dialog.data.groupId or dialog.data
-    if not groupId then return end
+    assert(type(groupId) == "string" and groupId ~= "", "Reset dialog requires a group ID")
     
     this.ResetRule(groupId)
     
     this.RefreshGroupsEditor()
-    if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
+    this.RefreshItemTrackerPanel()
     
     zo_callLater(function() SetGameCameraUIMode(true) end, 50)
 end

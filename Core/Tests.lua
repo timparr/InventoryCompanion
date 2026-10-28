@@ -833,7 +833,7 @@ local function RunTests(arguments)
             hidden = {
                 displayName = "Hidden Group",
                 patterns = { "Hidden *" },
-                display = { show = true, isHidden = false },
+                display = { show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false },
             },
         }
 
@@ -1489,9 +1489,9 @@ local function RunTests(arguments)
             {
                 name = "100-item backpack and craft-bag scan",
                 run = function()
-                    local rules = {
-                        synthetic = { patterns = { "Synthetic Item *" } },
-                    }
+                    this.accountWide.trackedRules = { synthetic = { addedPatterns = { "Synthetic Item *" } } }
+                    this.preLoadedRulesets = {}
+                    local rules = this.GetActiveTrackedRules()
                     local snapshot = this.GetMasterItemList({}, rules, { BAG_BACKPACK, BAG_VIRTUAL })
                     CheckEqual(CountEntries(snapshot.items), 100, "Every synthetic item should be included")
                     CheckEqual(#snapshot.ruleIndex.synthetic, 100, "Every synthetic item should be indexed under its rule")
@@ -1509,10 +1509,12 @@ local function RunTests(arguments)
             {
                 name = "Repeated 100-item inventory scan performance",
                 run = function()
-                    local rules = {}
+                    this.accountWide.trackedRules = {}
+                    this.preLoadedRulesets = {}
                     for index = 1, 20 do
-                        rules["synthetic-" .. index] = { patterns = { "Synthetic Item *" } }
+                        this.accountWide.trackedRules["synthetic-" .. index] = { addedPatterns = { "Synthetic Item *" } }
                     end
+                    local rules = this.GetActiveTrackedRules()
 
                     local startedAt = GetGameTimeMilliseconds()
                     for _ = 1, 20 do
@@ -1550,8 +1552,9 @@ local function RunTests(arguments)
                     this.accountWide.trackedItems = {}
                     this.preLoadedRulesets = {
                         synthetic = {
+                            displayName = "Synthetic",
                             patterns = { "Synthetic Item *" },
-                            display = { notify = true },
+                            display = { show = true, notify = true, bank = false, group = true, isExpanded = true, isHidden = false },
                         },
                     }
                     this.InvalidateRuleCache()

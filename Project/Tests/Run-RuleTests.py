@@ -32,6 +32,7 @@ function d() end
 for relative in ("Core\\Init.lua", "Tracking\\ItemDatabase.lua", "Project\\Tests\\RulePersistenceTests.lua"):
     persistence_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
 persistence_lua.globals().RuleDatabaseSource = (root / "Tracking\\ItemDatabase.lua").read_text(encoding="utf-8-sig")
+persistence_lua.globals().RuleConstantsSource = (root / "Core\\Constants.lua").read_text(encoding="utf-8-sig")
 tests = []
 for suite in (
     lua.globals().InventoryCompanion.GetRuleTests(),

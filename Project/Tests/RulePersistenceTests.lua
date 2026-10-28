@@ -18,6 +18,24 @@ end
 function this.GetRulePersistenceTests()
     return {
         {
+            name = "Production baseline definitions satisfy strict rule contracts",
+            run = function()
+                assert(loadstring(RuleConstantsSource))()
+                this.accountWide = { trackedRules = {} }
+                this.character = { trackedRules = {}, useCharacterItemList = false }
+                this.ValidateSavedRuleProfiles()
+                this.InvalidateRuleCache()
+                local runtime = this.GetRuntimeRules()
+                local count = 0
+                for key in pairs(this.preLoadedRulesets) do
+                    assert(runtime[key] and runtime[key].isPreloaded, "Production rule must resolve: " .. key)
+                    count = count + 1
+                end
+                assert(count > 0, "Production baseline must not be empty")
+                assert(next(this.accountWide.trackedRules) == nil, "Production defaults must not allocate saved overrides")
+            end,
+        },
+        {
             name = "Serialized rule deltas survive database reinitialization",
             run = function()
                 this.accountWide = { trackedRules = {} }
@@ -25,7 +43,7 @@ function this.GetRulePersistenceTests()
                 this.preLoadedRulesets = {
                     default = {
                         displayName = "Default", patterns = { "a", "b", "c" },
-                        display = { show = true, notify = false, isHidden = false },
+                        display = { show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false },
                     },
                 }
                 this.UpdateRulePatterns("default", { "b", "c", "d" })
@@ -54,7 +72,9 @@ function this.GetRulePersistenceTests()
                 this.character = { trackedRules = {}, useCharacterItemList = false }
                 this.preLoadedRulesets = {}
                 this.character.trackedRules = { character_group = { addedPatterns = { "Character*" } } }
-                this.RefreshGroupsEditor, this.RefreshItemTrackerPanel = nil, nil
+                local refreshes = 0
+                this.RefreshGroupsEditor = function() refreshes = refreshes + 1 end
+                this.RefreshItemTrackerPanel = function() refreshes = refreshes + 1 end
                 this.SetUseCharacterItemList(false)
                 local accountCache = this.GetRuntimeRules()
                 SLASH_COMMANDS["/icclearoverrides"]()
@@ -68,6 +88,7 @@ function this.GetRulePersistenceTests()
                 SLASH_COMMANDS["/icclearoverrides"]()
                 assert(this.GetRuntimeRules() ~= characterCache, "Character clear must invalidate")
                 assert(next(this.character.trackedRules) == nil, "Character overrides must be removed")
+                assert(refreshes == 4, "Both required panels must refresh on each clear")
             end,
         },
     }

@@ -28,6 +28,7 @@ local function Initialize()
     -- Load Saved Variables
     this.accountWide = ZO_SavedVars:NewAccountWide(this.SettingsName, this.SettingsVersion, nil, this.defaultsAccount)
     this.character   = ZO_SavedVars:NewCharacterIdSettings(this.SettingsName, this.SettingsVersion, nil, this.defaultsCharacter)
+    this.ValidateSavedRuleProfiles()
     this.state.isCurrencySettingsOpen = false
 
     -- Initialize modules
@@ -77,7 +78,7 @@ end
 ------------------------------------------------------------------
 SLASH_COMMANDS["/icclearoverrides"] = function()
     local modeText = ""
-    if this.character and this.character.useCharacterItemList then
+    if this.character.useCharacterItemList then
         this.character.trackedRules = {}
         modeText = "Character-specific"
     else
@@ -88,9 +89,8 @@ SLASH_COMMANDS["/icclearoverrides"] = function()
     
     d(string.format("[InventoryCompanion] Cleared all rule overrides for current mode (%s). All rules restored to baseline defaults.", modeText))
     
-    -- Refresh UI panels if active
-    if this.RefreshGroupsEditor then this.RefreshGroupsEditor() end
-    if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
+    this.RefreshGroupsEditor()
+    this.RefreshItemTrackerPanel()
 end
 
 ------------------------------------------------------------------

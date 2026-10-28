@@ -224,8 +224,8 @@ function this.CreateSettingsPanel()
                     getFunc = function() return this.character.useCharacterItemList == true end,
                     setFunc = function(v) 
                         this.SetUseCharacterItemList(v)
-                        if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
-                        if this.RefreshTrackedItemsEditor then this.RefreshTrackedItemsEditor() end
+                        this.RefreshItemTrackerPanel()
+                        this.RefreshTrackedItemsEditor()
                     end,
                     default = this.defaultsCharacter.useCharacterItemList,
                 },
