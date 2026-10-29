@@ -6,6 +6,8 @@ local originalTrackerPos = nil
 local previousLayout = nil
 local ROW_HEIGHT = 22
 local ROW_WIDTH = 320
+local MIN_COUNT_WIDTH = 36
+local COUNT_WIDTH_PER_CHARACTER = 8
 
 local function GetRowsContainer()
     return InventoryCompanion_ItemTrackerFloatContainerRows
@@ -82,6 +84,14 @@ function this.InitItemTrackerPanel()
         if button == MOUSE_BUTTON_INDEX_LEFT then
             this.ToggleTrackedItemsEditor()
         end
+    end)
+
+    local settingsIcon = InventoryCompanion_ItemTrackerFloatSettingsIcon
+    settingsIcon:SetAlpha(0.6)
+    settingsIcon:SetHandler("OnMouseEnter", function(control) control:SetAlpha(1.0) end)
+    settingsIcon:SetHandler("OnMouseExit", function(control) control:SetAlpha(0.6) end)
+    settingsIcon:SetHandler("OnClicked", function()
+        this.OpenSettingsPanel()
     end)
 
     this.RefreshItemTrackerPanel()
@@ -217,11 +227,19 @@ local function PopulateBaseRow(rowIndex, itemData, wrapped)
     iconControl:SetAlpha(1.0)
             
     nameControl:SetText(itemData.link)        
+    if not itemData.isEmpty then
+        local quality = itemData.quality or GetItemLinkQuality(itemData.link) or 0
+        local colorDef = GetItemQualityColor(math.max(0, quality))
+        if colorDef then
+            nameControl:SetColor(colorDef:UnpackRGBA())
+        end
+    end
 
-    countCtrl:SetText(GetCountText(itemData))
+    local countText = GetCountText(itemData)
+    countCtrl:SetText(countText)
 
     row:SetHidden(false)
-    return { row = row, nameControl = nameControl, countCtrl = countCtrl }
+    return { row = row, nameControl = nameControl, countCtrl = countCtrl, countText = countText }
 end
 
 local function CalculateMaxCountWidth(computedRows)
@@ -229,6 +247,9 @@ local function CalculateMaxCountWidth(computedRows)
     for _, entry in ipairs(computedRows) do
         entry.countCtrl:SetWidth(0)
         local width = entry.countCtrl:GetTextWidth()
+        if entry.countText ~= "" then
+            width = math.max(width, MIN_COUNT_WIDTH, #entry.countText * COUNT_WIDTH_PER_CHARACTER)
+        end
         if width > maxWidth then
             maxWidth = width
         end
@@ -405,6 +426,7 @@ local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, 
                 isGroup = true,
                 isExpanded = ruleData.display.isExpanded == true,
                 ruleName = ruleName,
+                quality = math.max(0, highestQuality),
             })
 
             -- Retain all eligible members for in-memory expansion trials.
@@ -727,13 +749,19 @@ local function ApplyViewport(contentHeight, budget, wrapped, previousOffset, tar
     local maxHeight = math.max(1, math.min(budget * (ROW_HEIGHT + gap) - gap,
         GuiRoot:GetHeight() - headerHeight - 8))
     local viewportHeight = math.min(contentHeight, maxHeight)
+    local scrollable = contentHeight > viewportHeight
+    local viewportWidth = ROW_WIDTH + (scrollable and ZO_SCROLL_BAR_WIDTH or 0)
     local rows = GetRowsContainer()
-    rows:SetWidth(ROW_WIDTH + ZO_SCROLL_BAR_WIDTH)
+    rows:SetWidth(viewportWidth)
     rows:SetHeight(viewportHeight)
+    rows.scroll:ClearAnchors()
+    rows.scroll:SetAnchor(TOPLEFT, rows, TOPLEFT, 0, 0)
+    rows.scroll:SetAnchor(BOTTOMRIGHT, rows, BOTTOMRIGHT,
+        scrollable and -ZO_SCROLL_BAR_WIDTH or 0, 0)
     GetRowsChild():SetDimensions(ROW_WIDTH, contentHeight)
-    container:SetWidth(ROW_WIDTH + ZO_SCROLL_BAR_WIDTH)
+    container:SetWidth(viewportWidth)
     container:SetHeight(headerHeight + viewportHeight)
-    InventoryCompanion_ItemTrackerFloat:SetWidth(ROW_WIDTH + ZO_SCROLL_BAR_WIDTH + 20)
+    InventoryCompanion_ItemTrackerFloat:SetWidth(viewportWidth + 20)
     InventoryCompanion_ItemTrackerFloat:SetHeight(headerHeight + viewportHeight + 8)
     ZO_Scroll_UpdateScrollBar(rows)
     local offset = math.max(0, math.min(previousOffset, contentHeight - viewportHeight))
@@ -742,7 +770,7 @@ local function ApplyViewport(contentHeight, budget, wrapped, previousOffset, tar
         if top < offset then offset = top end
         if top + ROW_HEIGHT > offset + viewportHeight then offset = top + ROW_HEIGHT - viewportHeight end
     end
-    if contentHeight > viewportHeight then
+    if scrollable then
         ZO_Scroll_ScrollAbsoluteInstantly(rows, offset)
     else
         ZO_Scroll_ResetToTop(rows)
@@ -926,6 +954,7 @@ function this.RefreshItemTrackerPanel(reason, targetGroup)
     InventoryCompanion_ItemTrackerFloatTitle:SetFont(string.format("%s|%d|soft-shadow-thin",
         ZoFontGame:GetFontInfo(), titleSize))
     InventoryCompanion_ItemTrackerFloatEditIcon:SetDimensions(titleSize, titleSize)
+    InventoryCompanion_ItemTrackerFloatSettingsIcon:SetDimensions(titleSize, titleSize)
     if this.accountWide.showTrackedItemsPanel == false then
         InventoryCompanion_ItemTrackerFloat:SetHidden(true)
         return

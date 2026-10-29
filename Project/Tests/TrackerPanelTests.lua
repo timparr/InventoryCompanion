@@ -2,7 +2,7 @@ local this = InventoryCompanion
 local controls, pooled = {}, {}
 local counters, fixture
 
-TOPLEFT, TOPRIGHT, BOTTOMLEFT = "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT"
+TOPLEFT, TOPRIGHT, BOTTOMLEFT, BOTTOMRIGHT = "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT"
 MOUSE_BUTTON_INDEX_LEFT, MOUSE_BUTTON_INDEX_RIGHT = 1, 2
 TEXT_WRAP_MODE_ELLIPSIS, DL_CONTROLS = 1, 1
 ZO_SCROLL_BAR_WIDTH = 16
@@ -11,23 +11,33 @@ BAG_BACKPACK, BAG_BANK, BAG_SUBSCRIBER_BANK, BAG_VIRTUAL = 1, 2, 3, 4
 
 local function Control(name, parent, width, height)
     local control = { name = name, parent = parent, width = width or 0, height = height or 22,
-        hidden = false, children = {}, handlers = {}, text = "", x = 0, y = 0 }
+        hidden = false, children = {}, handlers = {}, text = "", x = 0, y = 0, color = nil }
     controls[name] = control
     function control:SetHidden(value) self.hidden = value end
     function control:IsHidden() return self.hidden end
     function control:SetHandler(event, handler) self.handlers[event] = handler end
     function control:SetText(text) self.text = text end
     function control:SetTexture(texture) self.texture = texture end
+    function control:SetColor(r, g, b, a) self.color = { r, g, b, a } end
     function control:SetWidth(value) self.width = value end
     function control:SetHeight(value)
         self.height = value
         if self.isRow then counters.rowLayouts = counters.rowLayouts + 1 end
     end
     function control:SetDimensions(w, h) self.width, self.height = w, h end
-    function control:GetWidth() return self.width end
+    function control:GetWidth()
+        if self.bottomRight then
+            return self.bottomRight.relative:GetWidth() + self.bottomRight.x - self.x
+        end
+        return self.width
+    end
     function control:GetHeight() return self.height end
-    function control:ClearAnchors() self.relative = nil end
+    function control:ClearAnchors() self.relative, self.bottomRight = nil, nil end
     function control:SetAnchor(point, relative, relativePoint, x, y)
+        if point == BOTTOMRIGHT then
+            self.bottomRight = { relative = relative, x = x or 0, y = y or 0 }
+            return
+        end
         self.point, self.relative, self.relativePoint = point, relative, relativePoint
         self.x, self.y = x or 0, y or 0
     end
@@ -45,7 +55,10 @@ local function Control(name, parent, width, height)
         if self.relativePoint == BOTTOMLEFT then top = top + relative:GetHeight() end
         return top + self.y
     end
-    function control:GetTextWidth() return #tostring(self.text) * 7 end
+    function control:GetTextWidth()
+        if counters.zeroTextWidths then return 0 end
+        return #tostring(self.text) * 7
+    end
     function control:GetNumLines()
         counters.measurements = counters.measurements + 1
         return math.max(1, math.ceil(self:GetTextWidth() / math.max(1, self.width)))
@@ -85,10 +98,13 @@ InventoryCompanion_ItemTrackerFloat = Control("tracker", GuiRoot, 360, 60)
 InventoryCompanion_ItemTrackerFloatContainer = Control("container", InventoryCompanion_ItemTrackerFloat, 340, 52)
 InventoryCompanion_ItemTrackerFloatTitle = Control("title", InventoryCompanion_ItemTrackerFloatContainer, 100, 22)
 InventoryCompanion_ItemTrackerFloatEditIcon = Control("edit", InventoryCompanion_ItemTrackerFloatContainer, 18, 18)
+InventoryCompanion_ItemTrackerFloatSettingsIcon = Control("settings", InventoryCompanion_ItemTrackerFloatContainer, 18, 18)
 InventoryCompanion_ItemTrackerFloatContainerRows = Control("rows", InventoryCompanion_ItemTrackerFloatContainer, 340, 24)
 local rows = InventoryCompanion_ItemTrackerFloatContainerRows
 local scroll = Control("rowsScroll", rows, 320, 24)
 local child = Control("rowsScrollChild", scroll, 320, 22)
+InventoryCompanion_ItemTrackerFloatContainer:SetAnchor(TOPLEFT, InventoryCompanion_ItemTrackerFloat, TOPLEFT, 10, 4)
+rows:SetAnchor(TOPLEFT, InventoryCompanion_ItemTrackerFloatTitle, BOTTOMLEFT, 0, 4)
 rows.scroll = scroll
 scroll.offset = 0
 function scroll:GetScrollOffsets() return 0, self.offset end
@@ -101,7 +117,12 @@ function ZO_Scroll_OnMouseWheel(_, delta)
     scroll.offset = math.max(0, math.min(child.height - rows.height, scroll.offset - delta * 40))
 end
 function GetItemLinkName(link) return link end
-function GetItemQualityColor() return { Colorize = function(_, text) return text end } end
+function GetItemQualityColor()
+    return {
+        Colorize = function(_, text) return text end,
+        UnpackRGBA = function() return 0.2, 0.4, 0.8, 1 end,
+    }
+end
 function GetItemLinkQuality() return 1 end
 function IsESOPlusSubscriber() return false end
 function ZO_ClearTable(values) for key in pairs(values) do values[key] = nil end end
@@ -228,6 +249,31 @@ function this.GetTrackerPanelTests()
         assert(multiline, "Wrapping should return when the preferred layout fits")
     end)
 
+    Add("Tracker reserves count space before first-frame text measurement", function()
+        Setup({ 1 }, 5, true, false, 80)
+        counters.zeroTextWidths = true
+        this.RefreshItemTrackerPanel()
+
+        local memberRow = VisibleRows()[2]
+        local name, count = GetControl(memberRow, "Name"), GetControl(memberRow, "Count")
+        assert(name:GetLeft() + name:GetWidth() < count:GetLeft(), "Item name overlaps its count")
+        assert(count:GetWidth() >= 36, "Count label has no reserved width before text measurement")
+        Equal(name.color[1], 0.2)
+        Equal(name.color[2], 0.4)
+        Equal(name.color[3], 0.8)
+
+        this.preLoadedRulesets.group1.display.bank = true
+        local item = next(fixture.items)
+        fixture.items[item].bagCount = 999999
+        fixture.items[item].bankCount = 999999
+        this.RefreshItemTrackerPanel()
+
+        memberRow = VisibleRows()[2]
+        name, count = GetControl(memberRow, "Name"), GetControl(memberRow, "Count")
+        assert(name:GetLeft() + name:GetWidth() < count:GetLeft(), "Long bank count overlaps its item name")
+        assert(count:GetWidth() >= #count.text * 8, "Long bank count lacks estimated width")
+    end)
+
     Add("Tracker counts two and three wrapped lines as row equivalents", function()
         Setup({ 2 }, 7, true, true, 40)
         this.RefreshItemTrackerPanel()
@@ -239,6 +285,45 @@ function this.GetTrackerPanelTests()
         units = 0
         for _, row in ipairs(VisibleRows()) do units = units + row.height / 22 end
         Equal(units, 7)
+    end)
+
+    Add("Tracker reserves the right scrollbar margin only while content overflows", function()
+        Setup({ 12 }, 5, false)
+        this.RefreshItemTrackerPanel()
+
+        local function CheckRightMargin(scrollable)
+            local panel = InventoryCompanion_ItemTrackerFloat
+            local viewportWidth = 320 + (scrollable and ZO_SCROLL_BAR_WIDTH or 0)
+            Equal(rows:GetWidth(), viewportWidth)
+            Equal(InventoryCompanion_ItemTrackerFloatContainer:GetWidth(), viewportWidth)
+            Equal(panel:GetWidth(), viewportWidth + 20)
+            Equal(scroll:GetWidth(), 320)
+            for _, row in ipairs(VisibleRows()) do
+                local name, count = GetControl(row, "Name"), GetControl(row, "Count")
+                local countRight = count:GetLeft() + count:GetWidth()
+                Equal(panel:GetLeft() + panel:GetWidth() - countRight,
+                    14 + (scrollable and ZO_SCROLL_BAR_WIDTH or 0))
+                assert(name:GetLeft() + name:GetWidth() < count:GetLeft(),
+                    "Item name overlaps its count")
+                assert(countRight <= scroll:GetLeft() + scroll:GetWidth(),
+                    "Count is clipped by the scroll viewport")
+            end
+        end
+
+        CheckRightMargin(false)
+        Click("group1")
+        assert(child.height > rows.height)
+        CheckRightMargin(true)
+        Click("group1")
+        CheckRightMargin(false)
+        this.accountWide.wrapTrackedItemNames = true
+        this.RefreshItemTrackerPanel()
+        CheckRightMargin(false)
+        this.accountWide.showTrackedItemsPanel = false
+        this.RefreshItemTrackerPanel()
+        this.accountWide.showTrackedItemsPanel = true
+        this.RefreshItemTrackerPanel()
+        CheckRightMargin(false)
     end)
 
     Add("Tracker passive overflow retains only the uniquely growing already-open category", function()
@@ -446,6 +531,48 @@ function this.GetTrackerPanelTests()
         assert(not Expanded("group1") and not Expanded("group2"))
     end)
 
+    Add("Tracker toggle stays hidden across interaction and editor visibility ticks", function()
+        Setup({ 2 }, 20, false)
+        this.RefreshItemTrackerPanel()
+        local tick
+        EVENT_MANAGER.RegisterForUpdate = function(_, _, _, callback) tick = callback end
+        ZO_CompassFrame = Control("compass", GuiRoot)
+        InventoryCompanion_TrackedItemsWindow = Control("itemsEditor", GuiRoot)
+        InventoryCompanion_GroupsWindow = Control("groupsEditor", GuiRoot)
+        InventoryCompanion_CurrencyFloat = Control("currency", GuiRoot)
+        local interaction = false
+        this.Utils.IsItemInteractionActive = function() return interaction end
+        this.HasVisibleCurrencyResources = function() return false end
+        this.SetProgressBarsHidden = function() end
+        local adjust, restore = this.AdjustTrackerPositionForInteraction, this.RestoreTrackerPosition
+        local adjustments = 0
+        this.AdjustTrackerPositionForInteraction = function() adjustments = adjustments + 1 end
+        this.RestoreTrackerPosition = function() end
+        this.InitCutsceneTicker()
+
+        for _, context in ipairs({ "world", "interaction", "items", "groups" }) do
+            interaction = context == "interaction"
+            InventoryCompanion_TrackedItemsWindow:SetHidden(context ~= "items")
+            InventoryCompanion_GroupsWindow:SetHidden(context ~= "groups")
+            this.SetItemTrackerPanelVisible(false)
+            local before = adjustments
+            tick()
+            tick()
+            assert(InventoryCompanion_ItemTrackerFloat:IsHidden(), context .. " forced hidden tracker visible")
+            Equal(adjustments, before)
+            this.ToggleItemTrackerPanel()
+            tick()
+            assert(not InventoryCompanion_ItemTrackerFloat:IsHidden(), context .. " did not restore tracker")
+            Equal(adjustments, before + (interaction and 1 or 0))
+        end
+        InventoryCompanion_TrackedItemsWindow:SetHidden(true)
+        InventoryCompanion_GroupsWindow:SetHidden(true)
+        ZO_CompassFrame:SetHidden(true)
+        tick()
+        assert(InventoryCompanion_ItemTrackerFloat:IsHidden(), "Cutscene suppression must remain active")
+        this.AdjustTrackerPositionForInteraction, this.RestoreTrackerPosition = adjust, restore
+    end)
+
     Add("Tracker row preference validates defaults and malformed external input", function()
         Setup({}, 20, false)
         this.accountWide.trackerMaxRows = nil
@@ -470,6 +597,8 @@ function this.GetTrackerPanelTests()
             Equal(InventoryCompanion_ItemTrackerFloatTitle.font, "regular-font|" .. size .. "|soft-shadow-thin")
             Equal(InventoryCompanion_ItemTrackerFloatEditIcon.width, size)
             Equal(InventoryCompanion_ItemTrackerFloatEditIcon.height, size)
+            Equal(InventoryCompanion_ItemTrackerFloatSettingsIcon.width, size)
+            Equal(InventoryCompanion_ItemTrackerFloatSettingsIcon.height, size)
             for _, row in ipairs(VisibleRows()) do Equal(row.height, 22) end
         end
         this.accountWide.trackerTitleSize = nil
@@ -527,10 +656,12 @@ function this.GetTrackerPanelTests()
         this.GetCurrencyPanelSettingsControls = function() return {} end
         this.GetProgressBarResources = function() return {} end
         this.GetProgressBarAlertColor = function() return {} end
-        local options
+        local options, openedPanel
+        local settingsPanel = {}
         LibAddonMenu2 = {
-            RegisterAddonPanel = function() return {} end,
+            RegisterAddonPanel = function() return settingsPanel end,
             RegisterOptionControls = function(_, _, controls) options = controls end,
+            OpenToPanel = function(_, panel) openedPanel = panel end,
         }
         CALLBACK_MANAGER = { RegisterCallback = function() end }
         this.CreateSettingsPanel()
@@ -560,6 +691,18 @@ function this.GetTrackerPanelTests()
         Equal(current, "InventoryCompanion_TrackedItemsScene")
         Equal(refreshes, 2)
         assert(this.accountWide.showTrackedItemsPanel == false, "Opening the editor must not change saved HUD visibility")
+        this.accountWide.showTrackedItemsPanel = true
+        this.InitItemTrackerPanel()
+        InventoryCompanion_ItemTrackerFloatSettingsIcon.handlers.OnClicked()
+        Equal(openedPanel, settingsPanel)
+        for _, scene in ipairs({ "InventoryCompanion_TrackedItemsScene", "InventoryCompanion_GroupsScene" }) do
+            current, openedPanel = scene, nil
+            this.state.lastActiveEditTab = scene
+            this.OpenSettingsFromEditor()
+            Equal(current, nil)
+            Equal(openedPanel, settingsPanel)
+            Equal(this.state.lastActiveEditTab, scene)
+        end
     end)
     return tests
 end

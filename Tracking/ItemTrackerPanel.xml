@@ -41,10 +41,19 @@
                         <Button name="InventoryCompanion_ItemTrackerFloatEditIcon" mouseEnabled="true">
                             <Dimensions x="24" y="24"/>
                             <Anchor point="TOPRIGHT" relativeTo="$(parent)" relativePoint="TOPRIGHT" offsetX="0" offsetY="0"/>
-                            <Textures 
-                                normal="EsoUI/Art/Buttons/edit_up.dds" 
-                                pressed="EsoUI/Art/Buttons/edit_down.dds" 
-                                mouseOver="EsoUI/Art/Buttons/edit_over.dds" 
+                            <Textures
+                                normal="EsoUI/Art/Buttons/edit_up.dds"
+                                pressed="EsoUI/Art/Buttons/edit_down.dds"
+                                mouseOver="EsoUI/Art/Buttons/edit_over.dds"
+                            />
+                        </Button>
+                        <Button name="InventoryCompanion_ItemTrackerFloatSettingsIcon" mouseEnabled="true">
+                            <Dimensions x="24" y="24"/>
+                            <Anchor point="TOPRIGHT" relativeTo="InventoryCompanion_ItemTrackerFloatEditIcon" relativePoint="TOPLEFT" offsetX="-4" offsetY="0"/>
+                            <Textures
+                                normal="EsoUI/Art/ChatWindow/chat_options_up.dds"
+                                pressed="EsoUI/Art/ChatWindow/chat_options_down.dds"
+                                mouseOver="EsoUI/Art/ChatWindow/chat_options_over.dds"
                             />
                         </Button>
                         <Control name="$(parent)Rows" inherits="ZO_ScrollContainer">

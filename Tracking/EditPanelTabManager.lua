@@ -64,6 +64,12 @@ function this.OpenEditGroupsPanel()
     this.RefreshGroupsEditor()
 end
 
+function this.OpenSettingsFromEditor()
+    SCENE_MANAGER:Hide("InventoryCompanion_TrackedItemsScene")
+    SCENE_MANAGER:Hide("InventoryCompanion_GroupsScene")
+    this.OpenSettingsPanel()
+end
+
 function this.ToggleTrackedItemsEditor()
     if SCENE_MANAGER:IsShowing("InventoryCompanion_TrackedItemsScene") then
         this.state.lastActiveEditTab = "InventoryCompanion_TrackedItemsScene"

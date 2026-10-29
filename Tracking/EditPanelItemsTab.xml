@@ -42,6 +42,13 @@
                 <Label name="$(parent)Title" font="ZoFontHeader3" color="FFFFFF" text="Manage Tracked Items">
                     <Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPLEFT" offsetX="20" offsetY="15" />
                 </Label>
+                <Button name="$(parent)BtnOtherSettings" inherits="ZO_DefaultButton" text="Other Settings">
+                    <Dimensions x="150" y="26" />
+                    <Anchor point="LEFT" relativeTo="$(parent)Title" relativePoint="RIGHT" offsetX="20" offsetY="0" />
+                    <OnClicked>
+                        InventoryCompanion.OpenSettingsFromEditor()
+                    </OnClicked>
+                </Button>
 				
 				<!-- Edit Groups Button -->
                <!-- Edit Groups Button -->

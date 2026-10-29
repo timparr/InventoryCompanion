@@ -231,7 +231,7 @@ function this.InitCutsceneTicker()
 
             if InventoryCompanion_ItemTrackerFloat then
                 local showTracked = (this.accountWide.showTrackedItemsPanel ~= false)
-                local shouldShowTracker = (showTracked and not inCutscene) or isEditorOpen or isInteractionOpen
+                local shouldShowTracker = showTracked and (not inCutscene or isEditorOpen or isInteractionOpen)
                 InventoryCompanion_ItemTrackerFloat:SetHidden(not shouldShowTracker)
 
                 if shouldShowTracker and isInteractionOpen and this.AdjustTrackerPositionForInteraction then
