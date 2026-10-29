@@ -62,10 +62,26 @@ equality: a layout at the budget does not trigger the next fallback.
   open-all-if-it-fits rule; evaluate that rule on initial layout or relevant
   content/settings changes, not as a response to the collapse itself.
 - Ordinary pickups update content and totals and enforce the budget; they are
-  not an explicit request to open the receiving category. Pickup highlighting,
-  inventory-follow behaviour, and collapse-on-login options remain deferred.
-- Keep expansion priority scoped to the current tracked-list context and use
-  the existing rule setters for persisted expansion changes.
+  not an explicit request to open the receiving category.
+- **Passive inventory overflow:** First try single-line formatting. If the
+  panel still exceeds the row budget and exactly one already-open category
+  grew in displayed content, retain that category and collapse all other
+  rendered expanded categories. "Grew" means its contents grew, not that a
+  collapsed category was automatically opened.
+- Never automatically open a previously collapsed category to handle an
+  inventory update. If no uniquely affected already-open category can be
+  identified, collapse all rendered expanded categories rather than choosing
+  by last-click history or arbitrary display order.
+- Evaluate rapid inventory updates together. If several already-open
+  categories grew in the same burst, collapse all on overflow; do not jump
+  between event-by-event winners. If the retained category or the collapsed
+  headers still exceed the budget, use scrolling.
+- Keep pre-update expansion/content comparisons scoped to the current
+  tracked-list context; do not attribute profile switches or settings-driven
+  reintroduction to inventory growth. Use existing rule setters for persisted
+  expansion changes.
+- Pickup highlighting, automatic opening of receiving categories, and
+  collapse-on-login options remain deferred.
 
 ### Implementation and Acceptance
 
@@ -85,17 +101,59 @@ equality: a layout at the budget does not trigger the next fallback.
   explicit expansion versus settings-driven reintroduction, remembered state,
   profile changes, a single oversized category, excessive headers, and flat
   lists.
+- Test passive overflow with one growing already-open category, a previously
+  collapsed receiving category, no unique growing open category, and bursts
+  growing multiple open categories. Verify no collapse when single-line
+  formatting suffices, no automatic opening of collapsed categories, and no
+  event-by-event category switching within a burst.
 - Verify in game that wheel/scrollbar input works and no items become
   inaccessible. Validate readability and positioning separately from isolated
   synthetic tests.
+
+### Layout Performance and Unit Tests
+
+Extend the existing isolated runner with
+[TrackerPanelTests.lua](../../Tests/TrackerPanelTests.lua). Exercise the actual
+tracker policy and refresh path with synthetic inventory and instrumented ESO
+control mocks, not a separate test-only implementation. Existing scan/matching
+timings do not cover tracker layout.
+
+Implementation constraints to verify:
+
+- Build the inventory snapshot and category/item model once per refresh.
+  Evaluate expansion candidates using in-memory counts; do not rescan inventory
+  or render every category combination.
+- Reuse pooled controls and bound text-measurement/layout passes. Account for
+  scrollbar-width changes explicitly rather than iterating until convergence.
+- Trial layouts must not mutate saved rules. Persist only final expansion
+  decisions and never overwrite the saved multiline preference.
+
+| Test | Required assertion |
+|---|---|
+| Snapshot reuse | All-expanded trials, wrapping fallback, collapse, and final rendering together build only one inventory snapshot per refresh. |
+| Candidate evaluation | Exercise all-expanded fit, explicit overflow, and passive overflow with instrumented counters; candidate evaluation does not perform additional inventory scans or combinatorial rendering. |
+| Warm control pool | After warming enough rows, repeated refreshes of equal or smaller content create no additional row controls. |
+| Bounded layout work | Assert explicit measurement/layout-pass ceilings for wrapping, single-line fallback, and scrollbar appearance/disappearance. Set the concrete ceilings from the implementation structure before accepting results; do not use elapsed time as a substitute. |
+| Burst coalescing | A synthetic burst through the existing event queue produces one settled tracker refresh, evaluates all affected categories together, and does not render event-by-event winners. |
+| Persistence isolation | Trial decisions write no saved expansion flags; the final policy writes only changed flags. An unchanged refresh writes none, and formatting fallback never writes the multiline preference. |
+| Small/large workloads | Time repeated refreshes for deterministic small and large synthetic trackers, including one oversized category and many categories. Record workload sizes, iterations, and explicit limits; compare equivalent workloads before/after the layout change rather than choosing limits merely to pass. |
+| Worst fallback path | Exercise wrapping overflow, single-line overflow, category collapse, and remaining scroll overflow together; assert both the expected final rows and bounded work. |
+
+Use operation-count assertions as the deterministic regression guard and timing
+checks as additional evidence. Keep all synthetic state and persistence writes
+isolated from live inventory and saved variables.
+
+Mocked controls cannot measure ESO's real text/layout cost. Supplement the unit
+tests with safe in-game timing of the actual refresh path for representative
+small and oversized lists, separating cold control creation from warmed
+refreshes. Report these results separately from isolated-test timings.
 
 ### Group Editor Font Fixes (Same Release)
 
 - Fix the tiny text in the group editor's pattern/rule edit boxes and search
   field in [EditPanelGroupsTab.xml](../../../Tracking/EditPanelGroupsTab.xml).
-  The preliminary change from `AS_FontEditbox` to `ZoFontWinT1`, with input
-  heights increased to 30 UI units, was undone before the planning checkpoint.
-  Apply and verify this candidate fix during implementation.
+  Replace `AS_FontEditbox` with `ZoFontWinT1` and increase input heights to
+  30 UI units; verify this candidate fix in game.
 - `AS_FontEditbox` has no definition in this addon. Use a standard ESO font
   rather than relying on another addon to define it. The undefined reference
   is a suspected cause, not yet a visually verified diagnosis.
@@ -110,10 +168,8 @@ equality: a layout at the budget does not trigger the next fallback.
   behaviour, and clipping at 2560x1440 and the developer's normal UI scale.
   The candidate fix is not considered verified until checked in game.
 - Apply the separate tracker-title readability fix, replacing
-  `ZoFontGameSmall` with `ZoFontGame`. The unnecessary preliminary
-  tracker item/count font and row-spacing changes have been undone, restoring
-  the original fonts and 22-unit rows; those rows were not identified as a
-  problem.
+  `ZoFontGameSmall` with `ZoFontGame`. Preserve the original tracker item/count
+  fonts and 22-unit rows; those rows were not identified as a problem.
 - A font-scale slider is deferred pending in-game verification of the
   corrected fonts.
 
