@@ -1,4 +1,4 @@
-"""Run isolated rule tests with Lua 5.1: python -m pip install lupa; python Project\\Tests\\Run-RuleTests.py."""
+"""Run isolated addon tests with Lua 5.1: python -m pip install lupa; python Project\\Tests\\Run-RuleTests.py."""
 
 from pathlib import Path
 from time import perf_counter
@@ -37,12 +37,24 @@ saved_variables_lua = LuaRuntime(unpack_returned_tuples=True)
 saved_variables_lua.globals().SavedVariablesInitSource = (root / "Core\\Init.lua").read_text(encoding="utf-8-sig")
 saved_variables_lua.globals().SavedVariablesDatabaseSource = (root / "Tracking\\ItemDatabase.lua").read_text(encoding="utf-8-sig")
 saved_variables_lua.execute((root / "Project\\Tests\\SavedVariablesTests.lua").read_text(encoding="utf-8-sig"))
+tracker_lua = LuaRuntime(unpack_returned_tuples=True)
+tracker_lua.execute("SLASH_COMMANDS = {}; EVENT_MANAGER = { RegisterForEvent = function() end }")
+tracker_lua.globals().GetGameTimeMilliseconds = lambda: int(perf_counter() * 1000)
+tracker_lua.globals().TrackerEventSource = (root / "Core\\Events.lua").read_text(encoding="utf-8-sig")
+for relative in (
+    "Core\\Init.lua",
+    "Tracking\\ItemDatabase.lua",
+    "Project\\Tests\\TrackerPanelTests.lua",
+    "Tracking\\ItemTrackerPanel.lua",
+):
+    tracker_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
 tests = []
 for suite in (
     lua.globals().InventoryCompanion.GetRuleTests(),
     lua.globals().InventoryCompanion.GetGroupEditorTests(),
     persistence_lua.globals().InventoryCompanion.GetRulePersistenceTests(),
     saved_variables_lua.globals().GetSavedVariablesTests(),
+    tracker_lua.globals().InventoryCompanion.GetTrackerPanelTests(),
 ):
     tests.extend(suite[index] for index in range(1, len(suite) + 1))
 
@@ -57,5 +69,5 @@ for test in tests:
         failures.append(test.name)
         print(f"FAIL {test.name}: {error}")
 
-print(f"{len(tests) - len(failures)}/{len(tests)} isolated rule tests passed; addon Lua syntax checked (Lua 5.1).")
+print(f"{len(tests) - len(failures)}/{len(tests)} isolated addon tests passed; addon Lua syntax checked (Lua 5.1).")
 raise SystemExit(bool(failures))

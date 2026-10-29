@@ -221,6 +221,7 @@ this.defaultsAccount = {
     trackerOffsetY = 50,
     wrapTrackedItemNames = false,
     trackerGroupThreshold = 8,
+    trackerMaxRows = 20,
 
     -- Currency & Capacity Overlay
     showEmptyCurrencies = true,

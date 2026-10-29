@@ -51,6 +51,12 @@ Currency and capacity alerts combine rapid changes into a single update and supp
 
 On the tracker HUD, left-click a group header to expand or collapse it. Right-click the HUD to show/hide empty tracked items, switch between single-line and multiline names, or open the editor.
 
+[B]Automatic tracker layout:[/B] Under [B]Item Tracker Panel[/B] settings, [B]Tracker Group Threshold[/B] chooses when the flat item list becomes categories. [B]Maximum Visible Rows[/B] limits the item area (default 20, adjustable from 5 to 50); the title is separate. Wrapped names consume one row per displayed line. If the list is too large, the tracker first uses single-line names without changing your saved multiline preference. Wrapping returns when it fits again.
+
+If all categories fit expanded, the tracker opens them on initial layout or relevant content/settings changes. Manually collapsing a category is respected on unchanged refreshes. Opening a category that still exceeds the limit closes all other categories; otherwise they remain untouched. Changing a category's matching or display settings expands it only if it fits alongside the others. If an inventory burst causes overflow, only the one growing category that was already open is retained; if several open categories grow or there is no unique candidate, all categories collapse. Automatic expansion/collapse choices are saved.
+
+A category that is too large on its own, an oversized flat list, or too many category headers uses scrolling instead of hiding items. Use the mouse wheel or scrollbar; the title and edit button remain fixed. The panel also stays within the available screen height.
+
 [SIZE="4"][B]Create and edit a custom group[/B][/SIZE]
 
 [LIST=1]

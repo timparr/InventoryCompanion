@@ -317,9 +317,16 @@ function this.GetActiveTrackedRules(includeHidden)
     return rules
 end
 
+local trackerContextRevision = 0
+
+function this.GetTrackerContext()
+    return GetRawSavedRules(), trackerContextRevision
+end
+
 function this.SetUseCharacterItemList(value)
     assert(type(value) == "boolean", "Character list preference must be boolean")
     this.character.useCharacterItemList = value
+    trackerContextRevision = trackerContextRevision + 1
     this.InvalidateRuleCache()
 end
 
@@ -394,6 +401,7 @@ function this.ResetRule(ruleName)
         PruneRule(savedRules, ruleName)
     end
     this.InvalidateRuleCache()
+    trackerContextRevision = trackerContextRevision + 1
 end
 
 ------------------------------------------------------------------
@@ -479,6 +487,7 @@ function this.CopyProfile(sourceKey)
     ZO_ClearTable(destRules)
     for key, value in pairs(copiedRules) do destRules[key] = value end
     this.InvalidateRuleCache()
+    trackerContextRevision = trackerContextRevision + 1
     return true
 end
 

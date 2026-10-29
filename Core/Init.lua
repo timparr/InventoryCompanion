@@ -4,7 +4,7 @@ InventoryCompanion = {
     IsDevelopment = isDevelopment,
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
-    Version = "1.3.1.1",
+    Version = "1.3.1.2",
     SettingsVersion = 2,
     SettingsName = "InventoryCompanion_SavedVariables",
 }
@@ -18,6 +18,16 @@ this.state = {
 ------------------------------------------------------------------
 -- Core Initialization
 ------------------------------------------------------------------
+function this.ValidateTrackerSettings()
+    local value = this.accountWide.trackerMaxRows
+    if value == nil then
+        value = this.defaultsAccount.trackerMaxRows
+    end
+    assert(type(value) == "number" and value == value and value >= 5 and value <= 50
+        and value == math.floor(value), "Saved trackerMaxRows must be an integer from 5 to 50")
+    this.accountWide.trackerMaxRows = value
+end
+
 local function Initialize()
     this.PrepareSavedVariables()
 
@@ -30,6 +40,7 @@ local function Initialize()
     -- Load Saved Variables
     this.accountWide = ZO_SavedVars:NewAccountWide(this.SettingsName, this.SettingsVersion, nil, this.defaultsAccount)
     this.character   = ZO_SavedVars:NewCharacterIdSettings(this.SettingsName, this.SettingsVersion, nil, this.defaultsCharacter)
+    this.ValidateTrackerSettings()
     this.ValidateSavedRuleProfiles()
     this.state.isCurrencySettingsOpen = false
 

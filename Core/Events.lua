@@ -85,7 +85,7 @@ local function OnInventorySlotUpdate(eventCode, bagId, slotIndex, isNewItem, ite
 
     if this.accountWide.showTrackedItemsPanel ~= false then
         Enqueue("RefreshItemTracker", function()
-            this.RefreshItemTrackerPanel()
+            this.RefreshItemTrackerPanel("inventory")
         end, 500)
     end
 

@@ -195,6 +195,20 @@ function this.CreateSettingsPanel()
                     end,
                     default = this.defaultsAccount.trackerGroupThreshold,
                 },
+                {
+                    type = "slider",
+                    name = "Maximum Visible Rows",
+                    tooltip = "Limit the tracker item area. Wrapped lines use additional rows. When needed, names become single-line, categories collapse, and remaining overflow scrolls. The title is not counted.",
+                    min = 5,
+                    max = 50,
+                    step = 1,
+                    getFunc = function() return this.accountWide.trackerMaxRows end,
+                    setFunc = function(value)
+                        this.accountWide.trackerMaxRows = value
+                        this.RefreshItemTrackerPanel("settings")
+                    end,
+                    default = this.defaultsAccount.trackerMaxRows,
+                },
 				{
                     type = "checkbox",
                     name = "Multiline Item Names",

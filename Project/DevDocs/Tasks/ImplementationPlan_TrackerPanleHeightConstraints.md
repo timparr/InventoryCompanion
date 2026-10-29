@@ -14,8 +14,8 @@ to implement the superseded pixel/UI-unit limit or collapse-only release.
 - Preserve the existing **Tracker Group Threshold** setting: below that number
   of visible item types, show the flat list; at or above it, use categories.
 - Add an account-wide **Maximum Visible Rows** setting instead of a maximum
-  height in pixels or UI units. Its default and selectable range remain to be
-  decided.
+  height in pixels or UI units. Working values for testing: default **20**,
+  range **5-50**, in whole-row steps.
 - Keep the panel compact when content is short. Bound its item viewport by the
   row budget, with scrolling as the final fallback so every item stays accessible.
 - Keep the title and edit control fixed outside the scrolling item area and
@@ -92,6 +92,10 @@ equality: a layout at the budget does not trigger the next fallback.
   refreshes where possible, clamp it after content shrinks, and keep an
   explicitly opened header visible. Account for scrollbar width when laying
   out names and counts.
+- Reserve the standard scrollbar width consistently so scrollbar visibility
+  does not introduce a wrapping/layout feedback loop. Measure candidate
+  wrapping with one pooled label; expansion trials use category row totals,
+  not trial rendering of every member row.
 - Preserve group clicks, context menus, dragging, saved position, editor
   avoidance, and interaction positioning. Derive viewport dimensions from
   actual row dimensions and spacing; the user-facing policy requires no
