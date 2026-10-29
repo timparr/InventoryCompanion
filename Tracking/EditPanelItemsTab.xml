@@ -134,8 +134,8 @@
                             <Dimensions x="30" y="30" />
                             <Anchor point="LEFT" relativeTo="$(parent)LblUntracked" relativePoint="RIGHT" offsetX="25" offsetY="0" />
                         </Texture>
-						<EditBox name="$(parent)FindBox" font="AS_FontEditbox" editEnabled="true" maxInputCharacters="64" multiLine="false" newLineEnabled="false" inherits="ZO_DefaultEditForBackdrop" tier="LOW" layer="CONTROLS" level="5">
-							<Dimensions x="200" y="25"/>
+						<EditBox name="$(parent)FindBox" font="ZoFontWinT1" editEnabled="true" maxInputCharacters="64" multiLine="false" newLineEnabled="false" inherits="ZO_DefaultEditForBackdrop" tier="LOW" layer="CONTROLS" level="5">
+							<Dimensions x="200" y="30"/>
 							<Anchor point="LEFT" relativeTo="$(parent)SearchIcon" relativePoint="RIGHT" offsetX="6" offsetY="0" />
 							<Controls>
 								<Backdrop name="$(parent)Bg" inherits="ZO_EditBackdrop" alpha="1"  >
