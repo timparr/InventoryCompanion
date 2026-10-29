@@ -56,7 +56,7 @@ try {
     $sourceManifest = Join-Path $sourceRoot "InventoryCompanion_DEV.txt"
     $manifestLines = @(Get-Content -LiteralPath $sourceManifest)
     $paths = @("Project\Publishing\PackageRelease.ps1", "Project\Publishing\ReleaseChecklist.md",
-        "Project\Publishing\ReleaseReviewTemplate.md", "readme.md", "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.md") + @(
+        "Project\Publishing\ReleaseReviewTemplate.md", "readme.bbcode", "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.bbcode") + @(
         $manifestLines | ForEach-Object { $_.Trim().Replace('/', '\') } |
             Where-Object { $_ -and -not $_.StartsWith("#") -and -not $_.StartsWith("--") }
     )
@@ -67,9 +67,23 @@ try {
     }
     Copy-Item -LiteralPath $sourceManifest -Destination $manifest
     $version = [regex]::Match(($manifestLines -join "`n"), '(?m)^## Version: (.+)$').Groups[1].Value.Trim()
+    # Test the release format independently of the checkout's optional DEV test suffix.
+    if ($version -match '^(\d+\.\d+\.\d+)\.\d+$') {
+        $releaseVersion = $Matches[1]
+        $fixtureManifest = Get-Content -LiteralPath $manifest -Raw
+        Set-Content -LiteralPath $manifest -Value ($fixtureManifest.Replace("## Version: $version", "## Version: $releaseVersion")) -NoNewline
+        $fixtureInit = Join-Path $devRoot "Core\Init.lua"
+        $initText = Get-Content -LiteralPath $fixtureInit -Raw
+        Set-Content -LiteralPath $fixtureInit -Value ($initText.Replace("Version = `"$version`"", "Version = `"$releaseVersion`"")) -NoNewline
+        $version = $releaseVersion
+    }
     $null = New-Item -ItemType Directory -Path (Split-Path $savedVariables -Parent) -Force
     Set-Content -LiteralPath $savedVariables -Value "Synthetic saved variables for packaging tests." -Encoding UTF8
 
+    $fixtureRuntimeHashes = @{}
+    foreach ($relativePath in $paths | Where-Object { $_ -like "*.lua" -and $_ -ne "Core\Development.lua" }) {
+        $fixtureRuntimeHashes[$relativePath] = (Get-FileHash -LiteralPath (Join-Path $devRoot $relativePath)).Hash
+    }
     $originalManifest = [System.IO.File]::ReadAllBytes($manifest)
     $originalManifestText = Get-Content -LiteralPath $manifest -Raw
     foreach ($invalidManifest in @(
@@ -98,7 +112,7 @@ try {
     Assert-Fails { & $script -Action Stage } "Manifest-listed file does not exist"
     [System.IO.File]::WriteAllBytes($manifest, $originalManifest)
 
-    foreach ($document in @("readme.md", "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.md")) {
+    foreach ($document in @("readme.bbcode", "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.bbcode")) {
         $documentPath = Join-Path $devRoot $document
         $originalDocument = [System.IO.File]::ReadAllBytes($documentPath)
         Remove-Item -LiteralPath $documentPath
@@ -135,8 +149,9 @@ try {
     Assert ($releaseManifest -match "(?m)^## AddOnVersion: $expectedIntegerVersion\s*$") "Release integer version differs from the staged version."
     Assert ($releaseManifest -notmatch '\[DEV\]|Development\.lua') "Release manifest contains development markers."
     $initialState = Get-Content -LiteralPath (Join-Path $devRoot "Project\Publishing\.release-test\state.json") -Raw | ConvertFrom-Json
-    foreach ($document in @("readme.md", "Changelog.md")) {
-        $documentSource = if ($document -eq "Changelog.md") { "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.md" } else { $document }
+    foreach ($document in @("readme.bbcode", "Changelog.bbcode")) {
+        $documentSource = if ($document -eq "Changelog.bbcode") { "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.bbcode" } else { $document }
+        Assert (-not (Test-Path -LiteralPath (Join-Path $candidate ([System.IO.Path]::ChangeExtension($document, ".md"))))) "Legacy Markdown name leaked into candidate: $document"
         $documentHash = (Get-FileHash -LiteralPath (Join-Path $devRoot $documentSource)).Hash
         Assert ((Get-FileHash -LiteralPath (Join-Path $candidate $document)).Hash -eq $documentHash) "Staged documentation differs: $document"
         Assert (@($initialState.Candidate | Where-Object { $_.Path -eq $document -and $_.Hash -eq $documentHash }).Count -eq 1) "Documentation is not frozen exactly once: $document"
@@ -153,7 +168,7 @@ try {
     Assert ($releaseFiles[0] -eq "Core/LoadCheck.lua") "Duplicate-load warning is not first in release."
     Assert ($manifestLines.IndexOf("Core/LoadCheck.lua") -lt $manifestLines.IndexOf("Core/Development.lua")) "Development bootstrap runs before duplicate detection."
     foreach ($relativePath in $paths | Where-Object { $_ -like "*.lua" -and $_ -ne "Core\Development.lua" }) {
-        Assert ((Get-FileHash -LiteralPath (Join-Path $sourceRoot $relativePath)).Hash -eq
+        Assert ($fixtureRuntimeHashes[$relativePath] -eq
             (Get-FileHash -LiteralPath (Join-Path $candidate $relativePath)).Hash) "Runtime changed during staging: $relativePath"
     }
     Assert-Fails { & $script -Action Stage } "already managed"
@@ -168,7 +183,7 @@ try {
     Add-Content -LiteralPath $init -Value "-- changed"
     Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "candidate files changed"
     [System.IO.File]::WriteAllBytes($init, $originalInit)
-    $readme = Join-Path $devRoot "readme.md"
+    $readme = Join-Path $devRoot "readme.bbcode"
     $originalReadme = [System.IO.File]::ReadAllBytes($readme)
     Add-Content -LiteralPath $readme -Value "Changed description"
     Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "Complete ReleaseReview.md"
@@ -275,7 +290,7 @@ try {
     # Development changes and old source timestamps cannot invalidate a frozen candidate.
     Add-Content -LiteralPath (Join-Path $devRoot "Core\Tests.lua") -Value "`n-- development-only change"
     Remove-Item -LiteralPath $readme
-    $changelog = Join-Path $devRoot "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.md"
+    $changelog = Join-Path $devRoot "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.bbcode"
     $originalChangelog = [System.IO.File]::ReadAllBytes($changelog)
     Set-Content -LiteralPath $changelog -Value "Development-only changelog edits must not enter the ZIP."
     Assert-Fails { & $script -Action Finalize -TestResults "fixture only" -OutputDirectory $candidate } "outside the staged installation"
@@ -313,8 +328,9 @@ try {
     }
     Assert (@(Get-ChildItem -LiteralPath $extractedAddon -Recurse -File).Count -eq ($testedFiles.Count + 1)) "ZIP has unexpected contents."
     Assert ((Get-Content -LiteralPath (Join-Path $extractedAddon "ReleaseReview.md") -Raw) -match "Synthetic packaging fixture only") "Test confirmation is missing."
-    foreach ($document in @("readme.md", "Changelog.md")) {
+    foreach ($document in @("readme.bbcode", "Changelog.bbcode")) {
         Assert (Test-Path -LiteralPath (Join-Path $extractedAddon $document) -PathType Leaf) "ZIP root documentation is missing: $document"
+        Assert (-not (Test-Path -LiteralPath (Join-Path $extractedAddon ([System.IO.Path]::ChangeExtension($document, ".md"))))) "Legacy Markdown name leaked into ZIP: $document"
     }
     Assert ((Get-Content -LiteralPath $reviewPath -Raw) -match "Staged release test confirmation") "Final review was not persisted."
 

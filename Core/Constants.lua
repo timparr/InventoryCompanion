@@ -222,6 +222,7 @@ this.defaultsAccount = {
     wrapTrackedItemNames = false,
     trackerGroupThreshold = 8,
     trackerMaxRows = 20,
+    trackerTitleSize = 20,
 
     -- Currency & Capacity Overlay
     showEmptyCurrencies = true,

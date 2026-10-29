@@ -6,6 +6,7 @@ TOPLEFT, TOPRIGHT, BOTTOMLEFT = "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT"
 MOUSE_BUTTON_INDEX_LEFT, MOUSE_BUTTON_INDEX_RIGHT = 1, 2
 TEXT_WRAP_MODE_ELLIPSIS, DL_CONTROLS = 1, 1
 ZO_SCROLL_BAR_WIDTH = 16
+ZoFontGame = { GetFontInfo = function() return "regular-font" end }
 BAG_BACKPACK, BAG_BANK, BAG_SUBSCRIBER_BANK, BAG_VIRTUAL = 1, 2, 3, 4
 
 local function Control(name, parent, width, height)
@@ -57,6 +58,10 @@ local function Control(name, parent, width, height)
     function control:SetDrawLevel() end
     function control:SetAlpha() end
     function control:SetWrapMode() end
+    function control:SetFont(font)
+        self.font = font
+        self.height = tonumber(font:match("|(%d+)|"))
+    end
     function control:StartMoving() end
     return control
 end
@@ -122,9 +127,9 @@ local function Setup(sizes, budget, expanded, wrapped, length)
     fixture = { index = {}, items = {}, groupIds = {} }
     this.accountWide = { trackedRules = {}, trackedItems = {}, showTrackedItemsPanel = true,
         showEmptyTrackedItems = false, trackerMaxRows = budget, trackerGroupThreshold = 1,
-        trackerOffsetX = 50, trackerOffsetY = 50, wrapTrackedItemNames = wrapped == true }
+        trackerOffsetX = 50, trackerOffsetY = 50, wrapTrackedItemNames = wrapped == true, trackerTitleSize = 20 }
     this.character = { trackedRules = {}, trackedItems = {}, useCharacterItemList = false }
-    this.defaultsAccount = { trackerMaxRows = 20 }
+    this.defaultsAccount = { trackerMaxRows = 20, trackerTitleSize = 20 }
     this.preLoadedRulesets = {}
     for index, size in ipairs(sizes) do
         local name = "group" .. index
@@ -457,6 +462,25 @@ function this.GetTrackerPanelTests()
         end
     end)
 
+    Add("Tracker title uses adjustable regular font and matching icon without changing rows", function()
+        Setup({ 2 }, 20, false)
+        for _, size in ipairs({ 16, 20, 28 }) do
+            this.accountWide.trackerTitleSize = size
+            this.RefreshItemTrackerPanel()
+            Equal(InventoryCompanion_ItemTrackerFloatTitle.font, "regular-font|" .. size .. "|soft-shadow-thin")
+            Equal(InventoryCompanion_ItemTrackerFloatEditIcon.width, size)
+            Equal(InventoryCompanion_ItemTrackerFloatEditIcon.height, size)
+            for _, row in ipairs(VisibleRows()) do Equal(row.height, 22) end
+        end
+        this.accountWide.trackerTitleSize = nil
+        this.ValidateTrackerSettings()
+        Equal(this.accountWide.trackerTitleSize, 20)
+        for _, value in ipairs({ "20", true, {}, 15, 29, 20.5, math.huge, 0 / 0 }) do
+            this.accountWide.trackerTitleSize = value
+            assert(not pcall(this.ValidateTrackerSettings))
+        end
+    end)
+
     Add("Tracker warmed synthetic refresh workloads stay within explicit limits", function()
         local results = {}
         for _, workload in ipairs({ { 20, 100, 250 }, { 1000, 20, 1500 } }) do
@@ -471,6 +495,71 @@ function this.GetTrackerPanelTests()
             results[#results + 1] = string.format("%d x %d items: %d/%d ms", workload[2], workload[1], elapsed, workload[3])
         end
         return table.concat(results, "; ")
+    end)
+    Add("Tracker keybinding changes saved visibility and updates inventory listeners immediately", function()
+        Setup({ 2 }, 20, false)
+        this.RefreshItemTrackerPanel()
+        local registry = this.UpdateEventRegistry
+        local updates = 0
+        this.UpdateEventRegistry = function() updates = updates + 1 end
+        local scans = counters.scans
+        this.ToggleItemTrackerPanel()
+        assert(this.accountWide.showTrackedItemsPanel == false)
+        assert(InventoryCompanion_ItemTrackerFloat:IsHidden())
+        Equal(counters.scans, scans)
+        Equal(updates, 1)
+        this.ToggleItemTrackerPanel()
+        assert(this.accountWide.showTrackedItemsPanel == true)
+        assert(not InventoryCompanion_ItemTrackerFloat:IsHidden())
+        Equal(counters.scans, scans + 1)
+        Equal(updates, 2)
+        this.accountWide.showTrackedItemsPanel = nil
+        this.ToggleItemTrackerPanel()
+        assert(this.accountWide.showTrackedItemsPanel == false, "Missing optional visibility means shown, so toggle must hide")
+        this.UpdateEventRegistry = registry
+    end)
+
+    Add("Main addon settings open the item editor directly even when tracker is disabled", function()
+        Setup({ 2 }, 20, false)
+        this.accountWide.showTrackedItemsPanel = false
+        this.defaultsCharacter = {}
+        this.Utils.DisplayName = function() return "Inventory Companion" end
+        this.GetCurrencyPanelSettingsControls = function() return {} end
+        this.GetProgressBarResources = function() return {} end
+        this.GetProgressBarAlertColor = function() return {} end
+        local options
+        LibAddonMenu2 = {
+            RegisterAddonPanel = function() return {} end,
+            RegisterOptionControls = function(_, _, controls) options = controls end,
+        }
+        CALLBACK_MANAGER = { RegisterCallback = function() end }
+        this.CreateSettingsPanel()
+        local button, visibility
+        for _, option in ipairs(options) do
+            if option.name == "Open Item Tracking Editor" then button = option end
+            if option.name == "Item Tracker Panel" then
+                for _, control in ipairs(option.controls) do
+                    if control.name == "Show Tracked Items Panel" then visibility = control end
+                end
+            end
+        end
+        assert(button and button.type == "button", "Editor shortcut must be on the main settings page, not inside a submenu")
+        assert(visibility.setFunc == this.SetItemTrackerPanelVisible, "Checkbox and keybinding must share visibility handling")
+        local current = "gameMenuInGame"
+        SCENE_MANAGER = {
+            IsShowing = function(_, name) return current == name end,
+            Hide = function(_, name) if current == name then current = nil end end,
+            Show = function(_, name) current = name end,
+        }
+        local refreshes = 0
+        this.RefreshTrackedItemsEditor = function() refreshes = refreshes + 1 end
+        button.func()
+        Equal(current, "InventoryCompanion_TrackedItemsScene")
+        Equal(refreshes, 1)
+        button.func()
+        Equal(current, "InventoryCompanion_TrackedItemsScene")
+        Equal(refreshes, 2)
+        assert(this.accountWide.showTrackedItemsPanel == false, "Opening the editor must not change saved HUD visibility")
     end)
     return tests
 end

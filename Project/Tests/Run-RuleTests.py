@@ -46,6 +46,8 @@ for relative in (
     "Tracking\\ItemDatabase.lua",
     "Project\\Tests\\TrackerPanelTests.lua",
     "Tracking\\ItemTrackerPanel.lua",
+    "Core\\Settings.lua",
+    "Tracking\\EditPanelTabManager.lua",
 ):
     tracker_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
 tests = []

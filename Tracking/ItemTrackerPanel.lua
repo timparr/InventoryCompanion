@@ -910,7 +910,22 @@ local function ApplyBoundedPosition(oldLeft, oldTop)
     InventoryCompanion_ItemTrackerFloat:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, oldLeft, finalTop)
 end
 
+function this.SetItemTrackerPanelVisible(visible)
+    assert(type(visible) == "boolean", "Tracker visibility must be a boolean")
+    this.accountWide.showTrackedItemsPanel = visible
+    this.UpdateEventRegistry()
+    this.RefreshItemTrackerPanel()
+end
+
+function this.ToggleItemTrackerPanel()
+    this.SetItemTrackerPanelVisible(this.accountWide.showTrackedItemsPanel == false)
+end
+
 function this.RefreshItemTrackerPanel(reason, targetGroup)
+    local titleSize = this.accountWide.trackerTitleSize
+    InventoryCompanion_ItemTrackerFloatTitle:SetFont(string.format("%s|%d|soft-shadow-thin",
+        ZoFontGame:GetFontInfo(), titleSize))
+    InventoryCompanion_ItemTrackerFloatEditIcon:SetDimensions(titleSize, titleSize)
     if this.accountWide.showTrackedItemsPanel == false then
         InventoryCompanion_ItemTrackerFloat:SetHidden(true)
         return

@@ -20,8 +20,8 @@ $stateDirectory = Join-Path $PSScriptRoot ".release-test"
 $statePath = Join-Path $stateDirectory "state.json"
 $reviewPath = Join-Path $addonRoot "ReleaseReview.md"
 $releaseDocuments = [ordered]@{
-    "readme.md" = "readme.md"
-    "Changelog.md" = "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.md"
+    "readme.bbcode" = "readme.bbcode"
+    "Changelog.bbcode" = "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.bbcode"
 }
 
 function Backup-SavedVariables {

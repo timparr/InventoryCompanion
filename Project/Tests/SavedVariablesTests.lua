@@ -18,7 +18,7 @@ local function LoadAddon(saved)
             display = { show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false },
         },
     }
-    addon.defaultsAccount = { trackedRules = {}, bankItemDelay = 100, trackerMaxRows = 20 }
+    addon.defaultsAccount = { trackedRules = {}, bankItemDelay = 100, trackerMaxRows = 20, trackerTitleSize = 20 }
     addon.defaultsCharacter = { trackedRules = {}, useCharacterItemList = false }
     for _, method in ipairs({
         "InitCutsceneTicker", "InitContextMenus", "InitializeCurrencyHelper", "InitializeProgressBarResources",

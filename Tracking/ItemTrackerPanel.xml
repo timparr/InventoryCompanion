@@ -39,8 +39,8 @@
                             <Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPLEFT" offsetX="0" offsetY="0"/>
                         </Label>
                         <Button name="InventoryCompanion_ItemTrackerFloatEditIcon" mouseEnabled="true">
-                            <Dimensions x="18" y="18"/>
-                            <Anchor point="TOPRIGHT" relativeTo="$(parent)" relativePoint="TOPRIGHT" offsetX="0" offsetY="-2"/>
+                            <Dimensions x="24" y="24"/>
+                            <Anchor point="TOPRIGHT" relativeTo="$(parent)" relativePoint="TOPRIGHT" offsetX="0" offsetY="0"/>
                             <Textures 
                                 normal="EsoUI/Art/Buttons/edit_up.dds" 
                                 pressed="EsoUI/Art/Buttons/edit_down.dds" 

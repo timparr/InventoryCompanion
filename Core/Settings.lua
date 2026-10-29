@@ -165,6 +165,15 @@ function this.CreateSettingsPanel()
             name = "On-Screen Indicators",
         },
         {
+            type = "button",
+            name = "Open Item Tracking Editor",
+            tooltip = "Choose which items and groups to track, show on the panel, or receive notifications for.",
+            func = function()
+                this.OpenEditItemsPanel()
+            end,
+            width = "full",
+        },
+        {
             type = "submenu",
             name = "Item Tracker Panel",
             tooltip = "Configure the movable tracked items HUD window.",
@@ -174,11 +183,7 @@ function this.CreateSettingsPanel()
                     name = "Show Tracked Items Panel",
                     tooltip = "Master switch to show or hide the Item Tracker window.",
                     getFunc = function() return this.accountWide.showTrackedItemsPanel ~= false end,
-                    setFunc = function(v) 
-                        this.accountWide.showTrackedItemsPanel = v 
-                        this.UpdateEventRegistry()
-                        if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
-                    end,
+                    setFunc = this.SetItemTrackerPanelVisible,
                     default = this.defaultsAccount.showTrackedItemsPanel,
                 },
                 {
@@ -194,6 +199,20 @@ function this.CreateSettingsPanel()
                         if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
                     end,
                     default = this.defaultsAccount.trackerGroupThreshold,
+                },
+                {
+                    type = "slider",
+                    name = "Tracker Title Size",
+                    tooltip = "Set the regular-weight tracker title font size. The edit icon scales to match; item rows are unchanged.",
+                    min = 16,
+                    max = 28,
+                    step = 1,
+                    getFunc = function() return this.accountWide.trackerTitleSize end,
+                    setFunc = function(value)
+                        this.accountWide.trackerTitleSize = value
+                        this.RefreshItemTrackerPanel()
+                    end,
+                    default = this.defaultsAccount.trackerTitleSize,
                 },
                 {
                     type = "slider",

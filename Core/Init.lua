@@ -4,7 +4,7 @@ InventoryCompanion = {
     IsDevelopment = isDevelopment,
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
-    Version = "1.3.1.2",
+    Version = "1.3.1",
     SettingsVersion = 2,
     SettingsName = "InventoryCompanion_SavedVariables",
 }
@@ -26,6 +26,12 @@ function this.ValidateTrackerSettings()
     assert(type(value) == "number" and value == value and value >= 5 and value <= 50
         and value == math.floor(value), "Saved trackerMaxRows must be an integer from 5 to 50")
     this.accountWide.trackerMaxRows = value
+    local titleSize = this.accountWide.trackerTitleSize
+    if titleSize == nil then titleSize = this.defaultsAccount.trackerTitleSize end
+    assert(type(titleSize) == "number" and titleSize == titleSize and titleSize >= 16
+        and titleSize <= 28 and titleSize == math.floor(titleSize),
+        "Saved trackerTitleSize must be an integer from 16 to 28")
+    this.accountWide.trackerTitleSize = titleSize
 end
 
 local function Initialize()
@@ -36,6 +42,7 @@ local function Initialize()
     ZO_CreateStringId("SI_BINDING_NAME_InventoryCompanion_Withdraw_Crafted_Items", "Withdraw Items from Bank")
 	ZO_CreateStringId("SI_BINDING_NAME_InventoryCompanion_Toggle_EditPanel", "Show/Hide Tracking Settings")
     ZO_CreateStringId("SI_BINDING_NAME_InventoryCompanion_Debug_Key", "Debug Key")
+    ZO_CreateStringId("SI_BINDING_NAME_InventoryCompanion_Toggle_ItemTracker", "Show/Hide Item Tracking Panel")
 	
     -- Load Saved Variables
     this.accountWide = ZO_SavedVars:NewAccountWide(this.SettingsName, this.SettingsVersion, nil, this.defaultsAccount)

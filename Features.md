@@ -1,6 +1,6 @@
 # Inventory Companion Features
 
-This overview describes features implemented in the current addon. For setup and step-by-step instructions, see [UserManual.md](./UserManual.md).
+This overview describes features implemented in the current addon. For setup and step-by-step instructions, see [UserManual.bbcode](./UserManual.bbcode).
 
 ## Bank and chest helpers
 

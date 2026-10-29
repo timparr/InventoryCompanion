@@ -195,7 +195,7 @@ current working policy.
       switching/import, `/reloadui`, and hide/show of the panel.
 - [ ] Confirm residual overflow matches the agreed policy, or verify scrolling
       separately if a strict cap was selected.
-- [ ] Update [UserManual.md](../../../UserManual.md) with the setting, automatic
+- [ ] Update [UserManual.bbcode](../../../UserManual.bbcode) with the setting, automatic
       collapse persistence, and any overflow limitation. Update the A1 entry and
       completion record only after implementation and recorded verification.
 
