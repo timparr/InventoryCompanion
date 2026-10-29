@@ -4,6 +4,7 @@
 
 * **A1.** **Trecker panel Height Constraints:**
 * Implement a safeguard so that if expanding a group makes the item tracker panel window too tall, it automatically collapses other expanded groups to show only the active one. Set a max height in the settings for this.
+* Proposed implementation plan and acceptance checklist: [Tracker Panel Height Constraints](Tasks/todo_TrackerPanelHeightConstraints.md).
 
 
 * **A2.** **Delta-Only Saved Variables - In-Game Acceptance:**
@@ -78,6 +79,11 @@
 
 * **D9.** **Additional Virtual Groups & Summary Panel:**
 * Explore virtual groups for self-crafted writ items and sellable items (junk), and allow groups to be summarized in the Currency Panel. Inspect the existing Miscellaneous virtual group before implementation and reuse or extend its behavior where appropriate. Consider renaming the Currency Panel to Summary Panel if it includes broader item/group summaries.
+
+D10 make progress bars invisible below a given % 
+add to virtual groups - stolen items
+add to virtual groups - junk items
+
 
 
 
