@@ -1,21 +1,19 @@
 # Group pattern exclusions: implementation
 
-Status: Core feature and label-style toggle are committed. The post-commit
-editor refinement displays Includes first and Excludes below them, with a
-divider when both sections are present; toggling a row immediately moves it to
-the other section. The current UX has a circular, colored status dot before
-the pattern field and a separate compact swap button after the field. The dot
-tooltip explains the current kind; the button tooltip names the change and
-describes the resulting row movement. Render the swap as a plain ASCII `<>`
-mark in a 32-by-30 clickable hit area without inherited button chrome, avoiding
-a missing-glyph square in the ESO font, and tint it gold to match the delete
-control. The status dot uses ESO's checked radio-button texture, tinted
-green/red and sized 22-by-22 to keep it truly circular rather than relying on
-a font glyph. The delete control has a tooltip describing removal of the row's
-rule. In-game visual verification and final release checks remain.
+Status: Completed on 2026-10-30. Core matching and persistence, editor
+refinements, tests, and documentation are implemented. Includes appear first,
+followed by an Exclusions divider when both kinds are present; toggling moves
+the row immediately. The final editor uses 25-by-25 green deposit/IN and red
+withdraw/OUT indicators before the pattern, with an 8-pixel textbox gap, and a
+separate native textured swap button after it. Status, swap, and delete
+tooltips explain each control. The final textures and spacing were approved
+in game. The isolated Lua 5.1 suite passed 79/79 tests; XML, texture-path,
+dimension, and whitespace checks passed. Feature changes are committed and
+pushed on `feature/group-pattern-exclusions`, most recently as `6130ad0`;
+merging and publishing are separate release steps.
 
 Feature behavior and compatibility requirements are in the
-[feature plan](todo_plan_rulePatternExclusions.md). This document follows the
+[feature plan](GroupPatternExclusions.md). This document follows the
 implementation process: saved representation, runtime interpretation and
 matching, editor, then verification. Method-level changes are listed within
 the process stage where they belong.

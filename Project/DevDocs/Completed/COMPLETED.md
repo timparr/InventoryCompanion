@@ -4,6 +4,13 @@ Completed work is recorded here for project history and future release-note draf
 
 ## Verified Addon Work
 
+- **Group pattern exclusions (C5):** Groups match at least one Include pattern
+  and no Exclude patterns, without vetoing other groups or individual tracking.
+  Includes appear before an Exclusions section, with native IN/OUT indicators,
+  a separate swap button, and explanatory tooltips. Automated checks passed
+  79/79 isolated Lua 5.1 tests, and the final editor visuals were approved in
+  game on 2026-10-30. See the [feature plan](GroupPatternExclusions.md) and
+  [implementation and refinement record](ImplementationPlan_GroupPatternExclusions.md).
 - **Inventory slot event filtering:** Filtered backpack, craft-bag, bank, and
   subscriber-bank listeners have automated coverage for lifecycle transitions,
   bag filters, duplicate prevention, and refresh debounce. See the retained

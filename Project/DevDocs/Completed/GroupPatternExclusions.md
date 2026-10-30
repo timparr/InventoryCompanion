@@ -1,6 +1,7 @@
 # Group pattern exclusions
 
-Status: Planned; no runtime changes made by this plan.
+Status: Completed on 2026-10-30. Implementation and automated checks are
+complete, and the final editor controls were approved in game.
 
 ## Goal
 
@@ -43,6 +44,6 @@ treasure maps generally and excludes maps from Cyrodiil.
 
 ## Implementation details
 
-See the separate [implementation plan](todo_implementation_rulePatternExclusions.md)
+See the separate [implementation record](ImplementationPlan_GroupPatternExclusions.md)
 for the examined code paths, saved-variable fields, ordered code/test changes,
 and in-game verification.
