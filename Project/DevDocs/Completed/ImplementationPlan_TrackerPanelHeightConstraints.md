@@ -1,6 +1,25 @@
-# Tracker Panel Height Constraints: First-Round Implementation Plan
+# Adaptive Tracker Panel Sizing: Implementation and Verification
 
-**Status:** Planning only; no runtime changes.
+**Status:** Implemented, reviewed, released, and verified; isolated regression
+suite passed.
+
+## Implementation Record (2026-10-30)
+
+- Added the account-wide **Maximum Visible Rows** setting with a default of 20
+  and a range of 5-50 rows. The title is outside the item-area budget.
+- The tracker keeps the preferred wrapped layout when it fits, temporarily
+  switches to single-line names when needed, applies the category expansion
+  policy, and scrolls any remaining overflow. Scroll state and the fixed title
+  are preserved by the viewport layout.
+- The isolated Lua 5.1 regression runner passed **71/71 tests**, including
+  tracker layout, expansion, scroll, context-change, and synthetic performance
+  checks. The runner also syntax-checked addon Lua files.
+- The feature shipped in reviewed code and is considered in-game verified
+  under the project release-verification policy.
+- Later planning sections and checklists preserve historical proposals and
+  unrelated work; unchecked boxes there are not outstanding requirements for
+  the released adaptive sizing feature. The original height-constraint and
+  separate-mode proposals are closed, not deferred work.
 
 ## Updated Implementation Direction (2026-10-29)
 
@@ -179,7 +198,7 @@ refreshes. Report these results separately from isolated-test timings.
 
 ## Earlier First-Round Plan (Reference; Conflicts Superseded Above)
 
-**Behavior reference:** [Requirements and decisions](todo_TrackerPanelHeightConstraints.md),
+**Behavior reference:** [Requirements and decisions](TrackerPanelHeightConstraints.md),
 section C. Sections F (scrolling/mode choice) and G (follow inventory changes)
 are deferred entirely, including their outstanding decisions.
 
@@ -209,7 +228,7 @@ are deferred entirely, including their outstanding decisions.
 | B5. Height measurement and collapse policy | [Tracking/ItemTrackerPanel.lua](../../../Tracking/ItemTrackerPanel.lua) | Measure after real row layout, select the retained group deterministically, persist only necessary collapses, and remove their member rows from the final display. Include Miscellaneous and leave non-rendered rules unchanged. |
 | B6. Final layout and positioning | [Tracking/ItemTrackerPanel.lua](../../../Tracking/ItemTrackerPanel.lua) | Relayout once after collapsing, recomputing shared count/name widths and wrapped heights. Apply existing screen positioning using final dimensions. Preserve row pooling, click handlers, dragging, and interaction/editor positioning. |
 | B7. Isolated verification | New [Project/Tests/TrackerPanelTests.lua](../../Tests/TrackerPanelTests.lua), [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py) | Add a focused Lua test suite with synthetic inventory and mocked controls, loaded by the existing isolated runner. Exercise actual tracker refresh/click behavior, preference loading, and context resets without live saved variables. |
-| B8. Documentation and acceptance | [UserManual.bbcode](../../../UserManual.bbcode), [Project/DevDocs/TODO.md](../TODO.md), [requirements plan](todo_TrackerPanelHeightConstraints.md) | Explain the setting and persistent automatic collapses. Record automated results separately from in-game acceptance; mark A1 complete only after both pass. |
+| B8. Documentation and acceptance | [UserManual.bbcode](../../../UserManual.bbcode), [Project/DevDocs/TODO.md](../TODO.md), [requirements plan](TrackerPanelHeightConstraints.md) | The user manual documents the row budget and adaptive fallbacks. The reviewed release and automated verification recorded above complete this work. |
 
 Keep layout helpers local to the tracker where possible. No new runtime module,
 general layout framework, or dependency is planned.

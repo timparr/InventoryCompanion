@@ -4,7 +4,9 @@ This is the separate post-implementation work log and review document requested 
 
 The [design and acceptance checklist](DeltaOnlySavedVariables.md) remains the companion specification. This document distinguishes historical implementation choices from the corrected current behavior.
 
-**Current state:** implementation committed on `main`; automated checks passed; native ESO acceptance remains pending.
+**Current state:** implementation, automated checks, and native ESO acceptance
+are complete for the reviewed release. Pending-acceptance notes below are
+historical entries describing the state when those subtasks were recorded.
 
 **Important correction:** Reset restores only a built-in group's name and patterns. It preserves every display setting, including hidden state. The original implementation incorrectly cleared display settings; that mistake and its correction are recorded below.
 
@@ -29,7 +31,7 @@ No branch switch was made. The initial workflow warning recommended a separate b
 
 The checkpoint committed pre-existing changes in:
 
-- [COMPLETED.md](../COMPLETED.md).
+- [COMPLETED.md](COMPLETED.md).
 - [TODO.md](../TODO.md).
 - [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md).
 
@@ -269,7 +271,7 @@ All addon Lua syntax checks and `git diff --check` passed. Native ESO focus/even
 | [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py) | Added real monotonic timing, ordered suite collection, persistence-state setup, and performance detail output. |
 | [UserManual.bbcode](../../../UserManual.bbcode) | Documented default inheritance and Reset; Reset wording was subsequently corrected. |
 | [TODO.md](../TODO.md) | Changed the outstanding task from implementation to in-game acceptance. |
-| [COMPLETED.md](../COMPLETED.md) | Recorded implementation under an explicit awaiting-in-game-acceptance heading. |
+| [COMPLETED.md](COMPLETED.md) | Recorded implementation; release verification later moved it into verified work. |
 | [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) | Added the storage contract, test commands, downgrade warning, final results, and client acceptance checklist. |
 
 ### Methods and helpers added or changed

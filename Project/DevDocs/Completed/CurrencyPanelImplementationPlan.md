@@ -1,6 +1,11 @@
 # Currency and Capacity Panel Implementation Plan
 
-**Status:** Proposed
+**Status:** Implemented, reviewed, released, and verified.
+
+This document retains the original implementation plan and decision history.
+Planning language below is historical; deferred user-facing improvement ideas
+are tracked in the [master TODO, Section F](../TODO.md#section-f-tweaks-and-improvement-ideas),
+not as outstanding release requirements here.
 
 ## Goal
 

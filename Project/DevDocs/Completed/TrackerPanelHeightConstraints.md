@@ -1,16 +1,19 @@
-# A1: Tracker Panel Height Constraints
+# Tracker Panel Height Constraints - Superseded Planning History
 
-**Status:** Proposed; planning only, no runtime changes.
+**Status:** Closed; superseded by the implemented, reviewed, released, and
+verified adaptive row-based tracker layout.
 
-**First-round implementation map:** [Implementation plan](ImplementationPlan_TrackerPanleHeightConstraints.md).
-Sections F and G are outside the first round; their decisions are deferred and
-do not block base A1 implementation.
+**Implementation and verification record:** [Adaptive tracker sizing](ImplementationPlan_TrackerPanelHeightConstraints.md).
+This document preserves the original product discussion; the implemented
+row-based behavior in the linked record supersedes the earlier height-based
+proposals below. All checklists, mode proposals, and decision markers below are
+retained as historical discussion only, not as outstanding work or an active
+extension backlog.
 
 > [!IMPORTANT]
-> **DECISIONS NEEDED:** Outstanding product choices are marked
-> **🔴 [DECISION NEEDED]** below. Confirmed choices are marked **[AGREED]**.
-> Decisions in sections F and G are deferred beyond the first round.
-> Implementation/test checkboxes track work, not product approval.
+> **HISTORICAL DOCUMENT:** The decision markers and unchecked boxes below
+> describe the original planning state. They do not require further decisions
+> or implementation. See the linked implementation record for delivered behavior.
 
 ## A. Goal
 
@@ -210,7 +213,7 @@ from final verification.
 
 ## F. Extension: Choose Large-Panel Behavior
 
-**Status:** Requested extension to the plan; not yet implemented.
+**Historical status:** Superseded mode proposal; no outstanding implementation.
 
 ### F1. Settings and Mode Behavior
 
@@ -274,7 +277,7 @@ from final verification.
 
 ## G. Extension: Follow Inventory Changes (Formerly C5b)
 
-**Status:** Deferred option to consider; not part of base A1.
+**Historical status:** Closed planning discussion; not an active task.
 
 - **G1. 🔴 [DECISION NEEDED] Optional setting:** "Follow inventory changes" could
   open the group containing an added or removed item and give it priority over

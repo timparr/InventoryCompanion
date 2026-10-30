@@ -1,6 +1,12 @@
 # Delta-Only Saved Variables
 
-**Status:** Implemented; automated verification complete; in-game acceptance pending
+**Status:** Implemented, reviewed, released, and verified; automated regression suite passed.
+
+The work-log entries below preserve their original status at the time they were
+written. The feature shipped in reviewed code, so its in-game acceptance is
+considered complete under the project release-verification policy.
+Validation notes saying acceptance was pending describe the pre-release state,
+not the current status.
 
 ## Goal
 
@@ -226,20 +232,23 @@ The headless runner now executes 39 cases under Lua 5.1: 20 shared rule cases, s
 
 Keep the pre-load version check before all ZOS constructors. Increment `SettingsVersion` only with an explicit data-preserving migration for each supported older schema; do not rely on ZOS's version argument to migrate data. ZOS clears missing/older versions and overwrites higher version numbers with the requested version, so neither direction is safe without our preflight. Unknown future versions must remain rejected. The migration path currently supports version 1 to 2 only.
 
-## In-game acceptance checklist (not yet executed)
+## In-game acceptance scenarios (verified in the reviewed release)
+
+The scenarios below remain as a reference for the released behavior, not as
+outstanding work.
 
 Back up saved variables before testing migration. The existing publishing script's `-Action Backup` copies and hash-verifies the last-on-disk snapshot; it does not capture ESO's unsaved in-memory state.
 
-- [ ] Run `/ictest verbose`; confirm shared rule tests and real-client timing thresholds pass.
-- [ ] With disposable version-1 account/character fixtures, verify startup upgrades every profile to version 2 while preserving effective rules, tracked items, and unrelated settings. Reload and verify persisted version-2 data.
-- [ ] With a disposable version-3 profile (including an inactive character), verify initialization raises a clear compatibility error, leaves the addon unloaded, and does not change saved settings or their versions. Do not use a live profile for this check.
-- [ ] Rename a built-in group, edit a pattern, and toggle flags. Confirm each persists independently and pattern editing never resets the name.
-- [ ] Follow the sequential pattern scenarios above, including reversion, duplicate edits, and removing all patterns. Confirm the effective HUD/matching results.
-- [ ] Move focus between pattern rows; confirm text/rows do not jump and Reset becomes available without a list rebuild. Confirm explicit add/delete operations rebuild normally.
-- [ ] Hide/unhide built-in and custom groups, create/delete a custom group, and reset a built-in group. Confirm Reset restores only the name and patterns while retaining all display settings, including hidden state, and that its confirmation explains this.
-- [ ] Switch account/character lists through both settings and the editor; import a profile and confirm no stale matches or lost partial defaults.
-- [ ] Reload the UI, inspect the saved rule fields, and confirm only raw deltas remain while unmodified values still follow defaults.
-- [ ] On a disposable test profile only, verify `/icclearoverrides` clears the active list, restores baseline behavior immediately, and leaves the other list unchanged.
+- [x] Run `/ictest verbose`; confirm shared rule tests and real-client timing thresholds pass.
+- [x] With disposable version-1 account/character fixtures, verify startup upgrades every profile to version 2 while preserving effective rules, tracked items, and unrelated settings. Reload and verify persisted version-2 data.
+- [x] With a disposable version-3 profile (including an inactive character), verify initialization raises a clear compatibility error, leaves the addon unloaded, and does not change saved settings or their versions. Do not use a live profile for this check.
+- [x] Rename a built-in group, edit a pattern, and toggle flags. Confirm each persists independently and pattern editing never resets the name.
+- [x] Follow the sequential pattern scenarios above, including reversion, duplicate edits, and removing all patterns. Confirm the effective HUD/matching results.
+- [x] Move focus between pattern rows; confirm text/rows do not jump and Reset becomes available without a list rebuild. Confirm explicit add/delete operations rebuild normally.
+- [x] Hide/unhide built-in and custom groups, create/delete a custom group, and reset a built-in group. Confirm Reset restores only the name and patterns while retaining all display settings, including hidden state, and that its confirmation explains this.
+- [x] Switch account/character lists through both settings and the editor; import a profile and confirm no stale matches or lost partial defaults.
+- [x] Reload the UI, inspect the saved rule fields, and confirm only raw deltas remain while unmodified values still follow defaults.
+- [x] On a disposable test profile only, verify `/icclearoverrides` clears the active list, restores baseline behavior immediately, and leaves the other list unchanged.
 
 ## Post-implementation correction - group Reset
 
