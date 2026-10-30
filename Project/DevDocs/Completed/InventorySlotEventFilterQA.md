@@ -1,10 +1,28 @@
 # Inventory Slot Event Filter QA
 
+**Status:** Completed; event-filter implementation reviewed, released, and verified.
+
+This document preserves the original manual in-game QA checklist and diagnostic
+observations, not an outstanding unit-test specification. Results below reflect
+what was recorded during that investigation; "Not run" entries are historical,
+not current release blockers.
+
+Automated coverage in [Core/Tests.lua](../../../Core/Tests.lua), under
+**Event listener transitions and refresh debounce**, checks registration and bag
+filters, feature transitions, shared consumers, duplicate prevention, and
+debounce behavior. Current release verification follows the
+[short human transfer check](../../Publishing/ReleaseChecklist.md#short-human-transfer-check).
+The separate craft-bag stow refresh observation is retained as optional idea
+**F10** in the [master TODO tweaks section](../TODO.md#section-f-tweaks-and-improvement-ideas).
+
 ## Scope
 
 Verify that `EVENT_INVENTORY_SINGLE_SLOT_UPDATE` registrations are restricted to the backpack, craft bag, bank, and subscriber bank; that tracker and capacity behavior still updates; and that listener registrations follow enabled features.
 
-The tests below require in-game verification. Use only items you already intend to move; do not discard items or alter saved variables for testing. Do not run `/icclean`. `/ictest` performs live read-only inventory scans but is not a test of event-filter delivery.
+The historical scenarios below exercise real in-game event delivery, which
+mocked automated tests cannot establish. If repeating a diagnostic, use only
+items you already intend to move; do not discard items or alter saved variables
+for testing. Do not run `/icclean`.
 
 ## Setup
 

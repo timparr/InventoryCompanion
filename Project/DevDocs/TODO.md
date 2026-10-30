@@ -12,14 +12,6 @@ No active tasks at this time.
   placement on a per-character basis while keeping other settings account-wide.
 - **B3. Item Transfer Edge Cases:** Audit and refine bank/chest transfer
   execution plans and stack merging helpers.
-- **B4. Low Priority - Craft-Bag Stow Tracker Refresh:** Investigate why
-  stowing an item from the backpack into the craft bag did not produce a logged
-  slot event or immediately refresh the tracker in the current code. Harvesting
-  directly into the craft bag works both before and after the event-filter
-  change. Stowing/retrieving was not tested against the old code, so do not
-  assume the filter change caused this behavior. Impact is minor: users rarely
-  take tracked items out of the craft bag, and another event may refresh the
-  tracker shortly afterward.
 
 ---
 
@@ -85,7 +77,8 @@ No active tasks at this time.
 
 ## Section F: Tweaks and Improvement Ideas
 
-Ideas considered during earlier planning but not included in the final release.
+Ideas considered during earlier planning but not included in the final release,
+plus low-priority observations worth revisiting.
 These are optional candidates for discussion, not committed implementation
 tasks. Superseded approaches and closed proposals are not carried forward.
 Entries are self-contained so useful ideas survive removal of the old plans.
@@ -116,6 +109,12 @@ They may be refined or discarded during future triage.
   and group editor inputs if the corrected standard fonts are insufficient.
   The existing tracker title-size setting is already implemented and is not
   part of this idea.
+- **F10. Craft-Bag Stow Tracker Refresh:** Consider investigating the observation
+  that backpack-to-craft-bag stowing produced no logged slot event or immediate
+  tracker refresh. Harvesting directly into the craft bag and withdrawing to
+  the backpack worked. Stowing was not tested against the older code, so this
+  is not an established event-filter regression. Impact is minor, and another
+  event may refresh the tracker shortly afterward.
 
 Source design history: [Currency Preferences](Completed/CurrencyPreferences.md)
 and [Currency Panel Implementation Plan](Completed/CurrencyPanelImplementationPlan.md),

@@ -4,6 +4,12 @@ Completed work is recorded here for project history and future release-note draf
 
 ## Verified Addon Work
 
+- **Inventory slot event filtering:** Filtered backpack, craft-bag, bank, and
+  subscriber-bank listeners have automated coverage for lifecycle transitions,
+  bag filters, duplicate prevention, and refresh debounce. See the retained
+  [manual QA and diagnostic history](InventorySlotEventFilterQA.md). The
+  separate craft-bag stow observation is retained as optional idea F10 in the
+  [master TODO tweaks section](../TODO.md#section-f-tweaks-and-improvement-ideas).
 - **Adaptive tracker sizing:** The item area uses a configurable visible-row
   budget, switches to single-line names before collapsing categories, and
   scrolls any remaining overflow while keeping the title fixed. This feature
