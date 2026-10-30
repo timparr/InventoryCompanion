@@ -246,35 +246,90 @@ local function GetOrCreatePatternRow(scrollChild, index)
     return row
 end
 
-local function SaveRulePatterns(groupName, patterns)
-    this.UpdateRulePatterns(groupName, patterns)
+local function DecodePatternRows(patterns)
+    local rows = {}
+    local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
+    for _, storedPattern in ipairs(patterns) do
+        local isExclusion = storedPattern:sub(-#suffix) == suffix
+        local pattern = isExclusion and storedPattern:sub(1, #storedPattern - #suffix) or storedPattern
+        table.insert(rows, {
+            pattern = pattern,
+            isExclusion = isExclusion,
+            lastSavedPattern = pattern,
+        })
+    end
+    return rows
 end
 
-local function HandlePatternTextChanged(self, patterns, index)
-    patterns[index] = self:GetText()
+local function EncodePatternRows(rows)
+    local patterns = {}
+    local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
+    for _, row in ipairs(rows) do
+        assert(type(row.pattern) == "string", "Pattern row text must be a string")
+        assert(row.pattern:sub(-#suffix) ~= suffix, "Pattern text cannot end with the reserved exclusion marker")
+        table.insert(patterns, row.pattern .. (row.isExclusion and suffix or ""))
+    end
+    return patterns
 end
 
-local function HandlePatternFocusLost(self, patterns, index, targetGroup)
-    patterns[index] = self:GetText()
-    
+local function SaveRulePatterns(groupName, rows)
+    this.UpdateRulePatterns(groupName, EncodePatternRows(rows))
+    for _, row in ipairs(rows) do row.lastSavedPattern = row.pattern end
+end
+
+local function HandlePatternTextChanged(self, row)
+    row.pattern = self:GetText()
+end
+
+local function HandlePatternFocusLost(self, row, rows, targetGroup)
+    local pattern = self:GetText()
+    local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
+    if pattern:sub(-#suffix) == suffix then
+        this.Utils.UserWarning("Pattern text cannot end with the reserved exclusion marker.")
+        row.pattern = row.lastSavedPattern
+        self:SetText(row.pattern)
+        return
+    end
+    row.pattern = pattern
+
     if targetGroup == selectedGroupName then
-        SaveRulePatterns(targetGroup, patterns)
+        SaveRulePatterns(targetGroup, rows)
         this.RefreshItemTrackerPanel()
         SetActionButtons(this.GetActiveTrackedRules(true))
     end
 end
 
-local function HandlePatternDelete(patterns, index)
-    table.remove(patterns, index)
-    SaveRulePatterns(selectedGroupName, patterns)
+local function HandlePatternDelete(rows, index, targetGroup)
+    table.remove(rows, index)
+    SaveRulePatterns(targetGroup, rows)
     this.RefreshGroupsEditor()
     this.RefreshItemTrackerPanel()
 end
 
-local function HandleAddRule(patterns)
-    table.insert(patterns, "")
-    SaveRulePatterns(selectedGroupName, patterns)
+local function HandleAddRule(rows, targetGroup)
+    table.insert(rows, { pattern = "", isExclusion = false, lastSavedPattern = "" })
+    SaveRulePatterns(targetGroup, rows)
     this.RefreshGroupsEditor()
+end
+
+local function SetPatternKindLabel(label, isExclusion)
+    if isExclusion then
+        label:SetText("Exclude")
+        label:SetColor(1.0, 0.3, 0.3, 1.0)
+    else
+        label:SetText("Include")
+        label:SetColor(0.2, 0.8, 0.4, 1.0)
+    end
+end
+
+local function HandlePatternKindToggle(label, row, rows, targetGroup)
+    row.isExclusion = not row.isExclusion
+    SetPatternKindLabel(label, row.isExclusion)
+    if targetGroup == selectedGroupName then
+        SaveRulePatterns(targetGroup, rows)
+        this.RefreshItemTrackerPanel()
+        SetActionButtons(this.GetActiveTrackedRules(true))
+    end
 end
 
 local function ConfigureCustomGroupActionBar(btnReset, btnHide, btnDelete, actionBar, groupId, activeRules, isHidden)
@@ -441,17 +496,14 @@ local function PopulateSingleGroupPane(activeRules)
         patternScrollContainer:SetHidden(false)
         btnAddRule:SetHidden(false)
 
-        local patterns = {}
-        for _, p in ipairs(ruleData.patterns) do
-            table.insert(patterns, p)
-        end
+        local rows = DecodePatternRows(ruleData.patterns)
 
-        titleLabel:SetText(string.format("Group Name: %s (%d patterns/rules)", displayName, #patterns))
+        titleLabel:SetText(string.format("Group Name: %s (%d patterns/rules)", displayName, #rows))
 
         HideAllPatternRows()
         local patternScrollChild = GetControl(patternScrollContainer, "ScrollChild")
         local rowHeight = 36
-        for i, patternText in ipairs(patterns) do
+        for i, patternRow in ipairs(rows) do
             local row = GetOrCreatePatternRow(patternScrollChild, i)
             row:ClearAnchors()
             row:SetAnchor(TOPLEFT, patternScrollChild, TOPLEFT, 0, (i - 1) * rowHeight)
@@ -460,18 +512,26 @@ local function PopulateSingleGroupPane(activeRules)
             local rowEditBox = GetControl(row, "Edit")
             rowEditBox:SetHandler("OnTextChanged", nil)
             rowEditBox:SetHandler("OnFocusLost", nil)
-            rowEditBox:SetText(patternText)
+            rowEditBox:SetText(patternRow.pattern)
             
             local targetGroup = selectedGroupName
 
-            rowEditBox:SetHandler("OnTextChanged", function(self) HandlePatternTextChanged(self, patterns, i) end)
-            rowEditBox:SetHandler("OnFocusLost", function(self) HandlePatternFocusLost(self, patterns, i, targetGroup) end)
+            rowEditBox:SetHandler("OnTextChanged", function(self) HandlePatternTextChanged(self, patternRow) end)
+            rowEditBox:SetHandler("OnFocusLost", function(self)
+                HandlePatternFocusLost(self, patternRow, rows, targetGroup)
+            end)
+
+            local lblKind = GetControl(row, "LblKind")
+            SetPatternKindLabel(lblKind, patternRow.isExclusion)
+            lblKind:SetHandler("OnMouseDown", function(self)
+                HandlePatternKindToggle(self, patternRow, rows, targetGroup)
+            end)
 
             local btnDelete = GetControl(row, "BtnDelete")
-            btnDelete:SetHandler("OnClicked", function() HandlePatternDelete(patterns, i) end)
+            btnDelete:SetHandler("OnClicked", function() HandlePatternDelete(rows, i, targetGroup) end)
         end
 
-        btnAddRule:SetHandler("OnClicked", function() HandleAddRule(patterns) end)
+        btnAddRule:SetHandler("OnClicked", function() HandleAddRule(rows, selectedGroupName) end)
     end
 
     pencilBtn:SetHandler("OnClicked", function() HandlePencilClick(titleLabel, pencilBtn, editBox, activeRules) end)

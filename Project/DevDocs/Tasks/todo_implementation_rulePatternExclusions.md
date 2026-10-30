@@ -1,6 +1,8 @@
 # Group pattern exclusions: implementation
 
-Status: Investigation complete; implementation not started.
+Status: Implementation in progress; runtime matching and group-editor controls
+are implemented and covered by the isolated Lua test suite. In-game verification
+and final documentation/release checks remain.
 
 Feature behavior and compatibility requirements are in the
 [feature plan](todo_plan_rulePatternExclusions.md). This document follows the
@@ -78,6 +80,9 @@ reserves the marker and does not allow it to be entered as literal pattern text.
 
 Change [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
 
+- Add `RULE_PATTERN_EXCLUSION_SUFFIX` to
+  [Core/Constants.lua](../../../Core/Constants.lua) and use that one shared
+  value in the runtime parser and group editor.
 - Add local `SplitStoredPatterns(patterns)`. It returns include and exclude
   text arrays, removing exactly the trailing
   ` {InventoryCompanion:exclude}` marker from excluded values. Plain strings
@@ -138,9 +143,10 @@ so changing the suffix changes the signature.
   exclusion veto. Add coverage through the existing diagnostic/test path in
   `Core/Tests.lua` only if its current fixtures do not already exercise these
   call sites.
-- In `Project/Tests/TrackerPanelTests.lua`, add a case through
-  `this.GetTrackerPanelTests()` proving a kind toggle changes the rule
-  signature/layout state; this tests the unchanged `RuleSignature()`.
+- `RuleSignature(rule)` in `Tracking/ItemTrackerPanel.lua` remains unchanged;
+  it already includes the full stored pattern strings, including the suffix.
+  The rule-matching and editor tests verify the encoded kind changes behavior
+  and persists without changing the displayed text.
 
 ## 3. Present and edit the kind in the group editor
 
@@ -153,8 +159,11 @@ Change [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lu
 - Modify `PopulateSingleGroupPane(activeRules)` to build the row records,
   display marker-free text, bind the kind control, and keep the special
   `miscellaneous` group without pattern rows.
-- Add local `HandlePatternKindToggle(button, row, rows, targetGroup)` to flip
-  the row kind, save via `SaveRulePatterns()`, and update the row control
+- Add local `SetPatternKindLabel(label, isExclusion)` to update the visible
+  Include/Exclude text and green/red state using the existing `ZoFontGame` UI
+  font.
+- Add local `HandlePatternKindToggle(label, row, rows, targetGroup)` to flip
+  the row kind, save via `SaveRulePatterns()`, and update the row label
   without rebuilding the list or losing focus.
 - Modify `SaveRulePatterns(groupName, rows)` to encode rows and call the
   existing `this.UpdateRulePatterns()`.
@@ -169,8 +178,9 @@ Change [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lu
 
 Change [Tracking/EditPanelGroupsTab.xml](../../../Tracking/EditPanelGroupsTab.xml):
 
-- Modify `InventoryCompanion_PatternEditRow_Template` to add a visible
-  Include/Exclude button.
+- Modify `InventoryCompanion_PatternEditRow_Template` to add a clickable
+  Include/Exclude label: green for Include and red for Exclude, styled like the
+  existing state labels rather than a button.
 - Resize/re-anchor the edit field and delete button to fit the existing row
   and pane; verify the pattern text remains readable.
 - Update the editor instruction label to describe include-any / exclude-none
@@ -180,9 +190,10 @@ Change [Tracking/EditPanelGroupsTab.xml](../../../Tracking/EditPanelGroupsTab.xm
 
 - In `Project/Tests/GroupEditorTests.lua`, add cases through
   `this.GetGroupEditorTests()` proving toggle leaves visible text unchanged,
-  edits preserve kind, empty include/exclude rows both match nothing, and
-  add/delete after toggling save the expected strings.
-- Extend the headless control mock only as needed for the new button.
+  applies green/red label colors, edits preserve kind, empty include/exclude
+  rows both match nothing, and add/delete after toggling save the expected
+  strings.
+- Extend the headless control mock only as needed for the clickable label.
 
 ## 4. Documentation and completion checks
 

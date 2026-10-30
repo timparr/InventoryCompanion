@@ -15,6 +15,7 @@ for folder in ("Core", "Banking", "Tracking"):
     for path in sorted((root / folder).glob("*.lua")):
         compile_lua(path.read_text(encoding="utf-8-sig"), str(path.relative_to(root)))
 
+lua.execute((root / "Core\\Constants.lua").read_text(encoding="utf-8-sig"), name="Core\\Constants.lua")
 for relative in (
     "Tracking\\ItemDatabase.lua",
     "Core\\RuleTests.lua",
@@ -30,11 +31,14 @@ EVENT_MANAGER = { RegisterForEvent = function() end }
 function d() end
 """)
 for relative in ("Core\\Init.lua", "Tracking\\ItemDatabase.lua", "Project\\Tests\\RulePersistenceTests.lua"):
+    if relative == "Tracking\\ItemDatabase.lua":
+        persistence_lua.execute((root / "Core\\Constants.lua").read_text(encoding="utf-8-sig"), name="Core\\Constants.lua")
     persistence_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
 persistence_lua.globals().RuleDatabaseSource = (root / "Tracking\\ItemDatabase.lua").read_text(encoding="utf-8-sig")
 persistence_lua.globals().RuleConstantsSource = (root / "Core\\Constants.lua").read_text(encoding="utf-8-sig")
 saved_variables_lua = LuaRuntime(unpack_returned_tuples=True)
 saved_variables_lua.globals().SavedVariablesInitSource = (root / "Core\\Init.lua").read_text(encoding="utf-8-sig")
+saved_variables_lua.globals().SavedVariablesConstantsSource = (root / "Core\\Constants.lua").read_text(encoding="utf-8-sig")
 saved_variables_lua.globals().SavedVariablesDatabaseSource = (root / "Tracking\\ItemDatabase.lua").read_text(encoding="utf-8-sig")
 saved_variables_lua.execute((root / "Project\\Tests\\SavedVariablesTests.lua").read_text(encoding="utf-8-sig"))
 tracker_lua = LuaRuntime(unpack_returned_tuples=True)
@@ -44,6 +48,7 @@ tracker_lua.globals().TrackerEventSource = (root / "Core\\Events.lua").read_text
 tracker_lua.globals().TrackerPanelSource = (root / "Tracking\\ItemTrackerPanel.lua").read_text(encoding="utf-8-sig")
 for relative in (
     "Core\\Init.lua",
+    "Core\\Constants.lua",
     "Tracking\\ItemDatabase.lua",
     "Project\\Tests\\TrackerPanelTests.lua",
     "Tracking\\ItemTrackerPanel.lua",

@@ -13,6 +13,9 @@ this.constants = {
     
     -- Context Menu & UI
     CONTEXT_MENU_DELAY_MS = 50,
+
+    -- Stored as a suffix on rule pattern strings to distinguish exclusions.
+    RULE_PATTERN_EXCLUSION_SUFFIX = " {InventoryCompanion:exclude}",
 }
 
 this.preLoadedRulesets = {

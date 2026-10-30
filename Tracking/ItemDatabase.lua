@@ -5,6 +5,19 @@ local itemCountsCache = {}
 local cacheInvalid = true
 local runtimeRules, cachedSavedRules, cachedBaseline
 local CompilePatterns
+local function SplitStoredPatterns(patterns)
+    local includes, excludes = {}, {}
+    local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
+    for _, pattern in ipairs(patterns) do
+        if pattern:sub(-#suffix) == suffix then
+            table.insert(excludes, pattern:sub(1, #pattern - #suffix))
+        else
+            table.insert(includes, pattern)
+        end
+    end
+    return includes, excludes
+end
+
 local customDisplayDefaults = {
     show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false,
 }
@@ -280,12 +293,14 @@ function this.GetRuntimeRules()
             for key, value in pairs(saved.display) do display[key] = value end
         end
         local patterns = GetPatternList(base, saved)
+        local includePatterns, excludePatterns = SplitStoredPatterns(patterns)
         local displayName = saved.displayName
         if displayName == nil then displayName = GetDefaultName(ruleName, base) end
         resolvedRules[ruleName] = {
             displayName = displayName,
             patterns = patterns,
-            compiledPatterns = CompilePatterns(patterns),
+            compiledPatterns = CompilePatterns(includePatterns),
+            compiledExcludedPatterns = CompilePatterns(excludePatterns),
             display = display,
             isPreloaded = base ~= nil,
         }
@@ -309,6 +324,7 @@ function this.GetActiveTrackedRules(includeHidden)
                 displayName = rule.displayName,
                 patterns = CopyValues(rule.patterns),
                 compiledPatterns = rule.compiledPatterns,
+                compiledExcludedPatterns = rule.compiledExcludedPatterns,
                 display = CopyValues(rule.display),
                 isPreloaded = rule.isPreloaded,
             }
@@ -512,14 +528,26 @@ CompilePatterns = function(patterns)
     return compiled
 end
 
+local function ItemNameMatchesCompiledRule(lowerName, compiledIncludes, compiledExcludes)
+    local included = false
+    for _, pattern in ipairs(compiledIncludes) do
+        if lowerName:match(pattern) ~= nil then
+            included = true
+            break
+        end
+    end
+    if not included then return false end
+
+    for _, pattern in ipairs(compiledExcludes) do
+        if lowerName:match(pattern) ~= nil then return false end
+    end
+    return true
+end
+
 function this.ItemMatchesRuntimeRule(itemLink, rule)
     local name = GetItemLinkName(itemLink)
     if not name then return false end
-    local lowerName = name:lower()
-    for _, pattern in ipairs(rule.compiledPatterns) do
-        if lowerName:match(pattern) ~= nil then return true end
-    end
-    return false
+    return ItemNameMatchesCompiledRule(name:lower(), rule.compiledPatterns, rule.compiledExcludedPatterns)
 end
 
 function this.ItemMatchesRule(itemLink, pattern)
@@ -629,12 +657,9 @@ end
 
 local function findMatchingRulesCompiled(lowerName, compiledRules)
     local matchedRules = {}
-    for ruleName, patterns in pairs(compiledRules) do
-        for _, luaPattern in ipairs(patterns) do
-            if lowerName:match(luaPattern) ~= nil then
-                matchedRules[ruleName] = true
-                break
-            end
+    for ruleName, rule in pairs(compiledRules) do
+        if ItemNameMatchesCompiledRule(lowerName, rule.compiledPatterns, rule.compiledExcludedPatterns) then
+            matchedRules[ruleName] = true
         end
     end
     return matchedRules
@@ -711,7 +736,12 @@ function this.GetMasterItemList(trackedItems, activeRules, bagIdList)
     local compiledRules = {}
     for ruleName, ruleData in pairs(activeRules) do
         assert(type(ruleData.compiledPatterns) == "table", "Rule " .. ruleName .. " is missing compiledPatterns")
-        compiledRules[ruleName] = ruleData.compiledPatterns
+        assert(type(ruleData.compiledExcludedPatterns) == "table",
+            "Rule " .. ruleName .. " is missing compiledExcludedPatterns")
+        compiledRules[ruleName] = {
+            compiledPatterns = ruleData.compiledPatterns,
+            compiledExcludedPatterns = ruleData.compiledExcludedPatterns,
+        }
     end
 
     for _, bagId in ipairs(bagIdList) do

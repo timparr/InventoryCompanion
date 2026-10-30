@@ -12,7 +12,7 @@ local function Control(name)
     function control:ClearAnchors() self.moves = self.moves + 1 end
     function control:SetAnchor() self.moves = self.moves + 1 end
     function control:SetFont() end
-    function control:SetColor() end
+    function control:SetColor(r, g, b, a) self.color = { r, g, b, a } end
     function control:SetAlpha() end
     function control:TakeFocus() self.focused = true end
     function control:SelectAll() self.selectedAll = true end
@@ -53,13 +53,15 @@ this.RefreshItemTrackerPanel = function() hudRefreshes = hudRefreshes + 1 end
 this.Utils = { UserWarning = function(message) error(message) end, UserMessage = function() end }
 
 local function Click(control)
-    assert(control.handlers.OnClicked, "Control has no click handler: " .. control.name)
-    control.handlers.OnClicked(control)
+    local handler = control.handlers.OnClicked or control.handlers.OnMouseDown
+    assert(handler, "Control has no click handler: " .. control.name)
+    handler(control)
 end
 
 local function Right(name) return GetControl(InventoryCompanion_GroupsWindowRightPane, name) end
 local function Action(name) return GetControl(Right("ActionBar"), name) end
 local function Pattern(index) return GetControl(controls["InventoryCompanion_PatternEditRow_" .. index], "Edit") end
+local function PatternKind(index) return GetControl(controls["InventoryCompanion_PatternEditRow_" .. index], "LblKind") end
 local function Equal(actual, expected, message) assert(actual == expected, message) end
 
 function this.GetGroupEditorTests()
@@ -118,6 +120,48 @@ function this.GetGroupEditorTests()
         edit:LoseFocus()
         Equal(this.accountWide.trackedRules.default, nil, "Reversion clears saved override")
         Equal(Action("BtnReset").hidden, true, "Reversion hides Reset without rebuilding rows")
+    end)
+
+    Add("Pattern kind toggle persists encoded exclusion and retains row text", function()
+        local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
+        local edit = Pattern(1)
+        local kind = PatternKind(1)
+        Equal(edit:GetText(), "a", "Initial pattern is shown without encoding")
+        Equal(kind:GetText(), "Include", "Initial row is an include")
+        Equal(kind.color[1], 0.2, "Include label is green")
+        Equal(kind.color[2], 0.8, "Include label is green")
+
+        Click(kind)
+        Equal(kind:GetText(), "Exclude", "Toggle updates visible kind")
+        Equal(kind.color[1], 1.0, "Exclude label is red")
+        Equal(kind.color[2], 0.3, "Exclude label is red")
+        Equal(edit:GetText(), "a", "Toggle leaves visible pattern text unchanged")
+        local saved = this.accountWide.trackedRules.default
+        Equal(saved.removedPatterns[1], "a", "Toggling removes the baseline include")
+        Equal(saved.addedPatterns[1], "a" .. suffix, "Toggling adds the encoded exclusion")
+
+        edit:SetText("a-new")
+        edit:LoseFocus()
+        Equal(saved.addedPatterns[1], "a-new" .. suffix, "Editing preserves exclusion kind")
+        Equal(edit:GetText(), "a-new", "Suffix is hidden from the edit field")
+
+        Click(GetControl(controls["InventoryCompanion_PatternEditRow_1"], "BtnDelete"))
+        Equal(this.GetRuntimeRules().default.patterns[1], "b", "Deleting the exclusion preserves remaining includes")
+        Equal(this.accountWide.trackedRules.default.removedPatterns[1], "a", "Deleted baseline include remains removed")
+        Equal(this.accountWide.trackedRules.default.addedPatterns, nil, "Deleted custom exclusion is pruned")
+    end)
+
+    Add("Empty pattern rows retain their kind but compile to no match", function()
+        Click(Right("BtnAddRule"))
+        Equal(Pattern(1):GetText(), "", "New empty pattern is visible")
+        Click(PatternKind(1))
+        Equal(PatternKind(1):GetText(), "Exclude", "Empty row can be an exclusion")
+        Equal(this.accountWide.trackedRules.default.addedPatterns[1],
+            this.constants.RULE_PATTERN_EXCLUSION_SUFFIX, "Empty exclusion is stored with its kind")
+        Equal(#this.GetRuntimeRules().default.compiledExcludedPatterns, 0,
+            "Empty exclusion compiles to no matcher")
+        Click(GetControl(controls["InventoryCompanion_PatternEditRow_1"], "BtnDelete"))
+        Equal(this.accountWide.trackedRules.default, nil, "Deleting the empty exclusion restores defaults")
     end)
 
     Add("Group editor pattern add and delete reconcile deltas", function()

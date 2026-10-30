@@ -83,6 +83,17 @@ function this.GetRuleTests()
         Equal(this.accountWide.trackedRules.custom.addedPatterns, nil, "Empty collection is absent")
     end)
 
+    Add("Pattern kind changes are represented as sparse string deltas", function()
+        local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
+        this.UpdateRulePatterns("default", { "a" .. suffix, "b", "c" })
+        List(this.accountWide.trackedRules.default.addedPatterns, { "a" .. suffix }, "Encoded exclusion addition")
+        List(this.accountWide.trackedRules.default.removedPatterns, { "a" }, "Plain include removal")
+        List(this.GetRuntimeRules().default.patterns, { "a" .. suffix, "b", "c" }, "Encoded effective list")
+
+        this.UpdateRulePatterns("default", { "a", "b", "c" })
+        Equal(this.accountWide.trackedRules.default, nil, "Restoring Include removes the sparse override")
+    end)
+
     Add("Rule setters write only selected fields and prune restored defaults", function()
         this.UpdateRuleProperty("default", "displayName", "Renamed")
         local saved = this.accountWide.trackedRules.default
@@ -356,6 +367,10 @@ function this.GetRuleTests()
         Equal(#snapshot.ruleIndex.default, 1, "Scan uses compiled rule")
         this.HandleTrackedItemInventoryUpdate(BAG_BACKPACK, 1, 1)
         Equal(warnings, 1, "Notification uses compiled rule")
+        local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
+        this.UpdateRulePatterns("default", { "Target*", "Target +1" .. suffix })
+        this.HandleTrackedItemInventoryUpdate(BAG_BACKPACK, 1, 1)
+        Equal(warnings, 1, "Exclusion vetoes only the rule notification")
         this.UpdateRulePatterns("default", { "Other*" })
         this.HandleTrackedItemInventoryUpdate(BAG_BACKPACK, 1, 1)
         Equal(warnings, 1, "Notification sees pattern change before any scan")
@@ -368,11 +383,44 @@ function this.GetRuleTests()
         Equal(warnings, 2, "Unhiding takes effect immediately")
     end)
 
+    Add("Exclusion suffix narrows only its own group", function()
+        _G.BAG_BACKPACK = 1
+        _G.GetItemLinkName = function(link) return link == "item" and "Target +1" or nil end
+        local entries = { { itemId = 987654321, link = "item", icon = "icon", count = 1 } }
+        this.Scanning = { GetBagContents = function() return entries end }
+
+        local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
+        this.UpdateRulePatterns("default", { "Target*", "Target +1" .. suffix })
+        local defaultRule = this.GetRuntimeRules().default
+        Equal(#defaultRule.compiledPatterns, 1, "Include is compiled separately")
+        Equal(#defaultRule.compiledExcludedPatterns, 1, "Exclusion is compiled separately")
+        assert(not this.ItemMatchesRuntimeRule("item", defaultRule), "Exclusion vetoes its own group")
+
+        this.UpdateRulePatterns("custom", { "Target*" })
+        assert(this.ItemMatchesRuntimeRule("item", this.GetRuntimeRules().custom),
+            "The exclusion must not veto another group")
+        local snapshot = this.GetMasterItemList({}, this.GetActiveTrackedRules(), { BAG_BACKPACK })
+        Equal(snapshot.ruleIndex.default, nil, "Excluded item is absent from the excluded group's index")
+        Equal(#snapshot.ruleIndex.custom, 1, "Other group still indexes the item")
+
+        local tracked = { [987654321] = { link = "item" } }
+        local trackedSnapshot = this.GetMasterItemList(tracked, this.GetActiveTrackedRules(), { BAG_BACKPACK })
+        assert(trackedSnapshot.items[987654321], "Individual tracking still retains an excluded item")
+        Equal(trackedSnapshot.ruleIndex.default, nil, "Individual tracking does not restore excluded group membership")
+
+        this.UpdateRulePatterns("custom", { "Target*" .. suffix })
+        assert(not this.ItemMatchesRuntimeRule("item", this.GetRuntimeRules().custom),
+            "An exclusion-only group matches nothing")
+    end)
+
     Add("Empty patterns do not match every item", function()
         _G.GetItemLinkName = function(link) return link == "item" and "Target +1" or nil end
-        this.UpdateRulePatterns("custom", { "" })
+        local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
+        this.UpdateRulePatterns("custom", { "", "" .. suffix })
         local rule = this.GetRuntimeRules().custom
         assert(not this.ItemMatchesRuntimeRule("item", rule), "An empty saved pattern must not match items")
+        Equal(#rule.compiledPatterns, 0, "Empty include compiles to no matcher")
+        Equal(#rule.compiledExcludedPatterns, 0, "Empty exclusion compiles to no matcher")
         assert(not this.ItemMatchesRule("item", ""), "An empty standalone pattern must not match items")
     end)
 

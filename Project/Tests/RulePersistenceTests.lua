@@ -8,7 +8,8 @@ local function Serialize(value)
     end
     local fields = {}
     for key, entry in pairs(value) do
-        assert(key ~= "compiledPatterns" and key ~= "isPreloaded", "Runtime fields must not be persisted")
+        assert(key ~= "compiledPatterns" and key ~= "compiledExcludedPatterns" and key ~= "isPreloaded",
+            "Runtime fields must not be persisted")
         table.insert(fields, "[" .. Serialize(key) .. "]=" .. Serialize(entry))
     end
     table.sort(fields)
@@ -50,7 +51,8 @@ function this.GetRulePersistenceTests()
                 this.UpdateRuleProperty("default", "displayName", "Renamed")
                 this.UpdateRuleFlag("default", "notify", true)
                 this.CreateCustomRule("custom", "Custom")
-                this.UpdateRulePatterns("custom", { "Custom*" })
+                local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
+                this.UpdateRulePatterns("custom", { "Custom*", "Cyrodiil" .. suffix })
                 local previous = this.GetRuntimeRules()
                 local saved = Serialize(this.accountWide.trackedRules)
                 this.accountWide.trackedRules = assert(loadstring("return " .. saved))()
@@ -62,6 +64,10 @@ function this.GetRulePersistenceTests()
                 assert(restored.default.display.notify, "Reload must preserve explicit flags")
                 assert(restored.default.display.show, "Reload must inherit untouched baseline flags")
                 assert(restored.custom.compiledPatterns[1] == "^custom.*$", "Reload must compile custom additions")
+                assert(restored.custom.compiledExcludedPatterns[1] == "cyrodiil",
+                    "Reload must compile the stored exclusion without its marker")
+                assert(restored.custom.patterns[2] == "Cyrodiil" .. suffix,
+                    "Reload must preserve the encoded stored string")
                 assert(Serialize(this.accountWide.trackedRules) == saved, "Reload must not persist runtime fields")
             end,
         },

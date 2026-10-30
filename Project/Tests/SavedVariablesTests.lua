@@ -9,6 +9,7 @@ local function LoadAddon(saved)
     ZO_CreateStringId = function() calls.strings = calls.strings + 1 end
     d = function() end
     assert(loadstring(SavedVariablesInitSource))()
+    assert(loadstring(SavedVariablesConstantsSource))()
     local addon = InventoryCompanion
     _G[addon.SettingsName] = saved
     assert(loadstring(SavedVariablesDatabaseSource))()

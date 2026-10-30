@@ -14,12 +14,12 @@
             </Controls>
         </Control>
 
-        <!-- Pattern Edit Row Template (EditBox + Delete Button) -->
+        <!-- Pattern Edit Row Template (EditBox + Include/Exclude label + Delete) -->
         <Control name="InventoryCompanion_PatternEditRow_Template" virtual="true">
             <Dimensions x="490" y="32" />
             <Controls>
                 <EditBox name="$(parent)Edit" font="ZoFontWinT1" editEnabled="true" maxInputCharacters="64" multiLine="false" newLineEnabled="false" inherits="ZO_DefaultEditForBackdrop" tier="LOW" layer="CONTROLS" level="5">
-                    <Dimensions x="430" y="30"/>
+                    <Dimensions x="330" y="30"/>
                     <Anchor point="LEFT" relativeTo="$(parent)" relativePoint="LEFT" offsetX="5" offsetY="0" />
                     <Controls>
                         <Backdrop name="$(parent)Bg" inherits="ZO_EditBackdrop" alpha="1">
@@ -27,8 +27,12 @@
                         </Backdrop>
                     </Controls>
                 </EditBox>
+                <Label name="$(parent)LblKind" font="ZoFontGame" color="33CC66" mouseEnabled="true" horizontalAlignment="CENTER" verticalAlignment="CENTER" text="Include">
+                    <Dimensions x="78" y="26" />
+                    <Anchor point="LEFT" relativeTo="$(parent)Edit" relativePoint="RIGHT" offsetX="4" offsetY="0" />
+                </Label>
                 <Button name="$(parent)BtnDelete" inherits="ZO_CloseButton">
-                    <Anchor point="LEFT" relativeTo="$(parent)Edit" relativePoint="RIGHT" offsetX="6" offsetY="0" />
+                    <Anchor point="LEFT" relativeTo="$(parent)LblKind" relativePoint="RIGHT" offsetX="5" offsetY="0" />
                 </Button>
             </Controls>
         </Control>
@@ -138,7 +142,7 @@
                         </EditBox>
 
                         <!-- Instructions / Subtitle -->
-                        <Label name="$(parent)InstructionsLabel" font="ZoFontGameSmall" color="AAAAAA" text="Enter wildcard rules to select items">
+                        <Label name="$(parent)InstructionsLabel" font="ZoFontGameSmall" color="AAAAAA" text="Any Include can match; a matching Exclude removes the item from this group.">
                             <Anchor point="TOPLEFT" relativeTo="$(parent)GroupTitleLabel" relativePoint="BOTTOMLEFT" offsetX="0" offsetY="6" />
                         </Label>
 
