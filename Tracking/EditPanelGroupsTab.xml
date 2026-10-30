@@ -1,5 +1,18 @@
 <GuiXml>
     <Controls>
+        <Control name="InventoryCompanion_PatternExclusionDivider_Template" virtual="true">
+            <Dimensions x="490" y="28" />
+            <Controls>
+                <Texture name="$(parent)Line" textureFile="EsoUI/Art/Miscellaneous/horizontalDivider.dds">
+                    <Dimensions x="490" y="4" />
+                    <Anchor point="BOTTOM" relativeTo="$(parent)" relativePoint="BOTTOM" offsetY="-1" />
+                </Texture>
+                <Label name="$(parent)Label" font="ZoFontGameSmall" color="CC7777" text="Exclusions">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPLEFT" offsetX="4" offsetY="0" />
+                </Label>
+            </Controls>
+        </Control>
+
         <!-- Group List Row Template -->
         <Control name="InventoryCompanion_GroupRow_Template" virtual="true" mouseEnabled="true">
             <Dimensions x="260" y="32" />
@@ -14,25 +27,29 @@
             </Controls>
         </Control>
 
-        <!-- Pattern Edit Row Template (EditBox + Include/Exclude label + Delete) -->
+        <!-- Pattern Edit Row Template (kind status + EditBox + kind toggle + Delete) -->
         <Control name="InventoryCompanion_PatternEditRow_Template" virtual="true">
             <Dimensions x="490" y="32" />
             <Controls>
+                <Texture name="$(parent)LblKind" textureFile="EsoUI/Art/Bank/bank_tabicon_deposit_up.dds" mouseEnabled="true" color="33CC66">
+                    <Dimensions x="25" y="25" />
+                    <Anchor point="LEFT" relativeTo="$(parent)" relativePoint="LEFT" offsetX="0" offsetY="0" />
+                </Texture>
                 <EditBox name="$(parent)Edit" font="ZoFontWinT1" editEnabled="true" maxInputCharacters="64" multiLine="false" newLineEnabled="false" inherits="ZO_DefaultEditForBackdrop" tier="LOW" layer="CONTROLS" level="5">
                     <Dimensions x="330" y="30"/>
-                    <Anchor point="LEFT" relativeTo="$(parent)" relativePoint="LEFT" offsetX="5" offsetY="0" />
+                    <Anchor point="LEFT" relativeTo="$(parent)LblKind" relativePoint="RIGHT" offsetX="8" offsetY="0" />
                     <Controls>
                         <Backdrop name="$(parent)Bg" inherits="ZO_EditBackdrop" alpha="1">
                             <AnchorFill />
                         </Backdrop>
                     </Controls>
                 </EditBox>
-                <Label name="$(parent)LblKind" font="ZoFontGame" color="33CC66" mouseEnabled="true" horizontalAlignment="CENTER" verticalAlignment="CENTER" text="Include">
-                    <Dimensions x="78" y="26" />
+                <Button name="$(parent)BtnKind" mouseEnabled="true">
+                    <Dimensions x="32" y="30" />
                     <Anchor point="LEFT" relativeTo="$(parent)Edit" relativePoint="RIGHT" offsetX="4" offsetY="0" />
-                </Label>
+                </Button>
                 <Button name="$(parent)BtnDelete" inherits="ZO_CloseButton">
-                    <Anchor point="LEFT" relativeTo="$(parent)LblKind" relativePoint="RIGHT" offsetX="5" offsetY="0" />
+                    <Anchor point="LEFT" relativeTo="$(parent)BtnKind" relativePoint="RIGHT" offsetX="5" offsetY="0" />
                 </Button>
             </Controls>
         </Control>

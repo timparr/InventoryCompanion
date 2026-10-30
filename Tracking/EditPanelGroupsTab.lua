@@ -2,6 +2,7 @@ local this = InventoryCompanion
 
 local groupRows = {}
 local patternRows = {}
+local patternExclusionDivider
 local selectedGroupName = nil
 local SetActionButtons
 
@@ -235,6 +236,7 @@ local function HideAllPatternRows()
     for _, row in ipairs(patternRows) do
         row:SetHidden(true)
     end
+    if patternExclusionDivider then patternExclusionDivider:SetHidden(true) end
 end
 
 local function GetOrCreatePatternRow(scrollChild, index)
@@ -246,19 +248,29 @@ local function GetOrCreatePatternRow(scrollChild, index)
     return row
 end
 
+local function GetOrCreatePatternExclusionDivider(scrollChild)
+    if not patternExclusionDivider then
+        patternExclusionDivider = CreateControlFromVirtual(
+            "InventoryCompanion_PatternExclusionDivider_", scrollChild,
+            "InventoryCompanion_PatternExclusionDivider_Template", 1)
+    end
+    return patternExclusionDivider
+end
+
 local function DecodePatternRows(patterns)
-    local rows = {}
+    local includes, excludes = {}, {}
     local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
     for _, storedPattern in ipairs(patterns) do
         local isExclusion = storedPattern:sub(-#suffix) == suffix
         local pattern = isExclusion and storedPattern:sub(1, #storedPattern - #suffix) or storedPattern
-        table.insert(rows, {
+        table.insert(isExclusion and excludes or includes, {
             pattern = pattern,
             isExclusion = isExclusion,
             lastSavedPattern = pattern,
         })
     end
-    return rows
+    for _, row in ipairs(excludes) do table.insert(includes, row) end
+    return includes, #includes - #excludes
 end
 
 local function EncodePatternRows(rows)
@@ -314,12 +326,38 @@ end
 
 local function SetPatternKindLabel(label, isExclusion)
     if isExclusion then
-        label:SetText("Exclude")
+        label:SetTexture("EsoUI/Art/Bank/bank_tabicon_withdraw_up.dds")
         label:SetColor(1.0, 0.3, 0.3, 1.0)
     else
-        label:SetText("Include")
+        label:SetTexture("EsoUI/Art/Bank/bank_tabicon_deposit_up.dds")
         label:SetColor(0.2, 0.8, 0.4, 1.0)
     end
+end
+
+local function ShowPatternKindTooltip(control, row, isAction)
+    InitializeTooltip(InformationTooltip, control, TOP, 0, -5)
+    if isAction then
+        InformationTooltip:AddLine(row.isExclusion and "Make this an Include rule" or "Make this an Exclude rule",
+            "ZoFontGame", 1, 1, 1, 1)
+        InformationTooltip:AddLine(row.isExclusion
+            and "The pattern will move above the Exclusions section."
+            or "The pattern will move to the Exclusions section below.",
+            "ZoFontGame", 0.8, 0.8, 0.8, 1)
+    else
+        InformationTooltip:AddLine(row.isExclusion and "Exclude rule" or "Include rule",
+            "ZoFontGame", 1, 1, 1, 1)
+        InformationTooltip:AddLine(row.isExclusion
+            and "This pattern removes matching items from this group."
+            or "Matching this pattern adds an item to this group.",
+            "ZoFontGame", 0.8, 0.8, 0.8, 1)
+    end
+end
+
+local function ShowPatternDeleteTooltip(control, row)
+    InitializeTooltip(InformationTooltip, control, TOP, 0, -5)
+    InformationTooltip:AddLine("Remove pattern", "ZoFontGame", 1, 1, 1, 1)
+    InformationTooltip:AddLine("Remove this " .. (row.isExclusion and "Exclude" or "Include")
+        .. " rule from the group.", "ZoFontGame", 0.8, 0.8, 0.8, 1)
 end
 
 local function HandlePatternKindToggle(label, row, rows, targetGroup)
@@ -327,8 +365,8 @@ local function HandlePatternKindToggle(label, row, rows, targetGroup)
     SetPatternKindLabel(label, row.isExclusion)
     if targetGroup == selectedGroupName then
         SaveRulePatterns(targetGroup, rows)
+        this.RefreshGroupsEditor()
         this.RefreshItemTrackerPanel()
-        SetActionButtons(this.GetActiveTrackedRules(true))
     end
 end
 
@@ -496,18 +534,27 @@ local function PopulateSingleGroupPane(activeRules)
         patternScrollContainer:SetHidden(false)
         btnAddRule:SetHidden(false)
 
-        local rows = DecodePatternRows(ruleData.patterns)
+        local rows, includeCount = DecodePatternRows(ruleData.patterns)
 
         titleLabel:SetText(string.format("Group Name: %s (%d patterns/rules)", displayName, #rows))
 
         HideAllPatternRows()
         local patternScrollChild = GetControl(patternScrollContainer, "ScrollChild")
         local rowHeight = 36
+        local offsetY = 0
         for i, patternRow in ipairs(rows) do
+            if includeCount > 0 and i == includeCount + 1 then
+                local divider = GetOrCreatePatternExclusionDivider(patternScrollChild)
+                divider:ClearAnchors()
+                divider:SetAnchor(TOPLEFT, patternScrollChild, TOPLEFT, 0, offsetY)
+                divider:SetHidden(false)
+                offsetY = offsetY + 28
+            end
             local row = GetOrCreatePatternRow(patternScrollChild, i)
             row:ClearAnchors()
-            row:SetAnchor(TOPLEFT, patternScrollChild, TOPLEFT, 0, (i - 1) * rowHeight)
+            row:SetAnchor(TOPLEFT, patternScrollChild, TOPLEFT, 0, offsetY)
             row:SetHidden(false)
+            offsetY = offsetY + rowHeight
 
             local rowEditBox = GetControl(row, "Edit")
             rowEditBox:SetHandler("OnTextChanged", nil)
@@ -523,12 +570,36 @@ local function PopulateSingleGroupPane(activeRules)
 
             local lblKind = GetControl(row, "LblKind")
             SetPatternKindLabel(lblKind, patternRow.isExclusion)
-            lblKind:SetHandler("OnMouseDown", function(self)
-                HandlePatternKindToggle(self, patternRow, rows, targetGroup)
+            lblKind:SetHandler("OnMouseEnter", function(self)
+                ShowPatternKindTooltip(self, patternRow, false)
+            end)
+            lblKind:SetHandler("OnMouseExit", function()
+                ClearTooltip(InformationTooltip)
+            end)
+            local btnKind = GetControl(row, "BtnKind")
+            btnKind:SetNormalTexture("EsoUI/Art/CharacterWindow/swap_button_up.dds")
+            btnKind:SetPressedTexture("EsoUI/Art/CharacterWindow/swap_button_down.dds")
+            btnKind:SetMouseOverTexture("EsoUI/Art/CharacterWindow/swap_button_over.dds")
+            btnKind:SetDisabledTexture("EsoUI/Art/CharacterWindow/swap_button_disabled.dds")
+            btnKind:SetHandler("OnClicked", function()
+                ClearTooltip(InformationTooltip)
+                HandlePatternKindToggle(lblKind, patternRow, rows, targetGroup)
+            end)
+            btnKind:SetHandler("OnMouseEnter", function(self)
+                ShowPatternKindTooltip(self, patternRow, true)
+            end)
+            btnKind:SetHandler("OnMouseExit", function()
+                ClearTooltip(InformationTooltip)
             end)
 
             local btnDelete = GetControl(row, "BtnDelete")
             btnDelete:SetHandler("OnClicked", function() HandlePatternDelete(rows, i, targetGroup) end)
+            btnDelete:SetHandler("OnMouseEnter", function(self)
+                ShowPatternDeleteTooltip(self, patternRow)
+            end)
+            btnDelete:SetHandler("OnMouseExit", function()
+                ClearTooltip(InformationTooltip)
+            end)
         end
 
         btnAddRule:SetHandler("OnClicked", function() HandleAddRule(rows, selectedGroupName) end)

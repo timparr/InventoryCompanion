@@ -10,9 +10,17 @@ local function Control(name)
     function control:SetText(text) self.text = text end
     function control:GetText() return self.text end
     function control:ClearAnchors() self.moves = self.moves + 1 end
-    function control:SetAnchor() self.moves = self.moves + 1 end
+    function control:SetAnchor(point, relative, relativePoint, x, y)
+        self.moves = self.moves + 1
+        self.anchor = { point = point, relative = relative, relativePoint = relativePoint, x = x, y = y }
+    end
     function control:SetFont() end
     function control:SetColor(r, g, b, a) self.color = { r, g, b, a } end
+    function control:SetTexture(texture) self.texture = texture end
+    function control:SetNormalTexture(texture) self.normalTexture = texture end
+    function control:SetPressedTexture(texture) self.pressedTexture = texture end
+    function control:SetMouseOverTexture(texture) self.mouseOverTexture = texture end
+    function control:SetDisabledTexture(texture) self.disabledTexture = texture end
     function control:SetAlpha() end
     function control:TakeFocus() self.focused = true end
     function control:SelectAll() self.selectedAll = true end
@@ -34,6 +42,7 @@ function CreateControlFromVirtual(prefix, parent, template, index)
 end
 
 TOPLEFT, TOPRIGHT = "TOPLEFT", "TOPRIGHT"
+TOP = "TOP"
 SCENE_SHOWING, SCENE_HIDDEN = "showing", "hidden"
 SCENE_MANAGER = {}
 ZO_Scene = { New = function()
@@ -42,6 +51,15 @@ end }
 ZO_FadeSceneFragment = { New = function() return {} end }
 GAMEPAD_DIALOGS = { BASIC = 1 }
 SI_DIALOG_CANCEL = "Cancel"
+InformationTooltip = {
+    lines = {},
+    AddLine = function(self, text) table.insert(self.lines, text) end,
+}
+function InitializeTooltip(tooltip, control)
+    tooltip.control = control
+    tooltip.lines = {}
+end
+function ClearTooltip(tooltip) tooltip.cleared = true end
 InventoryCompanion_GroupsWindow = Control("window")
 InventoryCompanion_GroupsWindowLeftPane = Control("left")
 InventoryCompanion_GroupsWindowRightPane = Control("right")
@@ -62,6 +80,7 @@ local function Right(name) return GetControl(InventoryCompanion_GroupsWindowRigh
 local function Action(name) return GetControl(Right("ActionBar"), name) end
 local function Pattern(index) return GetControl(controls["InventoryCompanion_PatternEditRow_" .. index], "Edit") end
 local function PatternKind(index) return GetControl(controls["InventoryCompanion_PatternEditRow_" .. index], "LblKind") end
+local function PatternKindButton(index) return GetControl(controls["InventoryCompanion_PatternEditRow_" .. index], "BtnKind") end
 local function Equal(actual, expected, message) assert(actual == expected, message) end
 
 function this.GetGroupEditorTests()
@@ -127,25 +146,60 @@ function this.GetGroupEditorTests()
         local edit = Pattern(1)
         local kind = PatternKind(1)
         Equal(edit:GetText(), "a", "Initial pattern is shown without encoding")
-        Equal(kind:GetText(), "Include", "Initial row is an include")
         Equal(kind.color[1], 0.2, "Include label is green")
         Equal(kind.color[2], 0.8, "Include label is green")
+        Equal(kind.texture, "EsoUI/Art/Bank/bank_tabicon_deposit_up.dds", "Include indicator uses deposit icon")
+        kind.handlers.OnMouseEnter(kind)
+        Equal(InformationTooltip.lines[1], "Include rule", "Status dot tooltip identifies the current kind")
+        assert(InformationTooltip.lines[2]:find("adds an item to this group", 1, true),
+            "Status dot tooltip explains include behavior")
+        assert(PatternKindButton(1).handlers.OnClicked, "Swap icon hit area changes the row kind")
+        local button = PatternKindButton(1)
+        Equal(button.normalTexture, "EsoUI/Art/CharacterWindow/swap_button_up.dds",
+            "Swap button receives its normal texture through the button API")
+        Equal(button.pressedTexture, "EsoUI/Art/CharacterWindow/swap_button_down.dds",
+            "Swap button receives its pressed texture")
+        Equal(button.mouseOverTexture, "EsoUI/Art/CharacterWindow/swap_button_over.dds",
+            "Swap button receives its hover texture")
+        Equal(button.disabledTexture, "EsoUI/Art/CharacterWindow/swap_button_disabled.dds",
+            "Swap button receives its disabled texture")
+        PatternKindButton(1).handlers.OnMouseEnter(PatternKindButton(1))
+        Equal(InformationTooltip.lines[1], "Make this an Exclude rule", "Toggle tooltip names its action")
+        assert(InformationTooltip.lines[2]:find("Exclusions section", 1, true),
+            "Toggle tooltip explains where the row will move")
 
-        Click(kind)
-        Equal(kind:GetText(), "Exclude", "Toggle updates visible kind")
-        Equal(kind.color[1], 1.0, "Exclude label is red")
-        Equal(kind.color[2], 0.3, "Exclude label is red")
-        Equal(edit:GetText(), "a", "Toggle leaves visible pattern text unchanged")
+        Click(PatternKindButton(1))
+        Equal(Pattern(3):GetText(), "a", "Toggled pattern moves to the exclusion section")
+        Equal(PatternKind(3).color[1], 1.0, "Exclude label is red")
+        Equal(PatternKind(3).color[2], 0.3, "Exclude label is red")
+        Equal(PatternKind(3).texture, "EsoUI/Art/Bank/bank_tabicon_withdraw_up.dds",
+            "Moved exclusion indicator uses withdraw icon")
+        Equal(Pattern(1):GetText(), "b", "Remaining includes move up")
+        PatternKindButton(3).handlers.OnMouseEnter(PatternKindButton(3))
+        Equal(InformationTooltip.lines[1], "Make this an Include rule", "Exclude toggle tooltip names inverse action")
+        assert(InformationTooltip.lines[2]:find("above the Exclusions section", 1, true),
+            "Include action tooltip explains the row's destination")
+        Click(PatternKindButton(3))
+        Equal(Pattern(1):GetText(), "a", "Rule returns to the include section")
+        Equal(PatternKind(1).texture, "EsoUI/Art/Bank/bank_tabicon_deposit_up.dds",
+            "Returning to Include restores the deposit icon on the rebound control")
+        Click(PatternKindButton(1))
         local saved = this.accountWide.trackedRules.default
         Equal(saved.removedPatterns[1], "a", "Toggling removes the baseline include")
         Equal(saved.addedPatterns[1], "a" .. suffix, "Toggling adds the encoded exclusion")
 
+        edit = Pattern(3)
         edit:SetText("a-new")
         edit:LoseFocus()
         Equal(saved.addedPatterns[1], "a-new" .. suffix, "Editing preserves exclusion kind")
-        Equal(edit:GetText(), "a-new", "Suffix is hidden from the edit field")
+        Equal(Pattern(3):GetText(), "a-new", "Suffix is hidden from the edit field")
 
-        Click(GetControl(controls["InventoryCompanion_PatternEditRow_1"], "BtnDelete"))
+        local delete = GetControl(controls["InventoryCompanion_PatternEditRow_3"], "BtnDelete")
+        delete.handlers.OnMouseEnter(delete)
+        Equal(InformationTooltip.lines[1], "Remove pattern", "Delete tooltip explains its action")
+        assert(InformationTooltip.lines[2]:find("Remove this Exclude rule", 1, true),
+            "Delete tooltip identifies the row kind")
+        Click(delete)
         Equal(this.GetRuntimeRules().default.patterns[1], "b", "Deleting the exclusion preserves remaining includes")
         Equal(this.accountWide.trackedRules.default.removedPatterns[1], "a", "Deleted baseline include remains removed")
         Equal(this.accountWide.trackedRules.default.addedPatterns, nil, "Deleted custom exclusion is pruned")
@@ -154,14 +208,47 @@ function this.GetGroupEditorTests()
     Add("Empty pattern rows retain their kind but compile to no match", function()
         Click(Right("BtnAddRule"))
         Equal(Pattern(1):GetText(), "", "New empty pattern is visible")
-        Click(PatternKind(1))
-        Equal(PatternKind(1):GetText(), "Exclude", "Empty row can be an exclusion")
+        Click(PatternKindButton(1))
+        Equal(PatternKind(4).color[1], 1.0, "Empty row can be an exclusion")
         Equal(this.accountWide.trackedRules.default.addedPatterns[1],
             this.constants.RULE_PATTERN_EXCLUSION_SUFFIX, "Empty exclusion is stored with its kind")
         Equal(#this.GetRuntimeRules().default.compiledExcludedPatterns, 0,
             "Empty exclusion compiles to no matcher")
-        Click(GetControl(controls["InventoryCompanion_PatternEditRow_1"], "BtnDelete"))
+        Click(GetControl(controls["InventoryCompanion_PatternEditRow_4"], "BtnDelete"))
         Equal(this.accountWide.trackedRules.default, nil, "Deleting the empty exclusion restores defaults")
+    end)
+
+    Add("Excluded patterns appear below includes with a section divider", function()
+        local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
+        this.UpdateRulePatterns("default", { "a" .. suffix, "b", "c" })
+        this.RefreshGroupsEditor()
+
+        Equal(Pattern(1):GetText(), "b", "First include appears at the top")
+        Equal(Pattern(2):GetText(), "c", "Second include appears before exclusions")
+        assert(PatternKind(1).color[2] == 0.8, "Top row is an include")
+        Equal(Pattern(3):GetText(), "a", "Excluded pattern appears at the bottom")
+        Equal(PatternKind(3).color[1], 1.0, "Bottom row is an exclusion")
+
+        local divider = controls["InventoryCompanion_PatternExclusionDivider_1"]
+        assert(divider and not divider.hidden, "Include/exclude divider is visible")
+        Equal(divider.anchor.y, 72, "Divider follows the include rows")
+        Equal(controls["InventoryCompanion_PatternEditRow_3"].anchor.y, 100,
+            "Exclude row follows the divider")
+
+        Click(PatternKindButton(1))
+        Equal(Pattern(1):GetText(), "c", "Toggled row moves below the remaining include")
+        Equal(PatternKind(1).color[2], 0.8, "First row remains an include")
+        Equal(Pattern(3):GetText(), "b", "Toggled pattern moves to the exclusion section")
+        Equal(PatternKind(3).color[1], 1.0, "Moved row shows its new kind")
+        Equal(divider.anchor.y, 36, "Divider moves with the include/exclude boundary")
+        Equal(controls["InventoryCompanion_PatternEditRow_2"].anchor.y, 64,
+            "Exclusions are repositioned immediately after the divider")
+
+        Click(PatternKindButton(1))
+        assert(divider.hidden, "Divider is hidden when there are no Include rows")
+        this.UpdateRulePatterns("default", { "a", "b", "c" })
+        this.RefreshGroupsEditor()
+        assert(divider.hidden, "Divider is hidden when there are no Exclude rows")
     end)
 
     Add("Group editor pattern add and delete reconcile deltas", function()

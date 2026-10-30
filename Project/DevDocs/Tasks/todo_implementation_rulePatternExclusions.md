@@ -1,8 +1,18 @@
 # Group pattern exclusions: implementation
 
-Status: Implementation in progress; runtime matching and group-editor controls
-are implemented and covered by the isolated Lua test suite. In-game verification
-and final documentation/release checks remain.
+Status: Core feature and label-style toggle are committed. The post-commit
+editor refinement displays Includes first and Excludes below them, with a
+divider when both sections are present; toggling a row immediately moves it to
+the other section. The current UX has a circular, colored status dot before
+the pattern field and a separate compact swap button after the field. The dot
+tooltip explains the current kind; the button tooltip names the change and
+describes the resulting row movement. Render the swap as a plain ASCII `<>`
+mark in a 32-by-30 clickable hit area without inherited button chrome, avoiding
+a missing-glyph square in the ESO font, and tint it gold to match the delete
+control. The status dot uses ESO's checked radio-button texture, tinted
+green/red and sized 22-by-22 to keep it truly circular rather than relying on
+a font glyph. The delete control has a tooltip describing removal of the row's
+rule. In-game visual verification and final release checks remain.
 
 Feature behavior and compatibility requirements are in the
 [feature plan](todo_plan_rulePatternExclusions.md). This document follows the
@@ -153,18 +163,26 @@ so changing the suffix changes the signature.
 Change [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua):
 
 - Add local `DecodePatternRows(patterns)` to convert encoded strings into
-  editor-only `{ pattern, isExclusion }` row records.
+  editor-only `{ pattern, isExclusion }` row records. Preserve each kind's
+  existing sorted order, but return all Include rows before all Exclude rows.
+- Add local `GetOrCreatePatternExclusionDivider(scrollChild)` and a virtual
+  divider template in `Tracking/EditPanelGroupsTab.xml`. Render the divider
+  only when the group has at least one Include and one Exclude; position
+  Exclude rows below it. Include-only and exclusion-only lists have no
+  inter-section divider.
 - Add local `EncodePatternRows(rows)` to serialize those records back into
   plain or suffixed strings for the existing `UpdateRulePatterns()` API.
 - Modify `PopulateSingleGroupPane(activeRules)` to build the row records,
   display marker-free text, bind the kind control, and keep the special
   `miscellaneous` group without pattern rows.
-- Add local `SetPatternKindLabel(label, isExclusion)` to update the visible
-  Include/Exclude text and green/red state using the existing `ZoFontGame` UI
-  font.
-- Add local `HandlePatternKindToggle(label, row, rows, targetGroup)` to flip
-  the row kind, save via `SaveRulePatterns()`, and update the row label
-  without rebuilding the list or losing focus.
+- Add local `SetPatternKindLabel(label, isExclusion)` to color a green/red
+  status dot with the existing UI label control.
+- Add local `ShowPatternKindTooltip(control, row)` to identify the current
+  kind, state the inverse action, and explain the resulting move between
+  sections.
+- Modify `HandlePatternKindToggle(label, row, rows, targetGroup)` to flip the
+  row kind, save via `SaveRulePatterns()`, and refresh the editor so the row
+  immediately moves into the newly selected section. Also refresh the HUD.
 - Modify `SaveRulePatterns(groupName, rows)` to encode rows and call the
   existing `this.UpdateRulePatterns()`.
 - Modify `HandlePatternTextChanged(self, row)` and
@@ -178,22 +196,56 @@ Change [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lu
 
 Change [Tracking/EditPanelGroupsTab.xml](../../../Tracking/EditPanelGroupsTab.xml):
 
-- Modify `InventoryCompanion_PatternEditRow_Template` to add a clickable
-  Include/Exclude label: green for Include and red for Exclude, styled like the
-  existing state labels rather than a button.
+- Modify `InventoryCompanion_PatternEditRow_Template` to show a green/red
+  IN/OUT status icon before the pattern field, a compact swap-icon button
+  after the pattern with no default square button chrome, and the delete
+  control at the end. Use ESO's native CharacterWindow `swap_button` textures
+  for the normal, hover, pressed, and disabled states instead of the interim
+  ASCII `<>` font label, so the control uses native textured-button styling
+  like the delete X. After the interim radio-button indicator, use ESO's Bank
+  `bank_tabicon_deposit_up.dds` for Include (IN) and
+  `bank_tabicon_withdraw_up.dds` for Exclude (OUT), still tinted green/red.
+  Update the texture whenever a row is rebound or toggled; retain the separate
+  swap button rather than making the status icon the action.
+  In-game refinement: reduce the indicator from 22 to 20 pixels and increase
+  the gap before the edit field from 4 to 8 pixels. The swap button remained
+  invisible with the attempted XML texture block; remove that block and assign
+  all four states through the native button texture setters during row binding.
+  Test those assignments directly rather than treating well-formed XML as proof
+  that ESO recognizes the button-state markup.
+  After in-game approval of the textures and spacing, increase the IN/OUT
+  indicators by 25% from 20 to 25 pixels, retaining the 8-pixel textbox gap.
+  The earlier `radioButton_checked.dds` path was invalid and caused the indicator
+  to disappear. Use the repository's
+  [ESO-Game-Textures.md](../../Resources/ESO-Game-Textures.md) as the first
+  reference for known-good texture paths. Both Bank indicator textures and all
+  four CharacterWindow swap states are listed there. XML parsing alone does not
+  establish asset existence or correct ESO button-state markup.
+  Add a tooltip to the delete X identifying
+  that it removes this Include or Exclude rule. The status-icon tooltip
+  names the current kind and describes its matching effect. The button
+  tooltip names the action and explains the row's destination.
 - Resize/re-anchor the edit field and delete button to fit the existing row
   and pane; verify the pattern text remains readable.
 - Update the editor instruction label to describe include-any / exclude-none
   behavior.
+- User-facing refinement: show all Include rows first, then an "Exclusions"
+  divider, then Exclude rows. Toggling a row refreshes the group editor so the
+  row moves immediately; the divider appears only when both kinds are present.
 
 ### Editor regression tests
 
 - In `Project/Tests/GroupEditorTests.lua`, add cases through
   `this.GetGroupEditorTests()` proving toggle leaves visible text unchanged,
-  applies green/red label colors, edits preserve kind, empty include/exclude
-  rows both match nothing, and add/delete after toggling save the expected
-  strings.
-- Extend the headless control mock only as needed for the clickable label.
+  applies green/red icon colors and deposit/withdraw textures in both toggle
+  directions, validates both tooltips, edits preserve kind,
+  empty include/exclude
+  rows both match nothing, add/delete after toggling save the expected strings,
+  and Exclude rows render after Include rows with the divider between them.
+- Verify the divider and immediate row movement in game at different scroll
+  positions and with Include-only / Exclude-only groups.
+- Extend the headless control mock only as needed for the dot, icon button,
+  tooltip, and row/divider positioning assertions.
 
 ## 4. Documentation and completion checks
 
