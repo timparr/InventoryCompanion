@@ -84,15 +84,15 @@ function Get-FileRecord([string]$Path, [string]$RelativePath) {
 
 function Get-AddOnVersion([string]$Version) {
     if ($Version -notmatch '^(\d+)\.(\d+)(?:\.(\d+))?$') {
-        throw "Expected major.minor.build version (legacy major.minor is accepted as build zero)."
+        throw "Expected major.minor.patch version (legacy major.minor is accepted as patch zero)."
     }
     $major = [long]$Matches[1]
     $minor = [long]$Matches[2]
-    $build = [long]$Matches[3]
-    if ($major -gt 214748 -or $minor -gt 99 -or $build -gt 99) {
-        throw "AddOnVersion encoding requires minor/build components from 0 to 99 and a positive 32-bit integer result."
+    $patch = [long]$Matches[3]
+    if ($major -gt 214748 -or $minor -gt 99 -or $patch -gt 99) {
+        throw "AddOnVersion encoding requires minor/patch components from 0 to 99 and a positive 32-bit integer result."
     }
-    $integerVersion = $major * 10000 + $minor * 100 + $build
+    $integerVersion = $major * 10000 + $minor * 100 + $patch
     if ($integerVersion -lt 1 -or $integerVersion -gt [int]::MaxValue) {
         throw "AddOnVersion encoding requires a positive 32-bit integer result."
     }
@@ -202,11 +202,11 @@ if ($version -notmatch '^[A-Za-z0-9._-]+$') {
     throw "Invalid package version: $version"
 }
 if ($version -notmatch '^(\d+)\.(\d+)(?:\.(\d+))?$') {
-    throw "Expected major.minor.build version (legacy major.minor is accepted as build zero)."
+    throw "Expected major.minor.patch version (legacy major.minor is accepted as patch zero)."
 }
-$nextBuildVersion = "{0}.{1}.{2}" -f [int]$Matches[1], [int]$Matches[2], (1 + [int]$Matches[3])
+$nextPatchVersion = "{0}.{1}.{2}" -f [int]$Matches[1], [int]$Matches[2], (1 + [int]$Matches[3])
 $integerVersion = Get-AddOnVersion $version
-$null = Get-AddOnVersion $nextBuildVersion
+$null = Get-AddOnVersion $nextPatchVersion
 $integerVersionLines = @($manifestLines | Where-Object { $_ -match '^##\s*AddOnVersion:' })
 if ($integerVersionLines.Count -ne 1 -or
     $integerVersionLines[0] -notmatch "^## AddOnVersion: $integerVersion\s*$") {
@@ -282,7 +282,7 @@ $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
             Candidate = @(Get-CandidateRecords)
         }
         $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath -Encoding UTF8
-        Set-DevelopmentVersion $nextBuildVersion
+        Set-DevelopmentVersion $nextPatchVersion
     } catch {
         # Do not leave an unrecorded candidate after failed staging.
         Remove-Item -LiteralPath $candidateRoot -Recurse -Force
@@ -473,24 +473,6 @@ try {
     $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath -Encoding UTF8
 } catch {
     throw "Package verified at '$archivePath' (archive SHA256: $archiveHash), but completion-state recording failed: $($_.Exception.Message) Do not overwrite or re-finalize the package; repair the managed completion state before further release actions."
-}
-try {
-    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
-        throw "Development manifest is missing."
-    }
-    $devVersionMatch = [regex]::Match((Get-Content -LiteralPath $manifestPath -Raw), '(?m)^## Version: (\d+)\.(\d+)(?:\.(\d+))?\s*$')
-    $releasedVersionMatch = [regex]::Match($version, '^(\d+)\.(\d+)(?:\.(\d+))?$')
-    if (-not $devVersionMatch.Success -or -not $releasedVersionMatch.Success) {
-        throw "Cannot determine development/release version series."
-    }
-    if ($devVersionMatch.Groups[1].Value -eq $releasedVersionMatch.Groups[1].Value -and
-        [int]$devVersionMatch.Groups[2].Value -eq [int]$releasedVersionMatch.Groups[2].Value) {
-        $nextReleaseVersion = "{0}.{1}.{2}" -f $releasedVersionMatch.Groups[1].Value,
-            (1 + [int]$releasedVersionMatch.Groups[2].Value), 0
-        Set-DevelopmentVersion $nextReleaseVersion
-    }
-} catch {
-    throw "Package verified at '$archivePath' (archive SHA256: $archiveHash) and finalization is recorded as completed, but development-version housekeeping failed: $($_.Exception.Message) Do not re-finalize; repair the DEV manifest/runtime versions together before the next stage. The verified package and installed candidate remain valid."
 }
 Write-Output "Release installation retained for gameplay. Use your add-on profiles to select release OR development."
 Start-Process explorer.exe -ArgumentList ('"' + $resolvedOutputDirectory + '"')

@@ -67,16 +67,6 @@ try {
     }
     Copy-Item -LiteralPath $sourceManifest -Destination $manifest
     $version = [regex]::Match(($manifestLines -join "`n"), '(?m)^## Version: (.+)$').Groups[1].Value.Trim()
-    # Test the release format independently of the checkout's optional DEV test suffix.
-    if ($version -match '^(\d+\.\d+\.\d+)\.\d+$') {
-        $releaseVersion = $Matches[1]
-        $fixtureManifest = Get-Content -LiteralPath $manifest -Raw
-        Set-Content -LiteralPath $manifest -Value ($fixtureManifest.Replace("## Version: $version", "## Version: $releaseVersion")) -NoNewline
-        $fixtureInit = Join-Path $devRoot "Core\Init.lua"
-        $initText = Get-Content -LiteralPath $fixtureInit -Raw
-        Set-Content -LiteralPath $fixtureInit -Value ($initText.Replace("Version = `"$version`"", "Version = `"$releaseVersion`"")) -NoNewline
-        $version = $releaseVersion
-    }
     $null = New-Item -ItemType Directory -Path (Split-Path $savedVariables -Parent) -Force
     Set-Content -LiteralPath $savedVariables -Value "Synthetic saved variables for packaging tests." -Encoding UTF8
 
@@ -138,8 +128,8 @@ try {
     Assert ((Get-FileHash -LiteralPath $savedVariables).Hash -eq (Get-FileHash -LiteralPath $savedVariablesBackups[0].FullName).Hash) "Saved-variables backup differs from the profile file."
     Assert (Test-Path -LiteralPath $manifest) "Staging disabled the development manifest."
     $parts = $version.Split(".")
-    $expectedNextBuild = "{0}.{1}.{2}" -f $parts[0], $parts[1], (1 + $(if ($parts.Count -gt 2) { [int]$parts[2] } else { 0 }))
-    Assert ((Get-Content -LiteralPath $manifest -Raw) -match ('## Version: ' + [regex]::Escape($expectedNextBuild))) "Staging did not increment the development build."
+    $expectedNextPatch = "{0}.{1}.{2}" -f $parts[0], $parts[1], (1 + $(if ($parts.Count -gt 2) { [int]$parts[2] } else { 0 }))
+    Assert ((Get-Content -LiteralPath $manifest -Raw) -match ('## Version: ' + [regex]::Escape($expectedNextPatch))) "Staging did not increment the development patch."
     $expectedIntegerVersion = [int]$parts[0] * 10000 + [int]$parts[1] * 100 + $(if ($parts.Count -gt 2) { [int]$parts[2] } else { 0 })
     Assert ((Get-Content -LiteralPath $manifest -Raw) -match "(?m)^## AddOnVersion: $($expectedIntegerVersion + 1)\s*$") "Staging did not synchronize the DEV integer version."
     $postCutManifestHash = (Get-FileHash -LiteralPath $manifest).Hash
@@ -216,6 +206,8 @@ try {
     Assert (@(Get-ChildItem -LiteralPath $backupDirectory -Filter "*.lua" -File).Count -eq 3) "Staging created a backup despite the saved-variables files being absent."
     Set-Content -LiteralPath $savedVariables -Value "Synthetic saved variables for packaging tests." -Encoding UTF8
     $version = [regex]::Match((Get-Content -LiteralPath (Join-Path $candidate "InventoryCompanion.txt") -Raw), '(?m)^## Version: (.+)$').Groups[1].Value.Trim()
+    $parts = $version.Split(".")
+    $expectedNextPatch = "{0}.{1}.{2}" -f $parts[0], $parts[1], (1 + [int]$parts[2])
     $testedFiles = @(Get-ChildItem -LiteralPath $candidate -Recurse -File | ForEach-Object {
         [pscustomobject]@{ Path = $_.FullName.Substring($candidate.Length + 1); Hash = (Get-FileHash -LiteralPath $_.FullName).Hash }
     })
@@ -302,18 +294,18 @@ try {
     Assert-Fails { & $script -Action Finalize -TestResults "fixture only" } "Package already exists"
     Assert ((Get-FileHash -LiteralPath $zip).Hash -eq $oldArchiveHash) "Existing package was overwritten."
     Assert (Test-Path -LiteralPath $candidate) "Failed finalization removed the candidate."
+    $devInit = Join-Path $devRoot "Core\Init.lua"
+    $devManifestBeforeFinalize = (Get-FileHash -LiteralPath $manifest).Hash
+    $devInitBeforeFinalize = (Get-FileHash -LiteralPath $devInit).Hash
     $finalizeOutput = @(& $script -Action Finalize -TestResults "Synthetic packaging fixture only; no in-game test claimed." -Force)
     Assert (Test-Path -LiteralPath $zip) "Finalization did not create the ZIP."
     $zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
     Assert ($finalizeOutput -contains "Archive SHA256: $zipHash") "Finalization did not report the actual ZIP hash."
     Assert ($finalizeOutput -contains "Candidate file-set SHA256: $candidateHash") "Finalization did not distinguish the candidate hash."
     Assert ($explorerFolders.Count -eq 1 -and $explorerFolders[0] -eq $packageDirectory) "Finalization did not open the package output folder."
-    $parts = $version.Split(".")
-    $expectedNextRelease = "{0}.{1}.0" -f $parts[0], (1 + [int]$parts[1])
-    Assert ((Get-Content -LiteralPath $manifest -Raw) -match ('## Version: ' + [regex]::Escape($expectedNextRelease))) "Finalization did not advance the development minor version."
-    $expectedNextInteger = [int]$parts[0] * 10000 + (1 + [int]$parts[1]) * 100
-    Assert ((Get-Content -LiteralPath $manifest -Raw) -match "(?m)^## AddOnVersion: $expectedNextInteger\s*$") "Finalization did not synchronize the DEV integer version."
-    Assert ((Get-Content -LiteralPath (Join-Path $devRoot "Core\Init.lua") -Raw) -match ('Version = "' + [regex]::Escape($expectedNextRelease) + '"')) "Runtime and manifest versions diverged."
+    Assert ((Get-FileHash -LiteralPath $manifest).Hash -eq $devManifestBeforeFinalize) "Finalization changed the DEV manifest."
+    Assert ((Get-FileHash -LiteralPath $devInit).Hash -eq $devInitBeforeFinalize) "Finalization changed DEV runtime metadata."
+    Assert ((Get-Content -LiteralPath $manifest -Raw) -match ('## Version: ' + [regex]::Escape($expectedNextPatch))) "Finalization did not preserve the next patch reserved by staging."
     [System.IO.File]::WriteAllBytes($readme, $originalReadme)
     [System.IO.File]::WriteAllBytes($changelog, $originalChangelog)
     Assert (Test-Path -LiteralPath $candidate) "Finalization removed the gameplay release installation."
@@ -336,28 +328,33 @@ try {
 
     & $script -Action Cancel | Out-Null
     & $script -Action Stage | Out-Null
-    $housekeepingVersion = [regex]::Match((Get-Content -LiteralPath (Join-Path $candidate "InventoryCompanion.txt") -Raw), '(?m)^## Version: (.+)$').Groups[1].Value.Trim()
-    $housekeepingHash = Get-FixtureCandidateHash
-    $housekeepingReview = $completeReview.Replace("Release version: $version", "Release version: $housekeepingVersion").
-        Replace($candidateHash, $housekeepingHash)
-    Set-Content -LiteralPath $reviewPath -Value $housekeepingReview
-    $devInit = Join-Path $devRoot "Core\Init.lua"
-    $validDevInit = [System.IO.File]::ReadAllBytes($devInit)
-    $devManifestBeforeFailure = (Get-FileHash -LiteralPath $manifest).Hash
-    $candidateInitBeforeFailure = (Get-FileHash -LiteralPath (Join-Path $candidate "Core\Init.lua")).Hash
-    Set-Content -LiteralPath $devInit -Value ([regex]::Replace((Get-Content -LiteralPath $devInit -Raw), '(?m)^    Version = .+,\r?\n', ""))
-    Assert-Fails { & $script -Action Finalize -TestResults "Fixture housekeeping failure; no in-game run." } "development-version housekeeping failed"
-    $housekeepingZip = Join-Path $packageDirectory "InventoryCompanion-v$housekeepingVersion.zip"
-    Assert (Test-Path -LiteralPath $housekeepingZip) "Housekeeping failure lost the verified ZIP."
+    $nextVersion = [regex]::Match((Get-Content -LiteralPath (Join-Path $candidate "InventoryCompanion.txt") -Raw), '(?m)^## Version: (.+)$').Groups[1].Value.Trim()
+    Assert ($nextVersion -eq $expectedNextPatch) "The next staged release did not use the reserved patch."
+    $nextHash = Get-FixtureCandidateHash
+    Set-Content -LiteralPath $reviewPath -Value ($completeReview.Replace("Release version: $version", "Release version: $nextVersion").
+        Replace($candidateHash, $nextHash))
+    $parts = $nextVersion.Split(".")
+    $deliberateMinor = "{0}.{1}.0" -f $parts[0], (1 + [int]$parts[1])
+    $deliberateInteger = [int]$parts[0] * 10000 + (1 + [int]$parts[1]) * 100
+    $devText = [regex]::Replace((Get-Content -LiteralPath $manifest -Raw), '(?m)^## Version: .+$', "## Version: $deliberateMinor")
+    $devText = [regex]::Replace($devText, '(?m)^## AddOnVersion: .+$', "## AddOnVersion: $deliberateInteger")
+    Set-Content -LiteralPath $manifest -Value $devText -NoNewline
+    Set-Content -LiteralPath $devInit -Value ([regex]::Replace((Get-Content -LiteralPath $devInit -Raw), '(?m)^    Version = .+,\r?$', "    Version = `"$deliberateMinor`",")) -NoNewline
+    $devManifestBeforeFinalize = (Get-FileHash -LiteralPath $manifest).Hash
+    $devInitBeforeFinalize = (Get-FileHash -LiteralPath $devInit).Hash
+    $candidateInitBeforeFinalize = (Get-FileHash -LiteralPath (Join-Path $candidate "Core\Init.lua")).Hash
+    & $script -Action Finalize -TestResults "Fixture deliberate DEV minor bump; no in-game run." | Out-Null
+    $nextZip = Join-Path $packageDirectory "InventoryCompanion-v$nextVersion.zip"
+    Assert (Test-Path -LiteralPath $nextZip) "Finalization lost the verified ZIP."
     $completedState = Get-Content -LiteralPath (Join-Path $devRoot "Project\Publishing\.release-test\state.json") -Raw | ConvertFrom-Json
-    Assert $completedState.Completed "Housekeeping failure did not preserve completed finalization."
-    Assert ((Get-FileHash -LiteralPath $manifest).Hash -eq $devManifestBeforeFailure) "Failed housekeeping partially changed the DEV manifest."
-    Assert ((Get-FileHash -LiteralPath (Join-Path $candidate "Core\Init.lua")).Hash -eq $candidateInitBeforeFailure) "Housekeeping failure modified installed runtime bytes."
+    Assert $completedState.Completed "Finalization was not recorded."
+    Assert ((Get-FileHash -LiteralPath $manifest).Hash -eq $devManifestBeforeFinalize) "Finalization overwrote a deliberate DEV minor bump."
+    Assert ((Get-FileHash -LiteralPath $devInit).Hash -eq $devInitBeforeFinalize) "Finalization overwrote deliberate DEV runtime metadata."
+    Assert ((Get-FileHash -LiteralPath (Join-Path $candidate "Core\Init.lua")).Hash -eq $candidateInitBeforeFinalize) "Finalization modified installed runtime bytes."
     Assert-Fails { & $script -Action Finalize -TestResults "Do not repeat" } "already finalized"
-    $failureExtracted = Join-Path $fixtureRoot "housekeeping-extracted"
-    Expand-Archive -LiteralPath $housekeepingZip -DestinationPath $failureExtracted
-    Assert ((Get-FileHash -LiteralPath (Join-Path $failureExtracted "InventoryCompanion\Core\Init.lua")).Hash -eq $candidateInitBeforeFailure) "Verified ZIP used changed DEV bytes."
-    [System.IO.File]::WriteAllBytes($devInit, $validDevInit)
+    $nextExtracted = Join-Path $fixtureRoot "next-patch-extracted"
+    Expand-Archive -LiteralPath $nextZip -DestinationPath $nextExtracted
+    Assert ((Get-FileHash -LiteralPath (Join-Path $nextExtracted "InventoryCompanion\Core\Init.lua")).Hash -eq $candidateInitBeforeFinalize) "Verified ZIP used changed DEV bytes."
     & $script -Action Cancel | Out-Null
 
     & $script -Action Stage | Out-Null

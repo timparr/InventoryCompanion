@@ -13,10 +13,11 @@
 
 - Keep this file concise; move context-specific guidance into scoped instruction files when it grows enough to justify the extra files.
 - Decide when accumulated preferences warrant scoped instruction files; keep a concise pointer here stating when each specialized file applies.
-- Prefer conversational discussion during planning. Use structured question forms only when implementation is underway and a quick, specific decision is needed.
+- Prefer conversational discussion, including release-test evidence and confirmations. The user does not want question panels or structured forms; keep requests in the conversation.
 
 ## Git Workflow
 
+- At the start of each release, update the authoritative working changelog from the actual changes first, then use it to recommend a build/patch or minor version increment (major only for incompatible changes), with a brief reason and proposed version, before staging. Follow `Project/Publishing/ReleaseChecklist.md` for numbering and release steps.
 - Warn the user before starting substantial or risky work that would be advisable to do on a separate branch, and explain why.
 - Do not switch branches without the user's approval.
 - Keep the initial unit-test work on `main`; reconsider using a branch if testing requires substantial changes to the existing system.

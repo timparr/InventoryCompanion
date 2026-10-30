@@ -1,3 +1,6 @@
+new ideas - not sorted
+info panels - how to guide built into the addon - instead of the manual. - (i) buttons that pop up info about how to use each element and what it does
+
 # InventoryCompanion - Letter-Numbered Master To-Do List
 
 ## Section A: 🛠️ In Progress & Immediate Tasks
@@ -15,6 +18,14 @@ No active tasks at this time.
 
 ## Section C: ✨ Quality of Life (QOL) & Tweaks
 
+- **C4. Item Tracker Flags / Row Options (next editor task):** Keep quick
+  Show/Notify controls and move bank inclusion/grouping into a row-options panel,
+  before adding group-only AutoCategory participation. See the
+  [plan](Tasks/todo_plan_itemTrackerFlags.md).
+- **C5. Group Pattern Exclusions:** Let group patterns include and exclude
+  matches, with a visible per-row Include/Exclude control. See the
+  [feature plan](Tasks/todo_plan_rulePatternExclusions.md) and
+  [implementation plan](Tasks/todo_implementation_rulePatternExclusions.md).
 - **C1. Tracker Panel UI Toolbar Additions:** Add dedicated toolbar buttons
   for **all-bank** mode and quick show/hide-zero filters.
 - **C3. Interaction Settings Control:** Add LAM options to individually
@@ -25,6 +36,9 @@ No active tasks at this time.
 
 ## Section D: 🚀 Features Roadmap (Pending)
 
+- **D11. AutoCategory Integration:** Optional inventory partitions driven by
+  Inventory Companion groups. See the [plan](Tasks/todo_plan_autocategoryIntegration.md)
+  and [implementation investigation](Tasks/todo_implementation_autocategoryIntegration.md).
 - **D1. Auto-Restock & Stack Balancer:** Add `targetCount` settings and
   `autoBalance` toggles to tracked items to automatically queue
   deposits/withdrawals upon opening a bank or chest.
