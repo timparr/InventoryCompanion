@@ -1,8 +1,10 @@
 [SIZE="4"][B]Inventory Companion Changelog[/B][/SIZE]
 
-[SIZE="2"][B]1.3.1[/B][/SIZE]
+[SIZE="2"][B]1.3.2[/B][/SIZE]
 
 [LIST]
+[*]Refined tracker scrolling so the panel keeps a fixed width, with item names narrowed and counts shifted left only while a scrollbar is visible.
+[*]Fixed empty group patterns so they no longer match every item.
 [*]Fixed tiny text in group pattern fields and editor search boxes when AddonSelector is not loaded. These fields now use a standard ESO font.
 [*]Added Maximum Visible Rows to the Item Tracker Panel settings. The tracker uses single-line names before collapsing categories, and scrolls when the remaining content cannot fit. The title and edit button stay visible.
 [*]Opening a category leaves other categories unchanged when they fit; otherwise, the other categories collapse. If all categories fit expanded, the tracker can open them automatically.
@@ -10,7 +12,6 @@
 [*]Added a Tracker Title Size setting with a regular-weight font and a matching edit icon. Item-row text and icons are unchanged.
 [*]Added an assignable Show/Hide Item Tracking Panel keybinding and an Open Item Tracking Editor button on the main Inventory Companion addon settings page.
 [*]Fixed item names overlapping their counts on the initial tracker render, and made single-line ellipses match item quality colors.
-[*]Removed unused scrollbar space from the right edge of the tracker when its contents fit without scrolling.
 [*]Added a settings button beside the tracker title's edit button to open Inventory Companion's Add-on Settings page directly.
 [*]The tracker visibility toggle now hides the panel in inventory, bank, and editor windows too, instead of leaving a visible panel with updates disabled.
 [*]Added an Other Settings button beside the title in both tracking editors to return directly to Inventory Companion's Add-on Settings page.

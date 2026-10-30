@@ -287,18 +287,20 @@ function this.GetTrackerPanelTests()
         Equal(units, 7)
     end)
 
-    Add("Tracker reserves the right scrollbar margin only while content overflows", function()
+    Add("Tracker keeps a fixed panel width and narrows rows only while scrolling", function()
         Setup({ 12 }, 5, false)
         this.RefreshItemTrackerPanel()
 
         local function CheckRightMargin(scrollable)
             local panel = InventoryCompanion_ItemTrackerFloat
-            local viewportWidth = 320 + (scrollable and ZO_SCROLL_BAR_WIDTH or 0)
-            Equal(rows:GetWidth(), viewportWidth)
-            Equal(InventoryCompanion_ItemTrackerFloatContainer:GetWidth(), viewportWidth)
-            Equal(panel:GetWidth(), viewportWidth + 20)
-            Equal(scroll:GetWidth(), 320)
+            local contentWidth = 320 - (scrollable and ZO_SCROLL_BAR_WIDTH or 0)
+            Equal(rows:GetWidth(), 320)
+            Equal(InventoryCompanion_ItemTrackerFloatContainer:GetWidth(), 320)
+            Equal(panel:GetWidth(), 340)
+            Equal(scroll:GetWidth(), contentWidth)
+            Equal(child:GetWidth(), contentWidth)
             for _, row in ipairs(VisibleRows()) do
+                Equal(row:GetWidth(), contentWidth)
                 local name, count = GetControl(row, "Name"), GetControl(row, "Count")
                 local countRight = count:GetLeft() + count:GetWidth()
                 Equal(panel:GetLeft() + panel:GetWidth() - countRight,
@@ -318,6 +320,11 @@ function this.GetTrackerPanelTests()
         CheckRightMargin(false)
         this.accountWide.wrapTrackedItemNames = true
         this.RefreshItemTrackerPanel()
+        CheckRightMargin(false)
+        Click("group1")
+        CheckRightMargin(true)
+        for _, row in ipairs(VisibleRows()) do Equal(row:GetHeight(), 22) end
+        Click("group1")
         CheckRightMargin(false)
         this.accountWide.showTrackedItemsPanel = false
         this.RefreshItemTrackerPanel()
@@ -384,6 +391,113 @@ function this.GetTrackerPanelTests()
         Equal(#VisibleRows(), 2)
     end)
 
+    Add("Tracker groups over 200 show overflow instead of members and retain full totals", function()
+        for _, size in ipairs({ 199, 200, 201, 5000 }) do
+            Setup({ size }, 20, false, true)
+            this.preLoadedRulesets.group1.display.bank = true
+            for _, item in pairs(fixture.items) do item.bankCount = 2 end
+            local ids = fixture.index.group1
+            for index = 1, math.floor(#ids / 2) do
+                ids[index], ids[#ids - index + 1] = ids[#ids - index + 1], ids[index]
+            end
+            this.RefreshItemTrackerPanel()
+            local scans, layouts, measurements = counters.scans, counters.rowLayouts, counters.measurements
+            if not Expanded("group1") then Click("group1") end
+            local visible = VisibleRows()
+            Equal(#visible, size > 200 and 2 or size + 1)
+            if size <= 200 then
+                Equal(counters.scans, scans + 1)
+                Equal(counters.rowLayouts - layouts, #visible)
+                Equal(counters.measurements, measurements)
+            end
+            Equal(GetControl(visible[1], "Count").text, tostring(size * 2) .. " \\ " .. tostring(size))
+            if size > 200 then
+                Equal(GetControl(visible[2], "Name").text,
+                    "Your patterns matched " .. size .. " items - too many to display here.")
+                Equal(GetControl(visible[2], "Count").text, "")
+                Equal(GetControl(visible[1], "Icon").texture, "/esoui/art/buttons/info_up.dds")
+                Equal(table.concat(GetControl(visible[1], "Icon").color, ","), "1,0.75,0,1")
+                Equal(GetControl(visible[1], "Icon"):IsHidden(), false)
+                Equal(GetControl(visible[2], "Icon"):IsHidden(), true)
+                Equal(table.concat(GetControl(visible[2], "Name").color, ","), "1,1,1,1")
+                Equal(scroll.offset, 0)
+            else
+                for index = 2, #visible do
+                    Equal(GetControl(visible[index], "Name").text, fixture.items[10000 + index - 1].link)
+                end
+                assert(child.height > rows.height, "Members must remain scrollable")
+                ZO_Scroll_OnMouseWheel(rows, -10000)
+                Equal(scroll.offset, child.height - rows.height)
+            end
+            Click("group1")
+            Equal(#VisibleRows(), 1)
+            Equal(scroll.offset, 0)
+        end
+    end)
+
+    Add("Tracker group cap applies after zero-stock filtering", function()
+        Setup({ 500 }, 20, false)
+        for index = 1, 300 do fixture.items[10000 + index].bagCount = 0 end
+        this.RefreshItemTrackerPanel()
+        Click("group1")
+        local visible = VisibleRows()
+        Equal(#visible, 201)
+        Equal(GetControl(visible[1], "Count").text, "200")
+        for index = 2, #visible do
+            Equal(GetControl(visible[index], "Name").text, fixture.items[10300 + index - 1].link)
+        end
+    end)
+
+    Add("Tracker large-group expansion and refresh stay within synthetic limits", function()
+        Setup({ 5000 }, 20, false, true, 80)
+        this.RefreshItemTrackerPanel()
+        if Expanded("group1") then Click("group1") end
+        local started = GetGameTimeMilliseconds()
+        Click("group1")
+        local elapsed = GetGameTimeMilliseconds() - started
+        assert(elapsed <= 1000, "Large-group expansion timing limit exceeded: " .. elapsed)
+        Equal(#VisibleRows(), 2)
+        local creations = counters.creations
+        started = GetGameTimeMilliseconds()
+        for _ = 1, 5 do this.RefreshItemTrackerPanel("inventory") end
+        local refreshElapsed = GetGameTimeMilliseconds() - started
+        assert(refreshElapsed <= 1500, "Large-group refresh timing limit exceeded: " .. refreshElapsed)
+        Equal(counters.creations, creations)
+        Equal(#VisibleRows(), 2)
+        return string.format("5000 matches, overflow message only: expand %d/1000 ms; 5 refreshes %d/1500 ms",
+            elapsed, refreshElapsed)
+    end)
+
+    Add("Tracker overflow clears when eligible membership drops to 200", function()
+        Setup({ 201 }, 20, false)
+        this.RefreshItemTrackerPanel()
+        if not Expanded("group1") then Click("group1") end
+        Equal(#VisibleRows(), 2)
+        Equal(table.concat(GetControl(VisibleRows()[1], "Name").color, ","), "1,0.25,0.25,1")
+        Click("group1")
+        Equal(#VisibleRows(), 1)
+        Equal(table.concat(GetControl(VisibleRows()[1], "Name").color, ","), "1,0.25,0.25,1")
+        Click("group1")
+        fixture.items[10201].bagCount = 0
+        this.RefreshItemTrackerPanel("inventory")
+        if not Expanded("group1") then Click("group1") end
+        Equal(#VisibleRows(), 201)
+        Equal(table.concat(GetControl(VisibleRows()[1], "Name").color, ","), "0.2,0.4,0.8,1")
+        Equal(GetControl(VisibleRows()[1], "Icon").texture, "icon")
+        Equal(table.concat(GetControl(VisibleRows()[1], "Icon").color, ","), "1,1,1,1")
+        Equal(GetControl(VisibleRows()[2], "Icon"):IsHidden(), false)
+        Equal(GetControl(VisibleRows()[2], "Icon").texture, "icon")
+        Equal(table.concat(GetControl(VisibleRows()[2], "Icon").color, ","), "1,1,1,1")
+        Equal(table.concat(GetControl(VisibleRows()[2], "Name").color, ","), "0.2,0.4,0.8,1")
+        fixture.items[10201].bagCount = 1
+        this.RefreshItemTrackerPanel("inventory")
+        if not Expanded("group1") then Click("group1") end
+        Equal(#VisibleRows(), 2)
+        Equal(GetControl(VisibleRows()[2], "Name").text,
+            "Your patterns matched 201 items - too many to display here.")
+        Equal(table.concat(GetControl(VisibleRows()[1], "Name").color, ","), "1,0.25,0.25,1")
+    end)
+
     Add("Tracker excessive headers and flat lists remain accessible within the viewport", function()
         Setup({ 2, 2, 2, 2, 2, 2 }, 5, false)
         this.RefreshItemTrackerPanel()
@@ -421,7 +535,7 @@ function this.GetTrackerPanelTests()
     end)
 
     Add("Tracker trials never create member controls for collapsed categories", function()
-        Setup({ 1000, 1000 }, 5, false, true, 80)
+        Setup({ 200, 200 }, 5, false, true, 80)
         local before = #pooled
         this.RefreshItemTrackerPanel()
         Equal(#VisibleRows(), 2)

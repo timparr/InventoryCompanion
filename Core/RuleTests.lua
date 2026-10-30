@@ -368,6 +368,14 @@ function this.GetRuleTests()
         Equal(warnings, 2, "Unhiding takes effect immediately")
     end)
 
+    Add("Empty patterns do not match every item", function()
+        _G.GetItemLinkName = function(link) return link == "item" and "Target +1" or nil end
+        this.UpdateRulePatterns("custom", { "" })
+        local rule = this.GetRuntimeRules().custom
+        assert(not this.ItemMatchesRuntimeRule("item", rule), "An empty saved pattern must not match items")
+        assert(not this.ItemMatchesRule("item", ""), "An empty standalone pattern must not match items")
+    end)
+
     Add("Group lifecycle mutations invalidate and clear only the active profile", function()
         local initial = this.GetRuntimeRules()
         this.CreateCustomRule("custom", "Custom")

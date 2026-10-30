@@ -6,6 +6,7 @@ local originalTrackerPos = nil
 local previousLayout = nil
 local ROW_HEIGHT = 22
 local ROW_WIDTH = 320
+local MAX_GROUP_ITEM_ROWS = 200
 local MIN_COUNT_WIDTH = 36
 local COUNT_WIDTH_PER_CHARACTER = 8
 
@@ -222,12 +223,22 @@ local function PopulateBaseRow(rowIndex, itemData, wrapped)
     end
 
     iconControl:SetTexture(itemData.icon or "")
+    iconControl:SetHidden(itemData.overflowCount ~= nil)
     iconControl:SetDrawLayer(DL_CONTROLS)
     iconControl:SetDrawLevel(2)
     iconControl:SetAlpha(1.0)
+    if itemData.isOverflowGroup then
+        iconControl:SetColor(1, 0.75, 0, 1)
+    else
+        iconControl:SetColor(1, 1, 1, 1)
+    end
             
     nameControl:SetText(itemData.link)        
-    if not itemData.isEmpty then
+    if itemData.isOverflowGroup then
+        nameControl:SetColor(1, 0.25, 0.25, 1)
+    elseif itemData.isEmpty then
+        nameControl:SetColor(1, 1, 1, 1)
+    else
         local quality = itemData.quality or GetItemLinkQuality(itemData.link) or 0
         local colorDef = GetItemQualityColor(math.max(0, quality))
         if colorDef then
@@ -416,7 +427,7 @@ local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, 
             local displayName = colorDef and colorDef:Colorize(groupTitle) or groupTitle
 
             -- Insert Group Header
-            table.insert(itemsToDisplay, {
+            local groupHeader = {
                 link = displayName,
                 icon = bestIcon,
                 count = totalGroupCount,
@@ -427,11 +438,12 @@ local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, 
                 isExpanded = ruleData.display.isExpanded == true,
                 ruleName = ruleName,
                 quality = math.max(0, highestQuality),
-            })
+            }
+            table.insert(itemsToDisplay, groupHeader)
 
-            -- Retain all eligible members for in-memory expansion trials.
             if itemIds then
                 local groupMembers = {}
+                local memberCount = 0
                 for _, itemId in ipairs(itemIds) do
                     local itemData = snapshot.items[itemId]
                     if itemData then
@@ -442,27 +454,45 @@ local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, 
 
                         local memberRelCount = itemShowBank and ((itemData.bagCount + itemData.bankCount) > 0) or (itemData.bagCount > 0)
                         if memberRelCount or showEmpty then
-                            table.insert(groupMembers, {
-                                link = itemData.link,
-                                icon = itemData.icon,
-                                count = itemData.bagCount,
-                                showBank = itemShowBank,
-                                bankCount = itemData.bankCount,
-                                sortName = GetItemLinkName(itemData.link) or "",
-                                isGroupMember = true,
-                                parentGroup = ruleName,
-                                itemId = itemId,
-                            })
+                            memberCount = memberCount + 1
+                            if memberCount <= MAX_GROUP_ITEM_ROWS then
+                                table.insert(groupMembers, {
+                                    link = itemData.link,
+                                    icon = itemData.icon,
+                                    count = itemData.bagCount,
+                                    showBank = itemShowBank,
+                                    bankCount = itemData.bankCount,
+                                    sortName = GetItemLinkName(itemData.link) or "",
+                                    isGroupMember = true,
+                                    parentGroup = ruleName,
+                                    itemId = itemId,
+                                })
+                            end
                         end
                     end
                 end
 
-                table.sort(groupMembers, function(a, b)
-                    if a.sortName == b.sortName then return a.itemId < b.itemId end
-                    return a.sortName < b.sortName
-                end)
-                for _, member in ipairs(groupMembers) do
-                    table.insert(itemsToDisplay, member)
+                if memberCount > MAX_GROUP_ITEM_ROWS then
+                    groupHeader.isOverflowGroup = true
+                    groupHeader.link = groupTitle
+                    groupHeader.icon = "/esoui/art/buttons/info_up.dds"
+                    table.insert(itemsToDisplay, {
+                        link = string.format("Your patterns matched %d items - too many to display here.",
+                            memberCount),
+                        isEmpty = true,
+                        isGroupMember = true,
+                        parentGroup = ruleName,
+                        itemId = "overflow",
+                        overflowCount = memberCount,
+                    })
+                else
+                    table.sort(groupMembers, function(a, b)
+                        if a.sortName == b.sortName then return a.itemId < b.itemId end
+                        return a.sortName < b.sortName
+                    end)
+                    for _, member in ipairs(groupMembers) do
+                        table.insert(itemsToDisplay, member)
+                    end
                 end
             end
         end
@@ -626,6 +656,7 @@ local function BuildLayoutModel(items, rules)
             group.members[item.itemId] = true
             group.memberCount = group.memberCount + 1
             group.signatureParts[#group.signatureParts + 1] = tostring(item.itemId) .. ":" .. tostring(item.showBank)
+                .. ":" .. tostring(item.overflowCount)
         end
         if not item.isGroupMember then
             model.baseRows = model.baseRows + 1
@@ -750,18 +781,28 @@ local function ApplyViewport(contentHeight, budget, wrapped, previousOffset, tar
         GuiRoot:GetHeight() - headerHeight - 8))
     local viewportHeight = math.min(contentHeight, maxHeight)
     local scrollable = contentHeight > viewportHeight
-    local viewportWidth = ROW_WIDTH + (scrollable and ZO_SCROLL_BAR_WIDTH or 0)
+    local contentWidth = ROW_WIDTH - (scrollable and ZO_SCROLL_BAR_WIDTH or 0)
     local rows = GetRowsContainer()
-    rows:SetWidth(viewportWidth)
+    rows:SetWidth(ROW_WIDTH)
     rows:SetHeight(viewportHeight)
     rows.scroll:ClearAnchors()
     rows.scroll:SetAnchor(TOPLEFT, rows, TOPLEFT, 0, 0)
     rows.scroll:SetAnchor(BOTTOMRIGHT, rows, BOTTOMRIGHT,
         scrollable and -ZO_SCROLL_BAR_WIDTH or 0, 0)
-    GetRowsChild():SetDimensions(ROW_WIDTH, contentHeight)
-    container:SetWidth(viewportWidth)
+    GetRowsChild():SetDimensions(contentWidth, contentHeight)
+    if scrollable then
+        for _, row in ipairs(trackerRows) do
+            if not row:IsHidden() then
+                row:SetWidth(contentWidth)
+                local name = GetControl(row, "Name")
+                local nameWidth = name:GetWidth() - ZO_SCROLL_BAR_WIDTH
+                name:SetDimensionConstraints(nameWidth, ROW_HEIGHT, nameWidth, ROW_HEIGHT)
+            end
+        end
+    end
+    container:SetWidth(ROW_WIDTH)
     container:SetHeight(headerHeight + viewportHeight)
-    InventoryCompanion_ItemTrackerFloat:SetWidth(viewportWidth + 20)
+    InventoryCompanion_ItemTrackerFloat:SetWidth(ROW_WIDTH + 20)
     InventoryCompanion_ItemTrackerFloat:SetHeight(headerHeight + viewportHeight + 8)
     ZO_Scroll_UpdateScrollBar(rows)
     local offset = math.max(0, math.min(previousOffset, contentHeight - viewportHeight))

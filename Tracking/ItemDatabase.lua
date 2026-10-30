@@ -497,14 +497,16 @@ end
 CompilePatterns = function(patterns)
     local compiled = {}
     for _, pattern in ipairs(patterns) do
-        local cleaned = pattern:lower()
-        if cleaned:find("*", 1, true) then
-            local p = cleaned:gsub("([%^%$%(%)%%%.%[%+%-%?])", "%%%1")
-            p = p:gsub("%*", ".*")
-            table.insert(compiled, "^" .. p .. "$")
-        else
-            local p = cleaned:gsub("([%^%$%(%)%%%.%[%+%-%?])", "%%%1")
-            table.insert(compiled, p)
+        if pattern ~= "" then
+            local cleaned = pattern:lower()
+            if cleaned:find("*", 1, true) then
+                local p = cleaned:gsub("([%^%$%(%)%%%.%[%+%-%?])", "%%%1")
+                p = p:gsub("%*", ".*")
+                table.insert(compiled, "^" .. p .. "$")
+            else
+                local p = cleaned:gsub("([%^%$%(%)%%%.%[%+%-%?])", "%%%1")
+                table.insert(compiled, p)
+            end
         end
     end
     return compiled
@@ -524,6 +526,7 @@ function this.ItemMatchesRule(itemLink, pattern)
     local name = GetItemLinkName(itemLink)
     if not name then return false end
     local compiled = CompilePatterns({pattern})
+    if not compiled[1] then return false end
     return name:lower():match(compiled[1]) ~= nil
 end
 
