@@ -41,6 +41,7 @@ tracker_lua = LuaRuntime(unpack_returned_tuples=True)
 tracker_lua.execute("SLASH_COMMANDS = {}; EVENT_MANAGER = { RegisterForEvent = function() end }")
 tracker_lua.globals().GetGameTimeMilliseconds = lambda: int(perf_counter() * 1000)
 tracker_lua.globals().TrackerEventSource = (root / "Core\\Events.lua").read_text(encoding="utf-8-sig")
+tracker_lua.globals().TrackerPanelSource = (root / "Tracking\\ItemTrackerPanel.lua").read_text(encoding="utf-8-sig")
 for relative in (
     "Core\\Init.lua",
     "Tracking\\ItemDatabase.lua",

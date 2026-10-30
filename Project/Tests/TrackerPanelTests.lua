@@ -178,13 +178,21 @@ local function Setup(sizes, budget, expanded, wrapped, length)
     return fixture
 end
 
-local function Expanded(name) return this.GetActiveTrackedRules()[name].display.isExpanded end
+local function SavedExpanded(name) return this.GetActiveTrackedRules()[name].display.isExpanded end
 local function VisibleRows()
     local result = {}
     for _, row in ipairs(pooled) do
         if not row.hidden then result[#result + 1] = row end
     end
     return result
+end
+local function Expanded(name)
+    for _, row in ipairs(VisibleRows()) do
+        if GetControl(row, "Name").text == name then
+            return GetControl(row, "ExpandIcon").texture == "EsoUI/Art/Buttons/minus_up.dds"
+        end
+    end
+    error("Missing group header: " .. name)
 end
 local function Click(name)
     for _, row in ipairs(VisibleRows()) do
@@ -203,24 +211,56 @@ function this.GetTrackerPanelTests()
     local tests = {}
     local function Add(name, run) tests[#tests + 1] = { name = name, run = run } end
 
-    Add("Tracker opens all categories at the exact row budget and scans once", function()
-        Setup({ 2, 2 }, 6, false)
+    Add("Tracker opens preferred categories at the exact row budget without saving layout decisions", function()
+        Setup({ 2, 2 }, 6, true)
         this.RefreshItemTrackerPanel()
         Equal(#VisibleRows(), 6)
         assert(Expanded("group1") and Expanded("group2"))
         Equal(counters.scans, 1)
-        Equal(counters.writes, 2)
+        Equal(counters.writes, 0)
         this.RefreshItemTrackerPanel()
-        Equal(counters.writes, 2)
+        Equal(counters.writes, 0)
     end)
 
-    Add("Tracker manual collapse sticks until relevant content changes", function()
+    Add("Tracker manual collapse survives content, settings, reintroduction, and UI reload", function()
         Setup({ 2, 2 }, 6, true)
         this.RefreshItemTrackerPanel()
         Click("group1")
         this.RefreshItemTrackerPanel()
         assert(not Expanded("group1") and Expanded("group2"))
         Equal(#VisibleRows(), 4)
+        AddItem("group2")
+        this.accountWide.trackerMaxRows = 10
+        this.RefreshItemTrackerPanel("inventory")
+        assert(not Expanded("group1") and Expanded("group2"))
+        this.SetRuleFlag("group1", "bank", true)
+        this.RefreshItemTrackerPanel()
+        assert(not Expanded("group1") and Expanded("group2"))
+        this.RefreshItemTrackerPanel("settings")
+        assert(not Expanded("group1") and Expanded("group2"))
+        local ids = fixture.index.group1
+        fixture.index.group1 = {}
+        this.RefreshItemTrackerPanel("inventory")
+        fixture.index.group1 = ids
+        this.RefreshItemTrackerPanel("inventory")
+        assert(not Expanded("group1") and Expanded("group2"))
+        local writes = counters.writes
+        for _, row in ipairs(pooled) do row:SetHidden(true) end
+        assert(loadstring(TrackerPanelSource))()
+        this.RefreshItemTrackerPanel()
+        assert(not Expanded("group1") and Expanded("group2"))
+        assert(not SavedExpanded("group1") and SavedExpanded("group2"))
+        Equal(counters.writes, writes)
+        Click("group1")
+        assert(Expanded("group1") and SavedExpanded("group1"))
+    end)
+
+    Add("Tracker saved closed categories stay closed on initial layout even when everything fits", function()
+        Setup({ 2, 2 }, 6, false)
+        this.RefreshItemTrackerPanel()
+        assert(not Expanded("group1") and not Expanded("group2"))
+        Equal(#VisibleRows(), 2)
+        Equal(counters.writes, 0)
     end)
 
     Add("Tracker explicit expansion preserves others when it fits and collapses all others on overflow", function()
@@ -233,6 +273,10 @@ function this.GetTrackerPanelTests()
         Click("group3")
         assert(not Expanded("group1") and not Expanded("group2") and Expanded("group3"))
         Equal(#VisibleRows(), 6)
+        assert(SavedExpanded("group1") and SavedExpanded("group2") and SavedExpanded("group3"))
+        Equal(counters.writes, 3)
+        this.RefreshItemTrackerPanel()
+        assert(not Expanded("group1") and not Expanded("group2") and Expanded("group3"))
     end)
 
     Add("Tracker single-line fallback precedes collapse and preserves wrapping preference", function()
@@ -251,6 +295,7 @@ function this.GetTrackerPanelTests()
 
     Add("Tracker reserves count space before first-frame text measurement", function()
         Setup({ 1 }, 5, true, false, 80)
+        this.SetRuleFlag("miscellaneous", "isExpanded", true)
         counters.zeroTextWidths = true
         this.RefreshItemTrackerPanel()
 
@@ -340,6 +385,14 @@ function this.GetTrackerPanelTests()
         this.RefreshItemTrackerPanel("inventory")
         assert(Expanded("group1") and not Expanded("group2"))
         Equal(#VisibleRows(), 5)
+        assert(SavedExpanded("group1") and SavedExpanded("group2"))
+        Equal(counters.writes, 0)
+        this.RefreshItemTrackerPanel()
+        assert(Expanded("group1") and not Expanded("group2"))
+        fixture.items[fixture.index.group1[3]].bagCount = 0
+        this.RefreshItemTrackerPanel("inventory")
+        assert(Expanded("group1") and Expanded("group2"))
+        Equal(counters.writes, 0)
     end)
 
     Add("Tracker multi-category growth burst collapses all on overflow", function()
@@ -350,6 +403,24 @@ function this.GetTrackerPanelTests()
         this.RefreshItemTrackerPanel("inventory")
         assert(not Expanded("group1") and not Expanded("group2"))
         Equal(#VisibleRows(), 2)
+        assert(SavedExpanded("group1") and SavedExpanded("group2"))
+        Equal(counters.writes, 0)
+    end)
+
+    Add("Tracker clicks toggle the rendered state of automatically collapsed categories", function()
+        Setup({ 3, 3 }, 7, true)
+        this.RefreshItemTrackerPanel()
+        assert(not Expanded("group1") and not Expanded("group2"))
+        assert(SavedExpanded("group1") and SavedExpanded("group2"))
+        Click("group1")
+        assert(Expanded("group1") and not Expanded("group2"))
+        assert(SavedExpanded("group1"))
+        Click("group1")
+        assert(not Expanded("group1") and not SavedExpanded("group1"))
+        this.accountWide.trackerMaxRows = 8
+        this.RefreshItemTrackerPanel("settings")
+        assert(not Expanded("group1") and Expanded("group2"))
+        Equal(counters.writes, 2)
     end)
 
     Add("Tracker does not open a collapsed receiving category on overflow", function()
@@ -362,8 +433,8 @@ function this.GetTrackerPanelTests()
         Equal(#VisibleRows(), 6)
     end)
 
-    Add("Tracker configuration reintroduction does not displace open categories", function()
-        Setup({ 4, 4 }, 6, false)
+    Add("Tracker configuration reintroduction restores only preferred groups without displacing others", function()
+        Setup({ 4, 4 }, 6, true)
         this.RefreshItemTrackerPanel()
         Click("group1")
         this.SetRuleFlag("group2", "bank", true)
@@ -372,6 +443,22 @@ function this.GetTrackerPanelTests()
         this.accountWide.trackerMaxRows = 10
         this.RefreshItemTrackerPanel("settings")
         assert(Expanded("group1") and Expanded("group2"))
+    end)
+
+    Add("Tracker edited manually closed categories cannot reopen into spare space", function()
+        Setup({ 4, 4, 4 }, 8, true)
+        this.RefreshItemTrackerPanel()
+        Click("group2")
+        Click("group2")
+        this.SetRuleFlag("group2", "bank", true)
+        this.RefreshItemTrackerPanel()
+        assert(not Expanded("group1") and not Expanded("group2") and not Expanded("group3"))
+        Equal(#VisibleRows(), 3)
+        this.accountWide.trackerMaxRows = 11
+        this.RefreshItemTrackerPanel("settings")
+        assert(Expanded("group1") and not Expanded("group2") and Expanded("group3"))
+        assert(not SavedExpanded("group2"))
+        Equal(counters.writes, 3)
     end)
 
     Add("Tracker oversized category scrolls with a fixed header and clamps after shrinking", function()
@@ -590,13 +677,21 @@ function this.GetTrackerPanelTests()
         Equal(imported, reset + 1)
     end)
 
-    Add("Tracker final automatic expansion choices survive context reinitialization", function()
+    Add("Tracker context reinitialization discards temporary collapses but preserves manual choices", function()
         Setup({ 3, 3 }, 7, false)
         this.RefreshItemTrackerPanel()
         Click("group1")
         Click("group2")
         assert(not Expanded("group1") and Expanded("group2"))
         assert(this.accountWide.trackedRules.group2.display.isExpanded == true)
+        this.SetUseCharacterItemList(false)
+        this.RefreshItemTrackerPanel()
+        assert(not Expanded("group1") and not Expanded("group2"))
+        assert(SavedExpanded("group1") and SavedExpanded("group2"))
+        this.accountWide.trackerMaxRows = 8
+        this.RefreshItemTrackerPanel("settings")
+        assert(Expanded("group1") and Expanded("group2"))
+        Click("group1")
         this.SetUseCharacterItemList(false)
         this.RefreshItemTrackerPanel()
         assert(not Expanded("group1") and Expanded("group2"))

@@ -8,8 +8,6 @@ No active tasks at this time.
 
 ## Section B: 🐛 Bug Fixes (Pending)
 
-- **B2. Tracker Window Placement Persistence:** Save item tracker window
-  placement on a per-character basis while keeping other settings account-wide.
 - **B3. Item Transfer Edge Cases:** Audit and refine bank/chest transfer
   execution plans and stack merging helpers.
 
@@ -19,8 +17,6 @@ No active tasks at this time.
 
 - **C1. Tracker Panel UI Toolbar Additions:** Add dedicated toolbar buttons
   for **all-bank** mode and quick show/hide-zero filters.
-- **C2. Search Input Debounce:** Route the `FindBox` `OnTextChanged` handler in
-  the item editor through a short debounce queue (150-200ms).
 - **C3. Interaction Settings Control:** Add LAM options to individually
   configure whether the tracker snaps, hides, stays, or shifts on overlap for
   each interaction type (bank, store, inventory, fence).
@@ -115,6 +111,12 @@ They may be refined or discarded during future triage.
   the backpack worked. Stowing was not tested against the older code, so this
   is not an established event-filter regression. Impact is minor, and another
   event may refresh the tracker shortly afterward.
+- **F11. Search Input Debounce:** Consider a short debounce (150-200ms) for the
+  item editor's `FindBox` `OnTextChanged` handler only if a responsiveness issue
+  is observed. No search performance problem has been reported.
+- **F12. Per-Character Tracker Placement:** Consider saving the item tracker
+  window position separately for each character while keeping other settings
+  account-wide.
 
 Source design history: [Currency Preferences](Completed/CurrencyPreferences.md)
 and [Currency Panel Implementation Plan](Completed/CurrencyPanelImplementationPlan.md),
