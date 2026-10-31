@@ -21,7 +21,8 @@ No active tasks at this time.
 - **C4. Item Tracker Flags / Row Options (next editor task):** Keep quick
   Show/Notify controls and move bank inclusion/grouping into a row-options panel,
   before adding group-only AutoCategory participation. See the
-  [plan](Tasks/todo_plan_itemTrackerFlags.md).
+  [plan](Tasks/todo_plan_itemTrackerFlags.md) and
+  [implementation plan](Tasks/todo_implementation_itemTrackerFlags.md).
 - **C1. Tracker Panel UI Toolbar Additions:** Add dedicated toolbar buttons
   for **all-bank** mode and quick show/hide-zero filters.
 - **C3. Interaction Settings Control:** Add LAM options to individually
