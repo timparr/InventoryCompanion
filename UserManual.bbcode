@@ -30,7 +30,7 @@ The Currency Summary Panel and [B]Standalone Progress Bars[/B] are independent. 
 There are two different kinds of Notify settings:
 
 [LIST]
-[*][B]Item or group Notify:[/B] In the tracked-items editor, click an item's [B]Notify[/B] label to toggle an alert when the item is gained in the backpack. For a group, click [B]Notify[/B] on the group entry to alert for items matching that group's patterns. This is separate from [B]Show[/B]: an item can notify without being displayed on the tracker. Use the [B]Notify[/B] filter at the top of the editor to find entries whose notifications are enabled.
+[*][B]Item or group Notify:[/B] In the tracked-items editor, click [B]Notify[/B] to open [B]Notify Chat[/B] and [B]Notify HUD[/B] checkboxes for backpack/craft-bag gains. Select either destination, both, or neither. The detail beneath Notify reads Chat, HUD, Both, or None; None uses the normal inactive coloring. An item can notify without being displayed, even when the tracker panel is hidden. Individually tracked items and matching groups combine their destination requests into one notification per gain. Use the [B]Notify[/B] filter to find entries with either destination enabled.
 [*][B]Currency or capacity Notify:[/B] In [B]Currency Summary Panel[/B] settings, check [B]Notify[/B] on a currency or on [B]Backpack space[/B] / [B]Bank space[/B] to receive an alert when that resource changes. Currency notifications work even if the currency row is hidden. These settings are separate from item and group notifications.
 [/LIST]
 
@@ -42,9 +42,9 @@ Currency and capacity alerts combine rapid changes into a single update and supp
 
 [LIST=1]
 [*]Open the tracked-items editor.
-[*]To add an item currently in your inventory, right-click its item slot and choose [B]Add to Tracked Items[/B]. Alternatively, enable [B]Untracked[/B] in the editor. This will show ALL items you have, then you can just click [B]Show[/B] or [B]Notify[/B] on that item's row; this will add it to the current tracked list while enabling that option.
-[*]In the editor, click the item's [B]Show[/B] label to show or hide it on the tracker, and click [B]Notify[/B] to toggle gain alerts.
-[*]Click [B]Totals[/B] to include bank holdings in the displayed count. By default, the tracker focuses on backpack counts.
+[*]To add an item currently in your inventory, right-click its item slot and choose [B]Add to Tracked Items[/B]. Alternatively, enable [B]Untracked[/B], open Show or Notify on an item row, and change a checkbox to add it to the current list. Opening a box alone does not track an item.
+[*]Click [B]Show[/B] to choose [B]Show backpack[/B] and [B]Show bank[/B] independently. Backpack includes craft-bag holdings with ESO Plus. Neither hides the item without disabling its notifications.
+[*]The detail beneath Show reads Backpack, Bank, Both, or None. Backpack-only shows carried stock; bank-only shows bank holdings; Both retains the overall-total / backpack count format. Changes apply immediately. Click away or the same control to close a box; changing filters, scrolling, or leaving the editor also closes it.
 [*]Click the remove button on an item row to remove that item from the tracking list.
 [/LIST]
 
@@ -64,7 +64,7 @@ A category that is too large on its own, an oversized flat list, or too many cat
 [*]Open the tracked-items editor and select [B]Edit Groups[/B].
 [*]Select [B]+ New Group[/B]. A new group is created and its name field opens; enter a name and press Enter or move focus away to save it.
 [*]Select [B]+ Add Pattern[/B] to add a matching rule. Enter an item-name pattern, then move focus away from the field to save it. A green deposit (IN) icon before each row identifies an Include rule; a red withdraw (OUT) icon identifies an Exclude rule. Hover over the icon for an explanation. Use the small swap button after the pattern to change its kind; hover over the button to see what it will do. Changing a rule's kind moves it to the Include section or the Exclusions section below. A group includes an item when it matches at least one Include pattern and no Exclude patterns. For example, include [B]*treasure map*[/B] and add [B]*cyrodiil*[/B] as an Exclude to keep Cyrodiil treasure maps out of that group. Exclusions narrow only this group; the item may still match other groups or be tracked individually. Matching ignores letter case, and [B]*[/B] matches any part of an item name.
-[*]Return to [B]Edit Items[/B] to adjust the group's [B]Show[/B], [B]Notify[/B], [B]Totals[/B], and [B]Group[/B] settings. [B]Notify[/B] alerts when a matching item is gained; [B]Totals[/B] includes bank holdings; [B]Group[/B] controls whether the rule is displayed as a group on the tracker.
+[*]Return to [B]Edit Items[/B]. The group's [B]Show[/B] box contains [B]Display items together[/B], [B]Show backpack[/B], and [B]Show bank[/B]. Grouping adds ", grouped" to the detail while the group is shown. The [B]Notify[/B] box independently selects Chat and HUD gain alerts. Changing a group does not overwrite individually tracked item settings.
 [*]In [B]Edit Groups[/B], use the group action buttons to hide/unhide or delete a custom group. Resetting a predefined group restores only its name and pattern list to the current addon defaults. All display settings, including hidden state, are retained. The [B]Miscellaneous[/B] group is a special catch-all and does not have editable patterns.
 [/LIST]
 

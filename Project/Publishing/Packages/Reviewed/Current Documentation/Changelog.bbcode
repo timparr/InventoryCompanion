@@ -3,6 +3,11 @@
 [SIZE="2"][B]Unreleased[/B][/SIZE]
 
 [LIST]
+[*]Upgraded saved-variable schema to version 3 before loading profiles, preserving existing settings and protecting shared DEV/release data from incompatible older builds. Older schema 2 builds refuse the upgraded data; downgrading requires restoring a compatible backup with the game closed.
+[*]Replaced the item editor's separate Group/Totals toggles with aligned two-line Show and Notify controls that open compact checkbox boxes. Details summarize selected settings; None retains the existing inactive coloring.
+[*]Added independent backpack and bank display choices, including bank-only counts, and separate Chat/HUD pickup notification destinations. Existing preferences inherit their previous behavior.
+[*]Notification destinations combine requests from individually tracked items and matching groups without duplicating each gain. Notifications remain active when the tracker is hidden; burst suppression never redirects to a destination you disabled.
+[*]Editor flag changes and removal reject obsolete row/profile targets. Checkbox boxes close on click-away, scrolling, or editor changes, and rebind safely after edits.
 [*]Added Include/Exclude controls to group pattern rows. A green deposit (IN) or red withdraw (OUT) status icon identifies the current kind, and a compact swap button changes it; hover for explanations. Exclusions narrow only their own group, and existing patterns remain Includes.
 [*]Group pattern rows are organized with Includes first and Excludes below a divider; changing a row's kind moves it to the matching section.
 [/LIST]

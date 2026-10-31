@@ -68,6 +68,7 @@ function ZO_Dialogs_ShowDialog(name, data) dialogs[name].buttons[1].callback({ d
 function zo_callLater(callback) callback() end
 function SetGameCameraUIMode() end
 this.RefreshItemTrackerPanel = function() hudRefreshes = hudRefreshes + 1 end
+this.UpdateEventRegistry = function() end
 this.Utils = { UserWarning = function(message) error(message) end, UserMessage = function() end }
 
 local function Click(control)

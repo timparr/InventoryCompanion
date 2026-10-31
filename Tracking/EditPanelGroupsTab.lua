@@ -663,6 +663,7 @@ function this.RefreshGroupsEditor()
     PopulateGroupListPane(groupNames, activeRules)
     PopulateSingleGroupPane(activeRules)
 	SetActionButtons(activeRules)
+    this.UpdateEventRegistry()
 end
 
 ------------------------------------------------------------------

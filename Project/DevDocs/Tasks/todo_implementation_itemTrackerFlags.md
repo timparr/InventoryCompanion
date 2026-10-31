@@ -1,222 +1,214 @@
 # Item tracker editor flags and row options: implementation
 
-Status: Planned; current code inspected on 2026-10-30. No runtime changes or
-in-game approval recorded. This is the implementation companion for the
-extended Show/Notify editor work, not a completed implementation record.
+Status: In progress on `feature/item-tracker-row-options`, branched from main
+after the group-pattern branch was fast-forward merged on 2026-10-31.
+The two-line layout and compact Show/Notify boxes were approved conversationally
+on 2026-10-31. Runtime and editor implementation is in place; 99/99 isolated
+tests passed, including Lua 5.1 syntax and existing performance limits. Changed
+XML/SVG and whitespace/link checks passed. Final ESO rendering, interaction,
+and reload approval remain pending.
+This is not a completed implementation record.
 
 Feature behavior and compatibility requirements are in the
-[feature plan](todo_plan_itemTrackerFlags.md). This document follows the
-implementation process: saved values and mutation, editor presentation, popup
-lifecycle, then verification. Recommend a separate branch before substantive
-editor work and obtain approval before switching.
+[feature plan](todo_plan_itemTrackerFlags.md). The approved design replaces the
+earlier quick-toggle / Options proposal and includes independent display
+locations and Chat/HUD delivery now, not as a later destination extension.
 
-## 1. Preserve saved values and mutation targets
+## 1. Resolve and save independent settings
 
-### Current behavior
+### Representation and legacy compatibility
+
+In [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua), add optional
+boolean display flags `showBackpack`, `showBank`, `notifyChat`, and `notifyHud`.
+Keep `group` for grouping, plus legacy `show`, `bank`, and `notify` values.
+New editor actions write only the selected new flag or `group`.
+
+`ResolveItemDisplay(display)` creates a resolved view without changing saved
+data. Missing location flags derive from legacy Show/Totals; missing delivery
+flags derive from legacy Notify. Explicit false is significant:
+
+- `showBackpack`: defaults to legacy `show ~= false`.
+- `showBank`: defaults to legacy Show enabled and `bank == true`.
+- `notifyChat` / `notifyHud`: each defaults to legacy `notify == true`.
+- Resolved `show` and `notify` represent whether any location/destination is on.
+
+Set `SettingsVersion = 3` to protect against older builds that cannot safely
+read/preserve the new fields, despite the additive representation. Existing
+rule delta arrays are unchanged.
+
+`PrepareSavedVariables()` validates every account/profile and constructs all
+upgrade work before publishing changes. Version 2 profiles retain their saved
+tables and settings and receive only the version 3 marker. Version 1 profiles
+also undergo the existing sparse-rule conversion. Publish upgraded versions
+before ZOS constructors run, preventing their destructive old-version reset.
+Already-current data is not remigrated; unknown future versions are rejected.
+
+An actual schema 2 build from commit `9dc0e12` is executed in the isolated
+regression suite to prove version 3 is rejected before unknown-flag validation,
+without changing account or inactive-profile data. Downgrading requires a
+compatible saved-data backup restored with ESO closed; switching DEV/release
+does not create separate saved variables.
+
+In-game evidence (2026-10-31): user tested loading DEV, then switching to the
+older release, and confirmed it throws as expected. This confirms downgrade
+rejection in game; settings preservation after switching back to DEV has not
+yet been reported. Row rendering and interaction acceptance remain pending.
+
+### Validation, sparse writes, and import
+
+- Validate new flags at saved-data loading/import boundaries, including inactive
+  profiles. Reject malformed recognized values before migration/import publishes
+  changes; preserve unrelated fields.
+- `UpdateRuleFlag()` accepts the new keys and prunes values matching their
+  inherited legacy/default behavior. `NormalizeRule()` uses the same default
+  calculation; do not lose explicit false overrides.
+- `CopyProfile()` copies independent fields without aliasing the source.
+- `GetRuntimeRules()` publishes resolved rule display views;
+  `GetActiveTrackedRules()` continues returning editor copies.
+- Individual item editors write the current active saved table. Untracked rows
+  promote only on an actual edit, preserving link, icon, and other settings.
+
+## 2. Select counts and notification destinations
+
+### Tracker counts
+
+In [Tracking/ItemTrackerPanel.lua](../../../Tracking/ItemTrackerPanel.lua):
+
+- Honor both location flags for grouped headers/members, flat lists, individual
+  items, and the per-item policies folded into Miscellaneous.
+- The scan snapshot's `bankCount` is the overall total, not bank-only stock.
+  Calculate bank-only holdings as `bankCount - bagCount`; do not double-count
+  backpack holdings.
+- Backpack-only displays its carried count; bank-only displays bank holdings;
+  both retains the current `total \ backpack` presentation.
+- Zero-stock eligibility follows selected locations. Neither location hides
+  the relevant source without untracking or suppressing other matching sources.
+- Include location policy in layout signatures without changing expansion,
+  overflow limits, row budgets, or saved collapse preferences.
+
+### Pickup notifications
+
+`HandleTrackedItemInventoryUpdate()` in
+[Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) unions Chat/HUD
+requests from individual settings and all visible matching rules, then emits
+at most one notification per gain with only selected message arguments.
+Retain the existing positive-gain detection and backpack/craft-bag event scope.
+Hidden rules and Include/Exclude vetoes do not contribute destinations.
+
+In [Core/Utils.lua](../../../Core/Utils.lua), the item notification call opts
+into destination-restricted duplicate/burst handling. Do not generate a HUD
+"check chat" prompt for Chat-only delivery or redirect HUD-only bursts to chat.
+Other warning callers, including currency/capacity messages, keep their existing
+limiter behavior.
+
+`HasTrackedItemNotifications()` participates in the slot-listener condition in
+[Core/Events.lua](../../../Core/Events.lua), so hiding the HUD does not disable
+requested pickup delivery. Editor mutations update listener registration.
+
+## 3. Render aligned row controls and compact boxes
+
+In [Tracking/EditPanelItemsTab.xml](../../../Tracking/EditPanelItemsTab.xml):
+
+- Preserve the 810-pixel row width; use a 52-pixel two-line row and 54-pixel
+  spacing. Show/Notify are native buttons with title and detail labels.
+- Reserve 190 pixels for Show and 120 for Notify. The future full AutoCategory
+  label goes last, before the individual Remove X; its column is zero width
+  while integration is disabled or unavailable. Anchor the item label between
+  the row's left edge and Show so it receives the released space.
+- Keep required label fonts readable. Use the existing warm
+  `(1.0, 0.94, 0.76)` color with active/inactive opacity, not literal grey.
+- Use one clamped, high-tier native backdrop with three reusable checkbox rows.
+  Show has grouping (groups only), backpack, and bank; Notify has Chat and HUD.
+  No heading, explanatory section, Done button, confirmation tick, or Options.
+- AutoCategory participation remains a separate integration task. When enabled,
+  its column width must be consistent across rows, regardless of individual
+  group participation; no functional-looking placeholder is shipped now.
 
 In [Tracking/EditPanelItemsTab.lua](../../../Tracking/EditPanelItemsTab.lua):
 
-- `CollectTrackedItems()`, `CollectWildcardRules()`, and
-  `CollectUntrackedItems()` produce individual, group, and untracked row entries.
-- `ToggleState(entry, flagKey, refreshCallback)` changes one entry's flag.
-  Group rows call `SetRuleFlag()`; tracked items write their active saved
-  `display` table; untracked items become tracked with their link, icon, and
-  current four display flags.
-- There is no selected-row or bulk mutation in this row-toggle path. A group
-  toggle changes the group flag, not its members' individual saved flags.
-- Each row action's callback refreshes the item editor and tracker panel.
+- `ConfigureRowStateStyles()` renders Backpack / Bank / Both / None under Show,
+  with ", grouped" when enabled and displayed. Notify detail is Chat / HUD /
+  Both / None. No parentheses.
+- `OpenRowOptions()` binds current effective settings, applies checkbox and
+  label actions through explicit `SetEntryFlag()` boolean writes, and anchors
+  the box below the control or above when necessary.
+- Each edit refreshes the editor and tracker once, then reopens/rebinds the box
+  to the current target if that row still passes the active filters.
+- `ShouldIncludeEntry()` and import-preview counts use effective flags:
+  Show means either location, Notify means either destination, Inactive means
+  neither display nor notification.
 
-In [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
+## 4. Keep popup actions tied to their row and profile
 
-- `GetActiveTrackedRules()` returns editor view copies. Do not persist edits
-  by modifying those copies alone or mutate the cached runtime display table.
-- `SetRuleFlag` aliases `UpdateRuleFlag()`, which validates the key/value,
-  prunes overrides matching defaults, and invalidates the rule cache.
-- `SetUseCharacterItemList()` changes profile selection and increments the
-  tracker context revision. `CopyProfile()` replaces active data and increments
-  it too. `GetTrackerContext()` returns the saved-rules table and revision.
+- Capture stable key, row kind, editor revision, saved-rules table, and context
+  revision. Resolve current authoritative data when applying an action.
+- Clear popup state at list rebuild, effective editor hide, scrolling,
+  click-outside, same-control click, and Escape. Never save popup state.
+- Clearing rule overrides refreshes both editors and the tracker; profile
+  switches/imports and rule-editor refreshes update listener registration.
+- Use native checkbox controls and the same global mouse-down / mouse-over
+  ancestry pattern already used by installed addons/libraries. Preserve native
+  scroll handling through a prehook, not handler replacement.
+- Invalidate old popup callbacks on dismissal/retargeting. Assert stale internal
+  action contracts before writing; do not return success or silently redirect
+  to recycled rows, another profile, or a deleted item.
+- Verify actual ESO keyboard dispatch, Escape/editor lifecycle, clamping,
+  scroll hooks, fonts, and mouse propagation in game. Headless control mocks
+  and valid XML do not prove native rendering or input behavior.
 
-### Saved-variable changes
+## 5. Verification and completion
 
-- **No schema change:** retain `display.show`, `display.notify`,
-  `display.bank`, and `display.group`; do not save popup state.
-- **No migration/version bump:** preserve existing defaults and legacy/import
-  handling. Group flags continue using sparse deltas; individual items retain
-  their existing stored representation.
-- Leave rule normalization, reset, profile copy, and bank/count calculation
-  unchanged unless a concrete regression requires a directly related fix.
+### Automated coverage
 
-### Mutation changes
+Extend existing suites rather than changing live inventory or saved variables:
 
-Keep a small shared write path in the existing item-editor module for quick
-toggles and popup checkboxes. If factoring `ToggleState()`, use an explicit
-boolean setter so a checkbox applies its requested state rather than toggling
-twice through both label and checkbox handlers.
+- [Core/RuleTests.lua](../../../Core/RuleTests.lua): legacy inheritance, explicit
+  independent flags, sparse pruning, malformed saved/import values, destination
+  union, hidden/excluded rules, and no-output behavior.
+- [Project/Tests/RulePersistenceTests.lua](../../Tests/RulePersistenceTests.lua):
+  serialization/reload/import of explicit independent flags without runtime data.
+- [Project/Tests/TrackerPanelTests.lua](../../Tests/TrackerPanelTests.lua):
+  exact selected-location counts for grouped, flat, single-member Miscellaneous,
+  and individual display, plus existing expansion/performance checks.
+- [Project/Tests/ItemEditorTests.lua](../../Tests/ItemEditorTests.lua): all
+  Show/Notify summaries, color/opacity, one write/refresh per click, untracked
+  promotion, current-data rebinding, and stale profile/row/popup protection.
+- [Project/Tests/ItemNotificationTests.lua](../../Tests/ItemNotificationTests.lua):
+  duplicate/burst delivery never escapes selected destinations; unrelated
+  warning delivery stays unchanged.
 
-- Resolve the current entry by stable key, row kind, and captured profile
-  context before writing; do not retain a pooled row or stale `entry.data`
-  as the authority.
-- For groups, read effective values and write through `UpdateRuleFlag()`.
-- For tracked items, write through the current `GetActiveTrackedItems()` table.
-- For untracked items, retain current promotion semantics and all other flag,
-  link, and icon values. Opening Options must not promote an item.
-- Preserve the effective Show default (`show ~= false`) when calculating the
-  new state, including an absent optional saved flag.
-- Apply one logical mutation, then one editor refresh and one tracker refresh.
-  Do not add an inventory scan or notification merely for opening the popup.
+Use [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py), optionally
+`--item-editor-only` for focused editor runs. Check Lua 5.1 syntax, changed XML,
+and whitespace. The in-game listener diagnostic isolates the new query from
+real user preferences when exercising its synthetic scenarios.
 
-### Saved-data regression tests
+### In-game acceptance still required
 
-Use the existing rule and persistence suites in
-[Core/RuleTests.lua](../../../Core/RuleTests.lua) and
-[Project/Tests/RulePersistenceTests.lua](../../Tests/RulePersistenceTests.lua):
+1. Labels/details align at the normal window width. None uses existing inactive
+   coloring; AutoCategory column collapses when integration is off, giving
+   item names more room without misaligning Show/Notify.
+2. Both popup types render correctly, labels toggle once, changes stay visible
+   for a second edit, and click-away/same-control/Escape dismiss safely.
+3. Filtering, scrolling, removal, importing, profile/tab switching, and hiding
+   cannot leave a stale popup or write to a different target.
+4. Backpack-only, bank-only, both, and neither produce the documented counts
+   and zero-stock behavior, including Miscellaneous and craft-bag holdings.
+5. Chat-only, HUD-only, both, and neither deliver correctly with the tracker
+   hidden; overlapping groups do not duplicate a gain message.
+6. Reload retains flags but not an open popup; existing profile data and
+   saved expansion choices survive.
 
-- Editing bank/group creates only the necessary sparse group override;
-  restoring the default prunes it without losing unrelated settings.
-- Individual edits change only the intended key and flag.
-- Untracked promotion preserves the other flags, link, and icon.
-- Account and character profiles remain isolated; import/reload preserves
-  values and never serializes popup target/control state.
-
-## 2. Present quick toggles and the Options panel
-
-### Row layout
-
-Change [Tracking/EditPanelItemsTab.xml](../../../Tracking/EditPanelItemsTab.xml):
-
-- In `InventoryCompanion_TrackedItemRow_Template`, retain the item label,
-  Show, Notify, and remove control.
-- Replace the Group/Totals row labels with a discoverable Options button.
-  Re-anchor right-to-left controls so Show / Notify / Options / Remove fit
-  without reducing the existing readable font.
-- Add one initially hidden options panel with a target heading and Tracker
-  section. Use existing ESO backdrop/button/checkbox patterns; verify a
-  suitable native popup pattern before choosing its dismissal mechanism.
-- Offer Include banked items for all row kinds and Group items together only
-  for groups. Do not add functional destination or AutoCategory placeholders.
-
-Change [Tracking/EditPanelItemsTab.lua](../../../Tracking/EditPanelItemsTab.lua):
-
-- Update `ConfigureRowStateStyles()` and `ConfigureRowClickHandlers()` to
-  retain quick Show/Notify and open Options for the current entry.
-- Move the group-only visibility responsibility out of
-  `ConfigureRowTextAndRemoval()` and into options-panel binding.
-- On opening, read current effective settings and display the target name.
-  Bind label/checkbox actions to the same explicit-value write path.
-- Preserve `ShouldIncludeEntry()` filter/search semantics and row removal.
-  Do not change tracker visibility policy as part of an editor relabeling.
-
-Confirm a small layout mockup and wording before substantive UI implementation.
-Keep the implementation local; two existing flags do not justify a generic
-settings framework or another full editor window.
-
-## 3. Bind popup lifetime to its target and profile
-
-Use one transient target record containing row kind, stable item/rule key, and
-both values returned by `GetTrackerContext()`. Read current data when applying
-an action. Never identify the target by list index or a pooled control.
-
-In [Tracking/EditPanelItemsTab.lua](../../../Tracking/EditPanelItemsTab.lua):
-
-- Close the panel at the start of `RefreshTrackedItemsEditor()`, before
-  `HideAllRows()` and row rebinding. This covers edits, search/filter changes,
-  deletion, and normal profile-switch/import refreshes.
-- Close on editor `OnEffectivelyHidden` as well as relevant scene hiding;
-  the current editor already uses effective-visibility hooks because scene
-  callbacks alone have not been reliable.
-- Close on scrolling and anchor invalidation. Inspect the actual scroll
-  control callbacks before wiring them; do not assume row virtualization
-  or an API name based only on the pooled-row design.
-- Opening another row closes/retargets the same panel. A successful edit may
-  close it through the existing refresh; reopening shows the new value.
-- Invalidate old callbacks when closing or retargeting. Expected dismissal
-  must never write. If an action reaches the write path with an invalid
-  maintained target/context, assert the violated contract rather than silently
-  writing to the new profile or returning success.
-
-Review [Tracking/EditPanelTabManager.lua](../../../Tracking/EditPanelTabManager.lua)
-for group-tab, settings, and toggle-close transitions. Reuse effective-hide
-cleanup where it fully covers these paths; add an explicit close call only
-where needed. Do not replace existing handlers or discard layout/camera work.
-
-Verify Escape, click-outside dismissal, focus, edge clamping, and event
-propagation in ESO. Do not treat XML validity as proof of native popup behavior.
-
-## 4. Reserve later extensions without implementing them
-
-AutoCategory remains governed by its separate
-[plan](todo_plan_autocategoryIntegration.md) and
-[implementation investigation](todo_implementation_autocategoryIntegration.md).
-It can add a group-only section after this panel is working.
-
-For a later chat/screen destination stage, inspect:
-
-- `HandleTrackedItemInventoryUpdate()` in
-  [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua): today it
-  checks the individual Notify flag, then visible matching rules if needed,
-  and emits one `Utils.UserWarning(chat, hud)` for a positive gain.
-- Notification helpers and duplicate suppression in
-  [Core/Utils.lua](../../../Core/Utils.lua): destination routing must not
-  accidentally change currency/capacity messages or diagnostic/error delivery.
-
-Before implementation, settle master-toggle meaning, destination
-defaults/inheritance, global-setting interaction, overlap resolution, and
-saved-data compatibility. Then extend matching, delivery, loading/import,
-editor filters, and tests together. Do not infer an approved destination model
-from the two proposed checkbox labels.
-
-## 5. Documentation and completion checks
-
-### Automated regression checks
-
-Extend the isolated Lua 5.1 harness in
-[Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py) with item-editor
-control mocks and focused tests when implementing this feature. It currently
-loads the group editor, not the item editor; existing passing suites alone
-cannot verify this popup.
-
-Test exact writes and refresh counts alongside values:
-
-1. Quick Show/Notify preserve defaults, filters, and one-click behavior.
-2. Bank/group checkbox and label clicks perform exactly one requested change.
-3. Group-only controls are absent on tracked and untracked item rows.
-4. Opening, retargeting, and closing the panel perform zero saved writes.
-5. Rebuild, scroll, delete, import, profile switch, tab switch, and hide
-   invalidate old actions before any write; recycled rows cannot redirect them.
-6. An edit refreshes editor/tracker once each and reopening shows current values.
-7. Include/exclude matching, independent item overrides, and Miscellaneous
-   display remain unchanged.
-
-Run the smallest existing test command covering the changes. Extend mocks only
-for required control interactions; keep fixtures isolated from live inventory
-and saved variables. Run whitespace/XML checks for changed files and relevant
-in-game diagnostic tests; escalate broader suites only if focused results
-require it.
-
-### In-game acceptance
-
-- Both item and group rows clearly show Show / Notify / Options at the existing
-  supported window size; labels are readable and do not overlap Remove.
-- Items offer bank inclusion; groups offer bank inclusion and grouping.
-  Counts and grouping behavior match the previous controls.
-- Popup name/values match the active row/profile. Scrolling, filtering,
-  importing, deleting, switching tabs/profiles, and closing cannot cause a
-  stale action, orphan popup, or write to another target.
-- Escape, outside clicks, edge anchoring, and label/checkbox interaction work
-  without duplicate toggles or accidental row actions.
-- Reload preserves flags but not popup state. No later-extension control
-  appears functional before its implementation exists.
-
-Update [UserManual.bbcode](../../../UserManual.bbcode) for the visible renamed
-controls and Options interaction, plus the authoritative working changelog
-from actual implemented changes. Follow the
-[release checklist](../../Publishing/ReleaseChecklist.md) for version
-recommendation and release steps. Mark both documents completed and move them
-to Completed only after automated checks and final in-game approval.
+Update [UserManual.bbcode](../../../UserManual.bbcode) and the authoritative
+working changelog from actual changes. Keep these plans in Tasks until final
+automated and in-game approval. Follow the
+[release checklist](../../Publishing/ReleaseChecklist.md) before staging;
+the cumulative backward-compatible feature work warrants a minor-version
+recommendation, not an automatic version change or release.
 
 ## Dependencies
 
-Stage 1 establishes the shared mutation contract required by stages 2 and 3.
-Presentation and lifecycle must ship together: do not expose a popup without
-stale-target protection. Stage 5 follows implementation and verification.
-Stage 4 records follow-on scope, not a dependency or permission to add it now.
+Saved flag interpretation precedes count/delivery and editor writes. Presentation
+and lifecycle ship together. Documentation/tests follow implementation.
+AutoCategory registration, partition ownership, ordering, and optional-addon
+compatibility remain governed by its separate
+[plan](todo_plan_autocategoryIntegration.md).

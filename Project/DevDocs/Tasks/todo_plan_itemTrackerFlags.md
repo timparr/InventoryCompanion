@@ -1,57 +1,89 @@
 # Item tracker editor flags and row options
 
-Status: Planned; reviewed on 2026-10-30. No runtime changes made. Complete
-this editor improvement before AutoCategory integration.
+Status: In progress as of 2026-10-31. Two-line layout approved; independent
+display locations, notification destinations, and editor popups implemented.
+Automated checks passed (99/99 isolated tests); final in-game approval remains pending.
+Complete this editor improvement before AutoCategory integration.
 
 ## Goal
 
 Make the extended Show/Notify row settings easier to understand and leave room
 for additional options without adding columns or shrinking text. Replace the
-existing Group / Totals / Show / Notify controls with quick Show and Notify
-toggles plus one discoverable Options control.
+existing Group / Totals / Show / Notify controls with aligned, two-line Show
+and Notify controls that open compact checkbox boxes.
 
 ## User experience and behavior
 
 ```text
-Item or group name                     Show   Notify   Options...
+Item or group name          Show                  Notify        AutoCategory
+                           Backpack, grouped     Both
 
-Options for <item or group name>
-
-Tracker
-[ ] Include banked items
-[ ] Group items together       (group rows only)
+Show box                         Notify box
+[ ] Display items together       [ ] Notify Chat
+[ ] Show backpack                [ ] Notify HUD
+[ ] Show bank
 ```
 
-- Show and Notify remain one-click toggles with their current behavior.
-- Options opens a compact checkbox panel anchored to that row's button, not a
-  second full editor window. Use an explicit label/button; a settings summary
-  may appear in its tooltip but must not replace the entry point.
-- Rename **Totals** to **Include banked items** and **Group** to **Group items
-  together**. Grouping remains available only on group/rule rows.
+- Show and Notify each open their own box anchored to the clicked control.
+  Only one live box opens at a time. No heading, explanatory section, Done,
+  confirmation tick, or separate Options button.
+- Display items together is group-row-only. Show backpack and Show bank are
+  independent: backpack-only, bank-only, both, or neither. Backpack includes
+  craft-bag holdings with ESO Plus, matching the existing carried-item scope.
+- Both locations preserve the existing total/backpack count format. Bank-only
+  shows only bank holdings; neither hides that item/group from the tracker.
+- Notify Chat and Notify HUD independently request pickup delivery. There is
+  no additional master Notify checkbox. Neither disables notifications.
+- Show's detail is Backpack, Bank, Both, or None, followed by ", grouped" for
+  a shown grouped rule. Notify's detail is Chat, HUD, Both, or None.
+- Fixed-width columns align labels and detail lines across row types.
+  Disabled controls use the existing warm color at reduced opacity, not a
+  literal grey palette, and remain clickable. Do not use parentheses.
 - Apply changes immediately using the current mutation paths; no Apply/save
-  transaction. Opening or closing Options alone must not track or modify an item.
+  transaction. Opening or closing a box alone must not track or modify an item.
+  Keep the box open for another edit by rebinding after refresh when the target
+  still appears under the active filters.
 - Preserve each action's current target set, including promotion of an
   untracked item when one of its flags is changed. Do not introduce bulk editing.
-- Use normal readable fonts at the existing supported window size. Confirm
-  wording, dimensions, and popup interaction before substantive UI work.
-- Only one Options panel may be open. Show its target name and make checkbox
-  labels clickable without triggering another row action.
+- Keep the existing readable fonts and window width. Make checkbox labels
+  clickable without triggering another row action.
 - Close on list rebuild, scrolling, filter changes, deletion, profile
   switch/import/reset, tab change, or editor hide. Never apply an old callback
   to a recycled row or another profile.
-- Escape and click-outside dismissal, focus, anchoring, and screen-edge
-  behavior must be verified in ESO. Popup state is transient and never saved.
+- Clicking away or the same control closes the box. Escape, focus, anchoring,
+  and screen-edge behavior must be verified in ESO. Popup state is transient
+  and never saved.
 
 ## Compatibility
 
-- Reuse the existing `show`, `notify`, `bank`, and `group` display flags.
-  Moving/renaming controls requires no new saved fields or schema/version bump.
+- Add optional `showBackpack`, `showBank`, `notifyChat`, and `notifyHud` flags;
+  retain legacy `show`, `bank`, `notify`, and `group` data. Absent new flags
+  inherit the old effective behavior without eagerly rewriting profiles.
+- Old Show off maps to neither location; Show on maps to backpack and optionally
+  bank through Totals. Old Notify on maps to both destinations, off to neither.
+- Group overrides remain sparse. Saved-variable version increases to 3 because
+  older builds cannot safely interpret/preserve these fields. Validate every
+  profile before publishing any upgrade, and update versions before ZOS
+  constructors can reset data. Version 2 needs only a version-marker upgrade;
+  version 1 also follows the existing sparse-rule conversion.
+- Schema 2 builds reject version 3 before inspecting new flags, preserving
+  data but refusing to initialize. Downgrading requires a compatible backup
+  restored with ESO closed; DEV and release share saved variables.
+- In-game downgrade test on 2026-10-31: user confirmed the older release throws
+  after loading DEV. Settings preservation after switching back to DEV has not
+  yet been reported.
 - Preserve defaults, sparse group overrides, account/character selection,
   profile import, and reload persistence.
 - Preserve Show/Notify/Mute/Untracked filters, search, individual tracking,
   group overlap, include/exclude matching, and Miscellaneous behavior.
-- Do not change bank scanning, notification delivery, tracker layout/height
-  policy, or saved expansion preferences.
+- Union notification destinations requested by individual items and all visible
+  matching groups, emitting at most one message per gain. Hidden groups and
+  local pattern exclusions do not contribute. Display remains independent.
+- Keep notification listeners active when notifications are enabled even with
+  the tracker hidden. Existing gain detection and duplicate/burst suppression
+  remain; suppression must never redirect to an unselected destination.
+- Preserve bank scanning, tracker layout/height policy, saved expansion
+  preferences, and currency/capacity notification behavior.
 - Required addon functions and established internal state remain fail-fast.
   Validate externally controlled data at the loading/import boundary rather
   than concealing broken internal contracts with fallback values.
@@ -61,19 +93,13 @@ Tracker
 ### AutoCategory
 
 After the separate [integration](todo_plan_autocategoryIntegration.md) works,
-add a group-only **Create AutoCategory group** checkbox under an Inventory
-categories section. Participation is independent of Show, grouping, and
-expansion. Do not display a working-looking control or save a placeholder flag
-before delivery exists.
-
-### Notification destinations
-
-A later Notifications section may offer **Notify to chat** and **Notify to
-screen**, using this same Options panel rather than separate Show/Notify
-popups. This is not yet an approved delivery design. Decide quick Notify/master
-toggle behavior, destination defaults and inheritance, interaction with global
-settings, and overlapping item/group requests before adding saved fields or
-functional controls. Preserve current quick Notify behavior in the first stage.
+add the full **AutoCategory** label last, after Notify, as a group-only toggle.
+Participation is independent of Show, grouping, and expansion. The column has
+zero width when integration is disabled or unavailable (including now), giving
+the space back to item names. When enabled, reserve the same column width across
+all row types to preserve alignment, even for groups not participating.
+Do not display a working-looking control or save a placeholder flag before
+integration exists.
 
 ## Implementation details
 

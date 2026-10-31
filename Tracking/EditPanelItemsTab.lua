@@ -2,6 +2,25 @@ local this = InventoryCompanion
 
 local editorRows = {}
 local searchQuery = ""
+local editorRevision = 0
+local optionsTarget
+local optionsEventName = this.Name .. "_ItemRowOptions"
+
+function this.CloseItemRowOptions()
+    optionsTarget = nil
+    InventoryCompanion_ItemRowOptions:SetHidden(true)
+    EVENT_MANAGER:UnregisterForEvent(optionsEventName, EVENT_GLOBAL_MOUSE_DOWN)
+end
+
+InventoryCompanion_ItemRowOptions:SetHandler("OnKeyDown", function(_, key)
+    if key == KEY_ESCAPE then this.CloseItemRowOptions() end
+end)
+InventoryCompanion_ItemRowOptions:SetHandler("OnEffectivelyHidden", function()
+    optionsTarget = nil
+    EVENT_MANAGER:UnregisterForEvent(optionsEventName, EVENT_GLOBAL_MOUSE_DOWN)
+end)
+ZO_PreHookHandler(GetControl(InventoryCompanion_TrackedItemsWindow, "ScrollContainer").scroll,
+    "OnScrollOffsetChanged", function() this.CloseItemRowOptions() end)
 
 ------------------------------------------------------------------
 -- DBCopy Helpers & Data Migration Logic
@@ -87,10 +106,10 @@ local function GetProfileDetailedCounts(profileKey)
             if block and block.trackedItems then
                 for _, data in pairs(block.trackedItems) do
                     total = total + 1
-                    local display = data.display
-                    if display.show ~= false then showCount = showCount + 1 end
+                    local display = this.ResolveItemDisplay(data.display or {})
+                    if display.show then showCount = showCount + 1 end
                     if display.notify then notifyCount = notifyCount + 1 end
-                    if display.bank then bankCount = bankCount + 1 end
+                    if display.showBank then bankCount = bankCount + 1 end
                     if display.group then groupCount = groupCount + 1 end
                 end
             end
@@ -114,6 +133,7 @@ local function ExecuteCopy(sourceKey)
         this.Utils.UserMessage("Profile and rule overrides imported successfully!", "Item Tracker Imported")
         this.RefreshTrackedItemsEditor()
         this.RefreshItemTrackerPanel()
+        this.UpdateEventRegistry()
     else
         this.Utils.UserError("Failed to access source or destination saved variables.", "Import Error")
     end
@@ -127,10 +147,10 @@ local function OnCopyButton(sourceKey, sourceDisplayName)
         local currentList = InventoryCompanion.GetActiveTrackedItems()
         for _, data in pairs(currentList) do
             destTotal = destTotal + 1
-            local display = data.display or {}
-            if display.show ~= false then destShow = destShow + 1 end
+            local display = this.ResolveItemDisplay(data.display)
+            if display.show then destShow = destShow + 1 end
             if display.notify then destNotify = destNotify + 1 end
-            if display.bank then destBank = destBank + 1 end
+            if display.showBank then destBank = destBank + 1 end
             if display.group then destGroup = destGroup + 1 end
         end
     end
@@ -248,6 +268,7 @@ local function InitCharacterToggle(topBar)
 
         this.RefreshTrackedItemsEditor()
         this.RefreshItemTrackerPanel()
+        this.UpdateEventRegistry()
     end
 
     ZO_CheckButton_SetToggleFunction(chkUseChar, function(control, checked)
@@ -401,6 +422,8 @@ InventoryCompanion_TrackedItemsWindow:SetHandler("OnEffectivelyShown", function(
 end)
 
 InventoryCompanion_TrackedItemsWindow:SetHandler("OnEffectivelyHidden", function()
+    this.CloseItemRowOptions()
+    editorRevision = editorRevision + 1
     SetGameCameraUIMode(false)
     this.UpdateEditorLayout()
 end)
@@ -488,7 +511,7 @@ local function CollectUntrackedItems(trackedRules, seenItemIds, sortedEntries)
 end
 
 local function ShouldIncludeEntry(entry, queryStr)
-    local displayData = entry.data.display or {}
+    local displayData = this.ResolveItemDisplay(entry.data.display)
 
     if not entry.isUntracked then
         local showFlag = displayData.show ~= false
@@ -516,49 +539,160 @@ local function ShouldIncludeEntry(entry, queryStr)
     return true
 end
 
-local function ToggleState(entry, flagKey, refreshCallback)
-    entry.data.display[flagKey] = not entry.data.display[flagKey]
+local function ResolveEntryData(entry)
+    local rules, revision = this.GetTrackerContext()
+    assert(entry.editorRevision == editorRevision, "Tracked-items editor action targets an obsolete row")
+    assert(entry.rules == rules and entry.contextRevision == revision,
+        "Tracked-items editor action targets an obsolete profile")
 
     if entry.isRule then
-        InventoryCompanion.SetRuleFlag(entry.key, flagKey, entry.data.display[flagKey])
+        local rule = this.GetRuntimeRules()[entry.key]
+        assert(rule and not rule.display.isHidden, "Tracked-items editor action targets a missing or hidden rule")
+        return rule
+    end
+
+    local tracked = this.GetActiveTrackedItems()[entry.key]
+    if entry.isUntracked then
+        assert(tracked == nil, "Untracked editor entry is already tracked")
+        return entry.data
+    end
+    assert(tracked, "Tracked-items editor action targets a removed item")
+    return tracked
+end
+
+local function SetEntryFlag(entry, flagKey, value, refreshCallback)
+    assert(flagKey == "showBackpack" or flagKey == "showBank" or flagKey == "notifyChat"
+        or flagKey == "notifyHud" or flagKey == "group",
+        "Unknown item editor flag: " .. tostring(flagKey))
+    assert(type(value) == "boolean", "Item editor flag value must be boolean")
+    assert(flagKey ~= "group" or entry.isRule, "Grouping is only editable on group rows")
+    local data = ResolveEntryData(entry)
+
+    if entry.isRule then
+        this.UpdateRuleFlag(entry.key, flagKey, value)
     elseif entry.isUntracked then
-        local trackedList = InventoryCompanion.GetActiveTrackedItems()
-        trackedList[entry.key] = { 
-            link = entry.data.link, 
-            icon = entry.data.icon, 
+        local display = data.display
+        local tracked = {
+            link = data.link,
+            icon = data.icon,
             display = {
-                show  = entry.data.display.show,
-                notify = entry.data.display.notify,
-                bank  = entry.data.display.bank,
-                group = entry.data.display.group,
-            }
+                show = display.show,
+                notify = display.notify,
+                bank = display.bank,
+                group = display.group,
+                showBackpack = display.showBackpack,
+                showBank = display.showBank,
+                notifyChat = display.notifyChat,
+                notifyHud = display.notifyHud,
+            },
         }
+        tracked.display[flagKey] = value
+        this.GetActiveTrackedItems()[entry.key] = tracked
     else
-        InventoryCompanion.GetActiveTrackedItems()[entry.key].display[flagKey] = entry.data.display[flagKey]
+        data.display[flagKey] = value
     end
 
     refreshCallback()
+    this.UpdateEventRegistry()
 end
 
 local function ConfigureRowStateStyles(row, entry)
-    local displayData = entry.data.display or {}
+    local display = this.ResolveItemDisplay(entry.data.display)
 
-    local function ApplyLabelStyle(lbl, isActive)
-        lbl:SetFont("ZoFontGame")
-        lbl:SetColor(1.0, 0.94, 0.76, isActive and 1.0 or 0.5)
+    local function ApplyStyle(name, active, detail)
+        local button = GetControl(row, name)
+        GetControl(button, "Title"):SetColor(1.0, 0.94, 0.76, active and 1.0 or 0.5)
+        GetControl(button, "Detail"):SetColor(1.0, 0.94, 0.76, active and 1.0 or 0.5)
+        GetControl(button, "Detail"):SetText(detail)
     end
 
-    ApplyLabelStyle(GetControl(row, "LblNotifyState"), displayData.notify == true)
-    ApplyLabelStyle(GetControl(row, "LblShowState"), displayData.show ~= false)
-    ApplyLabelStyle(GetControl(row, "LblBankState"), displayData.bank == true)
-    ApplyLabelStyle(GetControl(row, "LblGroupState"), displayData.group == true)
+    local locations = display.showBackpack and (display.showBank and "Both" or "Backpack")
+        or (display.showBank and "Bank" or "None")
+    if display.show and entry.isRule and display.group then locations = locations .. ", grouped" end
+    local destinations = display.notifyChat and (display.notifyHud and "Both" or "Chat")
+        or (display.notifyHud and "HUD" or "None")
+    ApplyStyle("Show", display.show, locations)
+    ApplyStyle("Notify", display.notify, destinations)
+end
+
+local OpenRowOptions
+OpenRowOptions = function(row, entry, kind, refreshCallback)
+    if optionsTarget and optionsTarget.entry == entry and optionsTarget.kind == kind then
+        this.CloseItemRowOptions()
+        return
+    end
+    this.CloseItemRowOptions()
+    local display = this.ResolveItemDisplay(ResolveEntryData(entry).display)
+    local panel = InventoryCompanion_ItemRowOptions
+    local target = { entry = entry, kind = kind, row = row }
+    optionsTarget = target
+    local fields
+    if kind == "Show" then
+        fields = {}
+        if entry.isRule then fields[#fields + 1] = { "group", "Display items together" } end
+        fields[#fields + 1] = { "showBackpack", "Show backpack" }
+        fields[#fields + 1] = { "showBank", "Show bank" }
+    else
+        fields = { { "notifyChat", "Notify Chat" }, { "notifyHud", "Notify HUD" } }
+    end
+    for index = 1, 3 do
+        local option = GetControl(panel, "Option" .. index)
+        local field = fields[index]
+        option:SetHidden(field == nil)
+        if field then
+            local check, label = GetControl(option, "Check"), GetControl(option, "Label")
+            label:SetText(field[2])
+            label:SetColor(1.0, 0.94, 0.76, 1.0)
+            ZO_CheckButton_SetCheckState(check, display[field[1]] == true)
+            local function Apply(checked)
+                assert(optionsTarget == target, "Item row options action targets an obsolete popup")
+                SetEntryFlag(entry, field[1], checked, function()
+                    refreshCallback()
+                    for _, currentRow in ipairs(editorRows) do
+                        local current = currentRow.entry
+                        if not currentRow:IsHidden() and current.key == entry.key
+                            and current.isRule == entry.isRule then
+                            OpenRowOptions(currentRow, current, kind, refreshCallback)
+                            break
+                        end
+                    end
+                end)
+            end
+            ZO_CheckButton_SetToggleFunction(check, function(_, checked) Apply(checked) end)
+            label:SetHandler("OnMouseDown", function(_, button)
+                if button == MOUSE_BUTTON_INDEX_LEFT then
+                    local current = this.ResolveItemDisplay(ResolveEntryData(entry).display)
+                    Apply(not current[field[1]])
+                end
+            end)
+        end
+    end
+    panel:SetDimensions(274, 16 + #fields * 30)
+    panel:SetDrawTier(DT_HIGH)
+    panel:ClearAnchors()
+    local anchor = GetControl(row, kind)
+    panel:SetAnchor(TOPRIGHT, anchor, BOTTOMRIGHT, 0, 2)
+    if panel:GetTop() + panel:GetHeight() > GuiRoot:GetHeight() then
+        panel:ClearAnchors()
+        panel:SetAnchor(BOTTOMRIGHT, anchor, TOPRIGHT, 0, -2)
+    end
+    panel:SetHidden(false)
+    EVENT_MANAGER:RegisterForEvent(optionsEventName, EVENT_GLOBAL_MOUSE_DOWN, function()
+        local control = WINDOW_MANAGER:GetMouseOverControl()
+        while control do
+            if control == panel or control == anchor then return end
+            control = control:GetParent()
+        end
+        this.CloseItemRowOptions()
+    end)
 end
 
 local function ConfigureRowClickHandlers(row, entry, refreshCallback)
-    GetControl(row, "LblNotifyState"):SetHandler("OnMouseDown", function() ToggleState(entry, "notify", refreshCallback) end)
-    GetControl(row, "LblShowState"):SetHandler("OnMouseDown", function() ToggleState(entry, "show", refreshCallback) end)
-    GetControl(row, "LblBankState"):SetHandler("OnMouseDown", function() ToggleState(entry, "bank", refreshCallback) end)
-    GetControl(row, "LblGroupState"):SetHandler("OnMouseDown", function() ToggleState(entry, "group", refreshCallback) end)
+    row.entry = entry
+    entry.editorRevision = editorRevision
+    entry.rules, entry.contextRevision = this.GetTrackerContext()
+    GetControl(row, "Show"):SetHandler("OnClicked", function() OpenRowOptions(row, entry, "Show", refreshCallback) end)
+    GetControl(row, "Notify"):SetHandler("OnClicked", function() OpenRowOptions(row, entry, "Notify", refreshCallback) end)
 end
 
 local function ConfigureRowTextAndRemoval(row, entry, refreshCallback)
@@ -567,8 +701,6 @@ local function ConfigureRowTextAndRemoval(row, entry, refreshCallback)
     local key       = entry.key
     local isRule    = entry.isRule
     local data      = entry.data
-
-    GetControl(row, "LblGroupState"):SetHidden(not isRule)
 
     if isRule then
         local activeRules = this.GetActiveTrackedRules() -- NEW FOR KEY CHANGE
@@ -582,11 +714,12 @@ local function ConfigureRowTextAndRemoval(row, entry, refreshCallback)
         label:SetText(string.format("%s %s |c888888[Untracked]|r", iconFmt, data.link))
         btnRemove:SetHidden(true)
     else
-        local targetTable = InventoryCompanion.GetActiveTrackedItems()
         btnRemove:SetHidden(false)
         btnRemove:SetHandler("OnClicked", function()
-            targetTable[key] = nil
+            ResolveEntryData(entry)
+            this.GetActiveTrackedItems()[key] = nil
             refreshCallback()
+            this.UpdateEventRegistry()
         end)
 
         local count = InventoryCompanion.GetTrackedItemCount(key)
@@ -606,6 +739,8 @@ local function UpdateRowVisualsAndHandlers(row, entry, refreshCallback)
 end
 
 function this.RefreshTrackedItemsEditor()
+    this.CloseItemRowOptions()
+    editorRevision = editorRevision + 1
     local scrollChild = GetControl(InventoryCompanion_TrackedItemsWindow, "ScrollContainerScrollChild")
     assert(scrollChild, "Tracked-items editor is missing ScrollContainerScrollChild")
 
@@ -625,7 +760,7 @@ function this.RefreshTrackedItemsEditor()
     
     local queryStr = searchQuery:lower():match("^%s*(.-)%s*$")
     local rowIndex = 1
-    local rowHeight = 36
+    local rowHeight = 54
 
     for _, entry in ipairs(sortedEntries) do
         if ShouldIncludeEntry(entry, queryStr) then

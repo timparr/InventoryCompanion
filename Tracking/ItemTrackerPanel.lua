@@ -147,6 +147,9 @@ end
 
 local function GetCountText(item)
     if item.isEmpty then return "" end
+    if item.showBackpack == false then
+        return this.Utils.FormatBigNumber(item.bankCount - item.count)
+    end
     local text = this.Utils.FormatBigNumber(item.count)
     if item.showBank then
         text = (item.bankCount and this.Utils.FormatBigNumber(item.bankCount) or "err") .. " \\ " .. text
@@ -345,6 +348,7 @@ local function CollectSortedGroupNames(activeRules, snapshot)
             if itemIds and #itemIds > 0 then
                 if ruleName ~= "miscellaneous" then table.insert(sortedGroupNames, ruleName) end
             end
+
         end
     end
     table.sort(sortedGroupNames)
@@ -357,6 +361,18 @@ local function CollectSortedGroupNames(activeRules, snapshot)
     return sortedGroupNames
 end
 
+local function GetItemLocations(ruleName, display, snapshot, itemId)
+    local backpack, bank = display.showBackpack, display.showBank
+    if ruleName == "miscellaneous" and snapshot.itemShowBank[itemId] ~= nil then
+        backpack, bank = snapshot.itemShowBackpack[itemId], snapshot.itemShowBank[itemId]
+    end
+    return backpack, bank
+end
+
+local function GetRelevantCount(item, backpack, bank)
+    return (backpack and item.bagCount or 0) + (bank and (item.bankCount - item.bagCount) or 0)
+end
+
 local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, showEmpty, itemsToDisplay)
     for _, ruleName in ipairs(sortedGroupNames) do
         local ruleData = activeRules[ruleName]
@@ -367,23 +383,18 @@ local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, 
         local highestQuality = -1
         local bestIcon = nil
         local bestLink = ""
-        local showBank = ruleData.display.bank == true
+        local showBank = ruleData.display.showBank
+        local showBackpack = ruleData.display.showBackpack ~= false
 
         if itemIds then
             for _, itemId in ipairs(itemIds) do
                 local itemData = snapshot.items[itemId]
-                local itemShowBank = showBank
-                if ruleName == "miscellaneous" and snapshot.itemShowBank and snapshot.itemShowBank[itemId] ~= nil then
-                    itemShowBank = snapshot.itemShowBank[itemId]
-                end
-
-                local hasRelevantStock = itemShowBank and ((itemData.bagCount + itemData.bankCount) > 0) or (itemData.bagCount > 0)
+                local itemShowBackpack, itemShowBank = GetItemLocations(ruleName, ruleData.display, snapshot, itemId)
+                local hasRelevantStock = GetRelevantCount(itemData, itemShowBackpack, itemShowBank) > 0
                 
                 if itemData and hasRelevantStock then
-                    totalGroupCount = totalGroupCount + itemData.bagCount
-                    if itemShowBank then
-                        totalGroupBankCount = totalGroupBankCount + itemData.bankCount
-                    end
+                    totalGroupCount = totalGroupCount + (itemShowBackpack and itemData.bagCount or 0)
+                    totalGroupBankCount = totalGroupBankCount + GetRelevantCount(itemData, itemShowBackpack, itemShowBank)
 
                     if not bestIcon and itemData.icon and itemData.icon ~= "" then
                         bestIcon = itemData.icon
@@ -410,14 +421,14 @@ local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, 
 		
         local effectiveGroupBankActive = showBank
         if ruleName == "miscellaneous" and itemIds then
+            showBackpack = false
+            effectiveGroupBankActive = false
             for _, itemId in ipairs(itemIds) do
-                if snapshot.itemShowBank and snapshot.itemShowBank[itemId] then
-                    effectiveGroupBankActive = true
-                    break
-                end
+                showBackpack = showBackpack or snapshot.itemShowBackpack[itemId]
+                effectiveGroupBankActive = effectiveGroupBankActive or snapshot.itemShowBank[itemId]
             end
         end
-        local relevantCount = effectiveGroupBankActive and (totalGroupCount + totalGroupBankCount) or totalGroupCount
+        local relevantCount = totalGroupBankCount
 
         if relevantCount > 0 or showEmpty then
             local colorDef = GetItemQualityColor(math.max(0, highestQuality))
@@ -428,7 +439,8 @@ local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, 
             local groupHeader = {
                 link = displayName,
                 icon = bestIcon,
-                count = totalGroupCount,
+                count = showBackpack and totalGroupCount or 0,
+                showBackpack = showBackpack,
                 showBank = effectiveGroupBankActive,
                 bankCount = effectiveGroupBankActive and totalGroupBankCount or 0,
                 sortName = groupTitle,
@@ -445,12 +457,9 @@ local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, 
                 for _, itemId in ipairs(itemIds) do
                     local itemData = snapshot.items[itemId]
                     if itemData then
-                        local itemShowBank = showBank
-                        if ruleName == "miscellaneous" and snapshot.itemShowBank and snapshot.itemShowBank[itemId] ~= nil then
-                            itemShowBank = snapshot.itemShowBank[itemId]
-                        end
+                        local itemShowBackpack, itemShowBank = GetItemLocations(ruleName, ruleData.display, snapshot, itemId)
 
-                        local memberRelCount = itemShowBank and ((itemData.bagCount + itemData.bankCount) > 0) or (itemData.bagCount > 0)
+                        local memberRelCount = GetRelevantCount(itemData, itemShowBackpack, itemShowBank) > 0
                         if memberRelCount or showEmpty then
                             memberCount = memberCount + 1
                             if memberCount <= MAX_GROUP_ITEM_ROWS then
@@ -458,6 +467,7 @@ local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, 
                                     link = itemData.link,
                                     icon = itemData.icon,
                                     count = itemData.bagCount,
+                                    showBackpack = itemShowBackpack,
                                     showBank = itemShowBank,
                                     bankCount = itemData.bankCount,
                                     sortName = GetItemLinkName(itemData.link) or "",
@@ -507,17 +517,15 @@ local function CollectAllVisibleItems(snapshot, activeRules, trackedItems, showE
                 for _, itemId in ipairs(itemIds) do
                     local itemData = snapshot.items[itemId]
                     if itemData and not seenVisibleIds[itemId] then
-                        local showBank = ruleData.display.bank == true
-                        if ruleName == "miscellaneous" and snapshot.itemShowBank and snapshot.itemShowBank[itemId] ~= nil then
-                            showBank = snapshot.itemShowBank[itemId]
-                        end
-                        local relevantCount = showBank and (itemData.bagCount + itemData.bankCount) or itemData.bagCount
+                        local showBackpack, showBank = GetItemLocations(ruleName, ruleData.display, snapshot, itemId)
+                        local relevantCount = GetRelevantCount(itemData, showBackpack, showBank)
                         if relevantCount > 0 or showEmpty then
                             seenVisibleIds[itemId] = true
                             table.insert(allVisibleItems, {
                                 link = itemData.link,
                                 icon = itemData.icon,
                                 count = itemData.bagCount,
+                                showBackpack = showBackpack,
                                 showBank = showBank,
                                 bankCount = itemData.bankCount,
                                 sortName = GetItemLinkName(itemData.link) or "",
@@ -532,11 +540,12 @@ local function CollectAllVisibleItems(snapshot, activeRules, trackedItems, showE
     if trackedItems then
         for itemId, data in pairs(trackedItems) do
             local itemData = snapshot.items[itemId]
-            if itemData and data.display and data.display.show and not seenVisibleIds[itemId] then
+            local display = this.ResolveItemDisplay(data.display)
+            if itemData and display.show and not seenVisibleIds[itemId] then
                 local bagCount = itemData.bagCount or 0
                 local bankCount = itemData.bankCount or 0
-                local showBank = data.display.bank == true
-                local relevantCount = showBank and (bagCount + bankCount) or bagCount
+                local showBank = display.showBank
+                local relevantCount = GetRelevantCount(itemData, display.showBackpack, showBank)
 
                 if relevantCount > 0 or showEmpty then
                     seenVisibleIds[itemId] = true
@@ -544,6 +553,7 @@ local function CollectAllVisibleItems(snapshot, activeRules, trackedItems, showE
                         link = itemData.link,
                         icon = itemData.icon,
                         count = bagCount,
+                        showBackpack = display.showBackpack,
                         showBank = showBank,
                         bankCount = bankCount,
                         sortName = GetItemLinkName(itemData.link) or "",
@@ -559,6 +569,7 @@ end
 local function FoldSingleMemberAndUngroupedIntoMisc(snapshot, activeRules, trackedItems, processedItemIds)
     snapshot.ruleIndex["miscellaneous"] = {}
     snapshot.itemShowBank = {}
+    snapshot.itemShowBackpack = {}
 
     for ruleName, ruleData in pairs(activeRules) do
         if ruleName ~= "miscellaneous" and ruleData.display and not ruleData.display.group and ruleData.display.show then
@@ -569,7 +580,8 @@ local function FoldSingleMemberAndUngroupedIntoMisc(snapshot, activeRules, track
                     if itemData and not processedItemIds[itemId] then
                         processedItemIds[itemId] = true
                         table.insert(snapshot.ruleIndex["miscellaneous"], itemId)
-                        snapshot.itemShowBank[itemId] = ruleData.display.bank == true
+                        snapshot.itemShowBank[itemId] = ruleData.display.showBank
+                        snapshot.itemShowBackpack[itemId] = ruleData.display.showBackpack ~= false
                     end
                 end
             end
@@ -579,10 +591,12 @@ local function FoldSingleMemberAndUngroupedIntoMisc(snapshot, activeRules, track
     if trackedItems then
         for itemId, data in pairs(trackedItems) do
             local itemData = snapshot.items[itemId]
-            if not processedItemIds[itemId] and data.display and data.display.show then
+            local display = this.ResolveItemDisplay(data.display)
+            if not processedItemIds[itemId] and display.show then
                 processedItemIds[itemId] = true
                 table.insert(snapshot.ruleIndex["miscellaneous"], itemId)
-                snapshot.itemShowBank[itemId] = data.display.bank == true
+                snapshot.itemShowBank[itemId] = display.showBank
+                snapshot.itemShowBackpack[itemId] = display.showBackpack
             end
         end
     end
@@ -596,7 +610,8 @@ local function FoldSingleMemberAndUngroupedIntoMisc(snapshot, activeRules, track
                     if itemData and not processedItemIds[itemId] then
                         processedItemIds[itemId] = true
                         table.insert(snapshot.ruleIndex["miscellaneous"], itemId)
-                        snapshot.itemShowBank[itemId] = ruleData.display.bank == true
+                        snapshot.itemShowBank[itemId] = ruleData.display.showBank
+                        snapshot.itemShowBackpack[itemId] = ruleData.display.showBackpack ~= false
                     end
                 end
                 snapshot.ruleIndex[ruleName] = nil
@@ -611,6 +626,7 @@ local function FoldSingleMemberAndUngroupedIntoMisc(snapshot, activeRules, track
 end
 
 local function BuildDisplayList(snapshot, activeRules, trackedItems, showEmpty)
+    snapshot.itemShowBank, snapshot.itemShowBackpack = {}, {}
     local seenVisibleIds = {}
     local allVisibleItems = CollectAllVisibleItems(snapshot, activeRules, trackedItems, showEmpty, seenVisibleIds)
 
@@ -631,8 +647,8 @@ local function BuildDisplayList(snapshot, activeRules, trackedItems, showEmpty)
 end
 
 local function RuleSignature(rule)
-    local parts = { tostring(rule.display.show), tostring(rule.display.bank),
-        tostring(rule.display.group), tostring(rule.display.isHidden) }
+    local parts = { tostring(rule.display.show), tostring(rule.display.showBank),
+        tostring(rule.display.group), tostring(rule.display.isHidden), tostring(rule.display.showBackpack) }
     for _, pattern in ipairs(rule.patterns) do
         parts[#parts + 1] = #pattern .. ":" .. pattern
     end
@@ -655,7 +671,7 @@ local function BuildLayoutModel(items, rules)
             group.members[item.itemId] = true
             group.memberCount = group.memberCount + 1
             group.signatureParts[#group.signatureParts + 1] = tostring(item.itemId) .. ":" .. tostring(item.showBank)
-                .. ":" .. tostring(item.overflowCount)
+                .. ":" .. tostring(item.showBackpack) .. ":" .. tostring(item.overflowCount)
         end
         if not item.isGroupMember then
             model.baseRows = model.baseRows + 1

@@ -5,7 +5,7 @@ InventoryCompanion = {
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
     Version = "1.5.1",
-    SettingsVersion = 2,
+    SettingsVersion = 3,
     SettingsName = "InventoryCompanion_SavedVariables",
 }
 local this = InventoryCompanion
@@ -109,6 +109,7 @@ SLASH_COMMANDS["/icclearoverrides"] = function()
     
     d(string.format("[InventoryCompanion] Cleared all rule overrides for current mode (%s). All rules restored to baseline defaults.", modeText))
     
+    this.RefreshTrackedItemsEditor()
     this.RefreshGroupsEditor()
     this.RefreshItemTrackerPanel()
 end

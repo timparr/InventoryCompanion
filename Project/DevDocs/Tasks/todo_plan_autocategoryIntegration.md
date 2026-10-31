@@ -4,7 +4,9 @@ Status: Proposed; investigation only. No integration code or settings have been 
 
 Technical findings and implementation tasks: [Implementation document](todo_implementation_autocategoryIntegration.md).
 
-UI prerequisite: complete the [item tracker flags/options improvement](todo_plan_itemTrackerFlags.md) first. Add AutoCategory participation in that panel on group rows only, not as another row column.
+UI prerequisite: complete the [item tracker flags/options improvement](todo_plan_itemTrackerFlags.md) first. The approved layout reserves a group-only AutoCategory toggle last, after the two-line Show and Notify controls. Participation remains independent of HUD display and delivery.
+
+The AutoCategory column must have zero width when integration is disabled or unavailable, returning the space to item names. When enabled, keep the column width consistent across all row types, even for nonparticipating groups.
 
 ## Goal
 
@@ -53,7 +55,7 @@ Do not silently edit external filters, hide items, or implement a second rule ed
 
 These are recommendations, not agreed behaviour.
 
-1. **Participation control:** The author has confirmed group rows only. Add an explicit per-group AutoCategory flag in the new row-options panel, independent of tracker visibility/grouping. Confirm the flag's default and interaction with hidden rules before implementation; hiding a HUD group must not unexpectedly remove an inventory partition.
+1. **Participation control:** The author has confirmed group rows only and the full AutoCategory label last on the row. Add an explicit per-group participation flag independent of tracker visibility/grouping. Confirm the flag's default and interaction with hidden rules before implementation; hiding a HUD group must not unexpectedly remove an inventory partition.
 2. **Overlapping matches and editor ordering:** Keep tracker display order independent of AutoCategory ordering. In the group editor, provide Alphabetical / Tracker order / AutoCategory views, with the two required dropdowns in the AutoCategory view. Use the same per-row up/down arrow pattern already implemented for currency settings in editable order views; Alphabetical is read-only ordering. AutoCategory's first matching category wins. Keep the moved row selected/visible and highlight it. Resolve filtered-list movement, equal/default priority, and storage normalization during development; do not make tracker position affect AutoCategory matches.
 3. **Existing AutoCategory precedence:** Open development question: test a combined category view that allows our groups to sit among existing rules. Do not assume all our managed categories take precedence over all existing rules. Decide defaults and permitted edits after verifying the selected bag's rule precedence and display order.
 4. **Names and ownership:** Recommend recognizable managed category names and stable internal ownership keyed by our rule identity, not display name. Establish behaviour for name collisions and manual edits of managed entries.

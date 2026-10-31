@@ -1602,6 +1602,7 @@ local function RunTests(arguments)
                         visibleCurrencyProgressBars = false,
                         currencyNotifications = false,
                         capacityNotifications = false,
+                        itemNotifications = false,
                         visibleCappedCurrencyResources = false,
                         visibleCappedProgressBars = false,
                         bagProgressBar = false,
@@ -1616,6 +1617,7 @@ local function RunTests(arguments)
                         "HasVisibleCurrencyProgressBars",
                         "HasCurrencyNotifications",
                         "HasCapacityNotifications",
+                        "HasTrackedItemNotifications",
                         "HasVisibleCappedCurrencyResources",
                         "HasVisibleCappedProgressBars",
                         "IsProgressBarVisible",
@@ -1668,6 +1670,7 @@ local function RunTests(arguments)
                     this.HasVisibleCurrencyProgressBars = function() return listenerState.visibleCurrencyProgressBars end
                     this.HasCurrencyNotifications = function() return listenerState.currencyNotifications end
                     this.HasCapacityNotifications = function() return listenerState.capacityNotifications end
+                    this.HasTrackedItemNotifications = function() return listenerState.itemNotifications end
                     this.HasVisibleCappedCurrencyResources = function() return listenerState.visibleCappedCurrencyResources end
                     this.HasVisibleCappedProgressBars = function() return listenerState.visibleCappedProgressBars end
                     this.IsProgressBarVisible = function(resourceKey)
@@ -1775,6 +1778,15 @@ local function RunTests(arguments)
                         ClearCalls()
                         this.UpdateEventRegistry()
                         CheckEqual(#unregistrationCalls, 4, "Hiding the tracker should unregister its four slot-update listeners")
+
+                        ClearCalls()
+                        listenerState.itemNotifications = true
+                        this.UpdateEventRegistry()
+                        CheckSlotListenersRegistered()
+                        ClearCalls()
+                        listenerState.itemNotifications = false
+                        this.UpdateEventRegistry()
+                        CheckEqual(#unregistrationCalls, 4, "Disabling item notifications should unregister unused slot listeners")
 
                         ClearCalls()
                         listenerState.visibleCapacityResources = true

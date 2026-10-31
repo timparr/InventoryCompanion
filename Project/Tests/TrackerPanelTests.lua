@@ -139,7 +139,7 @@ local function AddItem(group, length)
     local id = fixture.groupIds[group] * 10000 + index
     fixture.index[group][index] = id
     fixture.items[id] = { link = string.rep("x", length or 8) .. string.format("%04d", id),
-        icon = "icon", bagCount = 1, bankCount = 0 }
+        icon = "icon", bagCount = 1, bankCount = 1 }
     return id
 end
 
@@ -912,6 +912,49 @@ function this.GetTrackerPanelTests()
             Equal(openedPanel, settingsPanel)
             Equal(this.state.lastActiveEditTab, scene)
         end
+    end)
+    Add("Tracker independent locations render exact backpack bank-only and combined counts", function()
+        Setup({ 2 }, 20, true)
+        for _, item in pairs(fixture.items) do item.bagCount, item.bankCount = 3, 10 end
+        local function Count(name)
+            for _, row in ipairs(VisibleRows()) do
+                if GetControl(row, "Name").text == name then return GetControl(row, "Count").text end
+            end
+            error("Missing count row: " .. name)
+        end
+        this.UpdateRuleFlag("group1", "showBackpack", false)
+        this.UpdateRuleFlag("group1", "showBank", true)
+        this.RefreshItemTrackerPanel()
+        Equal(Count("group1"), "14")
+        Equal(GetControl(VisibleRows()[2], "Count").text, "7")
+        this.UpdateRuleFlag("group1", "showBackpack", true)
+        this.RefreshItemTrackerPanel()
+        Equal(Count("group1"), "20 \\ 6")
+        this.UpdateRuleFlag("group1", "showBank", false)
+        this.RefreshItemTrackerPanel()
+        Equal(Count("group1"), "6")
+        this.UpdateRuleFlag("group1", "showBackpack", false)
+        this.RefreshItemTrackerPanel()
+        for _, row in ipairs(VisibleRows()) do
+            assert(GetControl(row, "Name").text ~= "group1", "Neither location must hide group")
+        end
+
+        Setup({ 1 }, 20, true)
+        local id = fixture.index.group1[1]
+        fixture.items[id].bagCount, fixture.items[id].bankCount = 3, 10
+        this.UpdateRuleFlag("group1", "showBackpack", false)
+        this.UpdateRuleFlag("group1", "showBank", true)
+        this.RefreshItemTrackerPanel()
+        Equal(Count("miscellaneous"), "7")
+        Click("miscellaneous")
+        Equal(GetControl(VisibleRows()[2], "Count").text, "7")
+        this.accountWide.trackerGroupThreshold = 8
+        this.RefreshItemTrackerPanel()
+        Equal(GetControl(VisibleRows()[1], "Count").text, "7")
+        this.UpdateRuleFlag("group1", "showBank", false)
+        this.accountWide.trackedItems[id] = { display = { showBackpack = false, showBank = true } }
+        this.RefreshItemTrackerPanel()
+        Equal(GetControl(VisibleRows()[1], "Count").text, "7")
     end)
     return tests
 end

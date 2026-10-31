@@ -48,6 +48,7 @@ local function ShouldListenSlotUpdate()
     local showCapacity = this.HasVisibleCapacityResources()
 
     return showMeters or showTracker or showCapacity or this.HasCapacityNotifications()
+        or this.HasTrackedItemNotifications()
 end
 
 local function ShouldListenCurrencyUpdates()

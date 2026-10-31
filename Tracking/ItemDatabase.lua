@@ -21,6 +21,54 @@ end
 local customDisplayDefaults = {
     show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false,
 }
+local extendedDisplayFlags = { showBackpack = true, showBank = true, notifyChat = true, notifyHud = true }
+
+function this.ResolveItemDisplay(display)
+    local resolved = {}
+    for key, value in pairs(display) do resolved[key] = value end
+    if resolved.showBackpack == nil then resolved.showBackpack = display.show ~= false end
+    if resolved.showBank == nil then resolved.showBank = display.show ~= false and display.bank == true end
+    if resolved.notifyChat == nil then resolved.notifyChat = display.notify == true end
+    if resolved.notifyHud == nil then resolved.notifyHud = display.notify == true end
+    resolved.show = resolved.showBackpack or resolved.showBank
+    resolved.notify = resolved.notifyChat or resolved.notifyHud
+    return resolved
+end
+
+local function CheckDisplay(display, context, rule)
+    assert(type(display) == "table", context .. " must be a table")
+    for key, value in pairs(display) do
+        if rule then
+            assert(customDisplayDefaults[key] ~= nil or extendedDisplayFlags[key],
+                context .. " has an unknown flag: " .. tostring(key))
+        end
+        if customDisplayDefaults[key] ~= nil or extendedDisplayFlags[key] then
+            assert(type(value) == "boolean", context .. "." .. key .. " must be boolean")
+        end
+    end
+end
+
+local function CheckTrackedItems(items, context)
+    assert(type(items) == "table", context .. " must be a table")
+    for key, item in pairs(items) do
+        local path = context .. "[" .. tostring(key) .. "]"
+        assert(type(item) == "table", path .. " must be a table")
+        if item.display ~= nil then CheckDisplay(item.display, path .. ".display", false) end
+        assert(item.mode == nil or item.mode == 1 or item.mode == 2 or item.mode == 3,
+            path .. ".mode must be 1, 2, or 3")
+    end
+end
+
+local function GetExtendedDefault(defaults, display, flag)
+    local legacy = {}
+    for key, value in pairs(defaults) do legacy[key] = value end
+    if display ~= nil then
+        for key, value in pairs(display) do
+            if not extendedDisplayFlags[key] then legacy[key] = value end
+        end
+    end
+    return this.ResolveItemDisplay(legacy)[flag]
+end
 local validatedSavedRules = setmetatable({}, { __mode = "k" })
 
 local function CheckPatternList(patterns, context)
@@ -50,10 +98,7 @@ local function ValidateSavedRules(rules, context)
         end
         if saved.display ~= nil then
             assert(type(saved.display) == "table", path .. ".display must be a table")
-            for key, value in pairs(saved.display) do
-                assert(customDisplayDefaults[key] ~= nil, path .. ".display has an unknown flag: " .. tostring(key))
-                assert(type(value) == "boolean", path .. ".display." .. key .. " must be boolean")
-            end
+            CheckDisplay(saved.display, path .. ".display", true)
         end
     end
 end
@@ -77,6 +122,13 @@ function this.ValidateSavedRuleProfiles()
         "Character.useCharacterItemList must be boolean")
     LoadSavedRules(this.accountWide, "Account-wide", true)
     LoadSavedRules(this.character, "Character", true)
+    for _, profile in ipairs({ this.accountWide, this.character }) do
+        if profile.trackedItems == nil then profile.trackedItems = {} end
+        CheckTrackedItems(profile.trackedItems, "Profile.trackedItems")
+        for _, item in pairs(profile.trackedItems) do
+            if item.display == nil then item.display = {} end
+        end
+    end
 end
 
 local function GetBaseline(ruleName)
@@ -91,6 +143,7 @@ local function GetBaseline(ruleName)
         for flag in pairs(customDisplayDefaults) do
             assert(type(base.display[flag]) == "boolean", context .. ".display." .. flag .. " must be boolean")
         end
+        CheckDisplay(base.display, context .. ".display", true)
     end
     return base
 end
@@ -196,6 +249,11 @@ local function NormalizeRule(savedRules, ruleName)
     if saved.displayName == defaultName then saved.displayName = nil end
     local defaults = GetDisplayDefaults(base)
     if saved.display ~= nil then
+        for key in pairs(extendedDisplayFlags) do
+            if saved.display[key] == GetExtendedDefault(defaults, saved.display, key) then
+                saved.display[key] = nil
+            end
+        end
         for key, value in pairs(saved.display) do
             if value == defaults[key] then saved.display[key] = nil end
         end
@@ -235,7 +293,9 @@ function this.PrepareSavedVariables()
                 string.format("[InventoryCompanion] %s uses saved-variable version %s, but this addon supports version %s. "
                     .. "Initialization stopped without changing saved data. Install a compatible newer addon or restore a compatible backup.",
                     context, tostring(version), tostring(this.SettingsVersion)))
-            assert(version == this.SettingsVersion or (version == 1 and this.SettingsVersion == 2),
+            assert(version == this.SettingsVersion
+                or (version == 1 and (this.SettingsVersion == 2 or this.SettingsVersion == 3))
+                or (version == 2 and this.SettingsVersion == 3),
                 context .. " has no supported migration from version " .. tostring(version)
                     .. " to version " .. tostring(this.SettingsVersion))
             table.insert(profiles, { data = profile, context = context })
@@ -248,6 +308,9 @@ function this.PrepareSavedVariables()
         local profile, context = entry.data, entry.context
         if profile.trackedRules ~= nil then
             ValidateSavedRules(profile.trackedRules, context .. ".trackedRules")
+        end
+        if profile.trackedItems ~= nil then
+            CheckTrackedItems(profile.trackedItems, context .. ".trackedItems")
         end
         assert(profile.useCharacterItemList == nil or type(profile.useCharacterItemList) == "boolean",
             context .. ".useCharacterItemList must be boolean")
@@ -262,12 +325,14 @@ function this.PrepareSavedVariables()
                 end
             end
             table.insert(migrations, { profile = profile, rules = rules })
+        elseif profile.version == 2 and this.SettingsVersion == 3 then
+            table.insert(migrations, { profile = profile })
         end
     end
 
     -- Publish only after every profile has passed validation and conversion.
     for _, migration in ipairs(migrations) do
-        migration.profile.trackedRules = migration.rules
+        if migration.rules ~= nil then migration.profile.trackedRules = migration.rules end
         migration.profile.version = this.SettingsVersion
     end
     this.InvalidateRuleCache()
@@ -301,7 +366,7 @@ function this.GetRuntimeRules()
             patterns = patterns,
             compiledPatterns = CompilePatterns(includePatterns),
             compiledExcludedPatterns = CompilePatterns(excludePatterns),
-            display = display,
+            display = this.ResolveItemDisplay(display),
             isPreloaded = base ~= nil,
         }
     end
@@ -347,7 +412,8 @@ function this.SetUseCharacterItemList(value)
 end
 
 function this.UpdateRuleFlag(ruleName, flagKey, value)
-    assert(customDisplayDefaults[flagKey] ~= nil, "Unknown rule display flag: " .. tostring(flagKey))
+    assert(customDisplayDefaults[flagKey] ~= nil or extendedDisplayFlags[flagKey],
+        "Unknown rule display flag: " .. tostring(flagKey))
     assert(value == nil or type(value) == "boolean", "Rule display flags must be boolean or nil")
     local base = GetBaseline(ruleName)
     local savedRules = GetRawSavedRules()
@@ -355,7 +421,9 @@ function this.UpdateRuleFlag(ruleName, flagKey, value)
     local saved = savedRules[ruleName]
     local defaults = GetDisplayDefaults(base)
     if saved.display == nil then saved.display = {} end
-    if value == defaults[flagKey] then value = nil end
+    local default = defaults[flagKey]
+    if extendedDisplayFlags[flagKey] then default = GetExtendedDefault(defaults, saved.display, flagKey) end
+    if value == default then value = nil end
     saved.display[flagKey] = value
     PruneRule(savedRules, ruleName)
     this.InvalidateRuleCache()
@@ -455,14 +523,7 @@ function this.CopyProfile(sourceKey)
         ValidateSavedRules(sourceBlock.trackedRules, context .. ".trackedRules")
     end
     if sourceBlock.trackedItems ~= nil then
-        assert(type(sourceBlock.trackedItems) == "table", context .. ".trackedItems must be a table")
-        for itemId, data in pairs(sourceBlock.trackedItems) do
-            local path = context .. ".trackedItems[" .. tostring(itemId) .. "]"
-            assert(type(data) == "table", path .. " must be a table")
-            if data.display ~= nil then
-                assert(type(data.display) == "table", path .. ".display must be a table")
-            end
-        end
+        CheckTrackedItems(sourceBlock.trackedItems, context .. ".trackedItems")
     end
     local destTable = this.GetActiveTrackedItems()
     local destRules = GetRawSavedRules()
@@ -482,6 +543,9 @@ function this.CopyProfile(sourceKey)
                     group = srcDisplay.group == true,
                 },
             }
+            for flag in pairs(extendedDisplayFlags) do
+                copiedItems[itemId].display[flag] = srcDisplay[flag]
+            end
         end
     end
 
@@ -605,19 +669,21 @@ function this.HandleTrackedItemInventoryUpdate(bagId, slotIndex, stackCountChang
     local trackedRules = this.GetRuntimeRules()
     
     local targetData = trackedList[itemId]
-    local isNotified = targetData and targetData.display.notify
-
-    if not isNotified then
-        for ruleName, ruleData in pairs(trackedRules) do
-            if (ruleName == "miscellaneous" or not ruleData.display.isHidden)
-                and ruleData.display.notify and this.ItemMatchesRuntimeRule(itemLink, ruleData) then
-                isNotified = true
-                break
-            end
+    local notifyChat, notifyHud = false, false
+    if targetData then
+        local display = this.ResolveItemDisplay(targetData.display)
+        notifyChat, notifyHud = display.notifyChat, display.notifyHud
+    end
+    for ruleName, ruleData in pairs(trackedRules) do
+        local display = ruleData.display
+        if (ruleName == "miscellaneous" or not display.isHidden)
+            and display.notify and this.ItemMatchesRuntimeRule(itemLink, ruleData) then
+            notifyChat = notifyChat or display.notifyChat
+            notifyHud = notifyHud or display.notifyHud
         end
     end
 
-    if isNotified then
+    if notifyChat or notifyHud then
         local currentCount = this.GetTrackedItemCount(itemId)
         local gained = (stackCountChange and stackCountChange > 0) and stackCountChange or 0
 
@@ -636,11 +702,21 @@ function this.HandleTrackedItemInventoryUpdate(bagId, slotIndex, stackCountChang
 			local hud = string.format("Gained %d x %s. %s %s.", gained, itemLink, messageText, formattedCount)
 			local chat = string.format("%d x %s (%s total)", gained, itemLink, currentString)
 
-            this.Utils.UserWarning(chat, hud)
+            this.Utils.UserWarning(notifyChat and chat or nil, notifyHud and hud or nil, true)
         end
 
         itemCountsCache[itemId] = currentCount
     end
+end
+
+function this.HasTrackedItemNotifications()
+    for _, item in pairs(this.GetActiveTrackedItems()) do
+        if this.ResolveItemDisplay(item.display).notify then return true end
+    end
+    for key, rule in pairs(this.GetRuntimeRules()) do
+        if (key == "miscellaneous" or not rule.display.isHidden) and rule.display.notify then return true end
+    end
+    return false
 end
 
 ------------------------------------------------------------------

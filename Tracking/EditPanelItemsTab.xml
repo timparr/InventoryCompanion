@@ -1,39 +1,82 @@
 <GuiXml>
     <Controls>
 		<Control name="InventoryCompanion_TrackedItemRow_Template" virtual="true">
-            <Dimensions x="810" y="34" />
+            <Dimensions x="810" y="52" />
             <Controls>
                 <Texture name="$(parent)BG" textureFile="EsoUI/Art/Miscellaneous/listItemBackground.dds" alpha="0.3">
                     <AnchorFill />
                 </Texture>                
 				<Label name="$(parent)ItemLabel" font="ZoFontGame" color="FFFFFF" verticalAlignment="CENTER" wrapMode="ELLIPSE">
-					<Dimensions x="345" y="32" />
+					<Dimensions y="48" />
 					<Anchor point="LEFT" relativeTo="$(parent)" relativePoint="LEFT" offsetX="0" offsetY="0" />
+                    <Anchor point="RIGHT" relativeTo="$(parent)Show" relativePoint="LEFT" offsetX="-8" />
 				</Label>
 				<!-- Remove button -->
 				<Button name="$(parent)BtnRemove" inherits="ZO_CloseButton">
                     <Anchor point="RIGHT" relativeTo="$(parent)" relativePoint="RIGHT" offsetX="-8" offsetY="0" />
                 </Button>
 
-                <!-- Clickable State Labels anchored right-to-left from BtnRemove -->
-                <Label name="$(parent)LblNotifyState" font="ZoFontGame" color="FFFFFF" mouseEnabled="true" horizontalAlignment="CENTER" verticalAlignment="CENTER" text="Notify">
-                    <Dimensions x="65" y="26" />
-                    <Anchor point="RIGHT" relativeTo="$(parent)BtnRemove" relativePoint="LEFT" offsetX="-8" offsetY="0" />
-                </Label>
-                <Label name="$(parent)LblShowState" font="ZoFontGame" color="FFFFFF" mouseEnabled="true" horizontalAlignment="CENTER" verticalAlignment="CENTER" text="Show">
-                    <Dimensions x="65" y="26" />
-                    <Anchor point="RIGHT" relativeTo="$(parent)LblNotifyState" relativePoint="LEFT" offsetX="-4" offsetY="0" />
-                </Label>
-				<Label name="$(parent)LblBankState" font="ZoFontGame" color="FFFFFF" mouseEnabled="true" horizontalAlignment="CENTER" verticalAlignment="CENTER" text="Totals">
-                    <Dimensions x="65" y="26" />
-                    <Anchor point="RIGHT" relativeTo="$(parent)LblShowState" relativePoint="LEFT" offsetX="-4" offsetY="0" />
-                </Label>
-				<Label name="$(parent)LblGroupState" font="ZoFontGame" color="FFFFFF" mouseEnabled="true" horizontalAlignment="CENTER" verticalAlignment="CENTER" text="Group">
-                    <Dimensions x="65" y="26" />
-                    <Anchor point="RIGHT" relativeTo="$(parent)LblBankState" relativePoint="LEFT" offsetX="-4" offsetY="0" />
+                <Control name="$(parent)CategorySpace">
+                    <Dimensions x="0" y="48" />
+                    <Anchor point="RIGHT" relativeTo="$(parent)BtnRemove" relativePoint="LEFT" offsetX="-8" />
+                </Control>
+                <Button name="$(parent)Notify" mouseEnabled="true">
+                    <Dimensions x="120" y="48" />
+                    <Anchor point="RIGHT" relativeTo="$(parent)CategorySpace" relativePoint="LEFT" offsetX="-4" />
+                    <Controls>
+                        <Label name="$(parent)Title" font="ZoFontGame" horizontalAlignment="CENTER" text="Notify">
+                            <Dimensions x="120" y="24" />
+                            <Anchor point="TOP" />
+                        </Label>
+                        <Label name="$(parent)Detail" font="ZoFontGameSmall" horizontalAlignment="CENTER">
+                            <Dimensions x="120" y="22" />
+                            <Anchor point="TOP" relativeTo="$(parent)Title" relativePoint="BOTTOM" />
+                        </Label>
+                    </Controls>
+                </Button>
+                <Button name="$(parent)Show" mouseEnabled="true">
+                    <Dimensions x="190" y="48" />
+                    <Anchor point="RIGHT" relativeTo="$(parent)Notify" relativePoint="LEFT" offsetX="-4" />
+                    <Controls>
+                        <Label name="$(parent)Title" font="ZoFontGame" horizontalAlignment="CENTER" text="Show">
+                            <Dimensions x="190" y="24" />
+                            <Anchor point="TOP" />
+                        </Label>
+                        <Label name="$(parent)Detail" font="ZoFontGameSmall" horizontalAlignment="CENTER">
+                            <Dimensions x="190" y="22" />
+                            <Anchor point="TOP" relativeTo="$(parent)Title" relativePoint="BOTTOM" />
+                        </Label>
+                    </Controls>
+                </Button>
+            </Controls>
+        </Control>
+        <Control name="InventoryCompanion_ItemOption_Template" virtual="true">
+            <Dimensions x="250" y="30" />
+            <Controls>
+                <Button name="$(parent)Check" inherits="ZO_CheckButton">
+                    <Anchor point="LEFT" />
+                </Button>
+                <Label name="$(parent)Label" font="ZoFontGame" mouseEnabled="true" color="FFF0C2">
+                    <Dimensions x="222" y="28" />
+                    <Anchor point="LEFT" relativeTo="$(parent)Check" relativePoint="RIGHT" offsetX="6" />
                 </Label>
             </Controls>
         </Control>
+        <TopLevelControl name="InventoryCompanion_ItemRowOptions" clampedToScreen="true" mouseEnabled="true" keyboardEnabled="true" hidden="true">
+            <Dimensions x="274" y="110" />
+            <Controls>
+                <Backdrop name="$(parent)BG" inherits="ZO_DefaultBackdrop"><AnchorFill /></Backdrop>
+                <Control name="$(parent)Option1" inherits="InventoryCompanion_ItemOption_Template">
+                    <Anchor point="TOPLEFT" offsetX="12" offsetY="8" />
+                </Control>
+                <Control name="$(parent)Option2" inherits="InventoryCompanion_ItemOption_Template">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Option1" relativePoint="BOTTOMLEFT" />
+                </Control>
+                <Control name="$(parent)Option3" inherits="InventoryCompanion_ItemOption_Template">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Option2" relativePoint="BOTTOMLEFT" />
+                </Control>
+            </Controls>
+        </TopLevelControl>
         <TopLevelControl name="InventoryCompanion_TrackedItemsWindow" clampedToScreen="true" mouseEnabled="true" movable="true" hidden="true">
             <Dimensions x="860" y="800" />
             <Anchor point="CENTER" relativeTo="GuiRoot" relativePoint="CENTER" />

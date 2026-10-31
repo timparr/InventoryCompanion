@@ -50,6 +50,9 @@ function this.GetRulePersistenceTests()
                 this.UpdateRulePatterns("default", { "b", "c", "d" })
                 this.UpdateRuleProperty("default", "displayName", "Renamed")
                 this.UpdateRuleFlag("default", "notify", true)
+                this.UpdateRuleFlag("default", "notifyHud", false)
+                this.UpdateRuleFlag("default", "showBackpack", false)
+                this.UpdateRuleFlag("default", "showBank", true)
                 this.CreateCustomRule("custom", "Custom")
                 local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
                 this.UpdateRulePatterns("custom", { "Custom*", "Cyrodiil" .. suffix })
@@ -63,12 +66,47 @@ function this.GetRulePersistenceTests()
                 assert(restored.default.displayName == "Renamed", "Reload must preserve names")
                 assert(restored.default.display.notify, "Reload must preserve explicit flags")
                 assert(restored.default.display.show, "Reload must inherit untouched baseline flags")
+                assert(not restored.default.display.showBackpack and restored.default.display.showBank,
+                    "Reload must preserve bank-only display")
+                assert(restored.default.display.notifyChat and not restored.default.display.notifyHud,
+                    "Reload must preserve chat-only delivery")
                 assert(restored.custom.compiledPatterns[1] == "^custom.*$", "Reload must compile custom additions")
                 assert(restored.custom.compiledExcludedPatterns[1] == "cyrodiil",
                     "Reload must compile the stored exclusion without its marker")
                 assert(restored.custom.patterns[2] == "Cyrodiil" .. suffix,
                     "Reload must preserve the encoded stored string")
                 assert(Serialize(this.accountWide.trackedRules) == saved, "Reload must not persist runtime fields")
+            end,
+        },
+        {
+            name = "Imported item and rule independent flags preserve explicit false and source isolation",
+            run = function()
+                this.accountWide = { trackedRules = {}, trackedItems = {} }
+                this.character = { trackedRules = {}, trackedItems = {}, useCharacterItemList = false }
+                this.preLoadedRulesets = {}
+                local source = {
+                    trackedItems = { [10] = { link = "item", icon = "icon",
+                        display = { show = true, notify = true, showBackpack = false, showBank = true,
+                            notifyChat = false, notifyHud = true } } },
+                    trackedRules = { custom = { addedPatterns = { "*" },
+                        display = { showBackpack = false, showBank = true, notifyChat = false, notifyHud = true } } },
+                }
+                _G[this.SettingsName] = { Default = { account = { source = source } } }
+                assert(this.CopyProfile("source"), "Profile copy should succeed")
+                local item = this.ResolveItemDisplay(this.accountWide.trackedItems[10].display)
+                local rule = this.GetRuntimeRules().custom.display
+                assert(not item.showBackpack and item.showBank and not item.notifyChat and item.notifyHud,
+                    "Item import must preserve independent flags")
+                assert(not rule.showBackpack and rule.showBank and not rule.notifyChat and rule.notifyHud,
+                    "Rule import must preserve independent flags")
+                local saved = Serialize(this.accountWide)
+                this.accountWide = assert(loadstring("return " .. saved))()
+                assert(loadstring(RuleDatabaseSource))()
+                item = this.ResolveItemDisplay(this.accountWide.trackedItems[10].display)
+                assert(not item.showBackpack and item.showBank and not item.notifyChat and item.notifyHud,
+                    "Item serialize/reload must preserve flags")
+                this.accountWide.trackedItems[10].display.notifyHud = false
+                assert(source.trackedItems[10].display.notifyHud, "Imported item must not alias source")
             end,
         },
         {
@@ -79,6 +117,7 @@ function this.GetRulePersistenceTests()
                 this.preLoadedRulesets = {}
                 this.character.trackedRules = { character_group = { addedPatterns = { "Character*" } } }
                 local refreshes = 0
+                this.RefreshTrackedItemsEditor = function() refreshes = refreshes + 1 end
                 this.RefreshGroupsEditor = function() refreshes = refreshes + 1 end
                 this.RefreshItemTrackerPanel = function() refreshes = refreshes + 1 end
                 this.SetUseCharacterItemList(false)
@@ -94,7 +133,7 @@ function this.GetRulePersistenceTests()
                 SLASH_COMMANDS["/icclearoverrides"]()
                 assert(this.GetRuntimeRules() ~= characterCache, "Character clear must invalidate")
                 assert(next(this.character.trackedRules) == nil, "Character overrides must be removed")
-                assert(refreshes == 4, "Both required panels must refresh on each clear")
+                assert(refreshes == 6, "Both editors and the tracker must refresh on each clear")
             end,
         },
     }

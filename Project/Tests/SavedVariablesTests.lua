@@ -29,7 +29,7 @@ local function LoadAddon(saved)
     end
     local function NewProfile(_, name, version, namespace, defaults, key)
         calls.constructors = calls.constructors + 1
-        assert(namespace == nil and version == 2, "Constructors must request schema version 2 without a namespace")
+        assert(namespace == nil and version == 3, "Constructors must request schema version 3 without a namespace")
         local root = _G[name]
         if root == nil then root = {}; _G[name] = root end
         root.Default = root.Default or {}
@@ -70,17 +70,72 @@ end
 function GetSavedVariablesTests()
     return {
         {
-            name = "Fresh installations initialize schema version 2",
+            name = "Version 2 upgrades every profile without rewriting saved settings before ZOS loading",
+            run = function()
+                local rules = { builtin = { display = { notify = true, notifyHud = false } } }
+                local items = { [10] = { link = "item", display = { show = false, showBank = true }, keep = true } }
+                local account = { version = 2, trackedRules = rules, trackedItems = items, keep = { value = 42 } }
+                local inactive = { version = 2, trackedRules = {}, bankItemDelay = 456 }
+                local other = { version = 2, trackedRules = {} }
+                local saved = { Default = { account = { ["$AccountWide"] = account, inactive = inactive },
+                    other = { ["$AccountWide"] = other } } }
+                local addon, calls = LoadAddon(saved)
+                addon.PrepareSavedVariables()
+                assert(calls.constructors == 0, "Preparation must precede ZOS loading")
+                for _, profile in ipairs({ account, inactive, other }) do
+                    assert(profile.version == 3, "Inactive profiles and accounts must upgrade")
+                end
+                assert(account.trackedRules == rules and account.trackedItems == items,
+                    "Version-only migration must preserve saved tables")
+                assert(rules.builtin.display.notify and rules.builtin.display.notifyHud == false)
+                assert(items[10].display.show == false and items[10].display.showBank and items[10].keep)
+                assert(account.keep.value == 42 and inactive.bankItemDelay == 456)
+                calls.initialize()
+                assert(addon.state.isLoaded and account.trackedItems == items and account.keep.value == 42,
+                    "ZOS constructors must not erase upgraded profiles")
+                local display = addon.ResolveItemDisplay(items[10].display)
+                assert(not display.showBackpack and display.showBank, "Independent bank-only setting must survive")
+            end,
+        },
+        {
+            name = "Actual schema 2 build rejects upgraded data before unknown flag validation",
+            run = function()
+                local rules = { custom = { display = { notifyChat = true, notifyHud = false } } }
+                local profile = { version = 3, trackedRules = rules, keep = true }
+                for _, location in ipairs({ "$AccountWide", "inactive", "otherAccount" }) do
+                    local saved = { Default = { account = {} } }
+                    if location == "otherAccount" then
+                        saved.Default.otherAccount = { ["$AccountWide"] = profile }
+                    else
+                        saved.Default.account[location] = profile
+                    end
+                    local _, calls = LoadAddon(saved)
+                    assert(loadstring(LegacySavedVariablesInitSource))()
+                    local old = InventoryCompanion
+                    _G[old.SettingsName] = saved
+                    assert(loadstring(LegacySavedVariablesConstantsSource))()
+                    assert(loadstring(LegacySavedVariablesDatabaseSource))()
+                    assert(old.SettingsVersion == 2, "Regression fixture must be a schema 2 build")
+                    local ok, message = pcall(old.PrepareSavedVariables)
+                    assert(not ok and tostring(message):find("supports version 2", 1, true),
+                        "Old build must reject version before encountering new flags")
+                    assert(calls.constructors == 0 and profile.version == 3 and profile.trackedRules == rules and profile.keep,
+                        "Older build must leave newer saved data untouched")
+                end
+            end,
+        },
+        {
+            name = "Fresh installations initialize schema version 3",
             run = function()
                 for _, fixture in ipairs({ {}, { Default = {} }, { Default = { account = {} } } }) do
                     local addon, calls = LoadAddon(fixture)
                     calls.initialize()
-                    assert(addon.SettingsVersion == 2 and addon.accountWide.version == 2 and addon.character.version == 2)
+                    assert(addon.SettingsVersion == 3 and addon.accountWide.version == 3 and addon.character.version == 3)
                     assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
                 end
                 local addon, calls = LoadAddon(nil)
                 calls.initialize()
-                assert(addon.state.isLoaded and addon.accountWide.version == 2 and addon.character.version == 2)
+                assert(addon.state.isLoaded and addon.accountWide.version == 3 and addon.character.version == 3)
             end,
         },
         {
@@ -101,7 +156,7 @@ function GetSavedVariablesTests()
                 calls.initialize()
                 assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
                 for _, profile in ipairs({ bank, character, inactive, otherAccount }) do
-                    assert(profile.version == 2, "Every account/character profile must be upgraded")
+                    assert(profile.version == 3, "Every account/character profile must be upgraded")
                 end
                 local rule = bank.trackedRules.builtin
                 assert(rule.patterns == nil and table.concat(rule.addedPatterns, ",") == "c" and table.concat(rule.removedPatterns, ",") == "a")
@@ -114,7 +169,7 @@ function GetSavedVariablesTests()
                 assert(table.concat(addon.GetRuntimeRules().builtin.patterns, ",") == "b,c", "Account effective patterns must survive")
                 local migratedRules = bank.trackedRules
                 addon.PrepareSavedVariables()
-                assert(bank.trackedRules == migratedRules, "Repeated preparation must not remigrate version 2 data")
+                assert(bank.trackedRules == migratedRules, "Repeated preparation must not remigrate current data")
                 local reloaded, reloadCalls = LoadAddon(saved)
                 reloadCalls.initialize()
                 assert(reloaded.state.isLoaded and bank.trackedRules == migratedRules, "A reload must preserve migrated tables")
@@ -129,7 +184,7 @@ function GetSavedVariablesTests()
                 } }
                 local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
                 calls.initialize()
-                assert(profile.version == 2 and profile.trackedRules.empty and profile.trackedRules.builtin.display.isHidden)
+                assert(profile.version == 3 and profile.trackedRules.empty and profile.trackedRules.builtin.display.isHidden)
                 assert(table.concat(addon.GetRuntimeRules().builtin.patterns, ",") == "b,c")
                 assert(#addon.GetRuntimeRules().empty.patterns == 0)
             end,
@@ -140,7 +195,7 @@ function GetSavedVariablesTests()
                 for _, location in ipairs({ "$AccountWide", "character", "inactive", "otherAccount" }) do
                     local originalRules = { builtin = { patterns = { "b", "c" }, display = { show = true } } }
                     local legacy = { version = 1, trackedRules = originalRules }
-                    local future = { version = 3, trackedRules = { unknownFutureSchema = true }, keep = true }
+                    local future = { version = 4, trackedRules = { unknownFutureSchema = true }, keep = true }
                     local saved = { Default = { account = { legacy = legacy } } }
                     if location == "otherAccount" then
                         saved.Default.otherAccount = { ["$AccountWide"] = future }
@@ -148,8 +203,8 @@ function GetSavedVariablesTests()
                         saved.Default.account[location] = future
                     end
                     local addon, calls = LoadAddon(saved)
-                    AssertStopped(addon, calls, "supports version 2")
-                    assert(future.version == 3 and future.keep and future.trackedRules.unknownFutureSchema)
+                    AssertStopped(addon, calls, "supports version 3")
+                    assert(future.version == 4 and future.keep and future.trackedRules.unknownFutureSchema)
                     assert(legacy.version == 1 and legacy.trackedRules == originalRules and originalRules.builtin.patterns[1] == "b")
                     assert(originalRules.builtin.display.show, "Downgrade refusal must not partially normalize old data")
                 end
@@ -170,8 +225,8 @@ function GetSavedVariablesTests()
             run = function()
                 local profile = { version = 1, trackedRules = { custom = { patterns = { "Keep*" } } } }
                 local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
-                addon.SettingsVersion = 3
-                AssertStopped(addon, calls, "no supported migration from version 1 to version 3")
+                addon.SettingsVersion = 4
+                AssertStopped(addon, calls, "no supported migration from version 1 to version 4")
                 assert(profile.version == 1 and profile.trackedRules.custom.patterns[1] == "Keep*")
             end,
         },
@@ -226,7 +281,7 @@ function GetSavedVariablesTests()
                 local profile = { version = 1, bankItemDelay = 432, keep = true }
                 local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
                 calls.initialize()
-                assert(addon.state.isLoaded and profile.version == 2 and next(profile.trackedRules) == nil)
+                assert(addon.state.isLoaded and profile.version == 3 and next(profile.trackedRules) == nil)
                 assert(profile.bankItemDelay == 432 and profile.keep)
             end,
         },

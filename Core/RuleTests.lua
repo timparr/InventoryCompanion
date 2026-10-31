@@ -70,6 +70,79 @@ function this.GetRuleTests()
         Equal(this.accountWide.trackedRules.default, nil, "Reverting removes the override")
     end)
 
+    Add("Extended flags inherit legacy settings and retain independent sparse overrides", function()
+        this.UpdateRuleFlag("default", "bank", true)
+        this.UpdateRuleFlag("default", "notify", true)
+        local display = this.GetRuntimeRules().default.display
+        Equal(display.showBackpack, true, "Legacy Show includes backpack")
+        Equal(display.showBank, true, "Legacy Totals includes bank")
+        Equal(display.notifyChat, true, "Legacy Notify includes chat")
+        Equal(display.notifyHud, true, "Legacy Notify includes HUD")
+        this.UpdateRuleFlag("default", "showBackpack", false)
+        this.UpdateRuleFlag("default", "notifyChat", false)
+        display = this.GetRuntimeRules().default.display
+        Equal(display.show, true, "Bank-only remains shown")
+        Equal(display.showBackpack, false, "Backpack can be disabled independently")
+        Equal(display.showBank, true, "Bank remains enabled")
+        Equal(display.notifyChat, false, "Chat can be disabled independently")
+        Equal(display.notifyHud, true, "HUD remains enabled")
+        this.UpdateRuleFlag("default", "showBackpack", true)
+        this.UpdateRuleFlag("default", "notifyChat", true)
+        Equal(this.accountWide.trackedRules.default.display.showBackpack, nil, "Restored inherited backpack prunes")
+        Equal(this.accountWide.trackedRules.default.display.notifyChat, nil, "Restored inherited chat prunes")
+        Equal(this.accountWide.trackedRules.default.display.bank, true, "Pruning retains legacy bank")
+        FailsWith(function() this.UpdateRuleFlag("default", "showBank", "yes") end, "boolean")
+    end)
+
+    Add("Malformed extended saved and imported flags fail before writes", function()
+        this.character.trackedItems = { [10] = { display = { notifyChat = "yes" }, unrelated = "retained" } }
+        FailsWith(this.ValidateSavedRuleProfiles, ".notifyChat must be boolean")
+        Equal(this.character.trackedItems[10].unrelated, "retained", "Invalid data is not discarded")
+        this.character.trackedItems = {}
+        local destination = { display = { show = true } }
+        this.accountWide.trackedItems[1] = destination
+        _G[this.SettingsName] = { Default = { account = { source = {
+            trackedRules = {}, trackedItems = { [2] = { display = { showBank = 1 } } },
+        } } } }
+        FailsWith(function() this.CopyProfile("source") end, ".showBank must be boolean")
+        Equal(this.accountWide.trackedItems[1], destination, "Invalid import must not clear destination")
+    end)
+
+    Add("Notification destinations union matching groups and individual requests once", function()
+        BAG_BACKPACK, BAG_VIRTUAL = 1, 2
+        GetItemId = function() return 10 end
+        GetItemLink = function() return "a" end
+        GetItemLinkName = function(link) return link end
+        IsESOPlusSubscriber = function() return false end
+        this.Scanning = { GetBagContents = function() return { { itemId = 10, count = 5 } } end }
+        local sent = {}
+        this.Utils = {
+            FormatBigNumber = tostring,
+            UserWarning = function(chat, hud, restricted)
+                sent[#sent + 1] = { chat = chat, hud = hud, restricted = restricted }
+            end,
+        }
+        this.accountWide.trackedItems[10] = { display = { show = false, notifyChat = true, notifyHud = false } }
+        this.UpdateRuleFlag("default", "showBackpack", false)
+        this.UpdateRuleFlag("default", "notifyHud", true)
+        this.HandleTrackedItemInventoryUpdate(BAG_BACKPACK, 1, 1)
+        Equal(#sent, 1, "One matching pickup emits one notification")
+        assert(sent[1].chat and sent[1].hud and sent[1].restricted, "Destinations should union without display dependence")
+        this.UpdateRuleFlag("default", "isHidden", true)
+        this.HandleTrackedItemInventoryUpdate(BAG_BACKPACK, 1, 1)
+        assert(sent[2].chat and not sent[2].hud, "Hidden rule must not contribute HUD")
+        this.UpdateRuleFlag("default", "isHidden", false)
+        this.UpdateRulePatterns("default", { "a", "a" .. this.constants.RULE_PATTERN_EXCLUSION_SUFFIX })
+        this.HandleTrackedItemInventoryUpdate(BAG_BACKPACK, 1, 1)
+        assert(sent[3].chat and not sent[3].hud, "Excluded group must not contribute HUD")
+        this.accountWide.trackedItems[10].display.notifyChat = false
+        Equal(this.HasTrackedItemNotifications(), true, "Enabled rule still requires listener even with no current match")
+        this.UpdateRuleFlag("default", "notifyHud", false)
+        Equal(this.HasTrackedItemNotifications(), false, "No destinations need no notification listener")
+        this.HandleTrackedItemInventoryUpdate(BAG_BACKPACK, 1, 1)
+        Equal(#sent, 3, "Disabled destinations emit nothing")
+    end)
+
     Add("Delta patterns are unique and support empty lists and custom groups", function()
         this.UpdateRulePatterns("default", { "a", "a", "c" })
         List(this.GetActiveTrackedRules().default.patterns, { "a", "c" }, "Duplicate edit")
