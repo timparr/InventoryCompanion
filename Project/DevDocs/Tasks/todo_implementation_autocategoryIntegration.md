@@ -304,6 +304,18 @@ arrows, tint/readability and scrolling in ESO.
   view/arrows/markers, overlap examples, owned settings moves overwritten,
   collapse residue, uninstall `(!)` rows, active-profile scope, compatibility,
   performance and saved-data/downgrade behavior.
+- **Before shipping, tear down the DEV spike runtime:** remove
+  `Core/AutoCategorySpike.lua` from the DEV manifest and relocate the probe
+  source to a clearly non-loaded development/test location for possible reuse.
+  Keep its offline fixtures/runner usable, updating paths and validating them
+  after relocation. No spike slash commands, event handlers, gate plugin or
+  Debug override may remain registered by the shipped runtime; normal
+  `RunTests("verbose copy")` Debug behavior must be restored. Do not remove the
+  production integration module or its required optional AutoCategory
+  dependency. Verify exact-token cleanup of any remaining test assignments
+  before unloading the cleanup command, then reload to verify the gate plugin
+  and commands are absent and production integration still works. Record this
+  teardown evidence in SPIKE RESULTS.
 - Update authoritative working changelog from actual implementation first;
   follow [ReleaseChecklist.md](../../Publishing/ReleaseChecklist.md) for numbering,
   approval and publication. Archive only after automated and user-reported
@@ -321,3 +333,6 @@ arrows, tint/readability and scrolling in ESO.
 - [ ] D3 optional badge decisions only if separately taken into scope.
 - [ ] Deferred Guild Bank tested in later DEV; full seven-context keyboard matrix.
 - [ ] Probe Debug/report housekeeping completed.
+- [ ] Pre-shipping spike teardown: manifest entry removed, source retained
+  outside runtime loading, offline reuse validated, no gate registrations or
+  tagged assignments remain.

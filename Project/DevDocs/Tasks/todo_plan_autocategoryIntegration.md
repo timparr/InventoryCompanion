@@ -280,3 +280,10 @@ seven-context keyboard acceptance matrix; never equate deferral with a pass.
 11. External failures are explicit; required IC functions/state fail near the
     defect. No guards or always-false defaults hide maintained defects; no
     speculative rollback machinery without evidence of need.
+12. Before shipping, tear down the DEV spike framework: remove its manifest
+    entry and retain reusable probe source only outside runtime loading, with
+    offline tests still usable. Clean any exact-tagged test assignments before
+    unloading cleanup, restore normal verbose-copy unit-test Debug behavior,
+    and verify after reload that no spike commands, handlers or gate plugin
+    remain registered. Preserve the production integration and its required
+    optional dependency. Record teardown evidence in SPIKE RESULTS.
