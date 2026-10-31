@@ -80,8 +80,14 @@ In [Tracking/ItemTrackerPanel.lua](../../../Tracking/ItemTrackerPanel.lua):
 - The scan snapshot's `bankCount` is the overall total, not bank-only stock.
   Calculate bank-only holdings as `bankCount - bagCount`; do not double-count
   backpack holdings.
-- Backpack-only displays its carried count; bank-only displays bank holdings;
-  both retains the current `total \ backpack` presentation.
+- Backpack-only displays its carried count with a native bag icon; bank-only
+  displays bank holdings with a native bank icon. Both shows separate bank-only
+  and backpack counts, bank first, with no separator or combined total.
+- Follow-up on 2026-10-31: the user requested location markers and chose separate
+  counts rather than retaining total/backpack. Inline 16-pixel native textures
+  identify each count. Width estimates count icon pixels, not texture-markup
+  characters, including first-frame and layout-trial measurements. All 99
+  isolated tests pass; the new icon rendering still needs in-game confirmation.
 - Zero-stock eligibility follows selected locations. Neither location hides
   the relevant source without untracking or suppressing other matching sources.
 - Include location policy in layout signatures without changing expansion,
@@ -114,8 +120,11 @@ In [Tracking/EditPanelItemsTab.xml](../../../Tracking/EditPanelItemsTab.xml):
   spacing. Show/Notify are native buttons with title and detail labels.
 - Reserve 190 pixels for Show and 120 for Notify. The future full AutoCategory
   label goes last, before the individual Remove X; its column is zero width
-  while integration is disabled or unavailable. Anchor the item label between
-  the row's left edge and Show so it receives the released space.
+  while integration is disabled or unavailable. Give the item label an explicit
+  432-pixel width (original 307 plus the released 125) and a left anchor.
+  A widthless label anchored to the later-created Show sibling rendered names
+  invisible in game; retain explicit dimensions rather than that anchor setup.
+  The user confirmed names render again after this correction on 2026-10-31.
 - Keep required label fonts readable. Use the existing warm
   `(1.0, 0.94, 0.76)` color with active/inactive opacity, not literal grey.
 - Use one clamped, high-tier native backdrop with three reusable checkbox rows.

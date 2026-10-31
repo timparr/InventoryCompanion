@@ -7,9 +7,8 @@
                     <AnchorFill />
                 </Texture>                
 				<Label name="$(parent)ItemLabel" font="ZoFontGame" color="FFFFFF" verticalAlignment="CENTER" wrapMode="ELLIPSE">
-					<Dimensions y="48" />
+					<Dimensions x="432" y="48" />
 					<Anchor point="LEFT" relativeTo="$(parent)" relativePoint="LEFT" offsetX="0" offsetY="0" />
-                    <Anchor point="RIGHT" relativeTo="$(parent)Show" relativePoint="LEFT" offsetX="-8" />
 				</Label>
 				<!-- Remove button -->
 				<Button name="$(parent)BtnRemove" inherits="ZO_CloseButton">

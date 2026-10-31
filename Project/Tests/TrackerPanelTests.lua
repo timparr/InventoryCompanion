@@ -57,7 +57,8 @@ local function Control(name, parent, width, height)
     end
     function control:GetTextWidth()
         if counters.zeroTextWidths then return 0 end
-        return #tostring(self.text) * 7
+        local text, icons = tostring(self.text):gsub("|t16:16:[^|]+|t", "")
+        return #text * 7 + icons * 16
     end
     function control:GetNumLines()
         counters.measurements = counters.measurements + 1
@@ -316,7 +317,8 @@ function this.GetTrackerPanelTests()
         memberRow = VisibleRows()[2]
         name, count = GetControl(memberRow, "Name"), GetControl(memberRow, "Count")
         assert(name:GetLeft() + name:GetWidth() < count:GetLeft(), "Long bank count overlaps its item name")
-        assert(count:GetWidth() >= #count.text * 8, "Long bank count lacks estimated width")
+        local visibleText = count.text:gsub("|t16:16:[^|]+|t", "  ")
+        assert(count:GetWidth() >= #visibleText * 8, "Long bank count lacks estimated width")
     end)
 
     Add("Tracker counts two and three wrapped lines as row equivalents", function()
@@ -497,7 +499,9 @@ function this.GetTrackerPanelTests()
                 Equal(counters.rowLayouts - layouts, #visible)
                 Equal(counters.measurements, measurements)
             end
-            Equal(GetControl(visible[1], "Count").text, tostring(size * 2) .. " \\ " .. tostring(size))
+            Equal(GetControl(visible[1], "Count").text,
+                "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t " .. size
+                .. "  |t16:16:EsoUI/Art/Tooltips/icon_bag.dds|t " .. size)
             if size > 200 then
                 Equal(GetControl(visible[2], "Name").text,
                     "Your patterns matched " .. size .. " items - too many to display here.")
@@ -529,7 +533,7 @@ function this.GetTrackerPanelTests()
         Click("group1")
         local visible = VisibleRows()
         Equal(#visible, 201)
-        Equal(GetControl(visible[1], "Count").text, "200")
+        Equal(GetControl(visible[1], "Count").text, "|t16:16:EsoUI/Art/Tooltips/icon_bag.dds|t 200")
         for index = 2, #visible do
             Equal(GetControl(visible[index], "Name").text, fixture.items[10300 + index - 1].link)
         end
@@ -925,14 +929,14 @@ function this.GetTrackerPanelTests()
         this.UpdateRuleFlag("group1", "showBackpack", false)
         this.UpdateRuleFlag("group1", "showBank", true)
         this.RefreshItemTrackerPanel()
-        Equal(Count("group1"), "14")
-        Equal(GetControl(VisibleRows()[2], "Count").text, "7")
+        Equal(Count("group1"), "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 14")
+        Equal(GetControl(VisibleRows()[2], "Count").text, "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 7")
         this.UpdateRuleFlag("group1", "showBackpack", true)
         this.RefreshItemTrackerPanel()
-        Equal(Count("group1"), "20 \\ 6")
+        Equal(Count("group1"), "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 14  |t16:16:EsoUI/Art/Tooltips/icon_bag.dds|t 6")
         this.UpdateRuleFlag("group1", "showBank", false)
         this.RefreshItemTrackerPanel()
-        Equal(Count("group1"), "6")
+        Equal(Count("group1"), "|t16:16:EsoUI/Art/Tooltips/icon_bag.dds|t 6")
         this.UpdateRuleFlag("group1", "showBackpack", false)
         this.RefreshItemTrackerPanel()
         for _, row in ipairs(VisibleRows()) do
@@ -945,16 +949,29 @@ function this.GetTrackerPanelTests()
         this.UpdateRuleFlag("group1", "showBackpack", false)
         this.UpdateRuleFlag("group1", "showBank", true)
         this.RefreshItemTrackerPanel()
-        Equal(Count("miscellaneous"), "7")
+        Equal(Count("miscellaneous"), "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 7")
         Click("miscellaneous")
-        Equal(GetControl(VisibleRows()[2], "Count").text, "7")
+        Equal(GetControl(VisibleRows()[2], "Count").text, "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 7")
         this.accountWide.trackerGroupThreshold = 8
         this.RefreshItemTrackerPanel()
-        Equal(GetControl(VisibleRows()[1], "Count").text, "7")
+        Equal(GetControl(VisibleRows()[1], "Count").text, "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 7")
         this.UpdateRuleFlag("group1", "showBank", false)
         this.accountWide.trackedItems[id] = { display = { showBackpack = false, showBank = true } }
         this.RefreshItemTrackerPanel()
-        Equal(GetControl(VisibleRows()[1], "Count").text, "7")
+        Equal(GetControl(VisibleRows()[1], "Count").text, "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 7")
+
+        Setup({ 2, 2 }, 20, true)
+        for _, item in pairs(fixture.items) do item.bagCount, item.bankCount = 3, 10 end
+        this.UpdateRuleFlag("group1", "showBackpack", false)
+        this.UpdateRuleFlag("group1", "showBank", true)
+        this.UpdateRuleFlag("group2", "showBackpack", true)
+        this.UpdateRuleFlag("group2", "showBank", false)
+        this.RefreshItemTrackerPanel()
+        Equal(Count("group1"), "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 14")
+        Equal(Count("group2"), "|t16:16:EsoUI/Art/Tooltips/icon_bag.dds|t 6")
+        for _, row in ipairs(VisibleRows()) do
+            assert(not GetControl(row, "Count").text:find("\\", 1, true), "Location icons replace the separator")
+        end
     end)
     return tests
 end

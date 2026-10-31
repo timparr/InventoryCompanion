@@ -147,14 +147,21 @@ end
 
 local function GetCountText(item)
     if item.isEmpty then return "" end
-    if item.showBackpack == false then
-        return this.Utils.FormatBigNumber(item.bankCount - item.count)
-    end
-    local text = this.Utils.FormatBigNumber(item.count)
+    local counts = {}
     if item.showBank then
-        text = (item.bankCount and this.Utils.FormatBigNumber(item.bankCount) or "err") .. " \\ " .. text
+        counts[#counts + 1] = "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t "
+            .. this.Utils.FormatBigNumber(item.bankCount - item.count)
     end
-    return text
+    if item.showBackpack ~= false then
+        counts[#counts + 1] = "|t16:16:EsoUI/Art/Tooltips/icon_bag.dds|t "
+            .. this.Utils.FormatBigNumber(item.count)
+    end
+    return table.concat(counts, "  ")
+end
+
+local function EstimateCountWidth(text)
+    local visibleText = text:gsub("|t16:16:[^|]+|t", "  ")
+    return #visibleText * COUNT_WIDTH_PER_CHARACTER
 end
 
 local function PopulateBaseRow(rowIndex, itemData, wrapped)
@@ -260,7 +267,7 @@ local function CalculateMaxCountWidth(computedRows)
         entry.countCtrl:SetWidth(0)
         local width = entry.countCtrl:GetTextWidth()
         if entry.countText ~= "" then
-            width = math.max(width, MIN_COUNT_WIDTH, #entry.countText * COUNT_WIDTH_PER_CHARACTER)
+            width = math.max(width, MIN_COUNT_WIDTH, EstimateCountWidth(entry.countText))
         end
         if width > maxWidth then
             maxWidth = width
@@ -307,8 +314,9 @@ local function MeasureWrappedRows(items)
     local maxCountWidth, maxIndent = 0, 22
     count:SetWidth(0)
     for _, item in ipairs(items) do
-        count:SetText(GetCountText(item))
-        maxCountWidth = math.max(maxCountWidth, count:GetTextWidth())
+        local text = GetCountText(item)
+        count:SetText(text)
+        maxCountWidth = math.max(maxCountWidth, count:GetTextWidth(), EstimateCountWidth(text))
         maxIndent = math.max(maxIndent, item.isGroup and 44 or (item.isGroupMember and 40 or 22))
     end
     local width = math.max(50, ROW_WIDTH - maxIndent - maxCountWidth - 12)

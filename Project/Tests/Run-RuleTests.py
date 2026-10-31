@@ -3,12 +3,19 @@
 from pathlib import Path
 import argparse
 import subprocess
+import xml.etree.ElementTree as ET
 from time import perf_counter
 
 from lupa.lua51 import LuaRuntime
 
 
 root = Path(__file__).resolve().parents[2]
+editor_xml = ET.parse(root / "Tracking" / "EditPanelItemsTab.xml")
+editor_row = editor_xml.find(".//Control[@name='InventoryCompanion_TrackedItemRow_Template']/Controls")
+item_label = editor_row.find("Label[@name='$(parent)ItemLabel']")
+assert item_label.find("Dimensions").get("x") == "432", "Collapsed category column must give names an explicit width"
+assert len(item_label.findall("Anchor")) == 1, "Item names must not depend on a forward sibling anchor"
+assert editor_row.find("Control[@name='$(parent)CategorySpace']/Dimensions").get("x") == "0"
 parser = argparse.ArgumentParser()
 parser.add_argument("--item-editor-only", action="store_true", help="Run only item-editor regression tests.")
 args = parser.parse_args()

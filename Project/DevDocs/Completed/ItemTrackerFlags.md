@@ -31,8 +31,9 @@ Show box                         Notify box
 - Display items together is group-row-only. Show backpack and Show bank are
   independent: backpack-only, bank-only, both, or neither. Backpack includes
   craft-bag holdings with ESO Plus, matching the existing carried-item scope.
-- Both locations preserve the existing total/backpack count format. Bank-only
-  shows only bank holdings; neither hides that item/group from the tracker.
+- Location counts have native bank/bag icons. Both shows separate bank-only
+  and carried counts, bank first, with no separator or combined total. Neither
+  hides that item/group from the tracker.
 - Notify Chat and Notify HUD independently request pickup delivery. There is
   no additional master Notify checkbox. Neither disables notifications.
 - Show's detail is Backpack, Bank, Both, or None, followed by ", grouped" for
