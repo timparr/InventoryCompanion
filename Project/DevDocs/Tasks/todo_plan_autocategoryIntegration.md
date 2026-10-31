@@ -1,8 +1,10 @@
 # AutoCategory integration
 
 Status: Planned; no integration code or settings are implemented. Updated on
-2026-10-31 to record the confirmed combined-list scope, shared ordering,
-character participation, inactive UI behavior, and accepted defaults.
+2026-10-31 to record the confirmed combined-list scope, character
+participation, inactive UI behavior, and accepted defaults. After the native
+insertion spike, ordering storage was changed: AutoCategory's own active
+per-bag list is the order record (see Saved-data compatibility).
 
 The [implementation plan](todo_implementation_autocategoryIntegration.md)
 contains the investigated extension points, ordered changes, tests, and gates.
@@ -86,10 +88,12 @@ This is required functionality, not an unresolved overlap proposal.
   inventory. Distinguish sources with a label/badge and stable row identity.
   Show external categories as read-only definitions, but allow their order to
   change with the same up/down buttons.
-- Rank and projected AutoCategory evaluation order must agree with this list.
-  Initially place our groups at the top, retaining existing external relative
-  order. Later synchronization must not move them back to the top after a user
-  has interleaved categories.
+- Rank and AutoCategory evaluation order are the same thing: this list is a view
+  of AutoCategory's active bag-rule order for the selected inventory, not a
+  separate copy. Initially place our groups at the top, retaining existing
+  external relative order. Later synchronization must not move them back to the
+  top after a user has interleaved categories, whether in our editor or in
+  AutoCategory's own settings.
 - Use the currency panel's ordering rows in ESO's main game settings panel as
   the explicit interaction model: the same native per-row up/down arrow buttons,
   hover tooltips, click sound, immediate save/reorder, and moved-row highlight.
@@ -113,20 +117,24 @@ The author accepted these defaults on 2026-10-31. Combined-list movement extends
 them to external rows without adding external filter editing.
 
 - New/missing participation is off; global opt-in does not enroll all groups.
-- All ordinary groups have an effective position, including nonparticipants.
-  Up/down moves adjacent rows in the complete combined selected-context list.
-- Existing explicit ranks sort first. Groups without a rank follow in stable
-  internal-rule-key order, independent of mutable display names. New groups
-  append to the managed-group subsequence, not ahead of previously ranked
-  groups. The technical spike must define their precise insertion anchor in
-  an already interleaved list without resetting existing external order.
+- A group enters AutoCategory's list when it first participates in a context's
+  active profile, at the end of the managed subsequence (top of the list when
+  no managed groups exist yet). Turning participation off keeps its entry and
+  position; its predicate simply returns false. Up/down moves adjacent rows in
+  the complete combined selected-context list.
+- Never-enrolled groups have no position. Proposed: list them below the ordered
+  rows without arrows until they first participate. Awaiting confirmation.
+- Positions come only from AutoCategory's list. Ties are resolved by stable
+  internal-rule-key order, independent of mutable display names; normalize run
+  priorities only when the user moves a row or a new group is inserted.
 - The normal view retains its current ordering. Search may narrow either view,
   but disable move buttons while search hides groups, with a tooltip explaining
   why; do not silently move across invisible rows.
 - Disable Up at the first position and Down at the last. Miscellaneous has no
   rank or move/participation controls in this view.
-- Renaming preserves identity and rank. Deleting a group removes its settings;
-  built-in name/pattern Reset preserves participation and rank, matching the
+- Renaming preserves identity and position. Deleting a group removes its
+  participation and its entries from AutoCategory's active lists; built-in
+  name/pattern Reset preserves participation and position, matching the
   existing separation between Reset and display preferences.
 
 ## Overlapping groups and classification
@@ -162,70 +170,69 @@ only our private ranks but not actual external-rule evaluation is unacceptable.
 
 ## Saved-data compatibility
 
-Store one shared account-wide combined order for Backpack and another for Bank.
-Use stable source-qualified identities, not display names, and derive managed
-ranks from those lists. Do not save a competing rank list in each character's
-tracked-rule profile. Group ranks alone cannot retain external interleaving or
-positions for nonparticipants.
+Decided 2026-10-31 after the spike: **AutoCategory's active bag-rule list is the
+order record.** Each context's assignments live in AutoCategory's saved profile
+(`saved.bags[context].rules`, ordered by run priority). That profile is account-
+or character-wide according to AutoCategory's own setting. Inventory Companion
+stores no copy of the order and no rank field. This supersedes the earlier
+"one shared account-wide order regardless of AutoCategory's profile" decision:
+ordering now follows AutoCategory's profile, and reordering in AutoCategory's
+own settings window is equally valid. Our editor is a friendlier view of it.
 
-Per-group participation follows the existing active account/character tracked
-list, independently of Show/Notify and hidden-group settings. An alt may skip
-groups it does not need without changing shared order. Integration enablement
-can follow the existing tracked-list scope; ordering cannot. There is no
-requirement for independent per-character ordering or profile-pair order lists.
-AutoCategory's own assignment profiles remain an external compatibility boundary:
-the spike must establish how shared ordering references are applied to the active
-external assignments without changing inactive external profiles.
+- **Definitions** are registered every session through AutoCategory's plugin
+  API (`RegisterPlugin` predefined rules plus `AddRuleFunc`) and are never
+  written to `AutoCatRules`. Expressions reference stable internal rule keys,
+  so renames do not orphan them.
+- **Assignments** are persisted by AutoCategory. Verified offline with its real
+  modules: entries whose definitions are absent (IC disabled or uninstalled) are
+  skipped without errors and shown as red `(!)` rows in AutoCategory's settings,
+  which the user can delete. While IC is loaded with integration off, our
+  definitions stay registered with a false predicate, so no `(!)` rows appear.
+- **Writes to AutoCategory data** are limited to inserting/removing our own
+  entries and changing run priority on explicit moves or new insertions, in
+  the active profile only. Never change external expressions, show priority,
+  hide state, or inactive profiles.
+- **Participation** (per group) and integration enablement live in Inventory
+  Companion's existing active account/character tracked list, independently of
+  Show/Notify and hidden-group settings. An alt may skip groups without
+  affecting another character's view of a shared AutoCategory profile:
+  predicates check the current character's participation.
 
 - Missing optional settings use the documented defaults above. Explicit false
   is meaningful. Validate malformed recognized values at loading/import, with
-  an actionable error and without partial publication.
-- Profile selection/copy preserves independent participation and enablement,
-  not a character-specific order. Copying tracked rules must not overwrite
-  shared ordering. Changing Bank order cannot change Backpack order; skipping
-  a group retains its shared position.
+  an actionable error and without partial publication. Treat AutoCategory's
+  bag lists as external input: validate the structure before reading or moving.
+- Profile selection/copy preserves independent participation and enablement.
+  Changing Bank order cannot change Backpack order.
 - Protect new data against older builds that cannot preserve it. Plan a schema
-  increment from the current version 3, validate every profile, and finish
-  migration before ZOS saved-variable constructors run. Recheck the current
-  schema at implementation time rather than hardcoding a stale version.
+  increment from the current version 3 if participation fields need it,
+  validate every profile, and finish migration before ZOS saved-variable
+  constructors run. Recheck the current schema at implementation time.
 - Preserve unrelated saved fields and legacy migrations. DEV and release share
   saved variables; prove downgrade rejection before testing on normal data.
+- Never clone `ZO_SavedVars` interfaces by copying the proxy: they forward
+  writes to live data (found by the spike).
 
 ## Technical decisions still gated
 
-Combined ordering if feasible, read-only external filters, initial managed-first
-placement, shared ordering with scoped participation, hidden inactive UI, and
-the defaults above are confirmed. The
-following are technical investigations, not invitations to silently narrow scope:
+Combined ordering, read-only external filters, initial managed-first placement,
+native insertion (proven in game), AutoCategory's list as the order record,
+scoped participation, hidden inactive UI, and the defaults above are confirmed.
+The following are technical investigations, not invitations to silently narrow
+scope:
 
-1. **Registration/storage:** verify the installed version, load order, rule
-   definition/assignment add/remove paths, and cache rebuilds. Prefer reversible
-   runtime-only projection if it works. Persisted expressions require safe
-   disable, reload, and missing-addon/uninstall behavior.
-2. **Insertion versus classification ownership:** determine whether our rules
-   can be inserted into AutoCategory's native assignments and reordered with
-   existing rules. This is the preferred strategy. If not, investigate whether
-   we must take responsibility for its complete classification dispatch while
-   AutoCategory keeps rendering. Compare lifecycle, external-expression
-   evaluation, full return contracts, and compatibility risk before choosing.
-3. **Combined ordering/storage:** prove that arrows affect actual mixed
-   classification, not just displayed order. Establish authoritative storage,
-   run-priority normalization, stable external identities, missing/renamed/new
-   category reconciliation, new-group insertion anchors, and reversible profile
-   switching. Keep external filters/display priority/hide state unchanged.
-   Independent per-character ordering is not required.
-4. **Names/ownership:** stable identity must survive group renames. Establish
-   collision and manual external-edit reconciliation without overwriting a
-   user's category merely because its name matches.
-5. **AutoCategory profiles/platforms:** establish its account/character profile
-   switch/reset lifecycle and keyboard/gamepad support. Preserve inactive
-   profiles and state the verified support limits.
-
-If native insertion is infeasible, present the classification-ownership option
-with evidence and tradeoffs for approval before implementation. Do not silently
-install a replacement `MatchCategoryRules` hook or ship a managed-only list as
-though it fulfills the combined requirement. If neither strategy is safe,
-report the limitation and agree a scope change.
+1. **Registration/lifecycle:** prove plugin registration timing with
+   AutoCategory as an optional dependency, and that our persisted assignments
+   survive reload and classify in Backpack and Bank. (Missing definitions are
+   proven harmless offline.)
+2. **Profiles:** AutoCategory account/character switch shows and classifies
+   with the active profile's order; first activation in a profile without our
+   entries inserts them managed-first without touching the other profile.
+3. **Names/ownership:** stable identity must survive group renames. Establish
+   collision handling with an existing user category of the same name, and
+   reconciliation when a user removes our entries in AutoCategory's own UI.
+4. **Platforms:** keyboard is verified; gamepad remains out of scope unless
+   verified.
 
 ## Acceptance criteria
 
@@ -236,9 +243,10 @@ report the limitation and agree a scope change.
 2. The top view toggle and Backpack/Bank selector display the correct independent
    combined lists, with source labels and read-only external details. Merely
    switching views/inventory produces zero saved writes/adapter refreshes.
-3. Up/down changes and persists only the selected context's ordering, maintains
-   selection/scroll visibility, and handles endpoints and active search as
-   documented.
+3. Up/down changes and persists only the selected context's order in
+   AutoCategory's active profile, maintains selection/scroll visibility, and
+   handles endpoints and active search as documented. Reordering in
+   AutoCategory's own settings is reflected in our view.
 4. A two-group overlap chooses the top participating matching group, even when
    managed predicates execute in the opposite order. Different bag/bank ranks
    produce the documented different winners; subscriber bank uses Bank.
@@ -257,11 +265,11 @@ report the limitation and agree a scope change.
    display priorities, hide state, and unrelated data remain intact.
    Enable/synchronize/disable/reload cycles create no duplicates or stranded
    expressions. Name collisions/manual edits have explicit safe outcomes.
-9. Saved ranks and flags survive reload/copy without aliasing. Malformed values
+9. Participation flags survive reload/copy without aliasing. Malformed values
    in any profile prevent partial migration/import; older builds reject the
-   new schema without modifying data. Characters use the same account-wide
-   Backpack/Bank orders while independently skipping nonparticipating groups.
-   Tracked-list selection/copy does not replace shared order.
+   new schema without modifying data. Characters sharing an AutoCategory
+   profile see the same order while independently skipping groups. Disabling
+   integration or the addon leaves AutoCategory working without errors.
 10. Per-item matching performs zero `GetMasterItemList` calls or bag enumeration,
     and does not compile patterns, rebuild projections, or refresh inventories.
     Synthetic workload/count limits and measured in-game timing gates pass.

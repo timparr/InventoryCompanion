@@ -253,6 +253,40 @@ function GetAutoCategorySpikeTests()
         Same(_G[ic.SettingsName], savedSentinel, "Inventory Companion saved global")
         return "Synthetic state only; UI rendering and startup lifecycle are not certified."
     end)
+    Add("Persisted managed entry with absent definition is skipped and flagged, not an error", function()
+        local beforeBags = Copy(ac.saved.bags)
+        local ok, failure = pcall(function()
+            local missing = "InventoryCompanion Missing"
+            assert(ac.GetRuleByName(missing) == nil, "Fixture: definition absent")
+            table.insert(ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules, 1, Entry(missing, 500, 1))
+            ac.cacheInitialize()
+            Equal(ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules[1].name, missing, "Entry kept first in run order")
+            Classify(BAG_BACKPACK, externalRule.name, 100, 41)
+            local shown = ac.BagRuleApi.formatShow(ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules[1])
+            assert(shown:find("(!)", 1, true), "AutoCategory settings flag the missing category")
+        end)
+        ac.saved.bags = beforeBags
+        ac.cacheInitialize()
+        if not ok then error(failure, 0) end
+    end)
+    Add("Definition whose predicate function is absent is marked damaged and falls through", function()
+        local beforeBags, beforeRules = Copy(ac.saved.bags), Copy(ac.RulesW.ruleList)
+        local name = "InventoryCompanion Unbound"
+        local ok, failure = pcall(function()
+            assert(ac.Environment.ic_unbound == nil, "Fixture: predicate absent")
+            ac.RulesW:AddRule({ name = name, tag = "InventoryCompanion", rule = 'ic_unbound("maps")' })
+            table.insert(ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules, 1, Entry(name, 500, 1))
+            ac.cacheInitialize()
+            Classify(BAG_BACKPACK, externalRule.name, 100, 41)
+            Equal(ac.GetRuleByName(name).damaged, true, "Rule marked damaged")
+            Equal(ac.compiledRules[name], nil, "Damaged rule dropped for the session")
+            Classify(BAG_BACKPACK, externalRule.name, 100, 41)
+        end)
+        ac.saved.bags, ac.RulesW.ruleList = beforeBags, beforeRules
+        ac.compiledRules[name] = nil
+        ac.cacheInitialize()
+        if not ok then error(failure, 0) end
+    end)
     local function CheckProbe(injectFailure)
         local beforeBags = Copy(ac.saved.bags)
         local beforeRules = Copy(ac.RulesW.ruleList)
