@@ -66,7 +66,159 @@ they are read-only evidence, not modification targets.
   `AdditionCategoryName` depends on `SHOW_CATEGORY_SET_TITLE` and bag handling,
   so it is not a proven exact-label solution.
 
-### Spike tasks and exit gate
+### Minimum viable native-insertion probe
+
+Before integration scaffolding, run
+`python Project\Tests\Run-AutoCategorySpike.py`. The standalone
+[runner](../../Tests/Run-AutoCategorySpike.py) reads the installed dependency
+modules without copying them into this repository or accessing game saves.
+[AutoCategorySpikeTests.lua](../../Tests/AutoCategorySpikeTests.lua) supplies
+isolated ESO/library boundaries and synthetic Plunder Skull state. Registration,
+rule compilation, cache sorting/rebuilds, and classification execute the actual
+AutoCategory implementation, using our real compiled rule matcher.
+
+Current result on 2026-10-31: **15/15 tests passed** against installed
+`AutoCategory.addon` version **4.5.2**, AddOnVersion **134**. Higher AutoCategory
+`runpriority` runs first; our derived rank 1 means most important, so projection
+must translate rather than assign the same numeric rank as run priority.
+Native runtime insertion works in these isolated fixtures without replacing
+`MatchCategoryRules`, including Bank/subscriber-bank mapping, external entries
+between managed entries, a full cache rebuild, no-match fallthrough, and cleanup.
+This establishes a candidate path, not a supported dynamic public CRUD API.
+
+For the user's real Plunder Skull, reload DEV with AutoCategory enabled and run
+`/icacspike` (or `/icacspike <item-name substring>`). The DEV-only
+[Core/AutoCategorySpike.lua](../../../Core/AutoCategorySpike.lua) finds one
+backpack item read-only, discovers its actual AutoCategory baseline and matching
+Inventory Companion group (preferring Witches), then tests:
+
+1. Spike A / existing Container category / Spike B: A wins.
+2. Existing Container category / Spike A / Spike B: Container wins.
+3. Spike B / existing Container category / Spike A: B wins.
+4. Full cache rebuild retains that temporary order.
+
+At the user's request, successful execution intentionally opens ESO's copyable
+error window with the full report, headed `DIAGNOSTIC REPORT` / `not a test
+failure`. This occurs only after runtime state is restored. Missing/disabled
+dependency messages remain ordinary chat status; real probe failures still throw.
+
+The command uses the actual baseline category name, not a hardcoded spelling.
+Both test entries reuse the selected group's real matcher; this minimal probe
+tests registration/precedence, not two distinct production groups.
+It copies runtime state before running classification/cache operations, restores
+original table references, predicate/compiled state, item context, and IC profile
+references before returning, and rethrows failures after cleanup. The standalone
+suite exercises this same command on success and injected external failure.
+This cleanup protects test isolation; it is not production move rollback logic.
+
+No item transfers, saved-variable writes, installed-source edits, or persistent
+test categories are performed. The command deliberately substitutes the
+dependency's settings display-list control during the probe so its cache builder
+cannot alter the live settings UI. It does not refresh the visible inventory.
+The user's first missing-addon check exposed an assertion instead of ordinary
+optional-dependency reporting. The slash-command boundary now prints one useful
+message and does not run the probe when AutoCategory is absent, disabled,
+initializing, or exposes an incompatible namespace; isolated coverage passes.
+The enabled in-game run then exposed an incorrect table-only check for the
+dependency's display-order window, which can be an ESO userdata control. Removed
+that unnecessary check: the probe temporarily substitutes the window and restores
+its original reference without invoking it. Added userdata restoration coverage.
+In-game evidence on 2026-10-31: the user supplied the complete diagnostic report
+for `Dremora Plunder Skull, Public & Sweeper`. Its existing category was
+`Container`; the selected matching IC rule was `Test group`, not Witches.
+All three mixed orders returned their expected winners:
+Spike A / Container / Spike B => Spike A;
+Container / Spike A / Spike B => Container;
+Spike B / Container / Spike A => Spike B.
+The full cache rebuild also passed, with three predicate calls reported.
+Original runtime state was restored before the copyable report. This confirms
+native insertion and mixed precedence in game for the selected item and matcher;
+it does not certify Witches specifically or two distinct production groups.
+Updated missing-addon behavior still awaits explicit confirmation.
+
+### Next in-game test: bounded Backpack rendering
+
+Reload DEV, use keyboard inventory, open Backpack with no item search/filter
+excluding the skull, and run `/icacspike render`. The command repeats the proven
+classification checks. The DEV **Debug Key** now invokes that same rendering
+command instead of its usual full diagnostic suite, at the user's request.
+This temporary binding override lives only in the DEV probe module.
+The rendering command repeats the proven
+classification checks, restores all original Backpack assignments into its
+isolated projection, prepends two temporary managed assignments with Spike B
+winning, then invokes `AutoCategory.RefreshList(INVENTORY_BACKPACK, true)`.
+Other categories remain assigned. It verifies that the resulting real scroll
+list contains both a Spike B header and the chosen item's Spike B row.
+
+Original addon rule/cache/profile state is restored synchronously before the
+copyable report appears. Only the rendered list remains temporary. A normal
+Backpack refresh is scheduled after 20 seconds, using original state; no test
+predicate remains installed during that window. Close the diagnostic report
+promptly and observe `InventoryCompanion Spike B`. Do not click its temporary
+header/collapse control or change settings; such UI interactions are outside the
+probe. Ordinary inventory refreshes may end the preview earlier.
+
+Acceptance: the skull visibly appears under Spike B, other categories remain
+normal, and it returns to Container after the scheduled redraw. The rendering
+test's offline coverage mocks the refresh/scroll-list boundary and verifies
+restoration and scheduled redraw; it does not certify ESO rendering.
+User-reported visual results are pending. Startup/profile/reload persistence
+remain separate future tests.
+
+First visual result on 2026-10-31: the user reported every inventory item under
+the spike category. The selected `Test group` is the user's deliberate
+"match too much" fixture (pattern `*`), so placing everything there was correct
+for that group. An interim fix restricted the predicate to the exact selected link.
+
+Second visual result on 2026-10-31: the report and screenshots showed only
+`Dremora Plunder Skull, Public & Sweeper` under Spike B. Container still held
+the other six plunder skulls (three gold Dremora, three purple `Plunder Skull`).
+All other categories were unchanged. Header/item placement and external category
+retention are confirmed visually. The one-item scope was a test artifact, not a
+matching failure. Neither saved-variable file contained a Witches or plunder group.
+
+Current probe: it no longer reads user groups. It creates a temporary
+`*<search>*` group (default `*plunder skull*`) in the copied tracked lists,
+using the real create/update/runtime-compile/matcher path. Real user groups and
+saved data are untouched. The predicate matches by that group for every item.
+The live-list check requires every listed item to be under Spike B exactly when
+it matches the group, and reports both counts. Offline coverage uses the real
+matcher with two matching skulls and one unrelated item. Expected rerun: all
+seven skulls under Spike B; everything else unchanged; normal view after 20s.
+
+Isolation defect found in game on 2026-10-31: the first run of that build wrote
+`ic_acspike_group` ("Spike Group", `*plunder skull*`) into the user's real IC
+group list. A second press then failed with "Rule already exists".
+Cause: `ZO_SavedVars` interfaces are empty proxies whose metatable forwards
+reads and writes to the raw table (`__index = current`). The probe's deep copy
+preserved that metatable, so the "copied" profiles still wrote to live data.
+Earlier probe builds only read IC rules, so they were unaffected; AutoCategory's
+`saved` is a plain table and was isolated correctly. Fix: profiles are detached
+by copying the raw table behind the proxy (asserting the ZOS shape), without the
+proxy metatable. The probe also removes the leaked key from both real profiles
+once, reports `REPAIRED`, and states that its only write is that repair.
+The offline fixture now uses ZO_SavedVars-shaped proxies and compares raw saved
+tables. Restoring the old copy reproduces the in-game leak (3 failures); the fix
+passes 16/16. **Lesson for production code:** never clone ZO_SavedVars interfaces
+by `pairs` or by metatable reuse; work with the raw table or explicit fields.
+
+Rendering result on 2026-10-31 (fixed build): the report began `REPAIRED`, having
+removed the leaked group from the real account list (the character list was
+clean). All three mixed orders and the cache rebuild passed again. The live
+Backpack list check passed: **all 7 matching skulls under Spike B; 11 other items
+kept their categories**. Visible native section rendering with a group-wide
+managed matcher is now proven for keyboard Backpack. The user then confirmed the
+visual check passed, including the scheduled return to normal categories. The
+one-off repair code and its test were removed afterwards; the proxy-shaped
+isolation tests remain as the regression guard.
+
+**Actual section
+rendering, plugin startup, external-profile switching, and reload/uninstall
+persistence are not certified by these tests.** Agree a safe rendering probe
+after classification succeeds; do not leave experimental expressions persisted
+just to obtain a screenshot.
+
+### Remaining spike tasks and exit gate
 
 - Establish actual manifest identity, version, dependency requirements, and
   registration timing with either addon becoming ready first.

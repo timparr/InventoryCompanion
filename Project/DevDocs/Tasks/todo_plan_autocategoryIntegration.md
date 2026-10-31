@@ -278,6 +278,36 @@ must count matcher calls, scans, compilation, writes, registrations, removals,
 and refreshes; timing alone is insufficient. Never mutate live inventory or
 either addon's real saved variables in synthetic checks.
 
+The minimum native-insertion probe is now prepared before integration
+scaffolding: a standalone actual-module suite passed 15/15 against AutoCategory
+4.5.2, and the DEV-only `/icacspike` command is ready for the user's Plunder
+Skull (existing Container category versus our Witches matcher). See the
+[probe instructions and evidence](todo_implementation_autocategoryIntegration.md#minimum-viable-native-insertion-probe).
+It restores isolated state immediately and checks returned classification,
+not visible inventory rendering. The user's in-game report confirmed all three
+mixed-order winners and a full cache rebuild for `Dremora Plunder Skull, Public
+& Sweeper`, baseline `Container`, using the matching `Test group` rule rather
+than Witches. Visible rendering and remaining lifecycle verification are pending.
+The next prepared test is `/icacspike render`: a bounded 20-second Backpack
+preview, also invoked by the DEV Debug Key at the user's request. It provides
+original rule state restored immediately, actual header/item list
+checks, and a scheduled normal redraw. Visual acceptance remains pending; see
+the implementation plan for instructions and interaction limits.
+The first preview placed all inventory under the spike header, which is correct:
+`Test group` is the user's deliberate `*` "match too much" fixture. A second,
+exact-link-scoped preview showed one skull under Spike B with other categories
+intact, confirming visible placement. The probe now uses its own temporary
+`*plunder skull*` group in isolated state, rather than user groups. It checks
+that exactly the matching items render under Spike B. The all-skulls visual
+rerun is pending. Its first in-game run leaked the temporary group into the
+real IC list, because `ZO_SavedVars` interfaces are write-through proxies.
+Isolation is fixed and covered by proxy-shaped tests, and the probe repairs the
+leak once; details are in the implementation plan. The fixed build then passed
+in game: the repair removed the leaked account group, and all 7 matching skulls
+rendered under Spike B while 11 other items kept their categories. Keyboard
+Backpack rendering through native insertion is proven, and the user confirmed
+the visual check, including the return to normal categories after the preview.
+
 In game, verify actual Backpack/Bank rendering, subscriber-bank context,
 opposite overlap rankings, participation fallthrough, an external category,
 external rows moved above/between/below our groups, unchanged external filters,

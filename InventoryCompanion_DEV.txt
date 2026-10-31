@@ -48,3 +48,4 @@ Tracking/ItemTrackerPanel.lua
 Core/Events.lua
 Core/RuleTests.lua
 Core/Tests.lua
+Core/AutoCategorySpike.lua
