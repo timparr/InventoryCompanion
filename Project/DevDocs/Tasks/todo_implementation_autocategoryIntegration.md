@@ -253,7 +253,8 @@ Status after the Backpack rendering pass (2026-10-31):
   leaves harmless `(!)` rows the user can delete in AutoCategory settings.
   Document that in the manual. (2) offline: placement values (fractional and
   above-1000 run/show priorities, `%04d` formatting of fractions in ESO's Lua,
-  saved/settings-window survival). (3) in game: plugin registration plus
+  saved/settings-window survival), `icOwned` marker survival (cache rebuild,
+  Export to all bags, settings window), and a skipped same-name collision. (3) in game: plugin registration plus
   projected entries survive `/reloadui` and classify in Backpack and Bank,
   including subscriber bank. (4) each of the seven contexts. (5) AutoCategory
   account/character profile switch path and reprojection. Gamepad stays out of
@@ -284,7 +285,8 @@ Original task list:
 - ~~Establish one authoritative account-wide mixed-order record per inventory.~~
   Superseded 2026-10-31: IC owns per-context order with markers (stage 2).
 - ~~Establish names/collision/manual-edit reconciliation.~~ Decided in stage 2
-  (owned-name registry, collisions reported, manual moves overwritten).
+  (`icOwned` marker on entries, collisions skipped before registration, manual
+  moves overwritten).
   Keyboard/gamepad scope remains: keyboard verified, gamepad out of scope.
 
 Record concrete contracts, ordering storage, and the chosen strategy here before
@@ -375,14 +377,15 @@ bag data:
   longer wanted, insert missing ones, and update changed run/show priorities.
   Never alter, reorder, or remove any other entry. Write only changed values,
   then `cacheInitBag` each changed context.
-- **Owned names.** Keep an account-wide registry `autoCategoryOwnedNames`
-  (category name → true) of every category name we have inserted. An entry in a
-  bag list is ours only if its name is in the registry. A rename registers the
-  new name; projection removes entries whose names are registered but no
-  longer correspond to a participating group's current name. Entries are never
-  claimed from a matching label alone.
-- **Collision.** If a group's name equals an existing AutoCategory category not
-  in the registry, do not insert it; the view shows a conflict until renamed.
+- **Ownership marker.** Every entry we insert carries `icOwned = true`. An entry
+  is ours only if marked; labels alone never claim. Projection removes marked
+  entries that do not correspond to a current participating group's name
+  (renames, deletions, other characters' groups), so IC stores no name list.
+- **Collision.** AutoCategory's `addTableRules` renames duplicate rule names at
+  load and calls `renameBagRule`, which rewrites the first bag entry with the old
+  name, possibly the user's. So exclude from `RegisterPlugin` any group whose
+  name equals a non-owned AutoCategory rule (its account rules are loaded at its
+  `EVENT_ADD_ON_LOADED`, before ours). The view shows the conflict until renamed.
 - **Definitions** are registered via `RegisterPlugin` predefined rules with
   expression `ic_group("<ruleKey>")` and the group's display name, after
   `AddRuleFunc("ic_group", ...)`. Registered for every group while IC is loaded,
@@ -393,9 +396,10 @@ bag data:
   AutoCategory's account/character switch (path to trace, stage 1 gate 5), and
   on integration disable (removes all our entries from the active profile).
 - Shared AutoCategory profile with character-specific IC groups: each login
-  reprojects for that character; stale entries from another character's groups
-  are removed via the registry. Our entries moved in AutoCategory's own settings
-  are overwritten at the next projection. Document both.
+  reprojects for that character; marked entries from another character's
+  groups are removed. Our entries moved in AutoCategory's own settings
+  are overwritten at the next projection. Document both, plus AutoCategory's
+  unpruned per-name collapse flags after a rename.
 - Validate AutoCategory's bag-list structure (external input) before reading or
   writing. Never write inactive AutoCategory profiles.
 
@@ -529,8 +533,10 @@ Extend the focused fixture, not the full dependent addon:
 - Enable/project/disable repeated cycles: no duplicates, idempotent, and every
   external entry byte-for-byte unchanged (name, run/show priority, hide state).
 - Rename while AutoCategory absent then reload: stale entry removed, renamed
-  entry placed at its saved position. Delete removes. Collision reported, not
-  inserted. Another character's stale owned entries are removed.
+  entry placed at its saved position. Delete removes. Collision skipped before
+  registration, with no AutoCategory rename of the user's entry. Another
+  character's marked entries are removed. Unmarked entries with our names are
+  never touched.
 - AutoCategory list reset/emptied: projection restores our entries at their
   saved positions relative to present markers.
 - Manual move of our entry in AutoCategory's data is overwritten on the next

@@ -219,12 +219,24 @@ lists receive a projection of it.
   AutoCategory's formula, so **initially mirror show priorities within that slot
   only** (provisional, 2026-10-31). Try it in game during development and change
   it if it misbehaves. Hide state set in AutoCategory is left alone.
-- **Ownership.** Record, account-wide, every AutoCategory category name we have
-  inserted, so stale entries from renames, deletions, or another character's
-  groups can be recognised and removed. Never claim an entry from a matching
-  label alone. A group whose name collides with an existing non-owned
-  AutoCategory category is not inserted, and the view reports the conflict
-  until it is renamed.
+- **Ownership** is marked on the entry itself: every entry we insert into an
+  AutoCategory bag list carries `icOwned = true`. An entry is ours only if it
+  has the marker, never from a matching label. Projection removes marked
+  entries that no longer correspond to a participating group's current name,
+  which covers renames and deletions (even made while AutoCategory was absent)
+  and other characters' groups. IC keeps no list of names, so nothing grows.
+  Decided 2026-10-31, replacing a saved name registry.
+- **Collisions.** AutoCategory renames duplicate category names at load
+  (`addTableRules` → `GetUsableRuleName` → `renameBagRule`). That rename
+  rewrites the first bag entry with the old name, which could be the user's own
+  entry, redirecting it to our category. So before registering, skip any group
+  whose name equals an existing AutoCategory category that is not ours. Report
+  the conflict in the view until the group is renamed.
+- **Known residue (AutoCategory's own behaviour):** a heading's collapsed state
+  is stored by name in AutoCategory's `collapses` table and is never pruned, even
+  for its own renames. A renamed group's heading starts expanded and its old
+  collapse flag remains. That is a small, user-driven leftover in AutoCategory's
+  data, not ours; document it rather than editing `collapses`.
 - **Absent definitions** are harmless (verified offline with AutoCategory's real
   modules): entries are skipped without errors and shown as red `(!)` rows in
   its settings, which the user can delete. While IC is loaded with integration
@@ -232,7 +244,9 @@ lists receive a projection of it.
   appear. Disabling integration removes our entries from the active profile.
 - **Shared AutoCategory profiles.** When characters share AutoCategory's
   account profile but have character-specific IC groups, its lists reflect the
-  logged-in character's groups; each login reprojects.
+  logged-in character's groups; each login reprojects. Marked entries in an
+  inactive AutoCategory profile are cleaned when that profile next becomes
+  active.
 - Moving our entries in AutoCategory's own settings is overwritten at the next
   projection. Document this.
 
@@ -261,7 +275,10 @@ and defaults above are decided. Remaining investigations:
    variables, and are not altered merely by opening its settings window. Prove
    ESO's `string.format("%04d", fraction)` truncates rather than erroring
    (standard Lua 5.3+ would error); if it errors, use whole numbers only and
-   renumber our own entries within a slot when crowded.
+   renumber our own entries within a slot when crowded. Prove the `icOwned`
+   marker survives cache rebuilds, "Export to all bags", and opening/using
+   AutoCategory's settings window, and that a same-name collision is skipped
+   before registration without AutoCategory renaming anything.
 2. **Registration/lifecycle:** in game, plugin registration plus projected
    entries survive `/reloadui` and classify in Backpack and Bank (including
    subscriber bank).
