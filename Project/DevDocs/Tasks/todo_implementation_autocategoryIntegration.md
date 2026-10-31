@@ -145,7 +145,8 @@ Reload DEV, use keyboard inventory, open Backpack with no item search/filter
 excluding the skull, and run `/icacspike render`. The command repeats the proven
 classification checks. The DEV **Debug Key** now invokes that same rendering
 command instead of its usual full diagnostic suite, at the user's request.
-This temporary binding override lives only in the DEV probe module.
+This temporary binding override lives only in the DEV probe module. Revert it
+(restore the usual diagnostic suite) when the probe phase ends.
 The rendering command repeats the proven
 classification checks, restores all original Backpack assignments into its
 isolated projection, prepends two temporary managed assignments with Spike B
@@ -386,7 +387,12 @@ bag data:
 - **Category name.** Register each group as `AutoCategoryName(displayName)`:
   one constant decoration, preferred an inline texture icon prefix
   (`|t18:18:<texture>|t <name>`), fallback `<name> · Inventory Companion`.
-  Choose by in-game trial after the gate-2 markup check.
+  Choose by in-game trial after the gate-2 markup check. The icon is IC's own
+  satchel-and-tag texture (spec: "IC icon"; sources in
+  [Project/Art/CategoryIcon/v5](../../Art/CategoryIcon/v5/)). Until its `.dds`
+  exists, trial with a built-in ESO texture. Converting the SVGs to 64×64
+  DXT5 `.dds` (alpha preserved, pure white for tinting) is an open task; no
+  converter is set up in the repository yet.
 - **Collision (backstop).** AutoCategory's `addTableRules` renames duplicate
   rule names at load and calls `renameBagRule`, which rewrites the first bag
   entry with the old name, possibly the user's. Exclude from `RegisterPlugin`

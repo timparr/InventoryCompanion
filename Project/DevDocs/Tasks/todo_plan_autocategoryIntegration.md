@@ -234,6 +234,30 @@ lists receive a projection of it.
   `Plunder · Inventory Companion`. The decoration is a single constant chosen
   by in-game trial. The icon is explained in the manual and the AutoCategory
   view.
+- **IC icon (designed 2026-10-31).** Our own icon: a wide flap satchel with a
+  luggage tag, drawn pure white so it can be tinted in game (ESO multiplies a
+  texture by its tint colour). Sources are in
+  [Project/Art/CategoryIcon](../../Art/CategoryIcon/); **v5 is chosen**
+  (v1–v4 are earlier iterations kept for reference).
+  - `CategoryIcon.svg`: the plain icon, used in AutoCategory headings as a
+    single inline texture, tinted gold. A heading is a whole group, so headings
+    never show include/exclude marks.
+  - Include/exclude marks use **two layers** (option 1): a bag layer with a cut
+    gap (`CategoryIconIncludeBag.svg` / `CategoryIconExcludeBag.svg`) plus a
+    separate badge layer (`CategoryIconIncludeBadge.svg` /
+    `CategoryIconExcludeBadge.svg`, a solid plus or a bar), each tinted
+    separately. A white badge cannot be kept white inside one tinted texture,
+    so these can only be drawn as two stacked controls in IC's own UI, not
+    inline in text. Where they appear in IC's UI is not decided yet.
+  - Colours: include **blue**, exclude **red** (red/green is the most common
+    colour-blind confusion; shape also differs). Badge colouring is still
+    open: (A) coloured bag + white badge, clearest; (B) gold bag + coloured
+    badge, weakest at 18 px; (C) coloured bag + gold badge. A colour setting
+    may follow; good defaults matter more.
+  - Textures: convert to 64×64 DXT5 `.dds` with alpha. The texture path is part
+    of the category name, so it must never change after release; DEV and
+    release folder paths differ, so switching builds renames categories. New
+    texture files need a full game restart, not `/reloadui`.
 - **Collisions.** AutoCategory renames duplicate category names at load
   (`addTableRules` → `GetUsableRuleName` → `renameBagRule`). That rename
   rewrites the first bag entry with the old name, which could be the user's own
