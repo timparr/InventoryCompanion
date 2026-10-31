@@ -1,10 +1,12 @@
 # AutoCategory integration: implementation plan
 
-Status: Planned, not implemented or compatibility-certified. Updated on
-2026-10-31 with confirmed combined ordering, read-only external filters,
-managed-first initial placement, scoped participation, hidden inactive UI, and
-accepted defaults. After the spike, native insertion was chosen and
-AutoCategory's own bag lists became the order record (stage 2).
+Status: Planned, not implemented or compatibility-certified. Native insertion
+is proven in game. Revised 2026-10-31 (author): Inventory Companion owns its
+groups' order per context, positioned against user-selected AutoCategory marker
+categories, and projects only its own entries into AutoCategory's seven bag
+lists. AutoCategory's entries are never edited. Supersedes the "edit
+AutoCategory's combined order" and "AutoCategory's list is the order record"
+designs.
 
 Behavior, accepted defaults, and remaining technical gates are in the
 [feature spec](todo_plan_autocategoryIntegration.md). This document follows
@@ -234,9 +236,11 @@ Status after the Backpack rendering pass (2026-10-31):
   is an optional dependency so it loads first. Bag **assignments** are different:
   `saved.bags` is AutoCategory's own saved profile data (account or character),
   so any assignment present at logout is persisted by AutoCategory.
-- **Decided (author, 2026-10-31):** AutoCategory's own assignments are the
-  order record (option 1). Order follows AutoCategory's account/character
-  profile and is equally editable in its own settings window. See stage 2.
+- **Decided (author, 2026-10-31):** briefly, AutoCategory's assignments were to
+  be the order record (option 1). Revised the same day: editing data we do not
+  own loses order when AutoCategory is absent/reset and when groups are renamed
+  while it is off, and a mixed list of ~29 categories per context is unwieldy.
+  IC now owns the order with marker categories (stage 2).
 - **Remaining gates:** (1) ~~offline: absent definition~~ **passed 2026-10-31**
   with the real modules (17/17). A persisted entry with no definition is skipped
   by `MatchCategoryRules`; other categories classify normally, and AutoCategory's
@@ -247,9 +251,12 @@ Status after the Backpack rendering pass (2026-10-31):
   is loaded but integration is off, keep registering definitions with a
   predicate returning false, avoiding `(!)` rows. Disabling or uninstalling IC
   leaves harmless `(!)` rows the user can delete in AutoCategory settings.
-  Document that in the manual. (2) in game: plugin registration plus
-  assignment survives `/reloadui` and classifies in Backpack and Bank;
-  (3) AutoCategory account/character profile switch. Gamepad stays out of
+  Document that in the manual. (2) offline: placement values (fractional and
+  above-1000 run/show priorities, `%04d` formatting of fractions in ESO's Lua,
+  saved/settings-window survival). (3) in game: plugin registration plus
+  projected entries survive `/reloadui` and classify in Backpack and Bank,
+  including subscriber bank. (4) each of the seven contexts. (5) AutoCategory
+  account/character profile switch path and reprojection. Gamepad stays out of
   scope unless verified.
 
 Original task list:
@@ -275,12 +282,10 @@ Original task list:
   AutoCategory rendering. Present evidence and risks for author approval before
   implementing that materially different strategy.
 - ~~Establish one authoritative account-wide mixed-order record per inventory.~~
-  Superseded 2026-10-31: AutoCategory's active bag lists are the order record
-  (stage 2). Still verify AutoCategory profile compatibility, external edits,
-  new-group insertion, and character-specific participation.
-- Establish names/collision/manual-edit reconciliation and verified keyboard /
-  gamepad scope. External definitions/filters are read-only in Phase I; only
-  their selected-context ordering is editable here.
+  Superseded 2026-10-31: IC owns per-context order with markers (stage 2).
+- ~~Establish names/collision/manual-edit reconciliation.~~ Decided in stage 2
+  (owned-name registry, collisions reported, manual moves overwritten).
+  Keyboard/gamepad scope remains: keyboard verified, gamepad out of scope.
 
 Record concrete contracts, ordering storage, and the chosen strategy here before
 dependent storage/runtime work. Native insertion is preferred; classification
@@ -288,76 +293,137 @@ ownership needs explicit approval after the spike. Stop if neither strategy is
 safe. Do not silently substitute a managed-only list or an unapproved
 `MatchCategoryRules` replacement.
 
-## 2. Save participation; read and write order through AutoCategory
+## 2. Save participation, order, and markers
 
-Decided 2026-10-31 (author approval after the spike): **AutoCategory's active
-bag-rule list is the only order record.** Inventory Companion stores no copy of
-the order and no rank field. The earlier shared account-wide order record,
-projection, and nonparticipant-position storage are withdrawn.
+Decided 2026-10-31 (author): **Inventory Companion owns the order** of its
+groups for each AutoCategory context. AutoCategory's categories appear only as
+fixed **markers** the user selects; their relative order is read from
+AutoCategory and never written.
 
 ### Representation
 
 [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) stores rule
 overrides under the active profile's `trackedRules[ruleKey]`; the stable rule
-key survives display-name edits. Add optional participation directly to each
-saved rule, separate from `display`:
+key survives display-name edits. Participation goes on each saved rule; order
+and markers go on the tracked-list profile:
 
 ```lua
 trackedRules = {
     maps = { autoCategoryEnabled = true },
     cyrodiil = { autoCategoryEnabled = true },
 }
+autoCategoryIntegrationEnabled = true
+autoCategoryMarkers = { "New", "Selling", "Container", "Stolen" } -- category names
+autoCategoryOrder = {
+    [AC_BAG_TYPE_BACKPACK] = {
+        { ruleKey = "plunder" },                  -- top slot
+        { ruleKey = "maps", below = "New" },
+        { ruleKey = "cyrodiil", below = "New" },
+    },
+    -- one list per context, 1..7
+}
 ```
 
 - Missing `autoCategoryEnabled` resolves false; use sparse writes. Participation
-  applies to every supported inventory context.
-- Add `autoCategoryIntegrationEnabled`, default false, to both account and
-  character tracked-list profiles, resolved through the existing
-  `useCharacterItemList` choice. Do not add an independent integration profile
-  mode.
+  applies to every context.
+- `autoCategoryIntegrationEnabled`, `autoCategoryMarkers`, and
+  `autoCategoryOrder` live in both account and character tracked-list profiles,
+  resolved through the existing `useCharacterItemList` choice. No independent
+  integration profile mode.
+- Missing `autoCategoryMarkers` means the defaults: AutoCategory's localized
+  default names for New, Selling, Container, and Stolen (read from its
+  `SI_AC_DEFAULT_CATEGORY_*` strings at the boundary), filtered to categories
+  that exist. An explicit empty list is valid.
+- `autoCategoryOrder[context]` is an ordered list. `below` names the marker the
+  group sits beneath; absent means the top slot. Entries are kept for
+  nonparticipating groups so turning participation off/on keeps the position.
+  Groups never ordered are absent and are appended to the top slot when first
+  enrolled.
+- Markers and `below` are stored by AutoCategory category name (its only
+  identity). A `below` name that is no longer a selected, present marker
+  resolves to the nearest preceding valid marker's slot, or the top slot, at
+  read time. Saved data is rewritten only by the next user move.
 
-### Order contract (AutoCategory's data)
+### Order and placement contract
 
-- Order for a context is the sorted `AutoCategory.saved.bags[context].rules`
-  (higher `runpriority` first; AutoCategory's `cacheInitBag` sorts it). That
-  table belongs to AutoCategory's active account or character profile.
-- Our rows are entries whose `name` is a managed category name registered
-  through our plugin definitions; identity resolves through the definition's
-  expression `ic_group("<ruleKey>")`, not the label. Everything else is external.
-- **Insertion:** when a group first participates and the active profile has no
-  entry for it, insert it after the last managed entry, or at the top when there
-  are none, with a run priority between its neighbours. Renumber run priorities
-  only when no gap exists. Never move existing entries to make room otherwise.
-- **Move:** swap adjacent rows' positions in the selected context by adjusting
-  run priority, then `cacheInitBag(context)`. External rows may move; nothing else
-  about them changes. Validate the bag-list structure first (external input).
-- **Participation off** keeps the entry and position; the predicate returns false.
-  **Delete** removes our entries from the active profile's lists.
-- Never write show priority, hide state, external definitions, or inactive
-  AutoCategory profiles. Integration disable leaves entries in place; their
-  definitions stay registered with a false predicate while IC is loaded
-  (stage 1 gate 1 showed absent definitions are harmless but appear as `(!)`).
-- Reading the order never writes.
+`ResolveAutoCategoryOrder(context)` (pure, in the integration module) combines
+our saved order with the markers present in AutoCategory's active list for that
+context, in AutoCategory's run order, giving the view rows. `ComputePlacement`
+then assigns each participating group a run priority:
+
+- **Slots.** A group in marker M's slot must sort after M and every entry tied
+  with M, and before the next lower distinct priority P in the list (all
+  entries, not only markers). The available range is (P, M). The top slot is
+  above the list's highest priority; the last slot extends below its marker.
+- **Values.** Within a range, space the slot's groups evenly in saved order,
+  preferring whole numbers; use fractions only when the range has fewer whole
+  numbers than groups. `runpriority = showpriority` for every entry, so
+  display follows the view order.
+- **Top slot (provisional, try in development):** AutoCategory's display key
+  `string.format("%04d%s", 1000 - showpriority, name)` reverses order above
+  1000. Initially mirror show priorities within the top slot only, so headings
+  follow the view. Revisit after in-game trial.
+- AutoCategory sorts ties by name; our values avoid ties with each other and
+  with external entries.
+
+### Ownership and projection contract
+
+`ProjectAutoCategory()` (integration module) is the only writer of AutoCategory
+bag data:
+
+- For each of the active profile's seven lists: remove our entries that are no
+  longer wanted, insert missing ones, and update changed run/show priorities.
+  Never alter, reorder, or remove any other entry. Write only changed values,
+  then `cacheInitBag` each changed context.
+- **Owned names.** Keep an account-wide registry `autoCategoryOwnedNames`
+  (category name → true) of every category name we have inserted. An entry in a
+  bag list is ours only if its name is in the registry. A rename registers the
+  new name; projection removes entries whose names are registered but no
+  longer correspond to a participating group's current name. Entries are never
+  claimed from a matching label alone.
+- **Collision.** If a group's name equals an existing AutoCategory category not
+  in the registry, do not insert it; the view shows a conflict until renamed.
+- **Definitions** are registered via `RegisterPlugin` predefined rules with
+  expression `ic_group("<ruleKey>")` and the group's display name, after
+  `AddRuleFunc("ic_group", ...)`. Registered for every group while IC is loaded,
+  including when integration is off (predicate returns false).
+- **When it runs:** in our plugin init (after AutoCategory selects its profile,
+  before its first cache build), after IC edits that change membership, names,
+  participation, order, or markers, after IC tracked-list switch/copy, after
+  AutoCategory's account/character switch (path to trace, stage 1 gate 5), and
+  on integration disable (removes all our entries from the active profile).
+- Shared AutoCategory profile with character-specific IC groups: each login
+  reprojects for that character; stale entries from another character's groups
+  are removed via the registry. Our entries moved in AutoCategory's own settings
+  are overwritten at the next projection. Document both.
+- Validate AutoCategory's bag-list structure (external input) before reading or
+  writing. Never write inactive AutoCategory profiles.
 
 ### Loading, migration, mutation, and copying
 
 Change [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
 
-- Extend `ValidateSavedRules` for participation, including inactive profiles and
-  import sources. Extend `PrepareSavedVariables` to validate new fields before
-  publishing any migration; preserve version 1 conversion and version 2/3 data.
+- Extend `ValidateSavedRules` for participation, and profile validation for
+  enablement, markers (array of nonempty strings), and order (seven-context
+  table of `{ ruleKey, below? }`, no duplicate keys per context), including
+  inactive profiles and import sources. Order entries for unknown rule keys are
+  pruned at load with a reported count, not an error (users edit saved data).
+  Extend `PrepareSavedVariables` to validate new fields before publishing any
+  migration; preserve version 1 conversion and version 2/3 data.
 - Increase `SettingsVersion` in [Core/Init.lua](../../../Core/Init.lua) from 3
   to 4 if still current, so older builds reject the new fields. Optional fields
   keep their defaults without eager writes.
 - Extend `NormalizeRule` / `PruneRule` for sparse participation; do not drop
   participation-only overrides or create empty custom groups.
 - Publish resolved participation in `GetRuntimeRules`. Never save compiled
-  patterns or cached order.
-- Add narrow `SetAutoCategoryParticipation(ruleKey, value)`; the move entry point
-  lives in the integration module because it writes AutoCategory data.
-- `DeleteCustomRule` removes stored fields; `ResetRule` keeps participation.
-  `CopyProfile` copies participation and enablement without aliasing.
-  `SetUseCharacterItemList` selects participation and enablement.
+  patterns or computed priorities.
+- Add narrow `SetAutoCategoryParticipation(ruleKey, value)`,
+  `MoveAutoCategoryGroup(context, ruleKey, direction)`, and
+  `SetAutoCategoryMarkers(names)`. A move past a marker changes `below`; a move
+  past a group swaps list positions.
+- `DeleteCustomRule` removes participation and order entries; `ResetRule` keeps
+  them. `CopyProfile` copies participation, enablement, markers, and order
+  without aliasing. `SetUseCharacterItemList` selects all of them.
 
 ### Saved-data regression tests
 
@@ -365,16 +431,16 @@ Extend [SavedVariablesTests.lua](../../Tests/SavedVariablesTests.lua) and
 [RulePersistenceTests.lua](../../Tests/RulePersistenceTests.lua):
 
 - Version 1/2/3 upgrades preserve unrelated account/inactive-character data;
-  missing new fields remain off.
-- Malformed participation/enablement rejects loading/import without partial writes.
-- Round-trip participation; copy without aliasing; preserve unknown data and
-  existing sparse pattern/display fields. Use `ZO_SavedVars`-shaped proxy
-  fixtures (write-through metatables), as the spike showed plain tables hide leaks.
+  missing new fields resolve to defaults.
+- Malformed participation/enablement/markers/order rejects loading/import
+  without partial writes; unknown order keys are pruned and reported.
+- Round-trip and copy without aliasing; preserve unknown data and existing
+  sparse fields. Use `ZO_SavedVars`-shaped proxy fixtures (write-through
+  metatables), as the spike showed plain tables hide leaks.
+- Moves: past group, past marker, endpoints, participation-off retention,
+  rename keeps position, delete removes it, Bank move leaves Backpack unchanged.
 - Execute a real pre-feature schema 3 build against schema 4 fixtures and prove
   rejection before mutation. Never use the user's real saved variables.
-- Order-contract tests run in the AutoCategory fixture with the real modules:
-  insertion anchor, move, gaps/renumbering, participation off, delete, and
-  untouched external fields and inactive profile.
 
 ## 3. Managed predicate
 
@@ -383,134 +449,107 @@ Extend [SavedVariablesTests.lua](../../Tests/SavedVariablesTests.lua) and
 Add one focused module, provisionally `Tracking/AutoCategoryIntegration.lua`.
 
 - AutoCategory evaluates the active list top to bottom and returns the first
-  true entry (verified in game). The highest-placed participating matching
-  group therefore wins without any precomputed winner: register
-  `ic_group(ruleKey)` returning `participating(ruleKey) and
+  true entry (verified in game). Projection makes that order equal our view, so
+  no precomputed winner is needed. Register `ic_group(ruleKey)` returning
+  `integrationEnabled and participating(ruleKey) and
   ItemMatchesRuntimeRule(AutoCategory.checkingItemLink, rules[ruleKey])`.
-  External categories interleave naturally.
 - Use the existing `ItemMatchesRuntimeRule` and `GetRuntimeRules`; do not
   duplicate pattern matching or read HUD presentation/display policies.
 - Escape stable rule keys as Lua string literals. Display names are labels.
-  An unknown key in our own expression is a maintained defect: throw.
-- Map Backpack/Bank/subscriber bank only at the AutoCategory boundary for the
-  editor's context selector; the predicate does not need the context.
+  An unknown key in our own registered expression is a maintained defect:
+  throw.
 
 ### Measurable work
 
 Per classified item, at most one matcher call per managed entry AutoCategory
 evaluates before the first match, the same cost as any native category. No
 pattern compilation, sorting, scans, settings writes, or refreshes in a
-predicate. Add a winner cache only if in-game measurement shows a need.
+predicate.
 
-### Runtime regression tests
+### Runtime and placement regression tests
 
 Add `Project/Tests/AutoCategoryIntegrationTests.lua`, run with the real
 AutoCategory modules like the spike suite:
 
 - Two overlapping groups with opposite Backpack/Bank order produce opposite
   winners; subscriber bank equals Bank. Participation off falls through.
-- Hidden tracker groups and all Show/Notify states do not affect matching;
+- Group above a marker beats that category; below it, the category wins.
+  Tied external priorities stay in their marker's slot.
+- Placement: whole numbers when room exists, fractions when crowded, top slot,
+  last slot, missing/deselected markers, no ties with external entries;
+  AutoCategory's run sort and display key both follow the view (top-slot
+  mirroring included).
+- Hidden tracker groups and Show/Notify states do not affect matching;
   exclusions, empty patterns, unmatched items, non-ASCII/quoted names.
-- Zero scan/compile/write/refresh calls from predicates; matcher calls bounded
-  as above. External category above/between/below changes the actual result.
+- Zero scan/compile/write/refresh calls from predicates.
 - Missing owned functions/state throw rather than becoming false.
 
-## 4. Activate, synchronize managed entries, and project explicit mixed order
+## 4. Activate and project
 
 ### Activation and lifecycle
 
-Use the contracts established in stage 1:
-
 - In [InventoryCompanion_DEV.txt](../../../InventoryCompanion_DEV.txt), add the
-  module and verified optional dependency identity. Wire activation through
-  [Core/Init.lua](../../../Core/Init.lua) /
-  [Core/Events.lua](../../../Core/Events.lua) after saved rules are ready.
-  Register the real predicate before any managed expression can execute.
-- Expose explicit absent, disabled, waiting, active, and incompatible status.
-  Absence is an ordinary optional-dependency condition. If enabled but external
-  contracts are unsupported, use existing status/warning conventions and do not
-  publish partial managed state.
-- Validate external API/data shapes at activation/reconciliation boundaries.
-  Call our established owned functions directly after validation.
-- Reconcile owned definitions/assignments using stable rule identity. Initially
-  insert managed groups above existing categories. Apply explicit combined-order
-  edits to actual selected-context run precedence through verified operations;
-  external ordering is editable, external definitions are not.
-- Preserve external relative order on initial insertion and retain user
-  interleaving on synchronization. Do not reset to managed-first on edits,
-  reload, or profile switches. Never change category show priority, expressions,
-  hide state, or external assignments in inactive profiles.
-- Preserve collisions/manual external edits according to the spike's explicit
-  policy. Do not claim ownership from a matching label alone.
-- Remove stale owned entries for deleted/disabled groups and old active contexts.
-  Disable removes integration's effect without deleting user rules. Keep inactive
-  AutoCategory profiles intact and reconcile their own active switch/reset paths.
-- Validate/prepare the complete reconciliation before mutation where possible;
-  report external operation errors and do not announce successful activation
-  after incomplete registration/removal.
-- For up/down, validate external structures, perform the simple order change
-  through the verified AutoCategory path, then refresh its cache. Lua runs
-  synchronously; do not assume normal moves can be interrupted or add speculative
-  transactions/rollback. Maintained defects throw visibly, external failures are
-  reported, and no success is announced after an error. Add recovery only if
-  investigation establishes a concrete API need.
+  module and AutoCategory as an optional dependency (so it loads first). Call
+  `RegisterPlugin` at our `EVENT_ADD_ON_LOADED` after saved rules are ready;
+  AutoCategory then calls our init after selecting its profile and before its
+  first cache build. Register `ic_group` before definitions.
+- Expose explicit absent, disabled, active, and incompatible status. Absence is
+  an ordinary optional-dependency condition. If enabled but external contracts
+  are unsupported, report it and do not project.
+- Validate external API/data shapes at the projection boundary. Call our own
+  functions directly after validation.
+- Validate/prepare the complete projection before mutation. Lua runs
+  synchronously; do not add speculative transactions/rollback. Maintained
+  defects throw visibly; external failures are reported; no success is
+  announced after an error.
 
 ### Synchronization surfaces
 
 Trace every caller of `InvalidateRuleCache` in
 [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) before wiring.
 Cover `SetUseCharacterItemList`, `UpdateRulePatterns`, `UpdateRuleProperty`,
-`CreateCustomRule`, `DeleteCustomRule`, `ResetRule`, `CopyProfile`, and the new
-participation/mixed-row move methods, plus active-profile enable/disable and
-AutoCategory's own profile/reset/external-order events.
+`CreateCustomRule`, `DeleteCustomRule`, `ResetRule`, `CopyProfile`, the new
+participation/move/marker methods, integration enable/disable, and
+AutoCategory's account/character switch.
 
-Coalesce a relevant edit burst into at most one verified refresh per affected
-supported inventory. A Bank-only order edit
-does not refresh Backpack. Ensure pending work uses the latest active profile
-and revision; no old callback may publish after disable/profile switch.
-Show/Notify-only changes must not alter classification or add classification
-listeners. Retain existing pickup-notification event registration.
+- Pattern-only edits need a cache refresh but no projection (the predicate reads
+  live rules). Renames, participation, order, marker, delete, and profile
+  changes need projection.
+- Coalesce an edit burst into at most one projection and one refresh per
+  affected context. A Bank-only move does not touch Backpack. Pending work uses
+  the latest active profile; no stale callback may publish after disable or a
+  profile switch. Show/Notify-only changes must not project or refresh.
+  Retain existing pickup-notification event registration.
 
 ### Adapter regression tests
 
 Extend the focused fixture, not the full dependent addon:
 
-- Absent/not-ready/incompatible contracts; both load orders; no expressions
-  execute before registration.
-- Enable/synchronize/disable repeated cycles: no duplicates, idempotent cleanup,
-  user-category and inactive-profile preservation.
-- Rename/delete/pattern/participation/move/Reset/copy and both addons' switches;
-  pending burst then disable/switch cannot resurrect stale categories.
-- Existing external rules still win according to their own precedence; a
-  nonmatch falls through. Initial managed-first insertion and explicit
-  above/between/below moves affect classification; subsequent reconciliation
-  retains interleaving. External expression/show priority/hide state remain
-  byte-for-byte unchanged.
-- Characters sharing one AutoCategory profile retain separate participation/
-  enablement while using the same order, without modifying inactive data.
-  Reordering or removing our entries in AutoCategory's own UI is respected;
-  synchronization re-inserts only entries for participating groups that are
-  missing, at the stage 2 anchor.
-- Count registrations/removals/compiles and bounded refreshes. Bank-only edits
-  affect Bank only; merely opening/changing editor view affects neither.
-- Real external operation failures produce explicit status; internal failures
-  propagate. Test reload persistence and missing-definition behavior
-  (integration off, addon disabled/uninstalled) before live opt-in.
+- Absent/incompatible contracts; no expressions execute before registration.
+- Enable/project/disable repeated cycles: no duplicates, idempotent, and every
+  external entry byte-for-byte unchanged (name, run/show priority, hide state).
+- Rename while AutoCategory absent then reload: stale entry removed, renamed
+  entry placed at its saved position. Delete removes. Collision reported, not
+  inserted. Another character's stale owned entries are removed.
+- AutoCategory list reset/emptied: projection restores our entries at their
+  saved positions relative to present markers.
+- Manual move of our entry in AutoCategory's data is overwritten on the next
+  projection.
+- Count registrations/writes/cache rebuilds; merely opening or switching the
+  editor view does nothing. Real external failures produce explicit status;
+  internal failures propagate.
 
-## 5. Add settings, participation, and the ordered group-editor view
+## 5. Add settings, participation, markers, and the ordered group-editor view
 
 ### Profile settings and item editor
 
 Add opt-in and compatibility status to
 [Core/Settings.lua](../../../Core/Settings.lua). Do not build another Notify
-setting: completed Chat/HUD pickup delivery stays independent. Resolve opt-in
-against the existing account/character tracked-list selection and refresh status
-when that selection changes; clearly identify both active profile contexts.
-All integration editor controls are hidden while off/unavailable: view toggle,
-inventory selector, mixed list, arrows, external details, and participation.
-Return an active mixed view to normal and preserve saved choices. Do not add an
-inactive/read-only preview. Retain only the main settings activation entry point
-and applicable dependency/error reporting.
+setting. Resolve opt-in against the existing account/character tracked-list
+selection and refresh status when that changes. All integration editor
+controls are hidden while off/unavailable: view toggle, context selector,
+ordering list, arrows, marker selection, and participation. Return an active
+AutoCategory view to normal and preserve saved choices. No inactive preview.
 
 In [Tracking/EditPanelItemsTab.lua](../../../Tracking/EditPanelItemsTab.lua)
 and [Tracking/EditPanelItemsTab.xml](../../../Tracking/EditPanelItemsTab.xml),
@@ -518,75 +557,64 @@ bind the group-only AutoCategory control after Notify to the new participation
 mutation. Collapse the existing category-space column to zero width while
 disabled/unavailable; reserve one consistent width across row types when active.
 Preserve current Show/Notify popups, recycled-row/profile identity checks, name
-readability, and row selection. Refresh/rebind on adapter status changes.
+readability, and row selection.
 
 ### Group editor changes
 
 Change [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua)
 and [Tracking/EditPanelGroupsTab.xml](../../../Tracking/EditPanelGroupsTab.xml):
 
-- Extend `InitToolbar` with the top AutoCategory view toggle and the supported
-  inventory dropdown/radios. View/context selection is transient; it performs
-  no saved writes or inventory refresh.
-- Keep `GetSortedGroupNames` for the normal view. The AutoCategory view uses
-  `GetAutoCategoryEntryOrder(context)`, which reads AutoCategory's active
-  sorted bag list (stage 2), not an independent sort. Exclude
-  Miscellaneous and indicate participation independently of hidden-HUD styling.
-- Add source badges/labels and source-qualified row selection. External rows
-  show read-only names/filter details and ordering buttons, never our editable
-  name/pattern controls, participation toggles, Reset/Delete, or hide controls.
-  Preserve external damaged/hidden status as information, not editable state.
-- Extend `PopulateGroupRow` / `PopulateGroupListPane` with up/down controls;
-  preserve the right-hand pattern/name editing pane and selection by stable key.
-- The exact interaction model is the currency panel's ordering rows in ESO's
-  main game settings panel, built by `GetCurrencyPanelSettingsControls` /
+- Extend `InitToolbar` with the AutoCategory view toggle, a seven-context
+  dropdown, and a **Choose markers** button. View/context selection is
+  transient: no saved writes, projection, or refresh.
+- Keep `GetSortedGroupNames` for the normal view. The AutoCategory view lists
+  `ResolveAutoCategoryOrder(context)` rows: groups with up/down arrows and
+  participation indication; marker rows with a badge and no arrows; then
+  never-ordered groups without arrows. Exclude Miscellaneous. Show collision
+  warnings on affected group rows. Note that marker order is set in
+  AutoCategory's settings.
+- Selecting a marker shows its read-only name and filter text; it never binds
+  our name/pattern editing, Reset/Delete, or participation controls.
+- **Choose markers** opens a checklist of category names present in any of the
+  active AutoCategory profile's seven lists, plus selected names that are no
+  longer present (shown as missing, removable). Saving calls
+  `SetAutoCategoryMarkers` and projects.
+- Interaction model: the currency panel's ordering rows in ESO's main game
+  settings panel, built by `GetCurrencyPanelSettingsControls` /
   `CreateResourceSettingsList` in
   [Tracking/CurrencyPanel.lua](../../../Tracking/CurrencyPanel.lua). Copy
   `CreateResourceSettingsRow`'s 28-by-26 native `ZO_DefaultButton` up/down arrows,
-  options hover tooltips, and click sound. Follow its click sequence:
-  `MoveResource` / `SaveSettingsRowOrder`, `ReorderResourceSettingsRows`,
-  `HighlightResourceSettingsRow`, then refresh the affected display.
-  Adapt these operations to the combined list; do not call currency-specific helpers.
-  Also retain group selection and scroll the moved group into view.
-- The currency implementation reorders shown resources only and clears hidden
-  resource order. Intentionally do not copy that storage policy: a group whose
-  participation is turned off keeps its AutoCategory entry and position, so
-  re-enabling does not discard it. This is a data-policy difference, not a different arrow
-  interaction.
-- Click handlers call `MoveAutoCategoryEntry(entryName, context, direction)`,
-  then rebuild the view from AutoCategory's list.
-  Both managed and external rows use this same arrow interaction. Disable endpoint
-  buttons and all moves when search hides rows, with explanatory tooltips.
-- Switching away hides ordering controls and restores normal ordering. Close
-  stale popup/callback state on profile/import/reset/delete/view changes using
-  existing editor conventions. No callback may target a recycled row/profile.
-- Do not add separate display-order or tracker-order editing. Additional
-  inventory options require tested context support, not a larger enum alone.
+  hover tooltips, and click sound. Follow its click sequence:
+  move / save, reorder rows, highlight moved row, then refresh the affected
+  context. Do not call currency-specific helpers. Also keep the group selected
+  and scrolled into view.
+- The currency implementation clears hidden resources' order. Intentionally do
+  not copy that: nonparticipating groups keep their positions.
+- Disable endpoint buttons, and all moves while search hides rows, with
+  explanatory tooltips.
+- Close stale popup/callback state on profile/import/reset/delete/view changes
+  using existing editor conventions. No callback may target a recycled row or
+  profile.
 
 ### Editor regression tests
 
 Extend [GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) and
 [ItemEditorTests.lua](../../Tests/ItemEditorTests.lua):
 
-- Top toggle/context selector chooses the correct list without writes/refresh.
-- Up/down persists one context, swaps adjacent complete-list positions, keeps
-  stable-key selection/highlight/visibility, and has correct endpoint/search
-  disabled states. Participation-off groups retain editable positions but do
-  not win.
-- Mixed rows retain source-qualified selection with duplicate labels; external
-  selection displays read-only details and cannot trigger our name/pattern/
-  Reset/Delete handlers. Moving an external row updates actual run precedence,
-  not its expression, show priority, or hide state.
-- Rename cannot reorder a group. Profile/context switches and deletion
-  cannot reuse stale handlers or change the other context's order.
-- Category width is zero when inactive and aligned when active; no individual
-  toggle. Show/Notify remain unchanged. Extend current runner XML assertions
-  for inactive and active layouts rather than deleting the zero-width invariant.
-- Off/missing/incompatible status hides every integration editor control and
-  returns to the normal view, without saved writes. Re-enabling restores
-  order and participation choices; no inactive preview is presented.
-- Native textures, radio/dropdown behavior, scroll visibility, toolbar fit, and
-  label readability require in-game verification, not just XML parsing.
+- Toggle/context selector shows the correct rows without writes/projection.
+- Up/down past groups and markers persists one context, keeps stable-key
+  selection/highlight/visibility, and has correct endpoint/search states.
+- Marker rows have no arrows and cannot trigger our name/pattern/Reset/Delete
+  handlers. Marker selection adds/removes rows and resolves orphaned `below`.
+- Rename cannot reorder a group; deletion and profile/context switches cannot
+  reuse stale handlers or change another context's order.
+- Category width is zero when inactive and aligned when active. Show/Notify
+  unchanged. Extend current runner XML assertions for both layouts.
+- Off/missing/incompatible hides every integration control and returns to the
+  normal view without writes; re-enabling restores order, markers, and
+  participation.
+- Native textures, dropdown behavior, scroll visibility, toolbar fit, and label
+  readability require in-game verification.
 
 ## 6. Verification, documentation, and completion gates
 
@@ -604,18 +632,21 @@ Extend [GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) and
   [ESO-Game-Textures.md](../../Resources/ESO-Game-Textures.md), Lua syntax,
   documentation links, and whitespace.
 - In game, execute the feature spec's full acceptance matrix, including
-  opposite overlap orders, reordered actual categories, bank/subscriber bank,
-  external categories above/between/below groups, read-only external details,
-  a shared AutoCategory profile with different character participation,
-  AutoCategory account/character profile switch,
-  refresh/edit bursts, profile/reload, and safe disable.
+  opposite overlap orders, all seven contexts, bank/subscriber bank, groups
+  above/below markers with matching headings order (including the provisional
+  top-slot mirroring), unchanged AutoCategory entries, a shared AutoCategory
+  profile with different character groups, AutoCategory account/character
+  switch, editing groups while AutoCategory is disabled, refresh/edit bursts,
+  profile/reload, and safe disable.
 - Measure the integration-off/on sort and edit-burst baseline. Record item/group
   counts, matcher/refresh counts, timing limits and results, AutoCategory version,
   verified APIs, and keyboard/gamepad support here before completion.
 - Update [UserManual.bbcode](../../../UserManual.bbcode) with participation,
-  the top view toggle, per-inventory up/down ordering (shared with AutoCategory's own settings), winning-group example,
-  mixed-order precedence, read-only Phase I external filters, profile-scoped
-  enable/disable, and saved-data/downgrade guidance.
+  the view toggle, per-context up/down ordering against markers, choosing
+  markers, winning-group example, that AutoCategory's own order is set in its
+  settings and our entries there are managed by IC, `(!)` rows after
+  uninstalling, profile-scoped enable/disable, and saved-data/downgrade
+  guidance.
   Update the authoritative working changelog from actual implemented changes
   and follow [ReleaseChecklist.md](../../Publishing/ReleaseChecklist.md).
 - Archive only after automated and user-reported in-game acceptance is complete.
@@ -623,9 +654,9 @@ Extend [GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) and
 
 ## Dependencies and work order
 
-Stage 1 established native insertion; its remaining lifecycle gates
-(missing definitions, reload, Bank, profile switch) precede live activation.
-Stage 2 establishes participation storage and the AutoCategory order contract
+Stage 1 established native insertion; its remaining gates (placement values,
+reload, contexts, profile switch) precede live activation. Stage 2 establishes
+saved order, markers, participation, and the placement/projection contracts
 before stage 3's predicate and stage 5's editor use them. Stage 4 must work
 before exposing active participation controls. Stage 6 verifies the completed
 runtime/editor work. No live changes bypass the stage 1 exit gate.
