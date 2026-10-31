@@ -1,9 +1,10 @@
 # Item tracker editor flags and row options
 
-Status: In progress as of 2026-10-31. Two-line layout approved; independent
+Status: Implementation completed and archived at the user's request on
+2026-10-31. Two-line layout approved; independent
 display locations, notification destinations, and editor popups implemented.
-Automated checks passed (99/99 isolated tests); final in-game approval remains pending.
-Complete this editor improvement before AutoCategory integration.
+Automated checks passed (99/99 isolated tests); user confirmed the in-game
+acceptance tests passed on 2026-10-31. AutoCategory integration is separate work.
 
 ## Goal
 
@@ -70,8 +71,8 @@ Show box                         Notify box
   data but refusing to initialize. Downgrading requires a compatible backup
   restored with ESO closed; DEV and release share saved variables.
 - In-game downgrade test on 2026-10-31: user confirmed the older release throws
-  after loading DEV. Settings preservation after switching back to DEV has not
-  yet been reported.
+  after loading DEV. The user subsequently confirmed the acceptance tests passed,
+  including reload and settings preservation.
 - Preserve defaults, sparse group overrides, account/character selection,
   profile import, and reload persistence.
 - Preserve Show/Notify/Mute/Untracked filters, search, individual tracking,
@@ -92,7 +93,7 @@ Show box                         Notify box
 
 ### AutoCategory
 
-After the separate [integration](todo_plan_autocategoryIntegration.md) works,
+After the separate [integration](../Tasks/todo_plan_autocategoryIntegration.md) works,
 add the full **AutoCategory** label last, after Notify, as a group-only toggle.
 Participation is independent of Show, grouping, and expansion. The column has
 zero width when integration is disabled or unavailable (including now), giving
@@ -103,7 +104,7 @@ integration exists.
 
 ## Implementation details
 
-See the separate [implementation plan](todo_implementation_itemTrackerFlags.md)
+See the separate [implementation record](ImplementationPlan_ItemTrackerFlags.md)
 for examined code paths, saved fields, ordered changes, regression tests, and
-in-game acceptance checks. Keep these documents in Tasks until implementation
-and user-facing verification are complete.
+in-game acceptance checks. Implementation and user-facing verification are
+complete; these documents are archived in Completed.

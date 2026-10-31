@@ -5,11 +5,6 @@ info panels - how to guide built into the addon - instead of the manual. - (i) b
 
 ## Section A: 🛠️ In Progress & Immediate Tasks
 
-- **C4. Item Tracker Flags / Row Options:** Approved two-line Show/Notify layout,
-  independent display/delivery flags, and popup implementation under verification.
-  Final in-game approval pending. See
-  the [implementation plan](Tasks/todo_implementation_itemTrackerFlags.md).
-
 ---
 
 ## Section B: 🐛 Bug Fixes (Pending)
@@ -21,12 +16,6 @@ info panels - how to guide built into the addon - instead of the manual. - (i) b
 
 ## Section C: ✨ Quality of Life (QOL) & Tweaks
 
-- **C4. Item Tracker Flags / Row Options (in progress):** Aligned Show/Notify
-  labels and detail lines open compact checkbox boxes for locations/grouping
-  and Chat/HUD delivery. Reserve AutoCategory last for its separate integration.
-  See the
-  [plan](Tasks/todo_plan_itemTrackerFlags.md) and
-  [implementation plan](Tasks/todo_implementation_itemTrackerFlags.md).
 - **C1. Tracker Panel UI Toolbar Additions:** Add dedicated toolbar buttons
   for **all-bank** mode and quick show/hide-zero filters.
 - **C3. Interaction Settings Control:** Add LAM options to individually

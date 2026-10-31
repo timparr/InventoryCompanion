@@ -4,7 +4,7 @@ Status: Proposed; investigation only. No integration code or settings have been 
 
 Technical findings and implementation tasks: [Implementation document](todo_implementation_autocategoryIntegration.md).
 
-UI prerequisite: complete the [item tracker flags/options improvement](todo_plan_itemTrackerFlags.md) first. The approved layout reserves a group-only AutoCategory toggle last, after the two-line Show and Notify controls. Participation remains independent of HUD display and delivery.
+UI prerequisite: the [item tracker flags/options improvement](../Completed/ItemTrackerFlags.md) is implemented. The approved layout places a group-only AutoCategory toggle last, after the two-line Show and Notify controls. Participation remains independent of HUD display and delivery.
 
 The AutoCategory column must have zero width when integration is disabled or unavailable, returning the space to item names. When enabled, keep the column width consistent across all row types, even for nonparticipating groups.
 

@@ -5,12 +5,13 @@ after the group-pattern branch was fast-forward merged on 2026-10-31.
 The two-line layout and compact Show/Notify boxes were approved conversationally
 on 2026-10-31. Runtime and editor implementation is in place; 99/99 isolated
 tests passed, including Lua 5.1 syntax and existing performance limits. Changed
-XML/SVG and whitespace/link checks passed. Final ESO rendering, interaction,
-and reload approval remain pending.
-This is not a completed implementation record.
+XML/SVG and whitespace/link checks passed. The user confirmed the in-game
+acceptance tests passed on 2026-10-31.
+Implementation completed and archived at the user's request on 2026-10-31.
+Automated and user-reported in-game acceptance are complete.
 
 Feature behavior and compatibility requirements are in the
-[feature plan](todo_plan_itemTrackerFlags.md). The approved design replaces the
+[feature plan](ItemTrackerFlags.md). The approved design replaces the
 earlier quick-toggle / Options proposal and includes independent display
 locations and Chat/HUD delivery now, not as a later destination extension.
 
@@ -51,8 +52,8 @@ does not create separate saved variables.
 
 In-game evidence (2026-10-31): user tested loading DEV, then switching to the
 older release, and confirmed it throws as expected. This confirms downgrade
-rejection in game; settings preservation after switching back to DEV has not
-yet been reported. Row rendering and interaction acceptance remain pending.
+rejection in game. The user subsequently confirmed the acceptance tests passed,
+covering native row interaction, counts/delivery, and reload/settings preservation.
 
 ### Validation, sparse writes, and import
 
@@ -182,7 +183,7 @@ Use [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py), optionally
 and whitespace. The in-game listener diagnostic isolates the new query from
 real user preferences when exercising its synthetic scenarios.
 
-### In-game acceptance still required
+### In-game acceptance (user confirmed passed on 2026-10-31)
 
 1. Labels/details align at the normal window width. None uses existing inactive
    coloring; AutoCategory column collapses when integration is off, giving
@@ -199,8 +200,8 @@ real user preferences when exercising its synthetic scenarios.
    saved expansion choices survive.
 
 Update [UserManual.bbcode](../../../UserManual.bbcode) and the authoritative
-working changelog from actual changes. Keep these plans in Tasks until final
-automated and in-game approval. Follow the
+working changelog from actual changes. These records are archived in Completed;
+the acceptance checklist above records the verified scope. Follow the
 [release checklist](../../Publishing/ReleaseChecklist.md) before staging;
 the cumulative backward-compatible feature work warrants a minor-version
 recommendation, not an automatic version change or release.
@@ -211,4 +212,4 @@ Saved flag interpretation precedes count/delivery and editor writes. Presentatio
 and lifecycle ship together. Documentation/tests follow implementation.
 AutoCategory registration, partition ownership, ordering, and optional-addon
 compatibility remain governed by its separate
-[plan](todo_plan_autocategoryIntegration.md).
+[plan](../Tasks/todo_plan_autocategoryIntegration.md).

@@ -4,6 +4,16 @@ Completed work is recorded here for project history and future release-note draf
 
 ## Verified Addon Work
 
+- **Item tracker flags / row options (C4):** Implemented and archived at the
+  user's request on 2026-10-31. Aligned two-line Show/Notify controls open compact
+  boxes for independent backpack/bank display, grouping, and Chat/HUD delivery.
+  AutoCategory space collapses while integration is off. Schema 3 migrates
+  existing profiles non-destructively and blocks incompatible older builds.
+  All 99 isolated Lua 5.1 tests pass; the user confirmed downgrade rejection
+  and the in-game acceptance tests passed on 2026-10-31.
+  See the [feature plan](ItemTrackerFlags.md) and
+  [implementation and verification record](ImplementationPlan_ItemTrackerFlags.md).
+
 - **Group pattern exclusions (C5):** Groups match at least one Include pattern
   and no Exclude patterns, without vetoing other groups or individual tracking.
   Includes appear before an Exclusions section, with native IN/OUT indicators,
