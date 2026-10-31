@@ -1,5 +1,17 @@
-InventoryCompanion = { SettingsName = "InventoryCompanion_AutoCategorySpike", IsDevelopment = true }
+InventoryCompanion = { Name = "InventoryCompanion_DEV", SettingsName = "InventoryCompanion_AutoCategorySpike", IsDevelopment = true }
 SLASH_COMMANDS = {}
+EVENT_ADD_ON_LOADED = "EVENT_ADD_ON_LOADED"
+local registeredEvents = {}
+EVENT_MANAGER = {
+    RegisterForEvent = function(_, name, eventCode, callback)
+        registeredEvents[name] = { eventCode = eventCode, callback = callback }
+    end,
+    UnregisterForEvent = function(_, name)
+        registeredEvents[name] = nil
+    end,
+}
+IsInGamepadPreferredMode = function() return false end
+ZO_ScrollList_GetDataList = function(list) return list.data end
 SI_AC_MENU_UBS_BUTTON_EXPORT_TO_ALL_BAGS = "Export to all bags"
 
 ZO_Object = {}
@@ -98,12 +110,23 @@ end
 
 function GetAutoCategorySpikeTests()
     local ac, ic = AutoCategory, InventoryCompanion
-    ac.Inited = true
+    ac.Inited = false
     ac.Environment = {}
     ac.acctSaved = {
         general = {},
         appearance = { CATEGORY_OTHER_TEXT = "Other" },
     }
+    local gateEvent = registeredEvents.InventoryCompanion_DEV_AutoCategoryGate
+    assert(gateEvent ~= nil, "Gate plugin load-order handler was not registered.")
+    gateEvent.callback(EVENT_ADD_ON_LOADED, "AutoCategory")
+    Equal(ic.GetAutoCategoryGateRegistration(), "waiting",
+        "Dependency load event must not race AutoCategory's own saved-variable initialization")
+    ac.Inited = true
+    local baselineOk, baselineReport = pcall(SLASH_COMMANDS["/icacspike"], "profile baseline")
+    ac.Inited = false
+    Equal(baselineOk, false, "Unavailable registration copyable diagnostic")
+    assert(tostring(baselineReport):find("NOT AVAILABLE: gate plugin registration is waiting", 1, true),
+        "Unavailable registration must report its status without a raw assertion")
     ac.saved.general = { SHOW_CATEGORY_SET_TITLE = true, ENABLE_GAMEPAD = true }
     ac.saved.appearance = { CATEGORY_FONT_COLOR = { 1, 1, 1 }, HIDDEN_CATEGORY_FONT_COLOR = { 1, 1, 1 } }
     ac.dspWin = {
@@ -115,6 +138,24 @@ function GetAutoCategorySpikeTests()
         ac.saved.bags[context] = { rules = {} }
         ac.saved.collapses[context] = {}
     end
+    ac.acctSaved.bags = Copy(ac.saved.bags)
+    ac.acctSaved.collapses = Copy(ac.saved.collapses)
+    ac.charSaved = {
+        accountWide = true,
+        bags = Copy(ac.saved.bags),
+        collapses = Copy(ac.saved.collapses),
+    }
+    ac.acctRules = { rules = {} }
+    gateEvent.callback(EVENT_ADD_ON_LOADED, ic.Name)
+    local gateStatus = ic.GetAutoCategoryGateRegistration()
+    Equal(gateStatus, "registered", "Gate plugin startup registration")
+    local gatePlugin = ac.Plugins["InventoryCompanion DEV AutoCategory Gate"]
+    assert(gatePlugin and gatePlugin.predef and #gatePlugin.predef == 1, "Gate plugin definition was not registered.")
+    ac.RulesW:AddRule(gatePlugin.predef[1])
+    gatePlugin.init()
+    ac.Inited = true
+    ac.saved.bags = ac.acctSaved.bags
+    ac.saved.collapses = ac.acctSaved.collapses
     -- Mirror ZO_SavedVars: empty interfaces forwarding reads/writes to raw saved tables.
     local rawAccount = { trackedRules = {}, trackedItems = {} }
     local rawCharacter = { useCharacterItemList = false, trackedRules = {}, trackedItems = {} }
@@ -435,7 +476,45 @@ function GetAutoCategorySpikeTests()
         for _, entry in ipairs(originals) do _G[entry.name] = entry.value end
         if not ok then error(failure, 0) end
     end)
-    Add("Slash command reports unavailable dependency without running the probe or throwing", function()
+    Add("Render command reports closed Backpack or gamepad as unavailable without running probe", function()
+        local originalMode, originalControl = IsInGamepadPreferredMode, ZO_PlayerInventory
+        local originalProbe, originalBags = ic.RunAutoCategoryNativeProbe, ac.saved.bags
+        local probeCalls = 0
+        ic.RunAutoCategoryNativeProbe = function()
+            probeCalls = probeCalls + 1
+            error("Unavailable render surface must not run probe")
+        end
+        local cases = {
+            {
+                gamepad = false,
+                control = { IsHidden = function() return true end },
+                expected = "keyboard Backpack is closed",
+            },
+            {
+                gamepad = true,
+                control = { IsHidden = function() return false end },
+                expected = "keyboard inventory only",
+            },
+        }
+        local ok, failure = pcall(function()
+            for _, case in ipairs(cases) do
+                IsInGamepadPreferredMode = function() return case.gamepad end
+                ZO_PlayerInventory = case.control
+                local commandOk, report = pcall(SLASH_COMMANDS["/icacspike"], "render")
+                Equal(commandOk, false, "Copyable unavailable diagnostic")
+                for _, fragment in ipairs({ "DIAGNOSTIC REPORT", "NOT AVAILABLE", case.expected,
+                    "No AutoCategory rules, assignments, or items were changed." }) do
+                    assert(tostring(report):find(fragment, 1, true), "Missing render diagnostic text: " .. fragment)
+                end
+            end
+            Equal(probeCalls, 0, "Probe is not run for unavailable render surfaces")
+            Equal(ac.saved.bags, originalBags, "Saved assignments remain untouched")
+        end)
+        IsInGamepadPreferredMode, ZO_PlayerInventory = originalMode, originalControl
+        ic.RunAutoCategoryNativeProbe = originalProbe
+        if not ok then error(failure, 0) end
+    end)
+    Add("Slash command reports unavailable dependency in a copyable diagnostic", function()
         local originalPrint, originalProbe = d, ic.RunAutoCategoryNativeProbe
         local messages = {}
         local probeCalls = 0
@@ -453,9 +532,9 @@ function GetAutoCategorySpikeTests()
             }
             for index, case in ipairs(cases) do
                 AutoCategory = case.dependency
-                SLASH_COMMANDS["/icacspike"]("")
-                Equal(#messages, index, "One useful status per invocation")
-                assert(messages[index]:find(case.fragment, 1, true), "Wrong dependency status")
+                local ok, report = pcall(SLASH_COMMANDS["/icacspike"], "")
+                Equal(ok, false, "Copyable availability diagnostic")
+                assert(tostring(report):find(case.fragment, 1, true), "Wrong dependency status")
             end
             Equal(probeCalls, 0, "No probe calls while unavailable")
         end)
@@ -463,14 +542,14 @@ function GetAutoCategorySpikeTests()
         d, ic.RunAutoCategoryNativeProbe = originalPrint, originalProbe
         if not ok then error(failure, 0) end
     end)
-    Add("DEV Debug Key dispatches the same rendering command", function()
+    Add("DEV Debug Key dispatches the current multi-heading order test", function()
         local command = SLASH_COMMANDS["/icacspike"]
         local argument
         SLASH_COMMANDS["/icacspike"] = function(value) argument = value end
         local ok, failure = pcall(ic.Debug)
         SLASH_COMMANDS["/icacspike"] = command
         if not ok then error(failure, 0) end
-        Equal(argument, "render", "Debug key rendering mode")
+        Equal(argument, "order plunder skull", "Debug key current gate")
     end)
 
     local function Fields(value)
@@ -695,5 +774,324 @@ function GetAutoCategorySpikeTests()
             return "Guard condition is exercised; startup addTableRules rename path remains outside this fixture."
         end)
     end)
+
+    Add("DEV gate plugin waits for IC load after dependency initialization and exposes one predefined rule", function()
+        ac.acctSaved.bags, ac.acctSaved.collapses = ac.saved.bags, ac.saved.collapses
+        ac.charSaved.accountWide = true
+        ac.charSaved.bags, ac.charSaved.collapses = Copy(ac.saved.bags), Copy(ac.saved.collapses)
+        ac.saved.bags, ac.saved.collapses = ac.acctSaved.bags, ac.acctSaved.collapses
+        local status, detail = ic.GetAutoCategoryGateRegistration()
+        Equal(status, "registered", "Startup gate status")
+        assert(detail:find("before AutoCategory initialization", 1, true), "Startup timing report")
+        local plugin = ac.Plugins["InventoryCompanion DEV AutoCategory Gate"]
+        assert(plugin and plugin.predef and #plugin.predef == 1, "Registered predefined rule")
+        Equal(plugin.predef[1].name, "|t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Reload",
+            "Unique gate category identity")
+        Same(ac.GetRuleByName(plugin.predef[1].name), plugin.predef[1], "Runtime predefined definition")
+        assert(type(ac.Environment.ic_autocategory_gate_match) == "function", "Plugin init rule function")
+        return "Startup event preflight and plugin initialization used the actual AutoCategory plugin API."
+    end)
+
+    Add("Collision command refuses registration without changing external definitions or either profile", function()
+        local accountBefore, characterBefore = Copy(ac.acctSaved.bags), Copy(ac.charSaved.bags)
+        local ok, report = pcall(SLASH_COMMANDS["/icacspike"], "collision")
+        Equal(ok, false, "Copyable collision diagnostic")
+        assert(tostring(report):find("PASS collision detected before registration", 1, true),
+            "Collision preflight report: " .. tostring(report))
+        assert(tostring(report):find("registration was not called", 1, true), "Registration refusal report")
+        Same(ac.acctSaved.bags, accountBefore, "Account profile after collision preflight")
+        Same(ac.charSaved.bags, characterBefore, "Character profile after collision preflight")
+        Same(ac.GetRuleByName("Spike External"), externalBefore, "Existing external definition")
+        return "The existing assignment was never passed through AutoCategory's duplicate-rename path."
+    end)
+
+    Add("Context and priority commands report unavailable surfaces through copyable diagnostics", function()
+        local accountBefore, characterBefore = Copy(ac.acctSaved.bags), Copy(ac.charSaved.bags)
+        local contextOk, contextReport = pcall(SLASH_COMMANDS["/icacspike"], "context backpack")
+        Equal(contextOk, false, "Context copyable diagnostic")
+        assert(tostring(contextReport):find("NOT AVAILABLE", 1, true), "Unavailable context is reported")
+        local orderOk, orderReport = pcall(SLASH_COMMANDS["/icacspike"], "order")
+        Equal(orderOk, false, "Order copyable diagnostic")
+        assert(tostring(orderReport):find("NOT AVAILABLE", 1, true), "Unavailable Backpack is reported")
+        Same(ac.acctSaved.bags, accountBefore, "Account profile after unavailable probes")
+        Same(ac.charSaved.bags, characterBefore, "Character profile after unavailable probes")
+        return "Unavailable UI contexts are explicit and produce no saved-profile writes."
+    end)
+
+    Add("Context and multi-group priority commands execute their native-list paths offline", function()
+        local orderSummary
+        WithIsolatedAutoCategory(function()
+            local oldRefresh = ac.RefreshList
+            local oldPlayerInventory, oldPlayerControl = PLAYER_INVENTORY, ZO_PlayerInventory
+            local oldCallLater = zo_callLater
+            local delayed, drawCount = nil, 0
+            local crafting = false
+            local sourceRows = {}
+            for slot = 0, 5 do
+                sourceRows[#sourceRows + 1] = {
+                    data = { bagId = BAG_BACKPACK, slotIndex = slot },
+                }
+            end
+            sourceRows[#sourceRows + 1] = {
+                data = { bagId = BAG_BACKPACK, slotIndex = 99 },
+            }
+            local inventory = { listView = { data = sourceRows } }
+            PLAYER_INVENTORY = {
+                inventories = { [INVENTORY_BACKPACK] = inventory },
+                UpdateList = function() end,
+            }
+            ZO_PlayerInventory = { IsHidden = function() return false end }
+            ac.AddRuleFunc("gate_order_anchor", function()
+                return ac.checkingItemSlotIndex == 99
+            end)
+            ac.RulesW:AddRule({
+                name = "Gate Order Higher Anchor",
+                tag = "InventoryCompanion DEV Gate Fixture",
+                rule = "gate_order_anchor()",
+            })
+            ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules = {
+                Entry("Gate Order Higher Anchor", 200, 200),
+                Entry("Spike External", 100, 100),
+            }
+            ac.RulesW:AddRule({
+                name = "Gate Order Invisible Anchor",
+                tag = "InventoryCompanion DEV Gate Fixture",
+                rule = "false",
+            })
+            table.insert(ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules,
+                Entry("Gate Order Invisible Anchor", 105, 105))
+            local function RebuildList()
+                drawCount = drawCount + 1
+                local groups = {}
+                for _, row in ipairs(sourceRows) do
+                    local data = row.data
+                    local found, name, runPriority, showPriority, bagType, hidden =
+                        ac:MatchCategoryRules(data.bagId, data.slotIndex, crafting and AC_BAG_TYPE_CRAFTSTATION or nil)
+                    data.AC_matched = found
+                    data.AC_categoryName = name or "Other"
+                    data.AC_categoryPriority = runPriority
+                    data.AC_bagTypeId = bagType or AC_BAG_TYPE_BACKPACK
+                    data.AC_isHidden = hidden
+                    data.AC_lastUpdateTime = 12345
+                    local group = groups[data.AC_categoryName]
+                    if group == nil then
+                        group = {
+                            name = data.AC_categoryName,
+                            showPriority = showPriority or 0,
+                            items = {},
+                            sortKey = string.format("%04d%s", 1000 - (showPriority or 0), data.AC_categoryName),
+                        }
+                        groups[data.AC_categoryName] = group
+                    end
+                    group.items[#group.items + 1] = row
+                end
+                local ordered = {}
+                for _, group in pairs(groups) do ordered[#ordered + 1] = group end
+                table.sort(ordered, function(left, right) return left.sortKey < right.sortKey end)
+                inventory.listView.data = {}
+                for _, group in ipairs(ordered) do
+                    inventory.listView.data[#inventory.listView.data + 1] = {
+                        data = { AC_isHeader = true, AC_categoryName = group.name },
+                    }
+                    for _, row in ipairs(group.items) do
+                        inventory.listView.data[#inventory.listView.data + 1] = row
+                    end
+                end
+            end
+            ac.RefreshList = function(inventoryType, force)
+                assert(inventoryType == INVENTORY_BACKPACK or inventoryType == INVENTORY_BANK or inventoryType == 880,
+                    "Native-list probe inventory")
+                Equal(force, inventoryType ~= 880, "Context-specific refresh argument")
+                if drawCount == 1 then
+                    local invalidated = 0
+                    for _, row in ipairs(sourceRows) do
+                        if row.data.AC_lastUpdateTime == nil then
+                            invalidated = invalidated + 1
+                        else
+                            Equal(row.data.AC_lastUpdateTime, 12345, "Other row cache left unchanged")
+                        end
+                    end
+                    Equal(invalidated, 1, "Only selected context row invalidated before refresh")
+                end
+                RebuildList()
+            end
+            zo_callLater = function(callback, delay)
+                Equal(delay, 20000, "Bounded list-preview duration")
+                delayed = callback
+            end
+            RebuildList()
+            local contextOk, contextReport = pcall(SLASH_COMMANDS["/icacspike"], "context backpack plunder skull")
+            Equal(contextOk, false, "Context diagnostic")
+            assert(tostring(contextReport):find("PASS backpack classification/list rendering", 1, true),
+                "Context native-list success report: " .. tostring(contextReport))
+
+            local oldBankControl, oldItemName = ZO_PlayerBank, GetItemLinkName
+            ZO_PlayerBank = { IsHidden = function() return false end }
+            PLAYER_INVENTORY.inventories[INVENTORY_BANK] = inventory
+            for _, row in ipairs(sourceRows) do row.data.bagId = BAG_SUBSCRIBER_BANK end
+            GetItemLinkName = function() return "Synthetic ESO Plus item" end
+            local subscriberOk, subscriberReport =
+                pcall(SLASH_COMMANDS["/icacspike"], "context subscriber-bank")
+            ZO_PlayerBank, GetItemLinkName = oldBankControl, oldItemName
+            PLAYER_INVENTORY.inventories[INVENTORY_BANK] = nil
+            for _, row in ipairs(sourceRows) do row.data.bagId = BAG_BACKPACK end
+            Equal(subscriberOk, false, "Subscriber copyable diagnostic")
+            assert(tostring(subscriberReport):find("PASS subscriber-bank source was specifically observed", 1, true),
+                "Automatic subscriber selection: " .. tostring(subscriberReport))
+
+            local oldPanel = SMITHING.deconstructionPanel
+            SMITHING.deconstructionPanel = {
+                inventory = { list = inventory.listView },
+                control = { IsHidden = function() return false end },
+            }
+            crafting = true
+            local craftingOk, craftingReport =
+                pcall(SLASH_COMMANDS["/icacspike"], "context crafting-station plunder skull")
+            Equal(craftingOk, false, "Crafting copyable diagnostic")
+            SMITHING.deconstructionPanel = oldPanel
+            assert(tostring(craftingReport):find("PASS crafting-station classification/list rendering", 1, true),
+                "Crafting refresh success: " .. tostring(craftingReport))
+            delayed()
+            crafting = false
+
+            inventory.listView.data = Copy(sourceRows)
+            RebuildList()
+            local orderOk, orderReport = pcall(SLASH_COMMANDS["/icacspike"], "order plunder skull")
+            Equal(orderOk, false, "Priority diagnostic")
+            assert(tostring(orderReport):find("top-slot classification/native heading order above existing categories", 1, true),
+                "Top priority report: " .. tostring(orderReport))
+            assert(tostring(orderReport):find("fractional classification and visible order", 1, true),
+                "Between priority report: " .. tostring(orderReport))
+            assert(tostring(orderReport):find("Actual top-slot headings:", 1, true)
+                and tostring(orderReport):find("Actual between-category headings:", 1, true),
+                "The report includes observed headings, not only formatter output")
+            assert(tostring(orderReport):find("Immediate classification gap: 105 > 100; visible higher anchor priority: 200.", 1, true),
+                "Invisible immediate anchor retains the narrow gap while visible heading uses a wider anchor")
+            assert(delayed ~= nil and drawCount >= 3, "Both commands exercised native refresh and delayed redraw.")
+            local function DiagnosticLine(fragment)
+                for line in tostring(orderReport):gmatch("[^\r\n]+") do
+                    if line:find(fragment, 1, true) then return line end
+                end
+                return "missing: " .. fragment
+            end
+            orderSummary = DiagnosticLine("top-slot classification/native heading order")
+                .. "\n" .. DiagnosticLine("Top-slot details:")
+                .. "\n" .. DiagnosticLine("Actual top-slot headings:")
+                .. "\n" .. DiagnosticLine("fractional classification and visible order")
+                .. "\n" .. DiagnosticLine("ESO fractional %04d sample")
+            ac.RefreshList = oldRefresh
+            PLAYER_INVENTORY, ZO_PlayerInventory, zo_callLater =
+                oldPlayerInventory, oldPlayerControl, oldCallLater
+        end)
+        return "Synthetic lists exercised one context render and five-group top/fractional heading-order paths; ESO rendering remains an in-game gate.\n"
+            .. orderSummary
+    end)
+
+    Add("Profile projection writes only the active AutoCategory profile and tagged cleanup is exact", function()
+        local originalMode = ac.charSaved.accountWide
+        local originalBags, originalCollapses = ac.saved.bags, ac.saved.collapses
+        local accountBefore, characterBefore = Copy(ac.acctSaved.bags), Copy(ac.charSaved.bags)
+        local rawAccountBefore, rawCharacterBefore = Copy(rawAccount), Copy(rawCharacter)
+        local originalGetBagSize = GetBagSize
+        local ok, failure = pcall(function()
+            GetBagSize = function(bag)
+                Equal(bag, BAG_BACKPACK, "Profile item discovery bag")
+                return 1
+            end
+            local baselineOk, baselineReport = pcall(SLASH_COMMANDS["/icacspike"], "profile baseline")
+            Equal(baselineOk, false, "Baseline diagnostic window")
+            assert(tostring(baselineReport):find("read-only account/character assignment baseline", 1, true),
+                "Profile baseline report")
+
+            ac.charSaved.accountWide = false
+            ac.saved.bags, ac.saved.collapses = ac.charSaved.bags, ac.charSaved.collapses
+            local characterOk, characterReport = pcall(SLASH_COMMANDS["/icacspike"], "profile project plunder skull")
+            Equal(characterOk, false, "Character profile projection report")
+            assert(tostring(characterReport):find("active profile only", 1, true), "Character active-write report")
+            assert(tostring(characterReport):find("inactive profile is byte-shape/value-equivalent", 1, true),
+                "Account profile preservation report")
+            Same(ac.acctSaved.bags, accountBefore, "Inactive account profile")
+            ac.cacheInitBag(AC_BAG_TYPE_BACKPACK)
+            local characterCheckOk, characterCheckReport =
+                pcall(SLASH_COMMANDS["/icacspike"], "profile check plunder skull")
+            Equal(characterCheckOk, false, "Character profile reload check report")
+            assert(tostring(characterCheckReport):find("exactly one tagged assignment", 1, true),
+                "Character profile reload check")
+
+            local characterWithGate = Copy(ac.charSaved.bags)
+            local nextBaselineOk = pcall(SLASH_COMMANDS["/icacspike"], "profile baseline")
+            Equal(nextBaselineOk, false, "Second baseline diagnostic")
+            ac.charSaved.accountWide = true
+            ac.saved.bags, ac.saved.collapses = ac.acctSaved.bags, ac.acctSaved.collapses
+            local accountOk, accountReport = pcall(SLASH_COMMANDS["/icacspike"], "profile project plunder skull")
+            Equal(accountOk, false, "Account profile projection report")
+            assert(tostring(accountReport):find("inactive profile is byte-shape/value-equivalent", 1, true),
+                "Character profile preservation report")
+            Same(ac.charSaved.bags, characterWithGate, "Inactive character profile")
+            ac.cacheInitialize()
+            local accountCheckOk, accountCheckReport =
+                pcall(SLASH_COMMANDS["/icacspike"], "profile check plunder skull")
+            Equal(accountCheckOk, false, "Account profile reload check report")
+            assert(tostring(accountCheckReport):find("exactly one tagged assignment", 1, true),
+                "Account profile reload check")
+
+            local cleanupOk, cleanupReport = pcall(SLASH_COMMANDS["/icacspike"], "cleanup")
+            Equal(cleanupOk, false, "Cleanup diagnostic window")
+            assert(tostring(cleanupReport):find("Removed 2 exact-token gate assignments", 1, true),
+                "Cleanup counts only owned entries")
+            Same(ac.acctSaved.bags, accountBefore, "Account profile after cleanup")
+            Same(ac.charSaved.bags, characterBefore, "Character profile after cleanup")
+            Same(rawAccount, rawAccountBefore, "Inventory Companion account saved variables")
+            Same(rawCharacter, rawCharacterBefore, "Inventory Companion character saved variables")
+        end)
+
+        Add("Profile switch uses AutoCategory core path without defective settings cleanup", function()
+            local originalMode = ac.charSaved.accountWide
+            local originalBags, originalCollapses = ac.saved.bags, ac.saved.collapses
+            local originalGeneral, originalAppearance = ac.saved.general, ac.saved.appearance
+            local oldBagSet, oldCatSet = AC_UI.BagSet, AC_UI.CatSet
+            local oldDropdown, oldControls = AC_UI.RefreshDropdownData, AC_UI.RefreshControls
+            local accountBefore, characterBefore = Copy(ac.acctSaved.bags), Copy(ac.charSaved.bags)
+            local function SettingsMustNotRun()
+                error("Settings-only cleanup/refresh must not run during the core switch")
+            end
+            AC_UI.BagSet = { clear = SettingsMustNotRun }
+            AC_UI.CatSet = { clear = SettingsMustNotRun }
+            AC_UI.RefreshDropdownData = SettingsMustNotRun
+            AC_UI.RefreshControls = SettingsMustNotRun
+            local ok, failure = pcall(function()
+                for _, target in ipairs({ "character", "account" }) do
+                    local switchOk, report = pcall(SLASH_COMMANDS["/icacspike"], "profile switch " .. target)
+                    Equal(switchOk, false, "Copyable switch report")
+                    assert(tostring(report):find("Switched AutoCategory", 1, true), tostring(report))
+                    assert(tostring(report):find("PASS account-wide assignments unchanged", 1, true), tostring(report))
+                    assert(tostring(report):find("PASS character-specific assignments unchanged", 1, true), tostring(report))
+                    Equal(ac.charSaved.accountWide, target == "account", "Switched mode")
+                    Equal(ac.saved.bags, target == "account" and ac.acctSaved.bags or ac.charSaved.bags, "Active bags")
+                    Same(ac.acctSaved.bags, accountBefore, "Account assignments")
+                    Same(ac.charSaved.bags, characterBefore, "Character assignments")
+                end
+                local repeatOk, report = pcall(SLASH_COMMANDS["/icacspike"], "profile switch account")
+                Equal(repeatOk, false, "Copyable unchanged report")
+                assert(tostring(report):find("UNCHANGED", 1, true), tostring(report))
+            end)
+            ac.charSaved.accountWide = originalMode
+            ac.saved.bags, ac.saved.collapses = originalBags, originalCollapses
+            ac.saved.general, ac.saved.appearance = originalGeneral, originalAppearance
+            AC_UI.BagSet, AC_UI.CatSet = oldBagSet, oldCatSet
+            AC_UI.RefreshDropdownData, AC_UI.RefreshControls = oldDropdown, oldControls
+            if not ok then error(failure, 0) end
+        end)
+        GetBagSize = originalGetBagSize
+        ac.charSaved.accountWide = originalMode
+        ac.saved.bags, ac.saved.collapses = originalBags, originalCollapses
+        local cleanupOk, cleanupFailure = pcall(SLASH_COMMANDS["/icacspike"], "cleanup")
+        if not cleanupOk and not tostring(cleanupFailure):find("Removed 0 exact-token gate assignments", 1, true) then
+            error(cleanupFailure, 0)
+        end
+        if not ok then error(failure, 0) end
+        return "Both profile directions were compared against the pre-switch inactive-profile snapshot; exact-token cleanup restored both."
+    end)
+
     return tests
 end

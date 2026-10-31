@@ -6,7 +6,7 @@
 ## AddOnVersion: 10501
 ## SavedVariables: InventoryCompanion_SavedVariables
 ## DependsOn: LibAddonMenu-2.0>=43
-## OptionalDependsOn: None
+## OptionalDependsOn: AutoCategory
 
 Core/LoadCheck.lua
 Core/Development.lua
