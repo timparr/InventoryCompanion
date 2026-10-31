@@ -39,6 +39,13 @@ fixture = root / "Project" / "Tests" / "AutoCategorySpikeTests.lua"
 lua.execute(fixture.read_text(encoding="utf-8-sig"), name=str(fixture))
 for path in sources:
     lua.execute(path.read_text(encoding="utf-8-sig"), name=str(path))
+lua.execute(
+    "AC_UI.divider = function() return { type = 'divider' } end; "
+    "AC_UI.header = function(name) return { type = 'header', name = name } end"
+)
+settings = external / "settings" / "BagSet.lua"
+fingerprints[settings] = hashlib.sha256(settings.read_bytes()).hexdigest()
+lua.execute(settings.read_text(encoding="utf-8-sig"), name=str(settings))
 for relative in ("Core\\Constants.lua", "Tracking\\ItemDatabase.lua", "Core\\AutoCategorySpike.lua"):
     path = root / relative
     lua.execute(path.read_text(encoding="utf-8-sig"), name=relative)

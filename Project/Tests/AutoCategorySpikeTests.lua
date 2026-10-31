@@ -1,5 +1,6 @@
 InventoryCompanion = { SettingsName = "InventoryCompanion_AutoCategorySpike", IsDevelopment = true }
 SLASH_COMMANDS = {}
+SI_AC_MENU_UBS_BUTTON_EXPORT_TO_ALL_BAGS = "Export to all bags"
 
 ZO_Object = {}
 function ZO_Object:Subclass()
@@ -15,6 +16,11 @@ function ZO_ClearTable(values)
 end
 function GetString(value) return tostring(value) end
 zo_loadstring = loadstring
+function ZO_IndexOfElementInNumericallyIndexedTable(values, element)
+    for index, value in ipairs(values) do
+        if value == element then return index end
+    end
+end
 
 local color = { Colorize = function(_, text) return text end }
 local logger = { SetDebug = function() end, Debug = function() end }
@@ -77,6 +83,8 @@ local function Copy(value)
     for key, entry in pairs(value) do result[key] = Copy(entry) end
     return result
 end
+
+LibSFUtils.deepCopy = Copy
 
 local function Same(actual, expected, path)
     Equal(type(actual), type(expected), path .. " type")
@@ -331,7 +339,7 @@ function GetAutoCategorySpikeTests()
                 "Probe must rethrow failure after cleanup")
         else
             assert(ok, tostring(result))
-            Equal(#result, 7, "Complete DEV probe report")
+            Equal(#result, 8, "Complete DEV probe report")
         end
     end
     Add("DEV Plunder Skull command runs actual modules and restores original identities", function()
@@ -396,7 +404,7 @@ function GetAutoCategorySpikeTests()
                 Equal(#ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules, 3, "Original plus two managed assignments")
                 local matched, winner = ac:MatchCategoryRules(BAG_BACKPACK, 0)
                 Equal(matched, true, "Render refresh classification")
-                Equal(winner, "InventoryCompanion Spike B", "Rendering winner")
+                Equal(winner, "|t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion Spike B", "Rendering winner")
                 local _, secondWinner = ac:MatchCategoryRules(BAG_BACKPACK, 1)
                 Equal(secondWinner, winner, "Every group match moves, not only the selected link")
                 local otherMatched, otherWinner = ac:MatchCategoryRules(BAG_BACKPACK, 2)
@@ -463,6 +471,229 @@ function GetAutoCategorySpikeTests()
         SLASH_COMMANDS["/icacspike"] = command
         if not ok then error(failure, 0) end
         Equal(argument, "render", "Debug key rendering mode")
+    end)
+
+    local function Fields(value)
+        local fields = {}
+        for key, entry in pairs(value) do fields[key] = entry end
+        return fields
+    end
+    local function ReplaceFields(target, values)
+        for key in pairs(target) do target[key] = nil end
+        for key, value in pairs(values) do target[key] = value end
+    end
+
+    local function WithIsolatedAutoCategory(run)
+        local bags, bagsBefore = ac.saved.bags, Copy(ac.saved.bags)
+        local collapses, collapsesBefore = ac.saved.collapses, Copy(ac.saved.collapses)
+        local rules, rulesBefore = ac.RulesW.ruleList, Copy(ac.RulesW.ruleList)
+        local ruleNames, ruleNamesBefore = ac.RulesW.ruleNames, Copy(ac.RulesW.ruleNames)
+        local environment, environmentBefore = ac.Environment, Fields(ac.Environment)
+        local compiled, compiledBefore = ac.compiledRules, Fields(ac.compiledRules)
+        local displayWindow = ac.dspWin
+        local refreshDropdownData, refreshControls = AC_UI.RefreshDropdownData, AC_UI.RefreshControls
+        local ok, failure = pcall(run)
+
+        ac.saved.bags = bags
+        ReplaceFields(bags, Copy(bagsBefore))
+        ac.saved.collapses = collapses
+        ReplaceFields(collapses, Copy(collapsesBefore))
+        ac.RulesW.ruleList = rules
+        ReplaceFields(rules, Copy(rulesBefore))
+        ac.RulesW.ruleNames = ruleNames
+        ReplaceFields(ruleNames, Copy(ruleNamesBefore))
+        ac.Environment = environment
+        ReplaceFields(environment, environmentBefore)
+        ac.compiledRules = compiled
+        ReplaceFields(compiled, compiledBefore)
+        ac.RulesW.compiled = compiled
+        ac.dspWin = displayWindow
+        AC_UI.RefreshDropdownData, AC_UI.RefreshControls = refreshDropdownData, refreshControls
+        ac.cacheInitialize()
+        if not ok then error(failure, 0) end
+    end
+
+    Add("Fractional and above-1000 priorities classify and retain computed order", function()
+        WithIsolatedAutoCategory(function()
+            local activeName
+            ac.AddRuleFunc("ic_gate2_priority", function(name) return name == activeName end)
+            for _, name in ipairs({ "Gate2 RunFirst", "Gate2 ShowFirst" }) do
+                ac.RulesW:AddRule({
+                    name = name,
+                    tag = "InventoryCompanion Gate 2",
+                    rule = 'ic_gate2_priority("' .. name .. '")',
+                })
+            end
+            ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules = {
+                { name = "Gate2 RunFirst", runpriority = 1001.5, showpriority = 999.5, isHidden = false, icOwned = true },
+                { name = "Gate2 ShowFirst", runpriority = 1000.5, showpriority = 1001.5, isHidden = false, icOwned = true },
+            }
+
+            local displayEntries = {}
+            ac.dspWin = {
+                ClearList = function() displayEntries = {} end,
+                AddItem = function(_, entry) displayEntries[#displayEntries + 1] = entry end,
+                UpdateScrollList = function() end,
+            }
+            ac.cacheInitBag(AC_BAG_TYPE_BACKPACK)
+            local runOrder = ac.cache.entriesByBag[AC_BAG_TYPE_BACKPACK].choicesValues
+            Equal(runOrder[1], "Gate2 RunFirst", "Run-priority order above 1000")
+            Equal(runOrder[2], "Gate2 ShowFirst", "Fractional run-priority order")
+            local showOrder = ac.cache.entriesByShowBag[AC_BAG_TYPE_BACKPACK].choicesValues
+            Equal(showOrder[1], "Gate2 ShowFirst", "Show-priority order above 1000")
+            Equal(showOrder[2], "Gate2 RunFirst", "Fractional show-priority order")
+            Equal(displayEntries[1].name, "Gate2 ShowFirst", "Settings window display order")
+            Equal(displayEntries[1].icOwned, true, "Settings window ownership marker")
+            Equal(displayEntries[1].runpriority, 1000.5, "Settings window fractional priority")
+
+            activeName = "Gate2 RunFirst"
+            Classify(BAG_BACKPACK, activeName, 1001.5, 999.5)
+            activeName = "Gate2 ShowFirst"
+            Classify(BAG_BACKPACK, activeName, 1000.5, 1001.5)
+
+            local fractionalSortKey = string.format("%04d", 1000 - 1000.5)
+            Equal(fractionalSortKey, "0000", "Lua 5.1 fractional %04d behavior")
+            local firstEntry = ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules[1]
+            local secondEntry = ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules[2]
+            Equal(firstEntry.runpriority, 1001.5, "Persisted computed run priority")
+            Equal(firstEntry.showpriority, 999.5, "Persisted computed show priority")
+            Equal(secondEntry.runpriority, 1000.5, "Persisted fractional run priority")
+            Equal(secondEntry.showpriority, 1001.5, "Persisted fractional show priority")
+            Equal(firstEntry.icOwned, true, "Persisted ownership marker")
+
+            local formatted = ac.BagRuleApi.formatShow(firstEntry)
+            assert(formatted:find(firstEntry.name, 1, true), "Settings dropdown retains category identity")
+            Equal(firstEntry.runpriority, 1001.5, "Settings display preserves run priority")
+            Equal(firstEntry.showpriority, 999.5, "Settings display preserves show priority")
+            return "Lua 5.1-like runner truncates %04d fractions; ESO's runtime formatter remains unverified."
+        end)
+    end)
+
+    Add("icOwned and computed priorities survive AutoCategory Export to all bags", function()
+        WithIsolatedAutoCategory(function()
+            local name = "Gate2 Export"
+            ac.RulesW:AddRule({
+                name = name,
+                tag = "InventoryCompanion Gate 2",
+                rule = "true",
+            })
+            for context = 1, 7 do
+                ac.saved.bags[context].rules = {}
+            end
+            ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules = {
+                { name = name, runpriority = 1000.5, showpriority = 1001.25, isHidden = false, icOwned = true },
+            }
+            ac.dspWin = {
+                ClearList = function() end,
+                AddItem = function() end,
+                UpdateScrollList = function() end,
+            }
+            local originalSource = Copy(ac.saved.bags[AC_BAG_TYPE_BACKPACK])
+            AC_UI.RefreshDropdownData = function() end
+            AC_UI.RefreshControls = function() end
+
+            local function FindControl(controls, target)
+                for _, control in ipairs(controls) do
+                    if control.name == target then return control end
+                    local found = FindControl(control.controls or {}, target)
+                    if found then return found end
+                end
+            end
+            local bagSetControls = AC_UI.BagSet.controlDef().controls
+            local exportButton = FindControl(bagSetControls, SI_AC_MENU_UBS_BUTTON_EXPORT_TO_ALL_BAGS)
+            assert(exportButton and type(exportButton.func) == "function", "Actual settings export control exists")
+            exportButton.func()
+
+            for context = 1, 7 do
+                local entry = ac.saved.bags[context].rules[1]
+                Equal(entry.name, name, "Exported category name")
+                Equal(entry.icOwned, true, "Exported ownership marker")
+                Equal(entry.runpriority, 1000.5, "Exported run priority")
+                Equal(entry.showpriority, 1001.25, "Exported show priority")
+                if context ~= AC_BAG_TYPE_BACKPACK then
+                    assert(entry ~= ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules[1], "Export deep-copies entries")
+                end
+            end
+            Same(ac.saved.bags[AC_BAG_TYPE_BACKPACK], originalSource, "Export leaves source bag unchanged")
+        end)
+    end)
+
+    Add("Inline texture category names survive AutoCategory identity and settings paths", function()
+        WithIsolatedAutoCategory(function()
+            local prefix = "|t18:18:EsoUI/Art/Buttons/plus_up.dds|t "
+            local alpha = prefix .. "Gate Alpha"
+            local beta = prefix .. "Gate Beta"
+            local activeName = alpha
+            ac.AddRuleFunc("ic_gate2_texture", function(name) return name == activeName end)
+            for _, name in ipairs({ beta, alpha }) do
+                ac.RulesW:AddRule({
+                    name = name,
+                    tag = "InventoryCompanion Gate 2",
+                    rule = 'ic_gate2_texture("' .. name .. '")',
+                })
+            end
+            ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules = {
+                { name = beta, runpriority = 200, showpriority = 200, isHidden = false, icOwned = true },
+                { name = alpha, runpriority = 200, showpriority = 200, isHidden = false, icOwned = true },
+            }
+            ac.saved.collapses[AC_BAG_TYPE_BACKPACK] = {}
+            local displayEntries = {}
+            ac.dspWin = {
+                ClearList = function() displayEntries = {} end,
+                AddItem = function(_, entry) displayEntries[#displayEntries + 1] = entry end,
+                UpdateScrollList = function() end,
+            }
+            ac.cacheInitBag(AC_BAG_TYPE_BACKPACK)
+
+            Equal(ac.GetRuleByName(alpha).name, alpha, "Rule lookup")
+            Equal(ac.GetBagRuleByName(AC_BAG_TYPE_BACKPACK, alpha).name, alpha, "Bag-rule lookup")
+            assert(ac.compiledRules[alpha] ~= nil and ac.compiledRules[beta] ~= nil,
+                "Inline texture expressions compile")
+            local showOrder = ac.cache.entriesByShowBag[AC_BAG_TYPE_BACKPACK].choicesValues
+            Equal(showOrder[1], alpha, "Name tie-break preserves exact decorated identity")
+            Equal(showOrder[2], beta, "Name tie-break preserves full inline texture name")
+            Equal(displayEntries[1].name, alpha, "Settings window retains decorated name")
+            assert(ac.BagRuleApi.formatShow(ac.GetBagRuleByName(AC_BAG_TYPE_BACKPACK, alpha))
+                :find(alpha, 1, true), "Settings dropdown retains inline texture name")
+
+            ac.SetCategoryCollapsed(AC_BAG_TYPE_BACKPACK, alpha, true)
+            Equal(ac.IsCategoryCollapsed(AC_BAG_TYPE_BACKPACK, alpha), true, "Collapse state lookup")
+            activeName = alpha
+            Classify(BAG_BACKPACK, alpha, 200, 200)
+            Equal(ac.saved.collapses[AC_BAG_TYPE_BACKPACK][alpha], true, "Collapse state key")
+            return "Known ESO texture path used; keyboard heading rendering still requires an in-game check."
+        end)
+    end)
+
+    Add("Existing category is identifiable for a pre-registration collision guard", function()
+        WithIsolatedAutoCategory(function()
+            local name = "Gate2 Collision"
+            ac.RulesW:AddRule({
+                name = name,
+                tag = "Existing AutoCategory",
+                rule = "true",
+            })
+            ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules = {
+                { name = name, runpriority = 700, showpriority = 700, isHidden = false, icOwned = false },
+            }
+            ac.cacheInitBag(AC_BAG_TYPE_BACKPACK)
+            local existingDefinition = ac.GetRuleByName(name)
+            local existingAssignment = ac.GetBagRuleByName(AC_BAG_TYPE_BACKPACK, name)
+            assert(existingDefinition ~= nil and existingAssignment ~= nil, "Existing collision is visible to preflight")
+
+            local registered = false
+            if existingDefinition == nil then
+                ac.RegisterPlugin("InventoryCompanion Gate 2 Collision", function() end, {
+                    { name = name, tag = "InventoryCompanion", rule = "true" },
+                })
+                registered = true
+            end
+            Equal(registered, false, "Collision skipped before plugin registration")
+            Equal(ac.GetRuleByName(name), existingDefinition, "Existing definition is not renamed")
+            Equal(ac.GetBagRuleByName(AC_BAG_TYPE_BACKPACK, name).name, name, "Existing assignment is not renamed")
+            Equal(ac.GetUsableRuleName(name), name .. "1", "AutoCategory would suffix an unguarded duplicate")
+            return "Guard condition is exercised; startup addTableRules rename path remains outside this fixture."
+        end)
     end)
     return tests
 end

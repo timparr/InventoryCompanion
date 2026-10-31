@@ -303,18 +303,30 @@ lists receive a projection of it.
 Native insertion is proven in game; ownership, placement, markers, contexts,
 and defaults above are decided. Remaining investigations:
 
-1. **Placement values:** with AutoCategory's real modules, prove fractional and
-   above-1000 run priorities sort and classify as computed, survive its saved
-   variables, and are not altered merely by opening its settings window. Prove
-   ESO's `string.format("%04d", fraction)` truncates rather than erroring
-   (standard Lua 5.3+ would error); if it errors, use whole numbers only and
-   renumber our own entries within a slot when crowded. Prove the `icOwned`
-   marker survives cache rebuilds, "Export to all bags", and opening/using
-   AutoCategory's settings window, and that a same-name collision is skipped
-   before registration without AutoCategory renaming anything. Prove an inline
-   texture (`|t…|t`) in a category name is safe as AutoCategory's identity:
-   lookup, compile, sort tie-break, collapse state, settings dropdown, and
-   keyboard header rendering. If not, use the `· Inventory Companion` fallback.
+1. **Placement values and names (offline partial, 2026-10-31).** The expanded
+   offline suite passed 21/21 against AutoCategory 4.5.2/AddOnVersion 134,
+   including its real cache sorting/classification, BagSet Export control, and
+   settings module. Synthetic fractional and above-1000 run/show priorities
+   sort independently, classify with their computed values, and survive cache
+   and settings display. The actual Export-to-all-bags control preserves the
+   `icOwned` marker and fractional priorities across all seven synthetic bag
+   lists. A known ESO button texture in the category name survives rule lookup,
+   compilation, sort tie-break, collapse-key lookup, classifier output, and
+   settings display.
+
+   **Still gated in game:** the Lua 5.1-like offline runner formats
+   `string.format("%04d", -0.5)` as `0000`, but does not prove ESO's embedded
+   Lua behavior. The reversible `/icacspike render` probe now checks the
+   in-game formatter and displays temporary category headings using the known
+   `EsoUI/Art/Buttons/plus_up.dds` texture; run it with the keyboard Backpack
+   open and verify the copyable formatter result and visible header. The
+   collision fixture confirms a conflict can be detected before registration
+   and that its guard condition declines registration, but does not invoke
+   startup's local `addTableRules` path; verify collision handling without
+   AutoCategory renaming any assignment in the in-game gate. If fraction
+   formatting errors in ESO, use whole numbers only and renumber our own
+   entries within a slot when crowded. If inline texture names fail in game,
+   use the `· Inventory Companion` fallback.
 2. **Registration/lifecycle:** in game, plugin registration plus projected
    entries survive `/reloadui` and classify in Backpack and Bank (including
    subscriber bank).

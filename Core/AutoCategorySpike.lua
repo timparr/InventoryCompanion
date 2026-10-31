@@ -108,7 +108,11 @@ function this.RunAutoCategoryNativeProbe(search, render)
         local rules = this.GetRuntimeRules()
         assert(this.ItemMatchesRuntimeRule(itemLink, rules[groupKey]), "Probe group must match the chosen item")
 
-        local names = { "InventoryCompanion Spike A", "InventoryCompanion Spike B" }
+        local iconPrefix = "|t18:18:EsoUI/Art/Buttons/plus_up.dds|t "
+        local names = {
+            iconPrefix .. "InventoryCompanion Spike A",
+            iconPrefix .. "InventoryCompanion Spike B",
+        }
         local predicateName = "ic_native_insertion_spike"
         assert(ac.Environment[predicateName] == nil, "Test predicate name is already in use")
         for _, name in ipairs(names) do
@@ -155,6 +159,10 @@ function this.RunAutoCategoryNativeProbe(search, render)
         end
         messages[#messages + 1] = "Item: " .. GetItemLinkName(itemLink)
             .. "; baseline: " .. externalName .. "; temporary IC group pattern: " .. groupPattern
+        local formatOk, fractionalSortKey = pcall(string.format, "%04d", -0.5)
+        messages[#messages + 1] = formatOk
+            and "PASS ESO fractional %04d: " .. fractionalSortKey
+            or "FAIL ESO fractional %04d: " .. tostring(fractionalSortKey)
         CheckOrder({ names[1], externalName, names[2] }, names[1])
         CheckOrder({ externalName, names[1], names[2] }, externalName)
         CheckOrder({ names[2], externalName, names[1] }, names[2])
@@ -210,7 +218,7 @@ function this.RunAutoCategoryNativeProbe(search, render)
     if rendered then
         -- Only the drawn list remains temporary; no copied rule state survives the command.
         zo_callLater(function() ac.RefreshList(INVENTORY_BACKPACK, true) end, 20000)
-        messages[#messages + 1] = "Observe InventoryCompanion Spike B now; normal Backpack redraws in 20 seconds."
+        messages[#messages + 1] = "Observe the inline-texture Spike B heading now; normal Backpack redraws in 20 seconds."
         messages[#messages + 1] = "Do not click the temporary header/collapse control. Rules have already been restored."
     end
     if not ok then error(failure, 0) end

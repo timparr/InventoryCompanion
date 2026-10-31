@@ -80,10 +80,12 @@ isolated ESO/library boundaries and synthetic Plunder Skull state. Registration,
 rule compilation, cache sorting/rebuilds, and classification execute the actual
 AutoCategory implementation, using our real compiled rule matcher.
 
-Current result on 2026-10-31: **15/15 tests passed** against installed
-`AutoCategory.addon` version **4.5.2**, AddOnVersion **134**. Higher AutoCategory
-`runpriority` runs first; our derived rank 1 means most important, so projection
-must translate rather than assign the same numeric rank as run priority.
+Initial result on 2026-10-31: **15/15 tests passed** against installed
+`AutoCategory.addon` version **4.5.2**, AddOnVersion **134**. The expanded suite
+now has **21/21 passing tests**; see the stage 1 gate status below. Higher
+AutoCategory `runpriority` runs first; our derived rank 1 means most important,
+so projection must translate rather than assign the same numeric rank as run
+priority.
 Native runtime insertion works in these isolated fixtures without replacing
 `MatchCategoryRules`, including Bank/subscriber-bank mapping, external entries
 between managed entries, a full cache rebuild, no-match fallthrough, and cleanup.
@@ -143,7 +145,8 @@ Updated missing-addon behavior still awaits explicit confirmation.
 
 Reload DEV, use keyboard inventory, open Backpack with no item search/filter
 excluding the skull, and run `/icacspike render`. The command repeats the proven
-classification checks. The DEV **Debug Key** now invokes that same rendering
+classification checks, reports ESO's fractional `%04d` behavior, and renders
+the temporary categories with `|t18:18:EsoUI/Art/Buttons/plus_up.dds|t`. The DEV **Debug Key** now invokes that same rendering
 command instead of its usual full diagnostic suite, at the user's request.
 This temporary binding override lives only in the DEV probe module. Revert it
 (restore the usual diagnostic suite) when the probe phase ends.
@@ -152,22 +155,25 @@ classification checks, restores all original Backpack assignments into its
 isolated projection, prepends two temporary managed assignments with Spike B
 winning, then invokes `AutoCategory.RefreshList(INVENTORY_BACKPACK, true)`.
 Other categories remain assigned. It verifies that the resulting real scroll
-list contains both a Spike B header and the chosen item's Spike B row.
+list contains both an inline-texture Spike B header and the chosen item's row.
 
 Original addon rule/cache/profile state is restored synchronously before the
 copyable report appears. Only the rendered list remains temporary. A normal
 Backpack refresh is scheduled after 20 seconds, using original state; no test
 predicate remains installed during that window. Close the diagnostic report
-promptly and observe `InventoryCompanion Spike B`. Do not click its temporary
+promptly, check for `PASS ESO fractional %04d`, and observe the Spike B heading
+with its built-in plus icon. Do not click its temporary
 header/collapse control or change settings; such UI interactions are outside the
 probe. Ordinary inventory refreshes may end the preview earlier.
 
-Acceptance: the skull visibly appears under Spike B, other categories remain
-normal, and it returns to Container after the scheduled redraw. The rendering
-test's offline coverage mocks the refresh/scroll-list boundary and verifies
-restoration and scheduled redraw; it does not certify ESO rendering.
-User-reported visual results are pending. Startup/profile/reload persistence
-remain separate future tests.
+Acceptance: the skull visibly appears under the icon-prefixed Spike B heading,
+other categories remain normal, and it returns to Container after the scheduled
+redraw. Report a formatter failure or missing/malformed heading; the former
+requires the whole-number placement fallback. The rendering test's offline
+coverage mocks the refresh/scroll-list boundary and verifies restoration and
+scheduled redraw; it does not certify ESO rendering. User-reported visual
+results are pending. Startup/profile/reload persistence remain separate future
+tests.
 
 First visual result on 2026-10-31: the user reported every inventory item under
 the spike category. The selected `Test group` is the user's deliberate
@@ -252,16 +258,34 @@ Status after the Backpack rendering pass (2026-10-31):
   is loaded but integration is off, keep registering definitions with a
   predicate returning false, avoiding `(!)` rows. Disabling or uninstalling IC
   leaves harmless `(!)` rows the user can delete in AutoCategory settings.
-  Document that in the manual. (2) offline: placement values (fractional and
-  above-1000 run/show priorities, `%04d` formatting of fractions in ESO's Lua,
-  saved/settings-window survival), `icOwned` marker survival (cache rebuild,
-  Export to all bags, settings window), a skipped same-name collision, and
-  inline-texture markup in category names (lookup, compile, tie-break, collapse,
-  settings dropdown, header). (3) in game: plugin registration plus
-  projected entries survive `/reloadui` and classify in Backpack and Bank,
-  including subscriber bank. (4) each of the seven contexts. (5) AutoCategory
-  account/character profile switch path and reprojection. Gamepad stays out of
-  scope unless verified.
+  Document that in the manual. On 2026-10-31, the expanded offline suite passed
+  **21/21** against AutoCategory 4.5.2/AddOnVersion 134. It uses AutoCategory's
+  real priority sorting, cache, classifier, BagSet Export control, and settings
+  module, with synthetic saved data and mocked ESO/library boundaries. It
+  proves fractional and above-1000 run/show priorities sort independently,
+  classify with computed values, and survive cache/settings display; the Lua
+  5.1-like runner formats `%04d` with a fractional value as `0000`. The real
+  Export-to-all-bags control copies `icOwned` and fractional priorities to all
+  seven synthetic bag lists. A known ESO button texture in the category name
+  survives rule compilation/lookups, sort tie-break, collapse-key lookup,
+  classifier output, and settings display.
+
+  Gate 2 remains **partially open**: the runner is Lua 5.1-like, not ESO's
+  embedded runtime, so `%04d` still needs in-game confirmation. On 2026-10-31,
+  the reversible `/icacspike render` probe was updated to use the known
+  `EsoUI/Art/Buttons/plus_up.dds` texture in temporary category names and to
+  report ESO's `%04d` fractional-format result through the copyable diagnostic.
+  Run it with the keyboard Backpack open; inspect the temporary heading and
+  allow the scheduled 20-second normal redraw. It does not persist test entries.
+  The collision fixture verifies AutoCategory's existing rule/assignment are
+  discoverable before registration and that the preflight condition declines
+  registration; it does not invoke startup's local `addTableRules` path.
+  Confirm the full collision behavior during the in-game gate before
+  considering it closed. (3) in game: plugin
+  registration plus projected entries survive `/reloadui` and classify in
+  Backpack and Bank, including subscriber bank. (4) each of the seven contexts.
+  (5) AutoCategory account/character profile switch path and reprojection.
+  Gamepad stays out of scope unless verified.
 
 Original task list:
 - Establish actual manifest identity, version, dependency requirements, and
