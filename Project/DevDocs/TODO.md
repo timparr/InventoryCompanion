@@ -26,8 +26,8 @@ info panels - how to guide built into the addon - instead of the manual. - (i) b
 
 ## Section D: 🚀 Features Roadmap (Pending)
 
-- **D11. AutoCategory Integration:** Optional inventory partitions driven by
-  Inventory Companion groups. See the [spec](Tasks/todo_plan_autocategoryIntegration.md),
+- **D11. AutoCategory Integration (idea; not implemented):** Optional inventory
+  partitions driven by Inventory Companion groups. See the [spec](Tasks/todo_plan_autocategoryIntegration.md),
   [implementation plan](Tasks/todo_implementation_autocategoryIntegration.md),
   and [spike results / open gates](Tasks/AutoCategorySpikeResults.md).
 - **D1. Auto-Restock & Stack Balancer:** Add `targetCount` settings and
