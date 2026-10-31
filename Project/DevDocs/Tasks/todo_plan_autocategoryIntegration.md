@@ -226,12 +226,21 @@ lists receive a projection of it.
   which covers renames and deletions (even made while AutoCategory was absent)
   and other characters' groups. IC keeps no list of names, so nothing grows.
   Decided 2026-10-31, replacing a saved name registry.
+- **Category names (decided 2026-10-31).** Every group is registered under a
+  marked name so users can see in the bag which headings come from Inventory
+  Companion. Preferred: a small inline texture icon before the group name
+  (`|t18:18:<texture>|t Plunder`). A built-in ESO texture is used until IC has
+  its own. Fallback, if markup in category names proves unsafe:
+  `Plunder · Inventory Companion`. The decoration is a single constant chosen
+  by in-game trial. The icon is explained in the manual and the AutoCategory
+  view.
 - **Collisions.** AutoCategory renames duplicate category names at load
   (`addTableRules` → `GetUsableRuleName` → `renameBagRule`). That rename
   rewrites the first bag entry with the old name, which could be the user's own
-  entry, redirecting it to our category. So before registering, skip any group
-  whose name equals an existing AutoCategory category that is not ours. Report
-  the conflict in the view until the group is renamed.
+  entry, redirecting it to our category. Marked names make a clash practically
+  impossible; as a backstop, skip registering any group whose marked name
+  equals an existing AutoCategory category that is not ours, and report it in
+  the view.
 - **Known residue (AutoCategory's own behaviour):** a heading's collapsed state
   is stored by name in AutoCategory's `collapses` table and is never pruned, even
   for its own renames. A renamed group's heading starts expanded and its old
@@ -278,7 +287,10 @@ and defaults above are decided. Remaining investigations:
    renumber our own entries within a slot when crowded. Prove the `icOwned`
    marker survives cache rebuilds, "Export to all bags", and opening/using
    AutoCategory's settings window, and that a same-name collision is skipped
-   before registration without AutoCategory renaming anything.
+   before registration without AutoCategory renaming anything. Prove an inline
+   texture (`|t…|t`) in a category name is safe as AutoCategory's identity:
+   lookup, compile, sort tie-break, collapse state, settings dropdown, and
+   keyboard header rendering. If not, use the `· Inventory Companion` fallback.
 2. **Registration/lifecycle:** in game, plugin registration plus projected
    entries survive `/reloadui` and classify in Backpack and Bank (including
    subscriber bank).

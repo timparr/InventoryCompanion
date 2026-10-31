@@ -254,7 +254,9 @@ Status after the Backpack rendering pass (2026-10-31):
   Document that in the manual. (2) offline: placement values (fractional and
   above-1000 run/show priorities, `%04d` formatting of fractions in ESO's Lua,
   saved/settings-window survival), `icOwned` marker survival (cache rebuild,
-  Export to all bags, settings window), and a skipped same-name collision. (3) in game: plugin registration plus
+  Export to all bags, settings window), a skipped same-name collision, and
+  inline-texture markup in category names (lookup, compile, tie-break, collapse,
+  settings dropdown, header). (3) in game: plugin registration plus
   projected entries survive `/reloadui` and classify in Backpack and Bank,
   including subscriber bank. (4) each of the seven contexts. (5) AutoCategory
   account/character profile switch path and reprojection. Gamepad stays out of
@@ -381,13 +383,18 @@ bag data:
   is ours only if marked; labels alone never claim. Projection removes marked
   entries that do not correspond to a current participating group's name
   (renames, deletions, other characters' groups), so IC stores no name list.
-- **Collision.** AutoCategory's `addTableRules` renames duplicate rule names at
-  load and calls `renameBagRule`, which rewrites the first bag entry with the old
-  name, possibly the user's. So exclude from `RegisterPlugin` any group whose
-  name equals a non-owned AutoCategory rule (its account rules are loaded at its
-  `EVENT_ADD_ON_LOADED`, before ours). The view shows the conflict until renamed.
+- **Category name.** Register each group as `AutoCategoryName(displayName)`:
+  one constant decoration, preferred an inline texture icon prefix
+  (`|t18:18:<texture>|t <name>`), fallback `<name> · Inventory Companion`.
+  Choose by in-game trial after the gate-2 markup check.
+- **Collision (backstop).** AutoCategory's `addTableRules` renames duplicate
+  rule names at load and calls `renameBagRule`, which rewrites the first bag
+  entry with the old name, possibly the user's. Exclude from `RegisterPlugin`
+  any group whose decorated name equals a non-owned AutoCategory rule (its
+  account rules are loaded at its `EVENT_ADD_ON_LOADED`, before ours). The view
+  shows the conflict until renamed.
 - **Definitions** are registered via `RegisterPlugin` predefined rules with
-  expression `ic_group("<ruleKey>")` and the group's display name, after
+  expression `ic_group("<ruleKey>")` and the decorated category name, after
   `AddRuleFunc("ic_group", ...)`. Registered for every group while IC is loaded,
   including when integration is off (predicate returns false).
 - **When it runs:** in our plugin init (after AutoCategory selects its profile,
