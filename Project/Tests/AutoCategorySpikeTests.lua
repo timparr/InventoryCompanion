@@ -1,4 +1,6 @@
 InventoryCompanion = { Name = "InventoryCompanion_DEV", SettingsName = "InventoryCompanion_AutoCategorySpike", IsDevelopment = true }
+local normalDebug = function() end
+InventoryCompanion.Debug = normalDebug
 SLASH_COMMANDS = {}
 EVENT_ADD_ON_LOADED = "EVENT_ADD_ON_LOADED"
 local registeredEvents = {}
@@ -150,8 +152,8 @@ function GetAutoCategorySpikeTests()
     local gateStatus = ic.GetAutoCategoryGateRegistration()
     Equal(gateStatus, "registered", "Gate plugin startup registration")
     local gatePlugin = ac.Plugins["InventoryCompanion DEV AutoCategory Gate"]
-    assert(gatePlugin and gatePlugin.predef and #gatePlugin.predef == 1, "Gate plugin definition was not registered.")
-    ac.RulesW:AddRule(gatePlugin.predef[1])
+    assert(gatePlugin and gatePlugin.predef and #gatePlugin.predef == 3, "Gate plugin definitions were not registered.")
+    for _, definition in ipairs(gatePlugin.predef) do ac.RulesW:AddRule(definition) end
     gatePlugin.init()
     ac.Inited = true
     ac.saved.bags = ac.acctSaved.bags
@@ -542,14 +544,8 @@ function GetAutoCategorySpikeTests()
         d, ic.RunAutoCategoryNativeProbe = originalPrint, originalProbe
         if not ok then error(failure, 0) end
     end)
-    Add("DEV Debug Key dispatches the current multi-heading order test", function()
-        local command = SLASH_COMMANDS["/icacspike"]
-        local argument
-        SLASH_COMMANDS["/icacspike"] = function(value) argument = value end
-        local ok, failure = pcall(ic.Debug)
-        SLASH_COMMANDS["/icacspike"] = command
-        if not ok then error(failure, 0) end
-        Equal(argument, "order plunder skull", "Debug key current gate")
+    Add("DEV spike preserves normal Debug Key behaviour", function()
+        Equal(ic.Debug, normalDebug, "Spike must not override the normal Debug handler")
     end)
 
     local function Fields(value)
@@ -775,7 +771,7 @@ function GetAutoCategorySpikeTests()
         end)
     end)
 
-    Add("DEV gate plugin waits for IC load after dependency initialization and exposes one predefined rule", function()
+    Add("DEV gate plugin waits for IC load after dependency initialization and exposes gate definitions", function()
         ac.acctSaved.bags, ac.acctSaved.collapses = ac.saved.bags, ac.saved.collapses
         ac.charSaved.accountWide = true
         ac.charSaved.bags, ac.charSaved.collapses = Copy(ac.saved.bags), Copy(ac.saved.collapses)
@@ -784,7 +780,7 @@ function GetAutoCategorySpikeTests()
         Equal(status, "registered", "Startup gate status")
         assert(detail:find("before AutoCategory initialization", 1, true), "Startup timing report")
         local plugin = ac.Plugins["InventoryCompanion DEV AutoCategory Gate"]
-        assert(plugin and plugin.predef and #plugin.predef == 1, "Registered predefined rule")
+        assert(plugin and plugin.predef and #plugin.predef == 3, "Registered predefined rules")
         Equal(plugin.predef[1].name, "|t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Reload",
             "Unique gate category identity")
         Same(ac.GetRuleByName(plugin.predef[1].name), plugin.predef[1], "Runtime predefined definition")
@@ -967,6 +963,79 @@ function GetAutoCategorySpikeTests()
                 "The report includes observed headings, not only formatter output")
             assert(tostring(orderReport):find("Immediate classification gap: 105 > 100; visible higher anchor priority: 200.", 1, true),
                 "Invisible immediate anchor retains the narrow gap while visible heading uses a wider anchor")
+            delayed()
+            local savedBefore = Copy(ac.saved.bags)
+            local advancedOk, advancedReport = pcall(SLASH_COMMANDS["/icacspike"], "order2 plunder skull")
+            Equal(advancedOk, false, "Adversarial priority diagnostic")
+            assert(tostring(advancedReport):find("PASS independent top run/show classification and native heading order", 1, true),
+                "Independent bounded top mapping: " .. tostring(advancedReport))
+            assert(tostring(advancedReport):find("FAIL crowded fractional classification and visible order", 1, true),
+                "Reverse-alphabetical crowded labels expose ordering failure: " .. tostring(advancedReport))
+            assert(tostring(advancedReport):find("PASS five selected items classify", 1, true),
+                "Classification success is reported separately from heading failure")
+            assert(tostring(advancedReport):find("Crowded integer display keys: 0899 > 0899 > 0899 > 0899 > 0899", 1, true),
+                "Five distinct fractions have exactly the same formatted integer key")
+            Same(ac.saved.bags, savedBefore, "Adversarial probe restores every saved assignment")
+            delayed()
+            local anchor = ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules[1]
+            anchor.showpriority = 996
+            local blockedOk, blockedReport = pcall(SLASH_COMMANDS["/icacspike"], "order2 plunder skull")
+            Equal(blockedOk, false, "Unavailable independent top diagnostic")
+            assert(tostring(blockedReport):find("NOT AVAILABLE independent top candidate", 1, true),
+                "High external show priority explicitly rejects bounded candidate")
+            delayed()
+            local visibleBlockedOk, visibleBlockedReport =
+                pcall(SLASH_COMMANDS["/icacspike"], "ordertop plunder skull")
+            Equal(visibleBlockedOk, false, "Visible high-priority boundary diagnostic")
+            assert(tostring(visibleBlockedReport):find("NOT AVAILABLE independent top candidate: a visible", 1, true),
+                "Visible high-priority heading is not silently ignored")
+            anchor.showpriority = 200
+            delayed()
+            local invisibleAnchor
+            for _, entry in ipairs(ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules) do
+                if entry.name == "Gate Order Invisible Anchor" then invisibleAnchor = entry end
+            end
+            assert(invisibleAnchor, "Invisible external fixture exists")
+            invisibleAnchor.showpriority = 1000
+            local invisibleBefore = Copy(ac.saved.bags)
+            local topOnlyOk, topOnlyReport = pcall(SLASH_COMMANDS["/icacspike"], "ordertop plunder skull")
+            Equal(topOnlyOk, false, "Visible-only top diagnostic")
+            assert(tostring(topOnlyReport):find("PASS independent top run/show", 1, true),
+                "Invisible high-priority assignment does not block the bounded visible-heading sample")
+            assert(tostring(topOnlyReport):find("Gate Order Invisible Anchor = 1000 (no visible heading)", 1, true),
+                "Skipped invisible boundary is named explicitly")
+            assert(not tostring(topOnlyReport):find("crowded fractional classification", 1, true),
+                "Top-only command does not repeat crowded test")
+            Same(ac.saved.bags, invisibleBefore, "Visible-only top sample preserves invisible assignment")
+            invisibleAnchor.showpriority = 105
+            anchor.showpriority = 1000
+            delayed()
+            local prefixBefore = Copy(ac.saved.bags)
+            local prefixOk, prefixReport = pcall(SLASH_COMMANDS["/icacspike"], "orderprefix plunder skull")
+            Equal(prefixOk, false, "Invisible prefix diagnostic")
+            assert(tostring(prefixReport):find("FAIL empty-colour-prefix top classification/native heading order", 1, true),
+                "Empty colour tag does not claim it precedes a plain-name category tied at show 1000: " .. tostring(prefixReport))
+            assert(tostring(prefixReport):find("PASS crowded fractional classification and visible order", 1, true),
+                "Empty colour rank prefix orders reversed visible labels inside an integer-key tie")
+            assert(tostring(prefixReport):find("|c000001|r", 1, true),
+                "Report preserves exact prefix identity for review")
+            Same(ac.saved.bags, prefixBefore, "Prefix probe restores external assignments")
+            delayed()
+            local reorderOk, reorderReport = pcall(SLASH_COMMANDS["/icacspike"], "orderreorder plunder skull")
+            Equal(reorderOk, false, "Rank reorder diagnostic")
+            assert(tostring(reorderReport):find("PASS prefix rank reorder/full-cache rebuild", 1, true),
+                "Prefix rename/reverse ordering survives full caches: " .. tostring(reorderReport))
+            assert(tostring(reorderReport):find("old Zulu flag retained = true; renamed Zulu collapsed = false", 1, true),
+                "Collapse rename consequence explicitly measured: " .. tostring(reorderReport))
+            Same(ac.saved.bags, prefixBefore, "Reorder probe leaves saved assignments intact")
+            anchor.showpriority = 50
+            delayed()
+            local mismatchOk, mismatchReport = pcall(SLASH_COMMANDS["/icacspike"], "order plunder skull")
+            Equal(mismatchOk, false, "External run/show mismatch diagnostic")
+            assert(tostring(mismatchReport):find("FAIL fractional classification and visible order", 1, true),
+                "External run/show differences cannot be assumed to preserve marker heading order")
+            anchor.showpriority = 200
+            delayed()
             assert(delayed ~= nil and drawCount >= 3, "Both commands exercised native refresh and delayed redraw.")
             local function DiagnosticLine(fragment)
                 for line in tostring(orderReport):gmatch("[^\r\n]+") do
@@ -985,6 +1054,95 @@ function GetAutoCategorySpikeTests()
         end)
         return "Synthetic lists exercised one context render and five-group top/fractional heading-order paths; ESO rendering remains an in-game gate.\n"
             .. orderSummary
+    end)
+
+    Add("128 prefixed groups retain fractional precedence across seven contexts and copied reload data", function()
+        WithIsolatedAutoCategory(function()
+            local names, entries = {}, {}
+            local prefix = "|t18:18:EsoUI/Art/Buttons/plus_up.dds|t "
+            ac.AddRuleFunc("ic_gate_scale", function(slot)
+                return ac.checkingItemSlotIndex == slot
+            end)
+            for rank = 1, 128 do
+                local name = string.format("|c%06x|r", rank) .. prefix
+                    .. string.format("Scale %03d", 129 - rank)
+                names[rank] = name
+                ac.RulesW:AddRule({
+                    name = name, tag = "InventoryCompanion scale fixture",
+                    rule = "ic_gate_scale(" .. rank .. ")",
+                })
+                entries[rank] = {
+                    name = name, runpriority = 100 + (129 - rank) / 1000,
+                    showpriority = 100.25, isHidden = false, icOwned = true,
+                }
+            end
+            local external = Copy(ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules)
+            for context = 1, 7 do
+                ac.saved.bags[context].rules = Copy(entries)
+                for _, entry in ipairs(external) do
+                    ac.saved.bags[context].rules[#ac.saved.bags[context].rules + 1] = Copy(entry)
+                end
+            end
+            local persisted = Copy(ac.saved.bags)
+            ac.cacheInitialize()
+            for context = 1, 7 do
+                local keys = {}
+                for rank, name in ipairs(names) do
+                    local matched, winner, run, show =
+                        ac:MatchCategoryRules(BAG_BACKPACK, rank, context)
+                    Equal(matched, true, "Scale classified")
+                    Equal(winner, name, "Scale identity in every context")
+                    Equal(run, entries[rank].runpriority, "Scale fractional run value")
+                    Equal(show, 100.25, "Scale shared show value")
+                    keys[rank] = { name = name, key = string.format("%04d%s", 1000 - show, name) }
+                end
+                table.sort(keys, function(left, right) return left.key < right.key end)
+                for rank, entry in ipairs(keys) do Equal(entry.name, names[rank], "128 prefix ranks, not visible labels") end
+            end
+            ac.saved.bags = Copy(persisted)
+            ac.compiledRules = {}
+            ac.RulesW.compiled = ac.compiledRules
+            ac.RulesW:CompileAll()
+            ac.cacheInitialize()
+            for rank, name in ipairs(names) do
+                local _, winner = ac:MatchCategoryRules(BAG_BACKPACK, rank)
+                Equal(winner, name, "Copied saved-data/recompiled-definition lifecycle")
+            end
+            Same(ac.saved.bags, persisted, "Cache/compile cycles do not mutate synthetic saved data")
+            Equal(string.format("|c%06x|r", 255) < string.format("|c%06x|r", 256), true,
+                "Hex rank boundary maintains lexical order")
+            Equal(string.format("|c%06x|r", 65535) < string.format("|c%06x|r", 65536), true,
+                "Larger hex rank boundary maintains lexical order")
+            Equal(string.format("|c%06x|r", 0xffffff), "|cffffff|r", "Six-digit rank maximum")
+            return "128 groups x 7 synthetic contexts; actual classifier/cache/compile, synthetic lexical heading keys. Copied reload data is not ESO /reloadui. Six hex digits and floating-point gap precision are finite."
+        end)
+    end)
+
+    Add("Prefix placement bounds expose tied anchors, bottom slots and floating-point exhaustion", function()
+        WithIsolatedAutoCategory(function()
+            local name = "|c000001|r|t18:18:EsoUI/Art/Buttons/plus_up.dds|t Bound"
+            ac.RulesW:AddRule({ name = name, tag = "InventoryCompanion bounds", rule = "true" })
+            local first, second = "Bound anchor A", "Bound anchor B"
+            for _, anchor in ipairs({ first, second }) do
+                ac.RulesW:AddRule({ name = anchor, tag = "External fixture", rule = "true" })
+            end
+            ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules = {
+                Entry(first, 90, 90), Entry(second, 90, 90), Entry(name, 89.5, 89.5),
+            }
+            ac.cacheInitBag(AC_BAG_TYPE_BACKPACK)
+            local _, winner = ac:MatchCategoryRules(BAG_BACKPACK, 0)
+            Equal(winner, first, "Both tied external anchors run before managed group")
+            ac.saved.bags[AC_BAG_TYPE_BACKPACK].rules = { Entry(name, -10.25, -10.25) }
+            ac.cacheInitBag(AC_BAG_TYPE_BACKPACK)
+            local _, bottom, run, show = ac:MatchCategoryRules(BAG_BACKPACK, 0)
+            Equal(bottom, name, "Empty external list / negative last-slot classification")
+            Equal(run, -10.25, "Negative last-slot run")
+            Equal(show, -10.25, "Negative last-slot show")
+            Equal(string.format("%04d", 1000 - show), "1010", "Negative show creates positive display key")
+            local lower, upper = 1, 1 + 2 ^ -52
+            Equal(lower + (upper - lower) / 6, lower, "Adjacent floating-point gap cannot fit five ranks")
+            return "Native run ties and negative bottom classification verified offline. Adjacent representable priorities cannot hold arbitrary groups; name prefixes do not add numeric gap precision or reconcile external run/show order."
+        end)
     end)
 
     Add("Profile projection writes only the active AutoCategory profile and tagged cleanup is exact", function()
@@ -1091,6 +1249,50 @@ function GetAutoCategorySpikeTests()
         end
         if not ok then error(failure, 0) end
         return "Both profile directions were compared against the pre-switch inactive-profile snapshot; exact-token cleanup restored both."
+    end)
+
+    Add("Persistent prefix cycle is active-only, duplicate-free and exact-token cleanup preserves unowned data", function()
+        local accountBefore, characterBefore = Copy(ac.acctSaved.bags), Copy(ac.charSaved.bags)
+        local oldBagSize = GetBagSize
+        GetBagSize = function() return 1 end
+        local ok, failure = pcall(function()
+            local firstCycle
+            for repeatIndex = 1, 2 do
+                local cycleOk, report = pcall(SLASH_COMMANDS["/icacspike"], "prefix cycle plunder skull")
+                Equal(cycleOk, false, "Prefix cycle copyable diagnostic")
+                assert(tostring(report):find("PASS no stale rank 1 assignment, no duplicates", 1, true), tostring(report))
+                Same(ac.charSaved.bags, characterBefore, "Inactive prefix profile")
+                if firstCycle then
+                    Same(ac.acctSaved.bags, firstCycle, "Repeated prefix cycle has no saved-priority drift")
+                else
+                    firstCycle = Copy(ac.acctSaved.bags)
+                end
+            end
+            local persisted = Copy(ac.acctSaved.bags)
+            ac.RulesW:CompileAll()
+            ac.cacheInitialize()
+            local checkOk, report = pcall(SLASH_COMMANDS["/icacspike"], "prefix check plunder skull")
+            Equal(checkOk, false, "Prefix copied-reload check diagnostic")
+            assert(tostring(report):find("PASS one persisted rank 2 assignment", 1, true), tostring(report))
+            Same(ac.acctSaved.bags, persisted, "Prefix check is read-only")
+            local name = ac.Plugins["InventoryCompanion DEV AutoCategory Gate"].predef[3].name
+            local unowned = { name = name, runpriority = 10, showpriority = 10, isHidden = false }
+            ac.charSaved.bags[AC_BAG_TYPE_BACKPACK].rules[#ac.charSaved.bags[AC_BAG_TYPE_BACKPACK].rules + 1] = unowned
+            local cleanupOk, cleanupReport = pcall(SLASH_COMMANDS["/icacspike"], "cleanup")
+            Equal(cleanupOk, false, "Prefix cleanup copyable diagnostic")
+            assert(tostring(cleanupReport):find("Removed 1 exact-token gate assignments", 1, true), tostring(cleanupReport))
+            Equal(ac.charSaved.bags[AC_BAG_TYPE_BACKPACK].rules[#ac.charSaved.bags[AC_BAG_TYPE_BACKPACK].rules],
+                unowned, "Same-name unowned entry survives cleanup")
+            table.remove(ac.charSaved.bags[AC_BAG_TYPE_BACKPACK].rules)
+            Same(ac.acctSaved.bags, accountBefore, "Active prefix assignments restored after cleanup")
+            Same(ac.charSaved.bags, characterBefore, "Inactive prefix assignments restored")
+        end)
+        GetBagSize = oldBagSize
+        ReplaceFields(ac.acctSaved.bags, Copy(accountBefore))
+        ReplaceFields(ac.charSaved.bags, Copy(characterBefore))
+        ac.cacheInitialize()
+        if not ok then error(failure, 0) end
+        return "Real predefined/plugin/compile/cache, synthetic assignment cycles and read-only check. Actual ESO reload is still required."
     end)
 
     return tests

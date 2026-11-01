@@ -1,6 +1,7 @@
 # AutoCategory integration: spike results
 
-Updated 2026-10-31, incorporating ESO evidence through 22:19 UTC.
+Updated 2026-10-31, incorporating ESO evidence through 23:08 UTC and subsequent
+offline follow-up.
 **Integration is not implemented or compatibility-certified.**
 
 This is the authoritative evidence record and reusable dependency-learnings
@@ -19,13 +20,14 @@ inspection, and user visual confirmation are different kinds of evidence.
 | --- | --- | --- |
 | Native insertion / first-match precedence | PASS: offline and keyboard Backpack in ESO | Mixed managed/external order, cache rebuild, no-match fallthrough; not a complete public CRUD contract. |
 | Inline texture and category identity | PASS: offline and keyboard Backpack in ESO | Decorated lookup/classification/native heading and item; 7 skulls moved into the rendered section, 11 unrelated items retained categories. No items were transferred. Heading collapse clicks were not tested. |
-| Many groups above existing categories | FAIL for equal run/show 1005-1001 | ESO 21:28 and 22:19: classification succeeds, headings appear below all existing categories, reversed 5 through 1. No working alternative validated. **Q1 blocker.** |
-| Fractional priorities / between-category headings | PASS for five measured headings, ESO 22:19 | Correct classification and actual visible order in gap (85,90), formatter sample `0910`. Does not prove crowded gaps/arbitrary names. **Q2 blocker.** |
+| Many groups above existing categories | PASS sampled empty-colour-prefix candidate in ESO 22:47 | Five run priorities 1005..1001, all show 1000, ordered Zulu through Victor above Maps & Surveys. Appearance, rank replacement and account reload also passed. General bounds and production naming approval remain open. |
+| Fractional priorities / between-category headings | PASS sampled prefixed crowded order in ESO 22:47 | Unprefixed identical `0914` keys failed at 22:40; rank prefixes restored desired five-heading order with the same crowded fractions. Production naming/general external-order constraints remain open. |
 | Pre-registration name collision refusal | PASS: offline and ESO 21:22 | Maps & Surveys detected without registration; definition/identity and both profiles' assignments unchanged. Destructive rename path intentionally not invoked. |
 | Plugin startup and persisted assignments | PASS: sampled Backpack in both profiles | Corrected load timing; explicit reload/check 21:21 account and 22:00 character: one assignment plus predefined definition/cache and correct classification. Not reload coverage for every context or original priority retention. |
 | All seven contexts | PARTIAL | Six contexts sampled successfully, Bank including subscriber source. Guild Bank explicitly deferred, not passed. See context table. |
 | Profile switching / active-only manual projection | PASS in both directions | Core switches preserve both assignment lists; projection changes active only. Automatic IC reprojection hook does not exist and is not proven. **Q3 implementation investigation.** |
-| Cleanup / original mode restoration | PASS, ESO 22:05-22:06 | Original account-wide mode restored; exactly 2 tagged assignments removed. No other reported changes. DEV code-defined plugin remains. |
+| Prefix rank replacement / persistence | PASS sampled ESO 23:01-23:04 | Five-name reversal/full rebuild, one active-only persisted rank change and explicit account reload/check. Both predefined variants intentionally retained; old collapse flags remain. |
+| Cleanup / original mode restoration | PASS, ESO 22:05-22:06 and 23:08 | Original account-wide mode restored; 2 earlier tagged assignments and 1 final prefix assignment removed. No other reported changes. DEV code-defined plugin remains. |
 | Production dynamic edits / disable / performance | NOT TESTED as integration | Must be implemented and accepted, not inferred from the spike. **Q3, Q5.** |
 
 ## Open questions, decisions, and deferred coverage
@@ -33,12 +35,15 @@ inspection, and user visual confirmation are different kinds of evidence.
 IDs match the [spec's open-question register](todo_plan_autocategoryIntegration.md#open-questions-and-decisions).
 
 - **Q1 - BLOCKING:** find a safe top-heading mapping without changing external
-  entries. Independent run/show values or negative priorities have not been
-  validated. Mirroring values while remaining above 1000 is not a solution.
-- **Q2 - BLOCKING:** prove saved group order for crowded gaps and arbitrary
-  labels; different fractions can have the same integer display key.
-  Also handle external lists with different run and show orders without
-  silently changing the spec or external categories.
+  entries for the final general contract. Sampled prefix top placement, appearance,
+  rank replacement and account reload passed ESO; 128-group scale passed offline.
+  Arbitrary external priority/name bounds still need a compatibility decision.
+  Mirroring above 1000 is not a solution. Negative bottom classification was
+  tested offline only, not a negative top-placement alternative.
+- **Q2 - BLOCKING supported contract / decision:** prefixed crowded managed order
+  and reversal passed ESO; distinct unprefixed fractions fail. External run/show
+  mismatch and finite floating-point gaps remain demonstrated limits.
+  Decide supported behavior without silently changing external entries/spec.
 - **Q3 - OPEN implementation research:** production profile-switch detection,
   refresh/cache invalidation, dynamic definitions/renames/deletes and safe
   disable. Manual core switching is evidence, not an automatic hook.
@@ -55,6 +60,12 @@ IDs match the [spec's open-question register](todo_plan_autocategoryIntegration.
 - **D3 - OPEN, outside the initial heading requirement:** include/exclude badge
   placement, badge colours, and optional colour settings. These do not block
   using a plain category icon.
+- **D4 - OPEN author decision after lifecycle evidence:** adopt rank-bearing
+  empty colour prefixes as production category names? They passed sampled ESO
+  order/appearance, but a reorder changes the name and restarts collapse state
+  while leaving old name flags. Do not assume the suggestion authorized adoption.
+  After Test 7/7 the author explicitly selected **leave the naming decision
+  open**. No production prefix adoption is authorized.
 - **Deferred / not certified:** Guild Bank (author deferred at 21:53 and
   22:16), gamepad, other crafting tabs/professions/universal deconstruction,
   merchant buy/buyback. Sampled merchant Sell is supplementary, not an eighth
@@ -69,8 +80,9 @@ IDs match the [spec's open-question register](todo_plan_autocategoryIntegration.
   Offline fixture: [AutoCategorySpikeTests.lua](../../Tests/AutoCategorySpikeTests.lua).
   Run `python Project\Tests\Run-AutoCategorySpike.py` using the existing
   [runner](../../Tests/Run-AutoCategorySpike.py).
-- Latest recorded offline result: **28/28 passed** on 2026-10-31, including
-  the invisible-priority-anchor correction before the 22:19 ESO test.
+- Latest recorded offline result: **31/31 passed** on 2026-10-31 after the
+  22:54 follow-up, including scale/bounds, runtime reorder and persistent prefix
+  cycle/check/cleanup preparation. Earlier 28/28 preceded the 22:19 ESO test.
   Actual installed classifier/cache/settings modules execute against synthetic
   saves and mocked ESO/library/event/list boundaries. This is not full real
   startup execution, ESO formatting, or real inventory rendering.
@@ -113,6 +125,12 @@ Reload only to load changed code or explicitly test persistence.
 | `/icacspike <item>` | Existing isolated classification/precedence/cache probe; reads a Backpack item. |
 | `/icacspike render <item>` | Group-wide native preview with keyboard Backpack open; default search plunder skull. |
 | `/icacspike order <item>` | Five exact bag/slot groups plus retained anchor; needs at least six matching visible Backpack rows in one baseline category, not a stack of six units. |
+| `/icacspike order2 <item>` | Same six-row prerequisite; unprefixed crowded order failed in ESO, top candidate unavailable. |
+| `/icacspike ordertop <item>` | Top-only visible-heading sample; names external show >=996. ESO identified Maps & Surveys 1000 as blocker; candidate unavailable. |
+| `/icacspike orderprefix <item>` | Empty colour-rank prefixes; top show 1000 tie then crowded fractions. Sampled ESO order and visual appearance passed. |
+| `/icacspike orderreorder <item>` | Same six-row fixture, then reverse five ranks, replace only temporary definitions/assignments and rebuild full caches; measure stale-name removal, exact count, heading order and isolated collapse consequences. Offline validated; ESO pending. |
+| `/icacspike prefix cycle <item>` | Persist one uniquely tagged active-profile assignment, classify rank 1 then rename/classify rank 2; compare inactive and other active assignments. Offline validated; ESO pending. Uses the existing lifecycle-write authorization. |
+| `/icacspike prefix check <item>` | After explicit reload, read-only check of rank 2 assignment, both code-predefined rank variants, cache/compile and classification. Offline validated; ESO pending. Cleanup removes both exact rank-name variants with the token. |
 | `/icacspike collision` | Refuse an existing Backpack category before registration; preserve definitions and both assignment profiles. |
 | `/icacspike context <context> <item>` | Open keyboard context, one visible row; native classification/heading/item inspection. |
 | `/icacspike context subscriber-bank` | With Bank open, select any available subscriber-source row by bag ID; ESO+ has no separate page. |
@@ -125,12 +143,14 @@ Reload only to load changed code or explicitly test persistence.
 Context names: `backpack`, `bank`, `subscriber-bank`, `guild-bank`, `house-bank`,
 `crafting-station`, `craft-bag`, `furniture-vault`.
 
-**Pending probe housekeeping, not completed:** Debug Key still invokes
-`order plunder skull`; some profile reports still give stale Debug Key advice.
-Explicit commands bypass that advice. When testing ends, remove the probe's
-`Debug` override so [Core/Init.lua](../../../Core/Init.lua) again uses
-`this.RunTests("verbose copy")`, and update its offline assertion. Do not
-request reloads merely to rotate the Debug Key.
+**Post-test housekeeping:** the temporary Debug override is removed from the
+workspace after Test 7/7; offline checks verify the spike preserves the normal
+handler from [Core/Init.lua](../../../Core/Init.lua), which calls
+`this.RunTests("verbose copy")`. ESO must reload to pick up that change; normal
+Debug dispatch is not yet reverified in game. Stale profile report advice was
+replaced by explicit commands. The manifest-loaded probe/slash commands and
+three code-defined predefines remain DEV-only for reuse; this is not full
+teardown. Pre-shipping removal/relocation is required by the spec/plan.
 
 ## Dated ESO results
 
@@ -158,6 +178,39 @@ arguments/times are identified rather than invented.
   This does not prove interactive collapse usability or the unconverted IC icon.
 
 ### Startup, collision, profiles, reload, and cleanup
+
+**2026-10-31 23:08:05 UTC, ESO Test 7/7**, `/icacspike cleanup`:
+**PASS** removed exactly **1** exact-token assignment across account/character
+profiles. Report states no other AutoCategory entries, definitions, collapse
+state, IC saved variables or items changed. The latest persisted prefix entry
+is cleaned; original account-wide mode remains restored. All seven follow-up
+steps are finished. No further saved test entries were reported.
+Code-defined predefines remain until runtime unloading/reload; exact cleanup
+does not remove definitions or collapse flags. Pending items are supported-
+contract/naming decisions, deferred coverage and production acceptance, not
+unfinished repetitions of these sampled tests.
+
+**2026-10-31 23:04:28 UTC, ESO Test 6/7**, explicit `/reloadui` then
+`/icacspike prefix check ancestor silk`: **PASS** one persisted account-wide
+rank-2 assignment, both predefined rank variants compiled after startup,
+native cache present and correct `ancestor silk hat^n` classification under
+the exact rank-2 name. No stale rank-1 assignment or duplicates.
+Check was read-only; other active and all inactive assignments unchanged during
+this command. Inactive comparison does **not** cover the reload interval
+because the session baseline was lost. This closes sampled prefixed assignment/
+definition/cache startup persistence, not automatic production reprojection or
+all-profile/context reload coverage. One tagged account entry awaits Test 7/7.
+
+**2026-10-31 23:02:23 UTC, ESO Test 5/7**,
+`/icacspike prefix cycle ancestor silk`: **PASS** account-wide active-only
+rank 1 -> rank 2 assignment rename; exactly one tagged assignment retained,
+no stale rank 1 assignment or duplicates. Other active assignments and all
+inactive character assignments unchanged. Native classification of
+`ancestor silk hat^n` returned the exact rank-2 prefixed Gate Prefix Reload name.
+Both code-defined rank variants intentionally remain available; this does not
+prove removal of every old definition or dynamic production registration.
+One temporary account assignment remains for explicit reload Test 6/7;
+cleanup Test 7/7 is still required. No IC saves or items changed.
 
 | Time | Command / supplied report | Result and implication |
 | --- | --- | --- |
@@ -207,6 +260,148 @@ decorated heading/item identity, not intended top placement or persistence.
 
 ### Heading order and fractional formatter
 
+- **23:01:22 ESO, Test 4/7**, `/icacspike orderreorder ancestor silk`:
+  **PASS prefix rank reorder/full-cache rebuild**. Five desired headings
+  reversed to Victor > Whiskey > Xray > Yankee > Zulu between Container and
+  Low Level, with corresponding ranks 1..5. All five item classifications
+  passed after replacement/full rebuild; checks found exactly five reordered
+  assignments and no stale names outside the retained middle Xray identity.
+  Initial prefixed top and crowded phases passed again. Isolated collapse
+  consequence measured: old Zulu flag retained true, renamed Zulu false.
+  Original runtime restored; normal redraw 20s, no saved writes or item movement.
+  This answers runtime rank-name replacement/cache behavior in ESO, not
+  persisted prefix startup or automatic production reprojection.
+  Next Test 5/7 persists one exact-tagged rank change in active profile only;
+  Test 6/7 verifies explicit reload, Test 7/7 removes it.
+- **22:54 onwards, remaining spike checks prepared offline; 31/31 PASS** with
+  `python Project\Tests\Run-AutoCategorySpike.py`:
+  - **Scale:** 128 managed definitions, distinct fractional run priorities in
+    (100,100.129), shared show 100.25, reverse-numbered visible labels and
+    fixed-width colour ranks. Actual native classification/cache across all
+    seven synthetic contexts preserves all 128 identities/priorities; synthetic
+    native string keys sort by rank. Copied saved assignments plus actual
+    `RulesW:CompileAll()`/full cache rebuild preserve classification/data.
+    This is not 128 actual ESO headings or a real reload.
+  - **Rank boundaries:** hexadecimal 255->256, 65535->65536 sort correctly in
+    the fixture; six digits encode at most 0xffffff. No unlimited capacity
+    claim. Adjacent floating-point priorities near 1 cannot contain five
+    strictly interior ranks; prefixes cannot create numeric precision.
+  - **Placement boundaries:** two external run-90 ties both precede run-89.5
+    managed rule; empty external list and negative last-slot -10.25 classify
+    natively, show key 1010 offline. External run/show mismatch failure from
+    earlier fixtures remains: prefixes order managed ties, not external rows.
+    No negative-bottom ESO heading certification.
+  - **Runtime reordering:** `orderreorder` reverses five rank prefixes, removes
+    stale temporary definitions/compiled rules/assignments, registers replacements,
+    rebuilds complete native caches and measures actual list rows. Synthetic
+    fixture passes exact five assignments and reverse label order; old Zulu
+    collapse flag remains true, new Zulu name is expanded. All real assignment/
+    collapse state restored; **ESO Test 4/7 pending**.
+  - **Persisted prefix lifecycle:** `prefix cycle` and `prefix check` use two
+    code-defined rank variants added to the existing gate plugin (now three
+    predefines including the original reload gate). Only one exact-tagged
+    active-profile assignment persists; rank 1->2 and repeat cycle have no
+    duplicate/stale assignment or priority drift. Both rank definitions remain
+    intentionally available for inactive-profile references. Inactive and
+    other active assignments compare unchanged. Read-only recompilation/check
+    and cleanup pass; an untagged same-name inactive entry survives cleanup.
+    Preflight covers all three names before registration. **ESO Tests 5/7
+    cycle, 6/7 explicit reload/check, 7/7 cleanup pending**.
+  - A fixture initially called a nonexistent `compileRules`; offline failed,
+    corrected to the inspected `RulesW:CompileAll` and passed. No failed
+    candidate build was sent to ESO.
+  These bounded checks establish supported mechanisms and known limits, not a
+  universal placement algorithm or production hooks. Q1/Q2 require an explicit
+  supported-contract decision; D4 prefix adoption follows lifecycle evidence.
+- **22:47:26 ESO, Test 3/3**, `/icacspike orderprefix ancestor silk`:
+  **PASS top classification AND actual native heading order**:
+  Zulu > Yankee > Xray > Whiskey > Victor > Maps & Surveys > remaining external
+  headings. Full names carry empty `|c000001|r` through `|c000005|r` before
+  the icon. Run values 1005,1004,1003,1002,1001; all show priorities 1000.
+  **PASS crowded classification AND native order** between Container and
+  Low Level with the same five fractions as 22:40 and identical `0914` keys.
+  Immediate classification gap (85,90); visible Container anchor 95.
+  Both phases separately passed five item classifications; runtime restored
+  and normal redraw scheduled after 20s, no saved writes or item movement.
+  Initial visual check was not confirmed: author asked where to look; raw
+  markup in the diagnostic is intentional identity output, not a visual defect.
+  Top ordering differs from the offline plain-name-tie fixture, which failed;
+  retain both results. Do not infer a universal cross-runtime string comparator
+  contract from the synthetic list. This establishes a working sampled ESO
+  alternative, not production naming approval or reorder/reload/collapse safety.
+- **22:51:40 ESO visual follow-up**, rerun of
+  `/icacspike orderprefix ancestor silk` (exact rerun diagnostic not supplied):
+  author confirmed the temporary headings "look fine" / "look ok".
+  **PASS sampled visual prefix invisibility / no reported tint artefacts**.
+  Alignment was hard to assess in the huge expanded Low Level list and remains
+  **unverified**, not failed. The source category must be expanded because this
+  probe selects six visible item rows; collapsed rows are unavailable to its
+  fixture discovery. Temporary names have no existing collapse flags, so their
+  sections initially open. No heading-collapse interaction was tested.
+  Test 3/3's sampled top/crowded order and visual prefix gates are answered.
+  General placement bounds, production rank-name lifecycle/approval and
+  alignment/collapse interaction are not established by this visual result.
+- **22:44:07 ESO, Test 2/2**, `/icacspike ordertop ancestor silk`:
+  **NOT AVAILABLE**; **Maps & Surveys = show priority 1000, visible heading**.
+  No top phase executed and no claimed PASS. Existing entries/items/saves not
+  changed. Therefore the five whole show slots 1000..996 cannot satisfy this
+  user's current top requirement unchanged. This is a candidate boundary,
+  not proof every possible top mapping fails.
+- **After 22:44, author suggested invisible prefix; offline preparation:**
+  `/icacspike orderprefix <item>` uses empty colour spans `|c000001|r` through
+  `|c000005|r` before icon/label, resetting colour before visible content.
+  Actual classifier/cache and synthetic native-list fixture pass ordered
+  crowded headings despite reverse-alphabetical visible labels.
+  Top show 1000 ties with a plain-name external heading at 1000 and **fails
+  top placement offline**; prefix rank does not by itself put our categories
+  before that external name. ESO/visual invisibility not tested yet.
+  Full suite **28/28 passed** after fixing a probe branch-placement defect
+  detected by offline execution (nil priorities, never sent to ESO).
+  Saved assignments unchanged; prefix changes full category-name identity on
+  reorder, with possible collapse residue, collision/reload implications.
+  Candidate is not approved production naming. **Test 3/3 pending** to verify
+  the author's alternative; the total grows because top candidates remain
+  unavailable and this new alternative needs explicit evidence.
+- **22:40:36 ESO, Test 1/1**, `/icacspike order2 ancestor silk`:
+  top candidate **NOT AVAILABLE**, existing show priority >=996; that version
+  did not identify the entry or whether it had a visible heading. No top PASS.
+  All five items **PASS classification** with run/show
+  `85.416666666667 > 85.333333333333 > 85.25 > 85.166666666667 > 85.083333333333`
+  inside immediate gap (85,90), visible Container anchor 95.
+  All five `%04d` display keys were **`0914`**, formatter sample also `0914`.
+  Desired Zulu > Yankee > Xray > Whiskey > Victor instead rendered
+  **Container > Victor > Whiskey > Xray > Yankee > Zulu > Low Level**:
+  **FAIL crowded saved heading order**, confirming alphabetical ties in ESO.
+  Other reported headings retained order; runtime restored, normal redraw 20s,
+  no saved writes or item movement. Fractions are not a general display-order
+  solution; retain Q2/D1 until a safe alternative or author revision is decided.
+- **After 22:40 offline follow-up**, 28/28 passed:
+  `/icacspike ordertop <item>` now identifies each external high show priority,
+  tests only top placement of the currently visible headings and ends with that
+  preview (no repeated crowded phase). Visible external show >=996 remains
+  explicitly unavailable; invisible high entries remain unchanged and are
+  reported as outside this sampled heading bound. Fixture covers both cases,
+  saved-state preservation and no crowded rerun. This can establish a sampled
+  separate run/show alternative, but cannot certify top placement if currently
+  invisible categories gain headings later. **ESO Test 2/2 pending**; total
+  increased because Test 1's top phase could not execute.
+- **22:36 onwards, offline preparation; ESO NOT YET RUN:**
+  `python Project\Tests\Run-AutoCategorySpike.py` passed **28/28** after adding
+  `/icacspike order2 <item>` to the existing native-list fixture.
+  Five run priorities above the highest external run priority, with separate
+  show values `1000,999,998,997,996`, put reverse-alphabetical labels
+  `Zulu > Yankee > Xray > Whiskey > Victor` above existing headings offline.
+  Candidate explicitly reports NOT AVAILABLE if any external show priority
+  is >=996. This is a bounded five-slot alternative, not arbitrary top capacity.
+  Crowded run/show fractions in a sub-unit part of the immediate gap still
+  classified all five items but produced five identical integer display keys
+  (`0899` in the fixture) and **FAIL** desired native heading order.
+  Separate classifier PASS is reported so heading failure cannot be concealed.
+  Additional fixture with external run 200/show 50 above baseline run/show 100
+  exposed between-heading failure; allocation by run order alone is insufficient.
+  Saved assignments compared unchanged after the new probe. High-show-priority
+  rejection is also covered. These use synthetic native lists and the actual
+  classifier/cache, not ESO rendering; verify `order2` in ESO next.
 - **21:28**, `/icacspike order ancestor silk`: five selected rows from Low
   Level each classified under its own temporary heading. Run/show
   `1005 > 1004 > 1003 > 1002 > 1001` produced headings after Others in order

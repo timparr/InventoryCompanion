@@ -48,6 +48,14 @@ local gatePluginName = "InventoryCompanion DEV AutoCategory Gate"
 local gateRuleName = "|t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Reload"
 local gateRuleTag = "InventoryCompanion DEV AutoCategory Gate"
 local gatePredicateName = "ic_autocategory_gate_match"
+local prefixGateNames = {
+    "|c000001|r|t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Prefix Reload",
+    "|c000002|r|t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Prefix Reload",
+}
+local function IsPersistentGateEntry(entry)
+    return entry.icAutoCategoryGate == gateToken
+        and (entry.name == gateRuleName or entry.name == prefixGateNames[1] or entry.name == prefixGateNames[2])
+end
 local gateSearch
 local gateRegistration = { status = "waiting", detail = "Waiting for AutoCategory saved data." }
 local profileBaseline
@@ -160,7 +168,7 @@ local function GateNameCollision(name)
                     return true, profileName .. " bag " .. bagType .. " contains a malformed assignment", "unavailable"
                 end
                 if entry.name == name
-                    and not (name == gateRuleName and entry.icAutoCategoryGate == gateToken) then
+                    and not IsPersistentGateEntry(entry) then
                     return true, profileName .. " bag " .. bagType .. " assignment"
                 end
             end
@@ -183,13 +191,15 @@ local function RegisterGatePlugin()
         gateRegistration = { status = "collision", detail = "The gate plugin name is already registered." }
         return false
     end
-    local collides, source, status = GateNameCollision(gateRuleName)
-    if collides then
-        gateRegistration = {
-            status = status or "collision",
-            detail = "Gate rule registration refused before AutoCategory can rename anything: " .. source,
-        }
-        return false
+    for _, name in ipairs({ gateRuleName, prefixGateNames[1], prefixGateNames[2] }) do
+        local collides, source, status = GateNameCollision(name)
+        if collides then
+            gateRegistration = {
+                status = status or "collision",
+                detail = "Gate rule registration refused before AutoCategory can rename anything: " .. source,
+            }
+            return false
+        end
     end
     local predefined = {
         {
@@ -199,6 +209,12 @@ local function RegisterGatePlugin()
             description = "Temporary Inventory Companion DEV reload/profile gate.",
         },
     }
+    for _, name in ipairs(prefixGateNames) do
+        predefined[#predefined + 1] = {
+            name = name, tag = gateRuleTag, rule = gatePredicateName .. "()",
+            description = "Temporary uniquely tagged prefix rank/reload gate.",
+        }
+    end
     ac.RegisterPlugin(gatePluginName, function()
         ac.AddRuleFunc(gatePredicateName, function()
             if type(gateSearch) ~= "string" or gateSearch == "" then return false end
@@ -523,7 +539,7 @@ local function RunGateProfileCommand(action, search)
             characterBags = Copy(ac.charSaved.bags),
         }
         messages[#messages + 1] = "PASS read-only account/character assignment baseline captured for this UI session."
-        messages[#messages + 1] = "Press the Debug Key next to switch AutoCategory profiles without /reloadui; the following press projects the plunder skull test entry."
+        messages[#messages + 1] = "Switch with /icacspike profile switch account or character, then project with /icacspike profile project <item>; no reload between baseline and projection."
         return ShowDiagnostic("profile baseline", messages)
     end
 
@@ -552,7 +568,7 @@ local function RunGateProfileCommand(action, search)
         end
         messages[#messages + 1] = "AutoCategory may normalize legacy profile fields and rebuild caches during this authorized switch."
         messages[#messages + 1] = "Settings-only selection/refresh calls were not used: AutoCategory's CatSet.clear has a nil-global defect. Close any open AutoCategory settings panel."
-        messages[#messages + 1] = "If both assignment comparisons pass, press Debug Key next to project the plunder skull test."
+        messages[#messages + 1] = "If both assignment comparisons pass, use /icacspike profile project <item> next."
         return ShowDiagnostic("profile switch", messages)
     end
 
@@ -632,6 +648,102 @@ local function RunGateProfileCommand(action, search)
     return ShowDiagnostic("profile/reload check", messages)
 end
 
+local function RunPrefixLifecycle(action, search)
+    local ac = AutoCategory
+    if gateRegistration.status ~= "registered" then
+        return ShowDiagnostic("prefix lifecycle", {
+            "NOT AVAILABLE: gate plugin " .. gateRegistration.status .. ": " .. gateRegistration.detail,
+            "No assignments changed.",
+        })
+    end
+    local activeName, active, inactiveName, inactive = ActiveAutoCategoryProfiles()
+    local inactiveBefore, activeBefore = Copy(inactive.bags), Copy(active.bags)
+    local rules = active.bags[AC_BAG_TYPE_BACKPACK].rules
+    local entries = {}
+    for _, entry in ipairs(rules) do
+        if entry.name == prefixGateNames[1] or entry.name == prefixGateNames[2] then
+            assert(IsPersistentGateEntry(entry), "Refusing an untagged prefix-gate name collision.")
+            entries[#entries + 1] = entry
+        end
+    end
+    assert(#entries <= 1, "Duplicate prefix-gate assignments; use /icacspike cleanup.")
+    local slot, link = FindGateItem(search:lower())
+    if slot == nil then
+        return ShowDiagnostic("prefix lifecycle", { "NOT AVAILABLE: no Backpack item matches '" .. search .. "'; no assignments changed." })
+    end
+    gateSearch = search:lower()
+    local messages = { "Active profile: " .. activeName .. "; inactive: " .. inactiveName .. "." }
+    for _, name in ipairs(prefixGateNames) do
+        assert(ac.GetRuleByName(name) ~= nil and ac.compiledRules[name] ~= nil,
+            "Prefix predefined definition/compiled predicate missing; reload the updated DEV probe.")
+    end
+    if action == "cycle" then
+        local priority = 1000
+        for _, entry in ipairs(rules) do
+            if entry.name ~= prefixGateNames[1] and entry.name ~= prefixGateNames[2] then
+                priority = math.max(priority, entry.runpriority)
+            end
+        end
+        local entry = entries[1]
+        if entry == nil then
+            entry = {
+                name = prefixGateNames[1], runpriority = priority + 1,
+                showpriority = 1000, isHidden = false, icAutoCategoryGate = gateToken,
+            }
+            rules[#rules + 1] = entry
+        end
+        entry.runpriority = priority + 1
+        entry.name = prefixGateNames[1]
+        ac.cacheInitBag(AC_BAG_TYPE_BACKPACK)
+        local found, winner = ClassifyWithoutSavedWrites(BAG_BACKPACK, slot)
+        Equal(found, true, "Prefix first-rank classification")
+        Equal(winner, prefixGateNames[1], "Prefix first-rank identity")
+        entry.name = prefixGateNames[2]
+        ac.cacheInitBag(AC_BAG_TYPE_BACKPACK)
+        messages[#messages + 1] = "PASS active-only rank 1 -> rank 2 assignment rename; exactly one tagged assignment retained."
+        messages[#messages + 1] = "Both code-defined rank variants intentionally remain available; inactive profiles may still refer to them."
+    else
+        Equal(action, "check", "Prefix lifecycle action")
+        Equal(#entries, 1, "Persisted prefix assignment count")
+        Equal(entries[1].name, prefixGateNames[2], "Persisted rank 2 identity")
+        Same(active.bags, activeBefore, "Read-only prefix check active assignments")
+        messages[#messages + 1] = "PASS one persisted rank 2 assignment; both predefined rank variants compiled after startup."
+    end
+    local rankTwoCount, rankOneCount = 0, 0
+    for _, entry in ipairs(rules) do
+        if entry.name == prefixGateNames[2] then rankTwoCount = rankTwoCount + 1 end
+        if entry.name == prefixGateNames[1] then rankOneCount = rankOneCount + 1 end
+    end
+    Equal(rankTwoCount, 1, "Exactly one final prefix assignment")
+    Equal(rankOneCount, 0, "No stale rank 1 assignment")
+    assert(ac.cache.entriesByName[AC_BAG_TYPE_BACKPACK][prefixGateNames[2]] ~= nil,
+        "Rank 2 assignment is missing from the native cache.")
+    local found, winner = ClassifyWithoutSavedWrites(BAG_BACKPACK, slot)
+    Equal(found, true, "Prefix final classification")
+    Equal(winner, prefixGateNames[2], "Prefix final identity")
+    Same(inactive.bags, inactiveBefore, "Inactive prefix lifecycle assignments")
+    local function WithoutPrefixEntries(bags)
+        local copy = Copy(bags)
+        for _, bag in ipairs(copy) do
+            for index = #bag.rules, 1, -1 do
+                local entry = bag.rules[index]
+                if IsPersistentGateEntry(entry)
+                    and (entry.name == prefixGateNames[1] or entry.name == prefixGateNames[2]) then
+                    table.remove(bag.rules, index)
+                end
+            end
+        end
+        return copy
+    end
+    Same(WithoutPrefixEntries(active.bags), WithoutPrefixEntries(activeBefore), "All other active assignments")
+    messages[#messages + 1] = "PASS no stale rank 1 assignment, no duplicates; other active and all inactive assignments unchanged."
+    messages[#messages + 1] = "PASS " .. GetItemLinkName(link) .. " => " .. winner
+    messages[#messages + 1] = action == "cycle"
+        and "Temporary tagged write authorized for reload testing. Next /reloadui, then /icacspike prefix check <item>; finish with /icacspike cleanup."
+        or "Read-only check, no assignment writes. Inactive comparison covers this command only, not the reload interval. Finish with /icacspike cleanup."
+    return ShowDiagnostic("prefix " .. action, messages)
+end
+
 local function RunGateCleanup()
     local ac = AutoCategory
     assert(type(ac) == "table" and type(ac.acctSaved) == "table" and type(ac.charSaved) == "table",
@@ -646,7 +758,7 @@ local function RunGateCleanup()
                 profileName .. " bag " .. bagType .. " assignments are unavailable; no cleanup was performed.")
             for index = #bag.rules, 1, -1 do
                 local entry = bag.rules[index]
-                if entry.name == gateRuleName and entry.icAutoCategoryGate == gateToken then
+                if IsPersistentGateEntry(entry) then
                     table.remove(bag.rules, index)
                     removed = removed + 1
                 end
@@ -902,7 +1014,7 @@ local function JoinNames(names)
     return table.concat(names, " > ")
 end
 
-local function RunOrderProbe(search)
+local function RunOrderProbe(search, adversarial, topOnly, prefixMode, reorderMode)
     if IsInGamepadPreferredMode() or ZO_PlayerInventory == nil or ZO_PlayerInventory:IsHidden() then
         return ShowDiagnostic("priority/heading order", {
             "NOT AVAILABLE: open the keyboard Backpack before running /icacspike order.",
@@ -988,8 +1100,11 @@ local function RunOrderProbe(search)
     for index = 1, 5 do selected[index] = lowerItems[index] end
     local names, predicates = {}, {}
     local iconPrefix = "|t18:18:EsoUI/Art/Buttons/plus_up.dds|t "
+    local labels = { "Zulu", "Yankee", "Xray", "Whiskey", "Victor" }
     for index = 1, #selected do
-        names[index] = iconPrefix .. "InventoryCompanion DEV Gate Order " .. index
+        names[index] = iconPrefix .. "InventoryCompanion DEV Gate Order "
+            .. (adversarial and labels[index] or index)
+        if prefixMode then names[index] = string.format("|c%06x|r", index) .. names[index] end
         predicates[index] = "ic_autocategory_gate_order_" .. index
     end
     local messages = WithIsolatedAutoCategory(function(report, markRendered)
@@ -1007,7 +1122,7 @@ local function RunOrderProbe(search)
             assert(ac.compiledRules[name] ~= nil, "AutoCategory did not compile " .. name)
         end
 
-        local function ApplyPriorities(priorities)
+        local function ApplyPriorities(priorities, showPriorities)
             for index, name in ipairs(names) do
                 local existing
                 for _, entry in ipairs(currentRules) do
@@ -1021,7 +1136,8 @@ local function RunOrderProbe(search)
                     isHidden = false,
                     icAutoCategoryGate = gateToken,
                 }
-                entry.runpriority, entry.showpriority = priorities[index], priorities[index]
+                entry.runpriority = priorities[index]
+                entry.showpriority = showPriorities and showPriorities[index] or priorities[index]
                 if not existing then currentRules[#currentRules + 1] = entry end
             end
             ac.cacheInitBag(AC_BAG_TYPE_BACKPACK)
@@ -1041,6 +1157,10 @@ local function RunOrderProbe(search)
 
         local function RenderAndCheck(expected)
             local failures = CheckClassification()
+            if adversarial then
+                report[#report + 1] = (#failures == 0 and "PASS" or "FAIL")
+                    .. " five selected items classify in the requested managed sequence."
+            end
             markRendered()
             ac.RefreshList(INVENTORY_BACKPACK, true)
             local headers = CollectHeaders(inventory.listView)
@@ -1073,33 +1193,88 @@ local function RunOrderProbe(search)
             return headers, failures
         end
 
+        local function CheckTop(headers, failures)
+            local firstTestHeader = HeaderIndex(headers, names[1])
+            local lastTestHeader = HeaderIndex(headers, names[#names])
+            local testNameSet = {}
+            for _, name in ipairs(names) do testNameSet[name] = true end
+            local existingAfter = false
+            for index, name in ipairs(headers) do
+                if lastTestHeader and index > lastTestHeader then existingAfter = true end
+                if firstTestHeader and lastTestHeader and index < lastTestHeader and not testNameSet[name] then
+                    failures[#failures + 1] = "Existing category heading appeared before all top-slot groups: " .. name
+                end
+            end
+            if not existingAfter then failures[#failures + 1] = "No existing category heading appeared below the test groups." end
+        end
         local topPriorities = {}
         for index = 1, #names do topPriorities[index] = highestPriority + (#names - index + 1) end
-        ApplyPriorities(topPriorities)
-        local topHeaders, topFailures = RenderAndCheck(names)
-        local firstTestHeader = HeaderIndex(topHeaders, names[1])
-        local lastTestHeader = HeaderIndex(topHeaders, names[#names])
-        local testNameSet = {}
-        for _, name in ipairs(names) do testNameSet[name] = true end
-        local existingAfter = false
-        for index, name in ipairs(topHeaders) do
-            if lastTestHeader and index > lastTestHeader then existingAfter = true end
-            if firstTestHeader and lastTestHeader and index < lastTestHeader and not testNameSet[name] then
-                topFailures[#topFailures + 1] = "Existing category heading appeared before all top-slot groups: " .. name
+        if prefixMode then
+            local showPriorities = {}
+            for index = 1, #names do showPriorities[index] = 1000 end
+            ApplyPriorities(topPriorities, showPriorities)
+            local headers, failures = RenderAndCheck(names)
+            CheckTop(headers, failures)
+            report[#report + 1] = (#failures == 0 and "PASS" or "FAIL")
+                .. " empty-colour-prefix top classification/native heading order: " .. JoinNames(names)
+            if #failures > 0 then report[#report + 1] = "Prefix top details: " .. table.concat(failures, " | ") end
+            report[#report + 1] = "Actual prefix top headings: " .. JoinNames(headers)
+            report[#report + 1] = "Top run priorities: " .. JoinNames(topPriorities)
+            report[#report + 1] = "Top show priorities: " .. JoinNames(showPriorities)
+            report[#report + 1] = "Prefix bytes: empty |c000001|r through |c000005|r before the icon; reset occurs before visible content."
+            report[#report + 1] = "Inspect the preview for visible prefix text or tint changes; native row identity checks do not prove visual invisibility."
+            report[#report + 1] = "Candidate only: changing rank changes the full category name/identity and may leave collapse-state residue."
+        elseif adversarial then
+            local showPriorities, hasRoom = {}, true
+            for index = 1, #names do showPriorities[index] = 1001 - index end
+            for _, entry in ipairs(currentRules) do
+                if entry.showpriority >= showPriorities[#names] then
+                    local visible = HeaderIndex(visibleHeaders, entry.name) ~= nil
+                    report[#report + 1] = "High external show priority: " .. entry.name
+                        .. " = " .. tostring(entry.showpriority)
+                        .. (visible and " (visible heading)." or " (no visible heading).")
+                    if not topOnly or visible then hasRoom = false end
+                end
             end
+            if hasRoom then
+                ApplyPriorities(topPriorities, showPriorities)
+                local headers, failures = RenderAndCheck(names)
+                CheckTop(headers, failures)
+                report[#report + 1] = (#failures == 0 and "PASS" or "FAIL")
+                    .. " independent top run/show classification and native heading order: " .. JoinNames(names)
+                if #failures > 0 then report[#report + 1] = "Independent top details: " .. table.concat(failures, " | ") end
+                report[#report + 1] = "Actual independent top headings: " .. JoinNames(headers)
+                report[#report + 1] = "Top run priorities: " .. JoinNames(topPriorities)
+                report[#report + 1] = "Top show priorities: " .. JoinNames(showPriorities)
+            else
+                report[#report + 1] = "NOT AVAILABLE independent top candidate: "
+                    .. (topOnly and "a visible" or "an existing") .. " show priority is >= 996."
+            end
+            report[#report + 1] = "Bounded candidate only: five whole show slots 1000..996; not a solution for arbitrary external priorities/group counts."
+            if topOnly then
+                report[#report + 1] = "Visible-heading sample only; high-priority categories without headings are unchanged, but future items in them may invalidate top placement."
+                return
+            end
+        else
+            ApplyPriorities(topPriorities)
+            local topHeaders, topFailures = RenderAndCheck(names)
+            CheckTop(topHeaders, topFailures)
+            report[#report + 1] = (#topFailures == 0 and "PASS" or "FAIL")
+                .. " top-slot classification/native heading order above existing categories: " .. JoinNames(names)
+            if #topFailures > 0 then report[#report + 1] = "Top-slot details: " .. table.concat(topFailures, " | ") end
+            report[#report + 1] = "Actual top-slot headings: " .. JoinNames(topHeaders)
+            report[#report + 1] = "Top run/show priorities: " .. JoinNames(topPriorities)
         end
-        if not existingAfter then topFailures[#topFailures + 1] = "No existing category heading appeared below the test groups." end
-        report[#report + 1] = (#topFailures == 0 and "PASS" or "FAIL")
-            .. " top-slot classification/native heading order above existing categories: " .. JoinNames(names)
-        if #topFailures > 0 then report[#report + 1] = "Top-slot details: " .. table.concat(topFailures, " | ") end
-        report[#report + 1] = "Actual top-slot headings: " .. JoinNames(topHeaders)
-        report[#report + 1] = "Top run/show priorities: " .. JoinNames(topPriorities)
 
         if higherName == nil or higherPriority <= lowerPriority then
             report[#report + 1] = "OPEN between-category heading order: no visible higher-priority external anchor was available."
             return
         end
-        local step = (higherPriority - lowerPriority) / (#names + 1)
+        local upperBound = higherPriority
+        if adversarial then
+            upperBound = math.min(higherPriority, math.floor(lowerPriority) + 1, lowerPriority + 0.5)
+        end
+        local step = (upperBound - lowerPriority) / (#names + 1)
         local betweenPriorities = {}
         for index = 1, #names do
             local value = lowerPriority + step * (#names - index + 1)
@@ -1123,7 +1298,8 @@ local function RunOrderProbe(search)
             betweenFailures[#betweenFailures + 1] = "Managed headings did not sort between external anchors."
         end
         report[#report + 1] = (#betweenFailures == 0 and "PASS" or "FAIL")
-            .. " fractional classification and visible order: " .. higherName
+            .. (adversarial and " crowded fractional classification and visible order: "
+                or " fractional classification and visible order: ") .. higherName
             .. " > " .. JoinNames(names) .. " > " .. lowerName
         if #betweenFailures > 0 then
             report[#report + 1] = "Between-category details: " .. table.concat(betweenFailures, " | ")
@@ -1134,9 +1310,74 @@ local function RunOrderProbe(search)
             and "ESO fractional %04d sample: " .. formatted .. "; formatter output alone is not order evidence."
             or "FAIL ESO fractional %04d: " .. tostring(formatted)
         report[#report + 1] = "Between run/show priorities: " .. JoinNames(betweenPriorities)
+        if adversarial then
+            local keys = {}
+            for index, value in ipairs(betweenPriorities) do
+                keys[index] = string.format("%04d", 1000 - value)
+            end
+            report[#report + 1] = "Crowded integer display keys: " .. JoinNames(keys)
+            report[#report + 1] = "Desired labels deliberately reverse alphabetical order; distinct fractions alone do not prevent display-key ties."
+        end
         report[#report + 1] = "Immediate classification gap: " .. tostring(higherPriority)
             .. " > " .. tostring(lowerPriority) .. "; visible higher anchor priority: "
             .. tostring(visibleHigherPriority) .. "."
+        if reorderMode then
+            local oldNames, oldSet = {}, {}
+            for index, name in ipairs(names) do
+                oldNames[index], oldSet[name] = name, true
+            end
+            ac.SetCategoryCollapsed(AC_BAG_TYPE_BACKPACK, oldNames[1], true)
+            for index = #currentRules, 1, -1 do
+                if oldSet[currentRules[index].name] then
+                    assert(currentRules[index].icAutoCategoryGate == gateToken, "Reorder assignment is not owned.")
+                    table.remove(currentRules, index)
+                end
+            end
+            for index = #ac.RulesW.ruleList, 1, -1 do
+                local definition = ac.RulesW.ruleList[index]
+                if oldSet[definition.name] then
+                    ac.compiledRules[definition.name] = nil
+                    table.remove(ac.RulesW.ruleList, index)
+                end
+            end
+            ac.cacheRuleInitialize()
+            local expected, priorities = {}, {}
+            for index = 1, #names do
+                local rank = #names - index + 1
+                names[index] = string.format("|c%06x|r", rank) .. iconPrefix
+                    .. "InventoryCompanion DEV Gate Order " .. labels[index]
+                assert(ac.GetRuleByName(names[index]) == nil, "Reordered name collision.")
+                ac.RulesW:AddRule({ name = names[index], tag = gateRuleTag, rule = predicates[index] .. "()" })
+                expected[rank] = names[index]
+                priorities[index] = betweenPriorities[rank]
+            end
+            ApplyPriorities(priorities)
+            ac.cacheInitialize()
+            local headers, failures = RenderAndCheck(expected)
+            for _, name in ipairs(oldNames) do
+                if not HeaderIndex(expected, name) then
+                    if ac.GetRuleByName(name) ~= nil or ac.compiledRules[name] ~= nil then
+                        failures[#failures + 1] = "Stale original definition remains: " .. name
+                    end
+                    for _, entry in ipairs(currentRules) do
+                        if entry.name == name then failures[#failures + 1] = "Stale assignment remains: " .. name end
+                    end
+                end
+            end
+            local count = 0
+            for _, entry in ipairs(currentRules) do
+                if entry.icAutoCategoryGate == gateToken and HeaderIndex(expected, entry.name) then count = count + 1 end
+            end
+            if count ~= #names then failures[#failures + 1] = "Expected exactly five reordered assignments, got " .. count end
+            report[#report + 1] = (#failures == 0 and "PASS" or "FAIL")
+                .. " prefix rank reorder/full-cache rebuild: " .. JoinNames(expected)
+            if #failures > 0 then report[#report + 1] = "Reorder details: " .. table.concat(failures, " | ") end
+            report[#report + 1] = "Actual reordered headings: " .. JoinNames(headers)
+            report[#report + 1] = "Collapse consequence in isolated data: old Zulu flag retained = "
+                .. tostring(ac.IsCategoryCollapsed(AC_BAG_TYPE_BACKPACK, oldNames[1]))
+                .. "; renamed Zulu collapsed = " .. tostring(ac.IsCategoryCollapsed(AC_BAG_TYPE_BACKPACK, names[1])) .. "."
+            report[#report + 1] = "Runtime rename/rebuild only; this does not test persisted prefix definitions after /reloadui."
+        end
     end, INVENTORY_BACKPACK)
     messages[#messages + 1] = "Baseline category with six matching items: " .. lowerName
         .. "; matched items tested: 5; external gap: " .. tostring(higherName or "unavailable")
@@ -1172,7 +1413,16 @@ SLASH_COMMANDS["/icacspike"] = function(arguments)
         return ShowDiagnostic("AutoCategory availability", { "NOT AVAILABLE: " .. unavailable })
     end
 
-    if command == "profile" then
+    if command == "prefix" then
+        local action, search = rest:match("^(%S+)%s*(.-)$")
+        if (action ~= "cycle" and action ~= "check") or search == "" then
+            return ShowDiagnostic("prefix lifecycle", {
+                "Use /icacspike prefix cycle <item> or /icacspike prefix check <item>.",
+                "Cycle persists one exact-tagged active-profile assignment; cleanup removes it.",
+            })
+        end
+        return RunPrefixLifecycle(action, search)
+    elseif command == "profile" then
         local action, search = rest:match("^(%S+)%s*(.-)$")
         if action ~= "baseline" and action ~= "switch" and action ~= "project" and action ~= "check" then
             return ShowDiagnostic("profile command", {
@@ -1192,8 +1442,10 @@ SLASH_COMMANDS["/icacspike"] = function(arguments)
             })
         end
         return RunContextProbe(contextName, search or "")
-    elseif command == "order" then
-        return RunOrderProbe(rest)
+    elseif command == "order" or command == "order2" or command == "ordertop"
+        or command == "orderprefix" or command == "orderreorder" then
+        return RunOrderProbe(rest, command ~= "order", command == "ordertop",
+            command == "orderprefix" or command == "orderreorder", command == "orderreorder")
     elseif command == "render" then
         local search = rest
         if search == "" then search = "plunder skull" end
@@ -1221,8 +1473,4 @@ end
 
 SLASH_COMMANDS["/icaccleanup"] = function()
     SLASH_COMMANDS["/icacspike"]("cleanup")
-end
-
-function this.Debug()
-    SLASH_COMMANDS["/icacspike"]("order plunder skull")
 end

@@ -7,12 +7,25 @@ decisions. It is not a test log or a claim that all requirements are feasible.
 Read the [implementation plan](todo_implementation_autocategoryIntegration.md)
 for sequencing and the [spike results](AutoCategorySpikeResults.md) for dated
 evidence, failed approaches, dependency contracts and current gate status.
+See the [review](AutoCategoryIntegrationReview.md) for the spec/plan assessment
+and concrete recommendations.
 The [Show/Notify prerequisite](../Completed/ItemTrackerFlags.md) is complete.
 
-**Handoff warning:** native insertion and sampled rendering/lifecycle work.
-Top heading placement and general crowded-gap ordering remain blockers Q1/Q2.
-Guild Bank is explicitly deferred to later DEV testing, not passed. Manual
-profile projection is not proof of automatic integration reprojection.
+**Handoff status, 2026-10-31 23:08 UTC:** all seven follow-up test steps are
+finished, including exact-tag cleanup. Empty colour-rank prefixes passed sampled
+ESO top/crowded order, visual appearance, rank reversal/cache rebuild and account
+reload persistence. Offline scale/boundary/lifecycle suite passes 31/31.
+These are supported sampled mechanisms, not an unlimited placement guarantee.
+Q1/Q2 now concern a supported placement contract and demonstrated bounds;
+D4 prefix-name adoption is an author decision. Reordering changes names and
+restarts collapse state while old flags remain. Guild Bank stays deferred;
+alignment/collapse interaction and general external run/show mismatches are not
+certified. Automatic IC integration hooks remain unbuilt. See SPIKE RESULTS for
+commands, dated outcomes, failed alternatives and exact evidence limits.
+No further standalone pre-implementation spike work is planned. The remaining
+assumptions and deferred context coverage are post-implementation acceptance
+requirements before integration activation or release; see the implementation
+plan.
 
 ## Goal and scope
 
@@ -21,10 +34,10 @@ their existing filters as native AutoCategory inventory partitions.
 AutoCategory continues classifying, drawing and sorting its own sections.
 
 - Integration is opt-in, disabled by default; participation defaults off.
-- Support seven contexts with independent order: Backpack, Bank, Guild Bank,
-  House Bank, Crafting Station, Craft Bag, Furniture Vault. Standard and
-  subscriber bank share Bank. Keyboard is the initial platform; gamepad is
-  outside scope unless separately verified.
+- Support seven contexts using one shared master order with sparse per-context
+  placement overrides: Backpack, Bank, Guild Bank, House Bank, Crafting Station,
+  Craft Bag, Furniture Vault. Standard and subscriber bank share Bank. Keyboard
+  is the initial platform; gamepad is outside scope unless separately verified.
 - Use the active account-wide or character-specific IC tracked-list profile.
   Do not add an independent integration profile selection.
 - One managed category per participating ordinary group. Individually tracked
@@ -58,7 +71,7 @@ AutoCategory continues classifying, drawing and sorting its own sections.
   Classification sends no notifications. AutoCategory collapse remains
   independent of IC expansion.
 - Off, missing or incompatible integration hides all integration editor UI:
-  view toggle, context dropdown, order list/arrows, marker chooser and
+  view toggle, context dropdown, order list/arrows, heading hide controls and
   participation. Return an open AutoCategory view to normal; preserve choices.
   Category-column width is zero, returning space to names. While active reserve
   consistent width across all row types, including nonparticipants and items.
@@ -69,19 +82,34 @@ AutoCategory continues classifying, drawing and sorting its own sections.
 
 - A top **AutoCategory** view toggle switches between the existing normal group
   view and the AutoCategory view; it does not toggle integration/participation.
-- A dropdown selects one of the seven contexts. The normal view keeps its
-  current ordering.
+- A dropdown selects the shared **General** order or one of the seven contexts.
+  General edits the master order; a context displays the master order with its
+  own placement overrides applied. The normal view keeps its current ordering.
 - Show most important first: ordinary groups interleaved with user-selected
-  AutoCategory **marker** rows present in that context's active list.
-  Markers follow AutoCategory's classification order, have a distinct
-  label/badge and no arrows. Their order is changed only in AutoCategory
+  visible AutoCategory heading rows present in that context's active list.
+  Heading rows follow AutoCategory's classification order, have a distinct
+  label/badge and no order arrows. Their order is changed only in AutoCategory
   settings; explain that briefly in the view.
-- Unselected external categories belong below their nearest marker above.
-  Our groups in that marker's slot precede the next lower distinct external
-  classification priority, even if that category is not a selected marker.
-- Up/down arrows move one group past its neighbouring group or marker.
-  Crossing a marker changes its slot; edit only the selected context's saved
-  order. Up means more important, Down less important.
+- Each external heading row has the normal hide/unhide control. Hiding a heading
+  hides it from the ordinary AutoCategory editor view and removes it as an
+  ordering reference; it does not change AutoCategory's own hidden setting.
+- Provide a **Show all AutoCategory groups** checkbox. When checked, hidden
+  heading rows are included so the user can unhide them. When unchecked, hidden
+  headings are omitted to make the effective ordering easier to work with.
+  This checkbox only filters editor rows; it does not change saved hidden state,
+  AutoCategory settings, or projection.
+- A managed group ordered after a visible AutoCategory heading is placed
+  immediately below that heading. Consecutive managed groups in that slot form
+  a contiguous block in saved order before the next external heading. A hidden
+  heading cannot anchor groups: resolve its groups to the nearest preceding
+  visible heading, or the top slot if none exists. Do not rewrite saved order
+  just because a heading is hidden; the next explicit move may persist the
+  resolved placement.
+- Up/down arrows move one group past its neighbouring group or visible heading.
+  In General, moves change the master order. In a context, moves save only that
+  group's placement difference from the master, not a copy of the entire list.
+  Crossing a visible heading changes its slot. Up means more important, Down
+  less important.
 - Match the currency panel's native ordering rows in ESO's main settings:
   up/down buttons, hover tooltips, click sound, immediate save/reorder and
   moved-row highlight. Also preserve selection and scroll visibility.
@@ -92,25 +120,69 @@ AutoCategory continues classifying, drawing and sorting its own sections.
   with an explanation; do not move across invisible rows.
 - View/context selection alone does not save, normalize order, reorder the
   tracker, project or refresh inventory.
-- Selecting a marker displays read-only name/filter text; it cannot invoke IC
-  name/pattern editing, Reset, Delete or participation handlers.
+- Selecting an external heading displays read-only name/filter text and its
+  hide/unhide control; it cannot invoke IC name/pattern editing, Reset, Delete
+  or participation handlers.
 - Do not add drag/drop, tracker-order editing or another filter editor.
 
-### Marker selection and defaults
+### Shared order and context overrides
 
-- **Choose markers** opens a checklist of AutoCategory categories present in
-  any of the active profile's seven lists. Selection applies across contexts
-  wherever the category exists. Retain selected missing names as visibly
-  missing/removable choices.
-- Missing setting resolves AutoCategory's localized default New, Selling,
-  Container and Stolen names, only where present. These commonly overlap
-  recent pickups, junk, containers/plunder and stolen name-based groups.
-- Explicitly selecting none is valid: all groups occupy the top slot.
-- Deselecting a marker appends its groups to the preceding marker's slot, or
-  top. A renamed/deleted external marker resolves the same way for display and
-  placement, without rewriting saved order until the next user move.
-- First participation in a context appends the group to the top slot, above
-  all external categories. Turning it off/on retains position.
+**Accepted direction, detailed semantics still to be refined:** configure one
+master order and store only placement differences for each context, following
+the existing group-override principle rather than maintaining seven independent
+order lists.
+
+- Groups without a context override continue to inherit master-order changes.
+  A context-specific move overrides the moved group's placement; it does not
+  freeze the rest of the context list.
+- Placement refers to stable group identities and external heading identities,
+  not numeric row indices. The exact override representation and resolution
+  algorithm are not decided here.
+- Contexts retain their actual native AutoCategory heading order and available
+  headings. General must not imply that every context has the same headings.
+  Missing or IC-hidden headings cannot act as references; resolve affected
+  placements to a preceding usable heading or top, without rewriting saved
+  placement merely because a heading is unavailable.
+
+Required example:
+
+```text
+General: New / A / B / To sell / C / D
+Bank:    New / A / To sell / B / C / D
+```
+
+The user moved only B immediately below To sell in Bank:
+
+- Bank stores B's placement override, not a full Bank order.
+- Swapping C and D in General also swaps them in Bank:
+  `New / A / To sell / B / D / C`.
+- Swapping A and B in General does not move B out of its overridden Bank
+  placement. A remains inherited; B remains immediately below To sell.
+
+**Still to refine with the author:** how General presents headings whose native
+order differs by context; the precise preceding-heading fallback; how moves
+within a slot are represented; interactions between overridden groups; deleted
+anchors and cycle/conflict handling; redundant-override handling; and the UI
+for identifying/resetting overrides. These are open design details, not
+authorization to add more pre-implementation spike tests.
+
+### AutoCategory heading visibility and defaults
+
+- Every AutoCategory heading present in any of the active profile's seven lists
+  is available as an editor reference row wherever it exists. By default,
+  headings are shown unless the user has hidden them in IC. Hidden heading names
+  are stored per active IC tracked-list profile; missing external headings do
+  not cause AutoCategory data to be changed.
+- Hiding a heading removes it from the effective reference sequence. Groups
+  ordered after it resolve to the nearest preceding visible heading, or top.
+  Unhiding it restores it as a reference without changing the saved group order.
+- A missing heading is not displayed in a context where it does not exist.
+  When renamed or deleted externally, preserve IC's hidden-name choice without
+  rewriting group order; resolve affected groups to the nearest preceding
+  visible heading or top.
+- First participation appends a never-ordered group to the master top slot,
+  above all external categories, inherited by contexts without an override.
+  Turning it off/on retains its master placement and context overrides.
 - Rename preserves stable identity/position. Delete removes participation,
   order and owned entries. Built-in name/pattern Reset retains participation
   and position.
@@ -127,13 +199,16 @@ This requirement is retained despite the unresolved numeric mapping Q1/Q2.
 - Projection must place our entries in that native order; do not introduce
   another winner calculation or depend on Lua iteration, tracker order or
   alphabetical managed labels.
-- Below marker M, allocate strictly between M's run priority and the next lower
-  distinct priority among *all* external assignments. Entries tied with M stay
-  above our groups. Top is above the highest external run priority; a last slot
-  with no lower bound extends downward.
+- Below visible heading M, managed groups must immediately follow M in saved
+  order and native classification/heading order, before the next external
+  heading. Entries tied with M stay above our groups. Top is above the highest
+  external run priority; a last slot with no lower bound extends downward.
 - Groups in a slot retain their saved sequence. Whole-number priorities are
   preferred when there is room; fractions are allowed, not proof that every
-  crowded slot can render in the intended order.
+  crowded slot can render in the intended order. If immediate adjacency cannot
+  be achieved without changing external entries, report the incompatibility
+  and seek D1; do not silently insert another external heading between the
+  marker and its managed groups.
 - Run and show priorities are implementation outputs, not saved IC order.
   **No universal `runpriority = showpriority` rule is approved.** That former
   assumption and above-1000 mirroring were superseded by ESO evidence.
@@ -149,20 +224,26 @@ Examples:
   Cyrodiil first in Bank wins in standard and subscriber bank. Turning the
   winner off falls through without losing position.
 - `Plunder / New / Cyrodiil / Container`: a recently picked-up skull is Plunder;
-  a new Cyrodiil map is New; an old one is Cyrodiil. Unmatched containers remain
-  available to Container.
+  a new Cyrodiil map is New; an old one is Cyrodiil. Cyrodiil appears
+  immediately below the visible New heading. If New is hidden, Cyrodiil resolves
+  to the preceding visible AutoCategory heading, or top if none exists.
+  Plunder is an IC group, not an external heading reference. Unmatched
+  containers remain available to Container.
 
 ## Persistence, ownership and lifecycle
 
-Accepted author design, 2026-10-31: **IC owns per-context group order and marker
-selection.** This supersedes editing/storing AutoCategory's combined list as
-the order record. New field/helper names belong in the implementation plan,
-not assumed existing APIs.
+Accepted author design, 2026-10-31: **IC owns the master group order, sparse
+per-context placement overrides, and external-heading visibility.** Visible external headings are ordering
+references; IC hidden headings are not. This supersedes editing/storing
+AutoCategory's combined list as the order record. New field/helper names belong
+in the implementation plan, not assumed existing APIs.
 
-- Enablement, marker selection and seven-context order live alongside groups
-  in each IC tracked-list profile; participation lives on the ordinary group.
-  Use stable rule keys; display names are not identity. Keep positions for
-  nonparticipants. Never persist compiled matchers or derived priorities.
+- Enablement, hidden-heading choices, master order and sparse context overrides
+  live alongside groups in each IC tracked-list profile; participation lives
+  on the ordinary group. Do not persist seven complete derived context lists.
+  Use stable rule keys; display names are not identity. Keep master positions
+  and overrides for nonparticipants. Never persist compiled matchers or derived
+  priorities.
 - Missing optional fields inherit documented defaults; explicit false/empty
   selections are meaningful. Preserve choices while AC is absent/reset and
   through group edits made while off.
@@ -228,44 +309,54 @@ not assumed existing APIs.
 
 This register is authoritative for unresolved requirements/choices. The
 [results](AutoCategorySpikeResults.md#current-gate-status) establish evidence;
-the [plan](todo_implementation_autocategoryIntegration.md#1-close-ordering-blockers-before-live-activation)
-assigns work. **Do not mark an investigation decided merely because a candidate
-can format or classify.**
+the [plan](todo_implementation_autocategoryIntegration.md#implementation-sequence)
+assigns work. **Do not mark an assumption verified merely because a candidate
+can format or classify. Remaining verification follows implementation; it is
+not a reason to reopen the spike before implementation starts.**
 
 | ID | State / owner | Question or decision | Required closure |
 | --- | --- | --- | --- |
-| Q1 | BLOCKING research | How can all top-slot managed headings appear above existing headings in saved order? | Offline then ESO native classification AND heading order, no external edits. Equal >1000 run/show fails; no alternative validated. |
-| Q2 | BLOCKING research | How does arbitrary managed order survive crowded fractional gaps / integer display-key ties, and external run/show order differences? | Adversarial labels/density and external-priority fixtures, then actual ESO order. No arbitrary limit or alphabetical fallback without D1. |
-| Q3 | OPEN implementation research | Which lifecycle hooks and dynamic definition/cache/refresh paths reliably cover edits, AC profile changes, disable and pending work? | Trace installed contracts, wire every surface and test active-only automatic behavior. Manual projection is not closure. |
-| Q4 | OPEN validation | Does migration preserve all profiles/imports and do older builds reject new schema without mutation? | Synthetic proxy fixtures and execution of real pre-feature build before normal-save testing. |
-| Q5 | OPEN author agreement / measurement | What synthetic inventory/group/burst workload and numerical timing limits define performance acceptance? | Agree before measuring; record call counts and off/on timings. No numerical limits yet accepted. |
+| Q1 | POST-IMPLEMENTATION ACCEPTANCE | How can all top-slot managed headings appear above existing headings in saved order? | Verify the implemented adapter's classification and native heading order, bounds, and visible unsupported-state behavior before activation. Spike evidence is sampled; no additional pre-implementation probe. |
+| Q2 | POST-IMPLEMENTATION ACCEPTANCE | How does managed order handle crowded keys and external run/show differences? | Verify implemented output, including heading order and known finite/mismatch limits, before activation. If the unchanged spec cannot be met, stop for D1; no silent alphabetical fallback. |
+| Q3 | IMPLEMENTATION + ACCEPTANCE | Which lifecycle hooks and dynamic definition/cache/refresh paths reliably cover edits, AC profile changes, disable and pending work? | Implement the hooks, then verify active-only automatic behavior against the completed feature. Manual projection alone is not closure. |
+| Q4 | POST-IMPLEMENTATION SAFETY GATE | Does migration preserve all profiles/imports and do older builds reject new schema without mutation? | Verify on synthetic proxy fixtures and with the real pre-feature build before loading new-schema data from normal game saves. |
+| Q5 | POST-IMPLEMENTATION MEASUREMENT | What synthetic inventory/group/burst workload and numerical timing limits define performance acceptance? | Agree workload and limits when preparing post-implementation measurement; record call counts and off/on timings. No numerical limits are accepted yet. |
 | D1 | CONDITIONAL author decision | If Q1/Q2 are impossible under unchanged native rendering, which explicitly revised design is acceptable? | Present failed approaches, supported alternatives and risks; obtain approval. No classification/render takeover or semantic change by assumption. |
 | D2 | OPEN author decision | Final heading texture path / DEV-release identity policy and exact gold tint? | Decide before final asset registration/publication. No new converter/tool install assumed. |
 | D3 | OPEN, separate UI scope | Where should include/exclude badges appear; which badge colours and optional colour settings? | Author choice: coloured bag/white badge, gold bag/coloured badge, or coloured bag/gold badge. Not blocking plain category headings. |
+| D4 | OPEN author decision; sampled lifecycle tests finished | Adopt empty colour-rank prefixes in production category names? | ESO appearance/order/reorder/account reload and cleanup passed; 128-group scale passed offline. Approve rank-name changes and documented expanded-after-reorder/collapse residue; suggestion alone is not adoption. |
 
-**Deferred coverage, not open design choices:** Guild Bank to later DEV testing;
-gamepad outside initial certification. Other crafting tabs/professions/universal
-deconstruction, merchant buy/buyback, interactive collapse and non-Backpack
-reloads have no spike certification. The feature must still pass its agreed
-seven-context keyboard acceptance matrix; never equate deferral with a pass.
+After Test 7/7 on 2026-10-31, the author explicitly chose to leave D4 open.
+The demonstrated prefix mechanism is not yet approved production naming.
+
+**Deferred coverage, not open design choices:** Guild Bank requires
+post-implementation DEV acceptance; gamepad is outside initial certification.
+Other crafting tabs/professions/universal deconstruction, merchant buy/buyback,
+interactive collapse and non-Backpack reloads have no spike certification. The
+feature must still pass its seven-context keyboard acceptance matrix after
+implementation; never equate deferral with a pass.
 
 ## Acceptance criteria
 
 1. Off/missing integration preserves IC behavior and name width; all integration
    editor UI hides without erasing choices. Enabled incompatible external
    contracts report explicit useful status, not success-shaped fallbacks.
-2. View/context show correct independent order and present markers; opening or
-   switching produces zero writes/projections/refreshes.
-3. Arrows move past groups/markers, persist only that context and preserve
-   selection/highlight/visibility; endpoints and search are correct.
+2. General/context views show the master or resolved inherited order and
+   available visible external headings; opening or switching produces zero
+   writes/projections/refreshes.
+3. Arrows update the master in General or sparse placement overrides in the
+   selected context, preserving selection/highlight/visibility. Untouched groups
+   inherit subsequent master changes; the B/C/D example above passes.
+   Endpoints and search are correct.
 4. Opposite overlap orders produce opposite winners; Bank and subscriber match.
-   Above/below markers and arbitrary managed labels produce matching native
-   classification and heading order, including top/crowded/last slots.
+   Immediate placement below visible headings and arbitrary managed labels
+   produce matching native classification and heading order, including
+   top/crowded/last slots.
 5. Nonparticipants fall through; existing include/exclude/empty-pattern behavior
    is unchanged. Show/Notify/hidden/expansion never alter classification.
-6. Rename, edit, delete, participation/order/markers, Reset, copy and both
-   profile modes update without reload, except an explicitly approved and
-   documented external limitation.
+6. Rename, edit, delete, participation/order/heading visibility, Reset, copy
+    and both profile modes update without reload, except an explicitly approved
+    and documented external limitation.
 7. External entries remain byte-for-byte unchanged; projection is idempotent
    across repeated reload/edit/enable/disable/profile cycles, removes stale owned
    entries and refuses collisions before AC rename/redirect.

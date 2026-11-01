@@ -2,93 +2,42 @@
 
 Updated 2026-10-31. **Planned; no integration or editor UI is implemented.**
 The [spec](todo_plan_autocategoryIntegration.md) owns required behavior and open
-decisions; the [spike results](AutoCategorySpikeResults.md) own evidence, failed
-attempts and reusable AutoCategory contracts. Do not treat proposed names below
-as existing APIs or spike passes as completed production stages.
+decisions; the [spike results](AutoCategorySpikeResults.md) own completed spike
+evidence, failed approaches and dependency contracts. See the [review](AutoCategoryIntegrationReview.md)
+for the assessment and concrete recommendations.
 
-## Handoff and dependencies
+## Implementation sequence
 
-- Native insertion is the chosen strategy. IC stores its own per-context group
-  order/markers; AC receives only owned assignments. Do not replace
-  `MatchCategoryRules`, edit external entries/source, or silently change the
-  design when a placement fails.
-- **Q1/Q2 block live activation:** no proven top-heading mapping; general crowded
-  ordering and differing external run/show orders unresolved. Native rendering
-  must match classification/editor order, not merely accept priority values.
-- **Q3 remains implementation research:** manual switching/projection/reloads
-  passed, but automatic integration hooks and full dynamic CRUD are unbuilt.
-- **Q4 must pass before normal saves:** schema/downgrade safety. **Q5** workload
-  and timing thresholds must be agreed before performance acceptance.
-- **D2** asset path/tint must be decided before final publication. **D3** badge
-  UI is separate, not a plain-heading prerequisite. If ordering cannot satisfy
-  the unchanged spec, stop for **D1** author decision.
-- Guild Bank is deferred to later DEV testing, not removed from acceptance.
-  Do not claim gamepad or untested crafting/merchant modes are certified.
-- This task stays on current `main`, changes documentation/probes only and
-  authorizes no production implementation. Before substantial runtime work,
-  warn about branch/risk and obtain approval before switching branches.
+Implementation starts with the saved representation and migration, then the
+native predicate/adapter, lifecycle synchronization, and editor/settings UI.
+The completed spike is the evidence base; **do not schedule more standalone
+pre-implementation tests or repeat completed spike work**. Build and validate
+the feature as implementation proceeds. Remaining assumptions are checked
+against the implemented feature in the post-implementation gate below, before
+integration activation or release. If a requirement cannot be met, keep
+integration disabled and return the design decision to the author; do not
+silently weaken the spec or take over AutoCategory behavior.
 
-Dependency order:
+- IC stores per-context order/markers and writes only entries it owns.
+  AutoCategory continues native classification and rendering. Do not replace
+  `MatchCategoryRules`, edit external entries/source, or project to inactive
+  AutoCategory profiles.
+- Preserve the spike's limits: sampled rank prefixes are not proof of unlimited
+  placement, and external run/show mismatches remain unresolved. Rank-bearing
+  category names and their collapse-state consequences remain **D4**, an author
+  decision; do not assume production adoption from test success.
+- Keep integration opt-in and disabled until post-implementation acceptance
+  passes. Q1-Q5 and Guild Bank are post-implementation verification, not
+  pre-implementation research gates.
+- Schema safety is a hard boundary: verify downgrade rejection on synthetic
+  data before loading the new schema with normal game saves.
+- D2 asset identity/tint must be decided before final publication. D3 badge UI
+  remains separate from the plain-heading scope. D1 applies if implementation
+  cannot satisfy the unchanged ordering requirements.
+- This is substantial runtime work on the current branch; discuss branch/risk
+  before implementation and do not switch branches without author approval.
 
-1. Close Q1/Q2 and record approved placement contract before live projection.
-2. Establish saved representation, migration and downgrade Q4 before normal data.
-3. Implement predicate plus adapter/lifecycle Q3 using that contract.
-4. Adapter must work before active settings/participation/editor controls.
-5. Complete keyboard/context/behavior/performance acceptance and publication.
-
-Pure tests/research can precede their runtime dependencies; no live activation
-bypasses ordering or saved-data safety. Deferred contexts remain release gates.
-
-## 1. Close ordering blockers before live activation
-
-Read [dependency contracts and prior failures](AutoCategorySpikeResults.md#dependency-contracts-and-source-trail)
-instead of redoing baseline load-order research. Recheck if AC version changes.
-Reuse [AutoCategorySpike.lua](../../../Core/AutoCategorySpike.lua) and its
-[real-module fixture](../../Tests/AutoCategorySpikeTests.lua).
-
-### Q1: top placement
-
-- Trace actual native show-key comparison and classification priority ordering.
-  Explore independent run/show mappings only as explicit candidates.
-  Equal run/show >1000 and mirroring that stays above 1000 are not solutions;
-  negative values have not been tested.
-- Prove many managed headings above external headings in saved order while
-  retaining native classification and every external entry unchanged.
-  Include external high priorities and arbitrary labels; no hardcoded default-
-  only solution.
-- Validate offline first with the existing spike runner, then give one
-  reversible DEV command and wait for ESO's copyable report. Measure actual
-  native heading order, not formatter success.
-
-### Q2: crowded and external-order cases
-
-- Test more managed entries than whole-number slots, gaps narrower than one,
-  identical formatted integer keys, reversed alphabetical managed labels,
-  equal external priorities, no markers/entries, bottom slots and hidden or
-  unmatched immediate anchors.
-- Allocation must respect all external run priorities, even invisible headings.
-  Visible rendering anchors can be farther away than numerical gap bounds.
-- Test existing categories whose run/show orders differ. Determine whether
-  unchanged native rendering can satisfy the required view/heading order.
-  Do not assume distinct fractional priorities avoid display-key ties.
-- Record precise supported range/algorithm and residual limitations. If no safe
-  mapping exists, present D1 alternatives before changing semantics, adding
-  group caps, changing names to force sort, or taking over rendering/classification.
-
-### Stage exit and probe housekeeping
-
-Close Q1/Q2 with offline and ESO evidence plus any required author decision.
-Do not repeat already-passed lifecycle/context samples just to change key
-bindings. Guild Bank remains deferred by the author.
-
-At the end of the probe phase, remove its temporary Debug override so
-[Core/Init.lua](../../../Core/Init.lua) uses `this.RunTests("verbose copy")`;
-update the corresponding offline expectation and stale profile report
-instructions to explicit commands. This is **pending**, not done by this
-documentation consolidation. Original account-wide mode and exact tagged
-assignment cleanup already passed; code-defined DEV gate plugin remains.
-
-## 2. Save participation, order and markers
+## 1. Save participation, order and markers
 
 ### Proposed representation
 
@@ -127,7 +76,7 @@ localized AC identities resolved through `SI_AC_DEFAULT_CATEGORY_*`.
 - Never persist compiled patterns/computed priorities or a registry of old
   category names.
 
-### Validation, migration and mutation (Q4)
+### Validation, migration and mutation
 
 - Extend `ValidateSavedRules` and profile/import validation for booleans,
   markers (nonempty-string array) and context order (valid entries, no duplicate
@@ -151,10 +100,11 @@ Extend [SavedVariablesTests.lua](../../Tests/SavedVariablesTests.lua) and
 all-profile migration/import, malformed input/no partial writes, defaults vs
 explicit false/empty, proxy-shaped ZO_SavedVars isolation, round-trip/copy,
 rename/delete/Reset, marker/group moves, endpoints and Bank/Backpack independence.
-Execute a real pre-feature build on new-schema synthetic fixtures and prove
-rejection before mutation. **Do not test new fields on normal game saves first.**
+As part of post-implementation verification, execute a real pre-feature build
+on new-schema synthetic fixtures and prove rejection before mutation.
+**Do not load new fields on normal game saves until this downgrade check passes.**
 
-## 3. Implement native predicate and placement
+## 2. Implement native predicate and placement
 
 Add one focused module, provisionally
 `Tracking/AutoCategoryIntegration.lua`, using existing helpers/patterns.
@@ -170,8 +120,13 @@ Add one focused module, provisionally
   not a precomputed managed winner.
 - Pure proposed `ResolveAutoCategoryOrder(context)` combines saved group
   positions with active markers in native run order.
-  `ComputePlacement` uses the **Q1/Q2-approved mapping**, with separate run/show
-  outputs where required, never an assumed equality/mirroring formula.
+  `ComputePlacement` uses the spike-supported placement mechanism without
+  assuming run/show equality or mirroring. Keep the implementation disabled
+  until the post-implementation gate proves the required output shapes.
+- Isolate category-name decoration/rank formatting in one helper. The tested
+  empty-colour rank prefix is a candidate mechanism, not an approved production
+  identity strategy; keep D4 open and do not enable projection with rank-bearing
+  names until the author approves the name/collapse-state trade-off.
 - Below marker M: inside the immediate lower distinct external run gap, after
   every entry tied with M. Top above all external run priorities; last extends
   down. Prefer whole numbers when feasible; preserve managed heading sequence
@@ -182,9 +137,10 @@ modules: opposite overlap order by context, subscriber mapping, marker
 precedence/ties, top/crowded/bottom/arbitrary labels, hidden/external run/show
 differences, no-match/participation fallthrough, exclusions/empty patterns,
 non-ASCII/quoted names, missing owned state, and zero scan/compile/write/refresh
-from classification. Include the exact approved Q1/Q2 output shapes.
+from classification. Include the required Q1/Q2 output shapes and known
+unsupported bounds; do not create an alternate pre-implementation spike.
 
-## 4. Wire registration, projection and synchronization (Q3)
+## 3. Wire registration, projection and synchronization
 
 ### Registration and ownership
 
@@ -244,7 +200,7 @@ owned moves overwritten, external entries byte-for-byte unchanged, inactive
 profiles unchanged, automatic profile hook and pending-callback races.
 Count registrations/writes/cache rebuilds/refreshes; inject failures visibly.
 
-## 5. Add settings and editor only after adapter works
+## 4. Add settings and editor after the adapter works
 
 - [Core/Settings.lua](../../../Core/Settings.lua): opt-in/status tied to IC
   profile selection, no new Notify controls or inactive preview.
@@ -279,7 +235,33 @@ rename/delete/recycled callbacks, profile isolation, width and inactive layout,
 Show/Notify unchanged, and XML assertions. Verify toolbar fit, native dropdown/
 arrows, tint/readability and scrolling in ESO.
 
-## 6. Acceptance, performance and release
+## 5. Post-implementation verification and release
+
+These are completion gates after the feature and its tests are implemented,
+not work to perform before implementation starts. Do not repeat completed spike
+steps. Use the actual integration adapter and UI; record observed limits and
+results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
+
+- **Q1/Q2:** verify the implemented output in top, crowded, marker, arbitrary
+  label and external run/show mismatch cases. Confirm both winning classification
+  and native heading order, not just priority values or formatter output. Check
+  finite rank/priority bounds and visible failure for unsupported layouts.
+  Sampled spike passes do not certify all category names or priorities.
+- **D4:** confirm whether rank-bearing prefixes are approved for production
+  names, including name/collapse-state behavior. If not approved, do not enable
+  integration with those names; return the choice to the author.
+- **Q3:** verify automatic edits, profile switches, disable, cache invalidation,
+  reclassification and affected-context refresh through the implemented hooks.
+- **Q4:** verify migration/import across profiles and old-build downgrade
+  rejection on synthetic saves before any normal-save testing.
+- **Q5:** agree workload and numerical timing limits when preparing the
+  post-implementation measurement; count matchers, scans, compilation,
+  projection writes and refreshes, then measure off/on sort and edit bursts.
+  Synthetic checks never mutate live inventory or saved variables.
+- Guild Bank remains untested in the spike. Verify the implemented native path
+  in the required keyboard context matrix; if the known BulkMode path bypass
+  prevents the spec behavior, stop and discuss scope/design rather than count it
+  as passed. Do not claim gamepad, untested crafting tabs, or merchant modes.
 
 - Wire focused suites into [Run-RuleTests.py](../../Tests/Run-RuleTests.py) and
   use the existing Lua setup. Run smallest relevant suite first; full related
@@ -287,12 +269,8 @@ arrows, tint/readability and scrolling in ESO.
 - Preserve [ItemNotificationTests.lua](../../Tests/ItemNotificationTests.lua)
   destination/hidden-rule/listener/duplicate coverage. Extend existing in-game
   rule tests only for safe matching/synthetic workload.
-- **Q5 first:** agree inventory/group/burst sizes and numerical timing limits;
-  count matchers, scans, compilation, projection writes and refreshes, then
-  measure integration off/on sort and edit-burst baselines. Synthetic checks
-  never mutate live inventory or saves. Timing alone is insufficient.
 - Execute every [spec acceptance criterion](todo_plan_autocategoryIntegration.md#acceptance-criteria):
-  all seven keyboard contexts (Guild still needs later DEV evidence), subscriber
+  all seven keyboard contexts, subscriber
   Bank, top/crowded/marker heading order, all edits, both profile modes and shared
   character groups, automatic switching, resets, reload/disable/uninstall,
   edit-while-absent, immutable external entries, new-schema downgrade safety.
@@ -323,15 +301,17 @@ arrows, tint/readability and scrolling in ESO.
 
 ## Open-question closure checklist
 
-- [ ] Q1 top placement: offline + actual ESO order.
-- [ ] Q2 crowded/arbitrary labels/external run-show differences: approved contract.
-- [ ] Q3 dynamic CRUD, auto-profile hook, cache/refresh and disable: wired/tested.
-- [ ] Q4 migration/import/downgrade: synthetic safety before normal data.
-- [ ] Q5 workload/threshold agreement and measured acceptance.
+- [ ] Q1/Q2: post-implementation classification and native heading-order checks
+      pass for the supported contract; unsupported cases fail visibly.
+- [ ] Q3: automatic CRUD, profile hook, cache/refresh and disable pass.
+- [ ] Q4: migration/import/downgrade pass on synthetic data before normal saves.
+- [ ] Q5: workload/threshold agreement and post-implementation measurement pass.
 - [ ] D1 author approval if a revised strategy is needed; otherwise not applicable.
 - [ ] D2 final asset identity/tint approved and asset verified.
 - [ ] D3 optional badge decisions only if separately taken into scope.
-- [ ] Deferred Guild Bank tested in later DEV; full seven-context keyboard matrix.
+- [ ] D4 prefix-name adoption approved, or another approved identity strategy
+      is used.
+- [ ] Guild Bank passes the implemented seven-context keyboard matrix.
 - [ ] Probe Debug/report housekeeping completed.
 - [ ] Pre-shipping spike teardown: manifest entry removed, source retained
   outside runtime loading, offline reuse validated, no gate registrations or
