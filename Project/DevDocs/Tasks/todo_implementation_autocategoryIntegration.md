@@ -95,9 +95,10 @@ implementation details to settle here without changing that behaviour.
 
 Implement the [shared-order UX](todo_plan_autocategoryIntegration.md#shared-order-and-context-overrides):
 moving B between C and D in Bank changes only Bank's placement and preserves
-that location when unrelated parts of the list change. Neighbour-move semantics
-still await author confirmation; the numeric examples below record the
-previously discussed behaviour, not an additional UX guarantee.
+that location when unrelated parts of the list change. When inherited neighbours
+move in Master, they can pass the overridden group: its rank/anchor overrides
+remain unchanged. This behaviour is confirmed; retain the algorithm rather
+than introducing neighbour-following relationships.
 
 - Resolve inherited/overridden anchor and rank for each group, bucket by usable
   heading and sort by ascending rank. Managed blocks immediately follow their
@@ -159,9 +160,8 @@ Result: New / To sell / C / A / B / D
 ```
 
 If C/D exchange Master ranks, the numeric model produces
-`New / To sell / D / A / B / C`. Confirm the spec's remaining neighbour-move
-decision before treating this as finalized behaviour. Overridden numerical
-importance is not a group-following relationship.
+`New / To sell / D / A / B / C`, as required by the confirmed spec behaviour.
+Overridden numerical importance is not a group-following relationship.
 
 ### Validation, migration and mutation
 

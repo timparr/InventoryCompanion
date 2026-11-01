@@ -174,12 +174,15 @@ out of its Bank-specific placement.
 
 For a separate example, move B between C and D in Bank, then insert A between
 C and B. Bank becomes `New / To sell / C / A / B / D`. If C and D themselves
-are subsequently swapped in Master, the previously discussed behaviour is
-`New / To sell / D / A / B / C`, not a promise that A/B follow C or stay
-between both neighbours after those neighbours move.
+are subsequently swapped in Master, Bank becomes
+`New / To sell / D / A / B / C`. A and B retain their Bank-specific placement;
+the inherited C and D move past them. Overrides do not bind a group to its
+neighbours or guarantee it remains between those neighbours after they move.
+This behaviour is confirmed; do not change the ordering algorithm to introduce
+neighbour-following relationships.
 
-**Still to refine with the author:** confirm neighbour-move behaviour above;
-how Master presents headings whose native order differs by context; the precise
+**Still to refine with the author:** how Master presents headings whose native
+order differs by context; the precise
 preceding-heading fallback; deleted heading handling; and the UI for
 identifying/resetting overrides. These are open product details, not
 authorization for more pre-implementation spike tests.
