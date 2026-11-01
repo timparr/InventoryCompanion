@@ -4,6 +4,21 @@ Updated 2026-11-01. **Planned, not implemented or compatibility-certified.**
 This document defines required behavior, accepted author decisions, and open
 decisions. It is not a test log or a claim that all requirements are feasible.
 
+## Terminology
+
+- **Group:** an ordinary Inventory Companion (IC) group with IC name/pattern
+  filters.
+- **Heading:** an existing AutoCategory (AC) category, represented by a reference
+  row in the IC editor. A visible heading can anchor IC groups; it is not an
+  IC group. "Managed heading" specifically means the native AC section created
+  for a participating IC group.
+- **Heading occurrence:** a context-labelled reference row in Master. An AC
+  heading can have multiple occurrences where context orders differ; these
+  are editor references, not duplicate AC categories.
+- **Context:** one of the seven native inventory/container contexts.
+- **Master:** a combined, context-aware editor of shared placement defaults,
+  not an eighth native AC context.
+
 Read the [implementation plan](todo_implementation_autocategoryIntegration.md)
 for sequencing and the [spike results](AutoCategorySpikeResults.md) for dated
 evidence, failed approaches, dependency contracts and current gate status.
@@ -90,16 +105,16 @@ AutoCategory continues classifying, drawing and sorting its own sections.
   small clickable context icons. Icons must have descriptive tooltips and an
   obvious selected state; the selected mode's name must remain visible.
 - An info label beside or below the selector updates immediately with the selection:
-  - Master: "Changes here set the default matching and heading order for all
-    contexts. Context-specific overrides are retained; inherited positions
-    follow these changes."
+  - Master: "Set shared group placements here. Heading labels show where each
+    row applies; elsewhere, groups use the nearest applicable heading above.
+    Context-specific overrides are retained."
   - Context: "This order controls matching and heading order in <context>.
     Moves here override the shared Master defaults for this context only."
-- Show most important first: ordinary groups interleaved with user-selected
-  visible AutoCategory heading rows present in that context's active list.
-  Heading rows follow AutoCategory's classification order, have a distinct
-  label/badge and no order arrows. Their order is changed only in AutoCategory
-  settings; explain that briefly in the view.
+- Show most important first in each context: ordinary groups interleaved with
+  visible headings from its active AC list in native classification order.
+  Master combines those lists using labelled heading occurrences as described
+  below. Heading rows have a distinct label/badge and no order arrows; their
+  native order is changed only in AutoCategory settings.
 - External AutoCategory heading rows must be obviously distinct from IC group
   rows, including when selected or shown as hidden. Use a recognizable
   AutoCategory icon/badge or explicit label, optionally reinforced by a
@@ -147,6 +162,24 @@ Configure the shared order once in Master. In a context such as Bank, moving
 a group changes its placement only there; the rest of the list continues to
 inherit Master changes.
 
+- Master shows a combined sequence of heading occurrences. Share a row across
+  contexts where their native heading order permits it; use separate
+  occurrences of the same heading where their positions differ. Filtering to
+  any one context must reproduce that context's native AC heading order.
+  Do not choose one context's order for all or invent a best-fit common order.
+- Each occurrence explicitly labels its applicable contexts, for example
+  "New - Bank only" or "Low level - Backpack, Furniture Vault". Unavailable
+  occurrences are omitted from that context's editor and never act as anchors
+  there. This is applicability, not a change to AC's own hidden setting.
+- Each IC group appears only once in Master. Its position beneath a heading
+  occurrence applies directly in the contexts labelled on that row. In other
+  contexts, walk upward through the combined Master heading sequence to the
+  nearest occurrence that applies there and is not hidden in IC, or use top
+  if none exists. Preserve the stored Master placement and create no override
+  merely to resolve this fallback.
+- More specialized placement belongs in a context override, not a second
+  Master row for the same IC group. Fallback can make inherited groups share
+  a heading slot; their inherited ordering still determines their sequence.
 - Moving B between C and D in Bank places it between them in Bank without
   changing Master or other contexts. Changes elsewhere in the list do not
   disturb that placement while C and D retain their positions.
@@ -160,6 +193,28 @@ inherit Master changes.
   resolve to a preceding usable heading or top without erasing user choices.
 - Internal order maintenance must not change any context's visible order or
   chosen heading placement. It requires no user reconfiguration.
+
+Combined-heading example ("Other contexts" means the five contexts other than
+Backpack and Furniture Vault):
+
+```text
+Native AC orders:
+  Other contexts:  New / Selling / Low level
+  Backpack:        New / Low level / Selling
+  Furniture Vault: Low level / New / Selling
+
+Master heading rows:
+  New       [Other contexts, Backpack]
+  Low level [Backpack, Furniture Vault]
+  New       [Furniture Vault only]
+  Selling   [All contexts]
+  Low level [Other contexts]
+```
+
+An IC group placed below the Furniture-Vault-only New row uses New in Furniture
+Vault, the preceding Low level row in Backpack, and the first New row in Other
+contexts. It appears once in Master; each context can override the inherited
+result if required.
 
 Behaviour examples:
 
@@ -181,9 +236,7 @@ neighbours or guarantee it remains between those neighbours after they move.
 This behaviour is confirmed; do not change the ordering algorithm to introduce
 neighbour-following relationships.
 
-**Still to refine with the author:** how Master presents headings whose native
-order differs by context; the precise
-preceding-heading fallback; deleted heading handling; and the UI for
+**Still to refine with the author:** deleted heading handling and the UI for
 identifying/resetting overrides. These are open product details, not
 authorization for more pre-implementation spike tests.
 
@@ -370,7 +423,10 @@ implementation; never equate deferral with a pass.
    available visible external headings; opening or switching produces zero
    writes/projections/refreshes. All eight selector choices update the mode
    explanation; external rows remain visually distinct in normal, selected
-   and revealed-hidden states.
+   and revealed-hidden states. Context-labelled Master heading occurrences
+   preserve each native heading sequence when filtered; each IC group appears
+   once. The combined-heading example and upward applicable-heading fallback
+   pass without creating context overrides or rewriting Master placements.
 3. Arrows update shared placement in Master or context-specific placement in
    the selected context, preserving selection/highlight/visibility. Untouched
    choices inherit subsequent Master changes; agreed behaviour examples above

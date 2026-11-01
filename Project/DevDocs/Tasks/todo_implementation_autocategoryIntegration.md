@@ -6,6 +6,11 @@ decisions; the [spike results](AutoCategorySpikeResults.md) own completed spike
 evidence, failed approaches and dependency contracts. See the [review](AutoCategoryIntegrationReview.md)
 for the assessment and concrete recommendations.
 
+Use the [spec terminology](todo_plan_autocategoryIntegration.md#terminology):
+groups are IC groups; headings are external AC category references unless
+explicitly called managed headings. Master combines context-labelled heading
+occurrences and shared placements, not a native AC context.
+
 ## Implementation sequence
 
 Implementation starts with the saved representation and migration, then the
@@ -73,6 +78,10 @@ English defaults. Product behaviour remains subject to the
 [spec refinement](todo_plan_autocategoryIntegration.md#shared-order-and-context-overrides);
 top-slot encoding, rank validity and insertion/cleanup triggers are
 implementation details to settle here without changing that behaviour.
+In differing-order cases, an anchor must distinguish the selected Master
+heading occurrence and its applicability, not just the AC category name.
+The simple string anchors above assume a shared occurrence; finalize occurrence
+identity/encoding before implementing persistence.
 
 - Sparse participation on ordinary rules, missing false; participation applies
   across contexts. Enablement/heading visibility/placements belong to each IC tracked-list
@@ -86,10 +95,31 @@ implementation details to settle here without changing that behaviour.
   anchor chains. Standard/subscriber Bank share one context.
 - Retain placements for nonparticipants; first participation appends a never-
   ordered group to the master top slot. Missing/hidden headings resolve to a
-  preceding usable heading/top without read-time writes. Do not invent the
-  unresolved fallback or Master heading-order rules.
+  preceding applicable, IC-unhidden occurrence in the combined Master sequence,
+  or top, without read-time writes or newly materialized context overrides.
 - Never persist compiled patterns/computed priorities or a registry of old
   category names.
+
+### Combine native heading lists for Master
+
+- Build a context-labelled sequence of heading occurrences from the active
+  AC profile's seven native lists. Share occurrences where ordering permits;
+  repeat AC headings where needed to represent conflicting native positions.
+  Filtering by any context must reproduce its exact native heading sequence.
+  No external category or assignment is duplicated or reordered by this UI.
+- Show the occurrence's context scope explicitly, including "Bank only" and
+  multi-context labels. Each IC group has one Master placement and one Master
+  row; exceptions use existing sparse context overrides, not duplicated groups.
+- For a Master anchor inapplicable to a context, walk upward through the
+  combined heading occurrences to the nearest applicable, IC-unhidden one,
+  or top. Bucket by the resulting native heading and retain rank sorting.
+  Do not erase saved anchors, treat applicability as AC hide state, or save
+  fallback results as context overrides.
+- Choose a deterministic combination and occurrence-identity mechanism during
+  implementation. Preserve placement identities through rebuilding; opening
+  or switching views must not write settings. Detailed handling of externally
+  deleted/renamed headings still awaits author refinement. Do not assume a
+  minimal-duplicate optimization or add standalone spike tests.
 
 ### Resolve ranks and clean up spacing
 
@@ -103,6 +133,9 @@ than introducing neighbour-following relationships.
 - Resolve inherited/overridden anchor and rank for each group, bucket by usable
   heading and sort by ascending rank. Managed blocks immediately follow their
   heading; native external heading order remains unchanged.
+- Master placements resolve context-labelled occurrences first; a context
+  override resolves its selected heading in that context. Combined-row
+  presentation does not replace the established independent anchor/rank model.
 - Anchor to an external heading or top, never another IC group. A context
   override can independently replace anchor and/or rank; other fields inherit.
   Inserting a group allocates its own position rather than rewriting neighbours.
@@ -194,6 +227,9 @@ explicit false/empty, proxy-shaped ZO_SavedVars isolation, round-trip/copy,
 rename/delete/Reset, heading hide/unhide, master/context moves, partial-field
 inheritance, the spec's insertion/master-swap examples, no rank ties, and
 cleanup preserving every context order/anchor without materializing overrides.
+Include occurrence identity round trips, shared/conflicting native heading
+sequences, single Master row per IC group, and applicable-heading fallback
+without modifying saved placements or creating overrides.
 As part of post-implementation verification, execute a real pre-feature build
 on new-schema synthetic fixtures and prove rejection before mutation.
 **Do not load new fields on normal game saves until this downgrade check passes.**
@@ -314,6 +350,10 @@ Count registrations/writes/cache rebuilds/refreshes; inject failures visibly.
   Normal `GetSortedGroupNames` unchanged; AutoCategory uses master/resolved order,
   heading badges/read-only filter details, group arrows/participation/conflict
   warnings and never-ordered tail. No Miscellaneous or drag/drop.
+- Master shows the combined context-labelled heading occurrences; context views
+  omit inapplicable occurrences and use native AC order. Show every IC group
+  only once in Master. Scope labels must be understandable without relying
+  on colour or tooltips alone.
 - Choose during development between a dropdown and small clickable context
   icons for the eight modes. Icons require descriptive tooltips, clear selected
   state and a visible selected-mode name; keep Master first in either layout.
@@ -349,6 +389,8 @@ Extend [GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) and
 [ItemEditorTests.lua](../../Tests/ItemEditorTests.lua): zero writes on view/context
 selection, all eight choices and corresponding explanation text, external-row
 visual distinction in selected/revealed-hidden states,
+combined Master occurrence scopes/native subsequences, single IC group rows
+and upward applicable/unhidden-heading fallback,
 Show-all zero writes/projections/refreshes, hide/unhide reference
 behavior, row ordering/selection/endpoints/search, external-heading restrictions,
 rename/delete/recycled callbacks, profile isolation, width and inactive layout,
