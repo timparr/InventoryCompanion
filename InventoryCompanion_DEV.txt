@@ -33,6 +33,7 @@ Banking/ResourceProgressBars.lua
 -- 3. Item & Currency Tracking Module
 Tracking/EditPanelItemsTab.xml
 Tracking/EditPanelGroupsTab.xml
+Tracking/EditPanelAutoCategoryTab.xml
 Tracking/CurrencyPanel.xml
 
 Tracking/ItemDatabase.lua
@@ -40,6 +41,7 @@ Tracking/AutoCategoryIntegration.lua
 Tracking/EditPanelTabManager.lua
 Tracking/EditPanelItemsTab.lua
 Tracking/EditPanelGroupsTab.lua
+Tracking/EditPanelAutoCategoryTab.lua
 
 Tracking/CurrencyPanel.lua
 Tracking/ItemTrackerPanel.xml

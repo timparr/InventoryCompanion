@@ -20,7 +20,7 @@
 ## Git Workflow
 
 - At the start of each release, update the authoritative working changelog from the actual changes first, then use it to recommend a build/patch or minor version increment (major only for incompatible changes), with a brief reason and proposed version, before staging. Follow `Project/Publishing/ReleaseChecklist.md` for numbering and release steps.
-- Warn the user before starting substantial or risky work that would be advisable to do on a separate branch, and explain why.
+- Before recommending a separate branch for substantial or risky work, check the current branch. If already on a feature branch for that work, continue there; do not suggest another branch merely because the work is substantial. Otherwise, warn the user when a separate branch is advisable and explain why.
 - Do not switch branches without the user's approval.
 - Keep the initial unit-test work on `main`; reconsider using a branch if testing requires substantial changes to the existing system.
 - Prioritize in-game tests for rule matching and overrides, plus safe synthetic inventory-burst performance checks that never mutate live inventory or saved variables.

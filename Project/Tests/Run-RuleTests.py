@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import argparse
+import re
 import subprocess
 import xml.etree.ElementTree as ET
 from time import perf_counter
@@ -16,6 +17,44 @@ item_label = editor_row.find("Label[@name='$(parent)ItemLabel']")
 assert item_label.find("Dimensions").get("x") == "432", "Collapsed category column must give names an explicit width"
 assert len(item_label.findall("Anchor")) == 1, "Item names must not depend on a forward sibling anchor"
 assert editor_row.find("Control[@name='$(parent)CategorySpace']/Dimensions").get("x") == "0"
+# Lua addresses these children through GetControl, which returns nil for a missing name.
+auto_toggle = editor_row.find("Control[@name='$(parent)AutoCategory']/Controls")
+assert auto_toggle is not None, "Item row AutoCategory toggle must be a container with child controls"
+assert auto_toggle.find("Button[@name='$(parent)Check']") is not None, "Item row AutoCategory toggle needs a Check child"
+assert auto_toggle.find("Label[@name='$(parent)Label']") is not None, "Item row AutoCategory toggle needs a Label child"
+autocategory_xml = ET.parse(root / "Tracking" / "EditPanelAutoCategoryTab.xml")
+autocategory_row = autocategory_xml.find(".//Control[@name='InventoryCompanion_AutoCategoryRow_Template']/Controls")
+for child in ("BG", "Name", "MoveUp", "MoveDown", "Participation", "Visibility"):
+    assert autocategory_row.find(f"*[@name='$(parent){child}']") is not None, f"AutoCategory row needs {child}"
+autocategory_window = autocategory_xml.find(".//TopLevelControl[@name='InventoryCompanion_AutoCategoryWindow']/Controls")
+for path in (
+    "TopActionBar/Controls/*[@name='$(parent)FindBox']",
+    "TopActionBar/Controls/*[@name='$(parent)ContextMode']",
+    "TopActionBar/Controls/*[@name='$(parent)BtnReset']",
+    "OptionsBar/Controls/*[@name='$(parent)ChkShowNonparticipating']",
+    "OptionsBar/Controls/*[@name='$(parent)LblShowNonparticipating']",
+    "OptionsBar/Controls/*[@name='$(parent)ChkShowAllHeadings']",
+    "OptionsBar/Controls/*[@name='$(parent)LblShowAllHeadings']",
+    "Info", "List", "HeadingDetails",
+):
+    parent, _, rest = path.partition("/")
+    node = autocategory_window.find(f"*[@name='$(parent){parent}']")
+    assert node is not None and (not rest or node.find(rest) is not None), f"AutoCategory window needs {path}"
+for xml_name, window_name in (
+    ("EditPanelItemsTab.xml", "InventoryCompanion_TrackedItemsWindow"),
+    ("EditPanelGroupsTab.xml", "InventoryCompanion_GroupsWindow"),
+):
+    window = ET.parse(root / "Tracking" / xml_name).find(f".//TopLevelControl[@name='{window_name}']/Controls")
+    assert window.find("Button[@name='$(parent)BtnAutoCategory']") is not None, f"{window_name} needs the AutoCategory tab button"
+manifest = (root / "InventoryCompanion_DEV.txt").read_text(encoding="utf-8-sig")
+autocategory_tab_lua = (root / "Tracking" / "EditPanelAutoCategoryTab.lua").read_text(encoding="utf-8-sig")
+autocategory_tab_xml = (root / "Tracking" / "EditPanelAutoCategoryTab.xml").read_text(encoding="utf-8-sig")
+template_children = {"ScrollChild"}  # Provided by the inherited ZO_ScrollContainer template.
+lookups = re.findall(r'Window\("(\w+)"', autocategory_tab_lua) + re.findall(r'GetControl\((?:[^"()]|\([^()]*\))*?,\s*"(\w+)"', autocategory_tab_lua)
+for name in set(lookups) - template_children:
+    assert f'name="$(parent){name}"' in autocategory_tab_xml, f"AutoCategory tab Lua looks up missing XML child {name}"
+for relative in ("Tracking/EditPanelAutoCategoryTab.xml", "Tracking/EditPanelAutoCategoryTab.lua"):
+    assert relative in manifest, f"Manifest must load {relative}"
 parser = argparse.ArgumentParser()
 parser.add_argument("--item-editor-only", action="store_true", help="Run only item-editor regression tests.")
 args = parser.parse_args()
@@ -61,13 +100,15 @@ saved_variables_lua.globals().SavedVariablesDatabaseSource = (root / "Tracking\\
 saved_variables_lua.globals().SavedVariablesIntegrationSource = (
     root / "Tracking\\AutoCategoryIntegration.lua"
 ).read_text(encoding="utf-8-sig")
+# Pin the schema-3 fixture: HEAD advances with the current saved-data format.
+legacy_saved_variables_commit = "a78f87957009e261e076c1c7f334f7a5fc0b1f7e"
 for field, relative in (
     ("LegacySavedVariablesInitSource", "Core/Init.lua"),
     ("LegacySavedVariablesConstantsSource", "Core/Constants.lua"),
     ("LegacySavedVariablesDatabaseSource", "Tracking/ItemDatabase.lua"),
 ):
     saved_variables_lua.globals()[field] = subprocess.check_output(
-        ["git", "--no-pager", "show", f"HEAD:{relative}"], cwd=root
+        ["git", "--no-pager", "show", f"{legacy_saved_variables_commit}:{relative}"], cwd=root
     ).decode("utf-8-sig")
 saved_variables_lua.execute((root / "Project\\Tests\\SavedVariablesTests.lua").read_text(encoding="utf-8-sig"))
 tracker_lua = LuaRuntime(unpack_returned_tuples=True)
@@ -105,6 +146,8 @@ for relative in (
     "Tracking\\ItemDatabase.lua",
     "Tracking\\AutoCategoryIntegration.lua",
     "Project\\Tests\\AutoCategoryIntegrationTests.lua",
+    "Project\\Tests\\AutoCategoryEditorTests.lua",
+    "Tracking\\EditPanelAutoCategoryTab.lua",
 ):
     autocategory_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
 tests = []
@@ -122,6 +165,7 @@ if not args.item_editor_only:
         saved_variables_lua.globals().GetSavedVariablesTests(),
         tracker_lua.globals().InventoryCompanion.GetTrackerPanelTests(),
         autocategory_lua.globals().InventoryCompanion.GetAutoCategoryIntegrationTests(),
+        autocategory_lua.globals().InventoryCompanion.GetAutoCategoryEditorTests(),
     )
 for suite in suites:
     tests.extend(suite[index] for index in range(1, len(suite) + 1))

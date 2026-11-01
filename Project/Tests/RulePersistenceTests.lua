@@ -119,6 +119,7 @@ function this.GetRulePersistenceTests()
                 local refreshes = 0
                 this.RefreshTrackedItemsEditor = function() refreshes = refreshes + 1 end
                 this.RefreshGroupsEditor = function() refreshes = refreshes + 1 end
+                this.RefreshAutoCategoryEditor = function() refreshes = refreshes + 1 end
                 this.RefreshItemTrackerPanel = function() refreshes = refreshes + 1 end
                 this.SetUseCharacterItemList(false)
                 local accountCache = this.GetRuntimeRules()
@@ -133,7 +134,7 @@ function this.GetRulePersistenceTests()
                 SLASH_COMMANDS["/icclearoverrides"]()
                 assert(this.GetRuntimeRules() ~= characterCache, "Character clear must invalidate")
                 assert(next(this.character.trackedRules) == nil, "Character overrides must be removed")
-                assert(refreshes == 6, "Both editors and the tracker must refresh on each clear")
+                assert(refreshes == 8, "All editors and the tracker must refresh on each clear")
             end,
         },
     }

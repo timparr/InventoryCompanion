@@ -662,6 +662,78 @@ local function CollectTestDiscovery(lines)
     table.insert(lines, "INFO Safety: live scans are read-only; synthetic tests temporarily replace runtime state and restore it; no inventory transfers or intentional saved-variable writes.")
 end
 
+local function CheckAutoCategoryRuntime()
+    local ac = AutoCategory
+    if ac == nil then
+        return "WARN AutoCategory runtime check skipped: optional dependency is not loaded."
+    end
+    Check(type(ac) == "table", "AutoCategory namespace is incompatible")
+    Check(type(ac.Plugins) == "table", "AutoCategory plugin registry is unavailable")
+    local plugin = ac.Plugins["Inventory Companion"]
+    Check(type(plugin) == "table" and type(plugin.predef) == "table" and #plugin.predef > 0,
+        "Inventory Companion plugin was not registered with AutoCategory")
+
+    if ac.Inited ~= true then
+        return "WARN AutoCategory runtime check pending: plugin is registered, but AutoCategory has not initialized; rerun Debug Key after entering the world."
+    end
+
+    local contexts = {
+        { title = "Backpack", bagType = AC_BAG_TYPE_BACKPACK },
+        { title = "Bank", bagType = AC_BAG_TYPE_BANK },
+        { title = "Guild Bank", bagType = AC_BAG_TYPE_GUILDBANK },
+        { title = "House Bank", bagType = AC_BAG_TYPE_HOUSEBANK },
+        { title = "Crafting Station", bagType = AC_BAG_TYPE_CRAFTSTATION },
+        { title = "Craft Bag", bagType = AC_BAG_TYPE_CRAFTBAG },
+        { title = "Furniture Vault", bagType = AC_BAG_TYPE_FURNVAULT },
+    }
+    Check(type(ac.saved) == "table" and type(ac.saved.bags) == "table",
+        "AutoCategory active profile assignments are unavailable after initialization")
+    local ownedByContext = {}
+    local ownedTotal = 0
+    for _, context in ipairs(contexts) do
+        local bag = ac.saved.bags[context.bagType]
+        Check(type(bag) == "table" and type(bag.rules) == "table",
+            "AutoCategory active assignments are missing for " .. context.title)
+        local owned = 0
+        for _, assignment in ipairs(bag.rules) do
+            Check(type(assignment) == "table", "AutoCategory assignment is malformed in " .. context.title)
+            if assignment.icOwned == true then
+                owned = owned + 1
+            end
+        end
+        ownedByContext[context.title] = owned
+        ownedTotal = ownedTotal + owned
+    end
+
+    local enabled = this.GetAutoCategoryState().enabled
+    local status, message = this.AutoCategoryIntegration.GetStatus()
+    if enabled and status == "pending" then
+        return "WARN AutoCategory runtime check pending: active bags exist, but projection has not completed; rerun Debug Key shortly."
+    end
+    if enabled and status == "unsupported" then
+        return "WARN AutoCategory integration paused by the external AutoCategory layout: " .. tostring(message)
+    end
+    Check(enabled and status == "available" or not enabled and status == "disabled",
+        "AutoCategory integration state mismatch (" .. tostring(status) .. "): " .. tostring(message))
+
+    local participating = 0
+    for ruleKey, rule in pairs(this.GetRuntimeRules()) do
+        if ruleKey ~= "miscellaneous" and rule.isPreloaded ~= nil and rule.autoCategoryEnabled then
+            participating = participating + 1
+        end
+    end
+    for _, context in ipairs(contexts) do
+        local expected = enabled and participating or 0
+        Check(ownedByContext[context.title] == expected,
+            string.format("AutoCategory %s has %d Inventory Companion assignments; expected %d",
+                context.title, ownedByContext[context.title], expected))
+    end
+    return string.format(
+        "PASS AutoCategory runtime startup: plugin registered; AutoCategory initialized; integration %s; %d participating groups; %d managed assignments across seven contexts.",
+        enabled and "active" or "disabled", participating, ownedTotal
+    )
+end
+
 local function RunTests(arguments)
     if not this.state or not this.state.isLoaded then
         d("[InventoryCompanion tests] Addon is not fully loaded.")
@@ -697,6 +769,13 @@ local function RunTests(arguments)
         table.insert(results, "PASS Runtime and dependency discovery")
     else
         table.insert(results, "FAIL Runtime and dependency discovery: " .. tostring(discoveryError))
+    end
+    local autoCategoryOk, autoCategoryResult = pcall(CheckAutoCategoryRuntime)
+    if autoCategoryOk then
+        if autoCategoryResult:sub(1, 5) ~= "WARN " then passed = passed + 1 end
+        table.insert(results, autoCategoryResult)
+    else
+        table.insert(results, "FAIL AutoCategory runtime startup: " .. tostring(autoCategoryResult))
     end
 
     local liveBagIds = { BAG_BACKPACK, BAG_BANK, BAG_SUBSCRIBER_BANK }

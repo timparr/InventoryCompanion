@@ -46,7 +46,12 @@ function integration.GetStatus()
 end
 
 function integration.IsAvailable()
-    return status.state == "available" or status.state == "disabled"
+    -- An unsupported external layout must stay editable so placements can be changed or integration disabled.
+    return status.state == "available" or status.state == "disabled" or status.state == "unsupported"
+end
+
+function integration.IsEditorActive()
+    return integration.IsAvailable() and this.GetAutoCategoryState().enabled
 end
 
 function integration.GetContexts()
@@ -149,8 +154,6 @@ local function CheckExternalShape(ac)
         and type(ac.RulesW.ruleList) == "table" and type(ac.RulesW.ruleNames) == "table"
         and type(ac.RulesW.AddRule) == "function",
         "AutoCategory rule/plugin registries are incompatible")
-    assert(type(ac.saved) == "table" and type(ac.saved.bags) == "table",
-        "AutoCategory active profile assignments are unavailable")
     assert(type(ac.acctSaved) == "table" and type(ac.charSaved) == "table",
         "AutoCategory account or character saved profiles are unavailable")
     assert(type(ac.GetRuleByName) == "function" and type(ac.predefinedRules) == "table"
@@ -161,12 +164,29 @@ local function CheckExternalShape(ac)
         and type(ac.RuleList) == "table" and type(ac.RuleList.removeRuleByName) == "function"
         and type(ac.RulesW.compiled) == "table",
         "AutoCategory cache or rule lifecycle APIs are incompatible")
+end
+
+local function CheckActiveAssignments(ac, allowNotReady)
+    if allowNotReady and ac.Inited ~= true then
+        if type(ac.saved) ~= "table" or type(ac.saved.bags) ~= "table" then return false end
+        for _, context in ipairs(contexts) do
+            local bag = ac.saved.bags[context.bagType()]
+            if bag == nil then return false end
+            assert(type(bag) == "table", "AutoCategory active assignments are malformed for " .. context.title)
+            if bag.rules == nil then return false end
+            assert(type(bag.rules) == "table", "AutoCategory active assignments are malformed for " .. context.title)
+        end
+        return true
+    end
+    assert(type(ac.saved) == "table" and type(ac.saved.bags) == "table",
+        "AutoCategory active profile assignments are unavailable")
     for _, context in ipairs(contexts) do
         local bagType = context.bagType()
         assert(type(bagType) == "number" and type(ac.saved.bags[bagType]) == "table"
             and type(ac.saved.bags[bagType].rules) == "table",
             "AutoCategory is missing active assignments for " .. context.title)
     end
+    return true
 end
 
 local function CheckDefinitionCollision(ac, definitions)
@@ -836,55 +856,71 @@ local function GetInsertionTarget(group, contextKey)
     error("Resolved AutoCategory anchor is unavailable in " .. contextKey .. ": " .. group.resolvedAnchorId)
 end
 
-local function AllocateSlotPriorities(sequence, targetName, groupCount)
-    if groupCount == 0 then return {} end
-    local targetIndex
-    if targetName ~= topAnchor and targetName ~= bottomAnchor then
-        local targetCount = 0
-        for index, entry in ipairs(sequence) do
-            if entry.name == targetName then
-                targetCount = targetCount + 1
-                targetIndex = index
-            end
-        end
-        assert(targetCount == 1,
-            "AutoCategory placement heading is missing or ambiguous in the native priority list: " .. targetName)
-    end
-    local high, low
-    if targetName == topAnchor then
-        local maximum = 0
-        for _, entry in ipairs(sequence) do maximum = math.max(maximum, entry.priority) end
-        high, low = maximum + groupCount + 1, maximum
-    elseif targetName == bottomAnchor then
-        local minimum = 0
-        for _, entry in ipairs(sequence) do minimum = math.min(minimum, entry.priority) end
-        high, low = minimum, minimum - groupCount - 1
-    else
-        high = sequence[targetIndex].priority
-        low = high - groupCount - 1
-        for index = targetIndex + 1, #sequence do
-            if sequence[index].priority < high then
-                low = sequence[index].priority
-                break
-            end
-        end
-        assert(high > low, "AutoCategory priority gap is invalid below " .. targetName)
-    end
-    local priorities = {}
-    for index = 1, groupCount do
+local function SpreadPriorities(high, low, count)
+    local values = {}
+    for index = 1, count do
         local value
-        if targetName == topAnchor then
-            value = high - index
-        elseif targetName == bottomAnchor then
-            value = low + groupCount - index + 1
-        elseif high - low > groupCount then
+        if high - low > count then
             value = high - index
         else
-            value = high - (high - low) * index / (groupCount + 1)
+            value = high - (high - low) * index / (count + 1)
         end
-        assert(value < high and value > low,
-            "AutoCategory cannot represent an insertion priority between external entries")
-        priorities[index] = value
+        if not (value < high and value > low) then return nil end
+        values[index] = value
+    end
+    return values
+end
+
+-- Ties among external headings resolve alphabetically in AutoCategory, so groups anchored to any
+-- heading in a tie block follow the whole block, in that block's alphabetical heading order.
+-- Duplicate heading names cannot be ordered alphabetically; the first native occurrence anchors.
+local function AllocateFieldPriorities(external, field, groupBuckets)
+    local sequence = GetExternalPrioritySequence(external, field)
+    local priorities = {}
+    local placed = {}
+    local function Assign(bucketNames, high, low)
+        local groups = {}
+        for _, name in ipairs(bucketNames) do
+            if not placed[name] then
+                placed[name] = true
+                for _, group in ipairs(groupBuckets[name] or {}) do groups[#groups + 1] = group end
+            end
+        end
+        if #groups == 0 then return true end
+        local values = SpreadPriorities(high, low, #groups)
+        if values == nil then return false end
+        for index, group in ipairs(groups) do priorities[group.ruleKey] = values[index] end
+        return true
+    end
+
+    local maximum, minimum = 0, 0
+    for _, entry in ipairs(sequence) do
+        maximum = math.max(maximum, entry.priority)
+        minimum = math.min(minimum, entry.priority)
+    end
+    local topCount = groupBuckets[topAnchor] and #groupBuckets[topAnchor] or 0
+    local bottomCount = groupBuckets[bottomAnchor] and #groupBuckets[bottomAnchor] or 0
+    assert(Assign({ topAnchor }, maximum + topCount + 1, maximum))
+    assert(Assign({ bottomAnchor }, minimum, minimum - bottomCount - 1))
+
+    local index = 1
+    while index <= #sequence do
+        local high = sequence[index].priority
+        local block = {}
+        while index <= #sequence and sequence[index].priority == high do
+            block[#block + 1] = sequence[index].name
+            index = index + 1
+        end
+        local blockCount = 0
+        for _, name in ipairs(block) do
+            if not placed[name] then
+                blockCount = blockCount + (groupBuckets[name] and #groupBuckets[name] or 0)
+            end
+        end
+        local low = sequence[index] and sequence[index].priority or high - blockCount - 1
+        if not Assign(block, high, low) then
+            return nil, "AutoCategory has no " .. field .. " room below '" .. block[1] .. "'"
+        end
     end
     return priorities
 end
@@ -895,54 +931,59 @@ local function GetContextProjection(context)
     for _, row in ipairs(rows) do
         if row.kind == "group" and row.participating then groups[#groups + 1] = row end
     end
-    local targetByGroup = {}
     local groupBuckets = {}
     for _, group in ipairs(groups) do
         local target = GetInsertionTarget(group, context.key)
-        targetByGroup[group.ruleKey] = target
         groupBuckets[target] = groupBuckets[target] or {}
         groupBuckets[target][#groupBuckets[target] + 1] = group
     end
     local external = GetNativeAssignments(context)
-    local runSequence = GetExternalPrioritySequence(external, "runpriority")
-    local showSequence = GetExternalPrioritySequence(external, "showpriority")
+    local runPriorities, runFailure = AllocateFieldPriorities(external, "runpriority", groupBuckets)
+    if runPriorities == nil then return nil, runFailure .. " in " .. context.title end
+    local showPriorities, showFailure = AllocateFieldPriorities(external, "showpriority", groupBuckets)
+    if showPriorities == nil then return nil, showFailure .. " in " .. context.title end
     local proposed = {}
     for _, group in ipairs(groups) do
-        local target = targetByGroup[group.ruleKey]
-        local bucket = groupBuckets[target]
-        local index
-        for position, entry in ipairs(bucket) do
-            if entry.ruleKey == group.ruleKey then index = position; break end
-        end
-        local runPriorities = AllocateSlotPriorities(runSequence, target, #bucket)
-        local showPriorities = AllocateSlotPriorities(showSequence, target, #bucket)
-        local rules = GetRuntimeRules()
-        local rule = rules[group.ruleKey]
+        local rule = GetRuntimeRules()[group.ruleKey]
         proposed[group.ruleKey] = {
             ruleKey = group.ruleKey,
             name = GetCategoryName(rule),
-            runpriority = runPriorities[index],
-            showpriority = showPriorities[index],
+            runpriority = runPriorities[group.ruleKey],
+            showpriority = showPriorities[group.ruleKey],
             isHidden = false,
             icOwned = true,
         }
     end
 
-    local desired = {}
-    local function AddDesiredTarget(target)
-        local bucket = groupBuckets[target]
-        if bucket then
-            for _, group in ipairs(bucket) do desired[#desired + 1] = group.ruleKey end
+    -- AutoCategory edits run and show priorities independently, so each field has its own native order.
+    local function Desired(field)
+        local desired = {}
+        local placed = {}
+        local function AddDesiredTarget(target)
+            local bucket = groupBuckets[target]
+            if bucket and not placed[target] then
+                placed[target] = true
+                for _, group in ipairs(bucket) do desired[#desired + 1] = group.ruleKey end
+            end
         end
+        AddDesiredTarget(topAnchor)
+        local sequence = GetExternalPrioritySequence(external, field)
+        local tiedTargets = {}
+        for index, entry in ipairs(sequence) do
+            desired[#desired + 1] = entry.name
+            tiedTargets[#tiedTargets + 1] = entry.name
+            local nextEntry = sequence[index + 1]
+            if nextEntry == nil or nextEntry.priority ~= entry.priority then
+                for _, target in ipairs(tiedTargets) do AddDesiredTarget(target) end
+                tiedTargets = {}
+            end
+        end
+        AddDesiredTarget(bottomAnchor)
+        return desired
     end
-    AddDesiredTarget(topAnchor)
-    for _, entry in ipairs(GetExternalPrioritySequence(external, "showpriority")) do
-        desired[#desired + 1] = entry.name
-        AddDesiredTarget(entry.name)
-    end
-    AddDesiredTarget(bottomAnchor)
 
     local function Expected(field)
+        local desired = Desired(field)
         local sorted = {}
         for _, entry in ipairs(external) do
             sorted[#sorted + 1] = {
@@ -995,6 +1036,8 @@ local function SyncDefinitions(ac, definitions)
             end
         end
     end
+    -- removeRuleByName shifts later rules without reindexing ruleNames, so name lookups are stale until rebuilt.
+    ac.cacheRuleInitialize()
     for _, definition in ipairs(definitions) do
         local existing = ac.GetRuleByName(definition.name)
         if existing and existing.icIntegrationOwned then
@@ -1091,13 +1134,24 @@ function integration.ProjectAutoCategory()
     local ac = AutoCategory
     CheckExternalShape(ac)
     assert(ac.Inited == true, "AutoCategory must finish initialization before projection")
+    CheckActiveAssignments(ac)
     assert(this.GetAutoCategoryState().enabled, "Cannot project while AutoCategory integration is disabled")
     local definitions = BuildDefinitions()
     local collisionFree, collision = CheckDefinitionCollision(ac, definitions)
     assert(collisionFree, collision)
     local plans = {}
     for _, context in ipairs(contexts) do
-        plans[context.key] = GetContextProjection(context)
+        local plan, failure = GetContextProjection(context)
+        if plan == nil then
+            -- External AutoCategory layouts we cannot represent are reported without writing anything.
+            if status.state ~= "unsupported" or status.message ~= failure then
+                d("[InventoryCompanion] AutoCategory integration paused: " .. failure)
+            end
+            SetStatus("unsupported", "AutoCategory integration is paused: " .. failure
+                .. ". Change the AutoCategory priorities or this group's placement to resume.")
+            return {}
+        end
+        plans[context.key] = plan
     end
     SyncDefinitions(ac, definitions)
     reconciling = true
@@ -1118,6 +1172,7 @@ end
 local function RemoveOwnedAssignments(refresh)
     local ac = AutoCategory
     CheckExternalShape(ac)
+    if not CheckActiveAssignments(ac, true) then return end
     local changed = {}
     for _, context in ipairs(contexts) do
         local bag = ac.saved.bags[context.bagType()]
@@ -1137,6 +1192,7 @@ local function ScheduleReconcile(reason, refreshOnly)
     local generation = pendingGeneration
     zo_callLater(function()
         if generation ~= pendingGeneration or not this.GetAutoCategoryState().enabled then return end
+        if AutoCategory.Inited ~= true then return end
         if refreshOnly then
             local changed = {}
             for _, context in ipairs(contexts) do changed[context.key] = true end
@@ -1244,18 +1300,21 @@ local function RegisterPlugin()
             assert(type(ac.checkingItemLink) == "string", "AutoCategory checkingItemLink must be a string")
             return this.ItemMatchesRuntimeRule(ac.checkingItemLink, rule)
         end)
-        if not this.GetAutoCategoryState().enabled then RemoveOwnedAssignments(false) end
+        if this.GetAutoCategoryState().enabled then
+            -- AutoCategory sets Inited synchronously after plugin initializers, before this deferred call runs.
+            ScheduleReconcile("autocategory-initialized", false)
+        else
+            RemoveOwnedAssignments(false)
+        end
     end, definitions)
     registeredPlugin = ac.Plugins[pluginName]
     assert(registeredPlugin and registeredPlugin.predef == definitions,
         "AutoCategory did not retain Inventory Companion's plugin definitions")
-    SetStatus(this.GetAutoCategoryState().enabled and "available" or "disabled",
-        this.GetAutoCategoryState().enabled and "AutoCategory integration is ready."
+    local enabled = this.GetAutoCategoryState().enabled
+    SetStatus(enabled and "pending" or "disabled",
+        enabled and "AutoCategory plugin is registered; integration will activate after AutoCategory initializes."
             or "AutoCategory integration is disabled for this Inventory Companion profile.")
-    if this.GetAutoCategoryState().enabled then
-        integration.InstallExternalHooks()
-        ScheduleReconcile("startup", false)
-    end
+    if enabled then InstallExternalHooks() end
     return true
 end
 
@@ -1264,8 +1323,8 @@ function integration.Initialize()
         SetStatus("absent", "AutoCategory is not loaded; saved integration choices are preserved.")
         return
     end
+    -- Keyboard ZO_Dialog has only two button controls, so the arrangement is a radio choice.
     ZO_Dialogs_RegisterCustomDialog("INVENTORYCOMPANION_AUTOCATEGORY_PRESET", {
-        gamepadInfo = { dialogType = GAMEPAD_DIALOGS.BASIC },
         title = { text = "AutoCategory Starting Arrangement" },
         mainText = {
             text = function(dialog)
@@ -1275,22 +1334,19 @@ function integration.Initialize()
                 return "Choose how Inventory Companion groups should be arranged relative to AutoCategory headings. The arrangement can be changed later."
             end,
         },
+        radioButtons = {
+            { text = "Prefer IC groups", data = "prefer_ic_groups" },
+            { text = "Prefer AutoCategory groups", data = "prefer_autocategory_groups" },
+        },
         buttons = {
             {
-                text = "Prefer IC groups",
+                text = SI_DIALOG_CONFIRM,
                 callback = function(dialog)
+                    local selected = dialog.radioButtonGroup:GetClickedButton()
+                    assert(selected ~= nil, "AutoCategory preset dialog has no selected arrangement")
                     local enabled
                     if not (dialog.data and dialog.data.reset) then enabled = true end
-                    this.ApplyAutoCategoryPreset("prefer_ic_groups", enabled)
-                    if this.RefreshAutoCategoryUI then this.RefreshAutoCategoryUI() end
-                end,
-            },
-            {
-                text = "Prefer AutoCategory groups",
-                callback = function(dialog)
-                    local enabled
-                    if not (dialog.data and dialog.data.reset) then enabled = true end
-                    this.ApplyAutoCategoryPreset("prefer_autocategory_groups", enabled)
+                    this.ApplyAutoCategoryPreset(selected.data, enabled)
                     if this.RefreshAutoCategoryUI then this.RefreshAutoCategoryUI() end
                 end,
             },
@@ -1301,6 +1357,9 @@ function integration.Initialize()
                 end,
             },
         },
+        noChoiceCallback = function()
+            if this.RefreshAutoCategoryUI then this.RefreshAutoCategoryUI() end
+        end,
     })
     RegisterPlugin()
 end

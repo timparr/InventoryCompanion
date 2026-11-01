@@ -684,3 +684,198 @@ results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
 - [ ] Pre-shipping spike teardown: manifest entry removed, source retained
   outside runtime loading, offline reuse validated, no gate registrations or
   tagged assignments remain.
+
+
+found after imp
+autocat lets users move categories up/down - we can do this for them in our ui (which is better, or will be) we can do view priority AND resolve priority. if we can come up with a cool ui/ux for this, then we can apply it to our own groups as well 
+(maybe use the view priority AS the other one, unless we override it - so view priorities always have even numbers and overrides have odd ones etc. I think the max is 1000 so no 10 gaps here....)
+our ui sucks - labels look wrong in itemeditor, alignment issues when autocat col is not collapsed 
+our ui sucks - group editor is the wrong place for this we don't need the patterns when we are moving groups up/down. a third 'tab' would be much better
+I think there are issues with movement and display, but its hard to see at the moment.
+In a different panel we can have priority and display modes separately (on a toggle) and make the changes that autocat allows users to make in their own ui. They also have a 'hide' mechanic, but I think that actually removes items from the inventory so we don't want to hook into that (unless we want to make this a 'autocategory+ type of thing)
+
+OUR category display order and priority order can be changed in autocategory - how does that interact with what we do here? Probably need to rewrite those numbers instead of our own stored ranks? and that is the source of truth?
+
+to add to the todo -> "add more config panels instead of settings. Make the game settings the top level enable/disable one offs and move (defo) the currency editor to a panel and any other 'complicated' ui"
+
+editor tab duplication (deferred until the AutoCategory tab works in game) - the third tab copies window scaffolding that Items and Groups already duplicated between themselves:
+- XML window frame (~50 near-identical lines per window): title, Other Settings, Close, tab buttons, search box.
+- Lua scene setup: each tab creates its scene and repeats the same show/hide camera-mode + `UpdateEditorLayout` handlers; Items and Groups register them twice (scene callback and window handler).
+- each tab wires its own search box and tab-button visibility.
+Plan:
+1. Lua first (low risk): shared helpers to register a tab's scene/show/hide behaviour and to configure tab buttons, removing the double-registered handlers. Check in game that each tab still opens, closes, switches and searches.
+2. XML later, once the AutoCategory tab layout/buttons have settled: one shared virtual window frame inherited by all three tabs.
+
+ordering model rethink (needs discussion) - AutoCategory exposes run/show priority numbers to users in its own settings panel, so they are a legitimate target for us to edit directly. Consider dropping our stored ranks and the colour-code rank prefix in category names, and treating AutoCategory's priorities as the source of truth. Open points: how alphabetical tie-breaking is handled without the prefix; how edits made in AutoCategory's panel map back to our UI; whether Master/context overrides still need stored data; migration from stored ranks/prefixed names. (The prefix made renames frequent, which exposed the definition-sync index bug, but was not its cause.)
+### Ordering replacement plan (2026-11-01, proposed; not implemented)
+
+**Superseded for this fix by the dedicated
+[ordering-fix implementation plan](todo_implementation_autocategoryOrderingFix.md).**
+That plan includes the subsequent ordered-list and direct `ic:`/`ac:` reference
+decisions. The section below is retained as discussion history.
+
+**Problem confirmed:** the editor sorts exact `showpriority` values, whereas
+AC keyboard inventory builds its sort key with
+`string.format("%04d%s", 1000-showPriority, categoryName)`. Fractional
+differences can disappear. In the account-wide Backpack snapshot, New and Set
+both run at 100; Utility runs at approximately 99.94 and Test group at 99.89.
+Set therefore claims items before Test group, but its generated set-name
+headings can appear below it. Editor order, matching order and rendered order
+must no longer be presented as interchangeable.
+
+**Accepted scope:** AC exposes category priorities to its users, so IC may
+rewrite native AC assignments' run/show priorities on their behalf. This
+supersedes the previous prohibition for those two fields only, not permission
+to rewrite external definitions, filters, membership, names or hidden flags.
+Keep Master and seven context overrides, using virtual order rather than AC
+numbers. Removing the colour-rank prefix is intended. Legacy rank/prefix
+migration is not a product requirement; safe saved-data handling still is.
+
+This replaces a core mechanism and saved-data representation. Recommend a
+separate implementation branch, with author approval before switching.
+Existing dirty work must be preserved. No runtime changes are part of this
+planning step.
+
+#### 1. Agree the user-facing order contract
+
+- Recommend two explicitly labelled views: **Display order** (where headings
+  appear) and **Matching order** (first matching category wins). Both contain
+  participating IC groups and native AC assignments, with move controls for
+  both kinds. Do not expose priority numbers as the primary controls.
+- Recommend independent sequences initially, preserving AC's existing
+  run/show differences. Offer an explicit **Use display order for matching**
+  action, with an explanation that it can change which group owns an item.
+  A persistent linked mode is a separate decision, not an implicit default.
+- Matching view explains catch-all shadowing: New, Utility, Test group (`*`),
+  Set means Set cannot claim remaining named items. Display-only moves must
+  never change classification.
+- Represent `autoset()` as the parent Set assignment with an explanation that
+  AC expands it into individual set-name headings. Those sibling headings
+  share their parent's priorities and remain alphabetically ordered within
+  its block; distinct assignment priorities do not order siblings separately.
+- Master is shared intent, not a claim that seven differing bags have one
+  actual order. Context views must show their resolved native order. Mark
+  context overrides and provide explicit reset-to-Master controls for each
+  sequence. Preserve the existing editor-only heading visibility meaning;
+  do not repurpose it as AC inventory hiding or exclusion from matching.
+
+**Decision gate:** approve the independent views plus explicit copy action,
+or choose a linked-by-default design before implementation. Also agree what
+disable means after native priorities have been changed (see step 5).
+
+#### 2. Establish identities, read-back and Master/override semantics
+
+- Use stable IC rule keys for managed assignments, independent of display
+  names and rank. Identify native assignments within each active AC profile
+  and bag; explicitly handle duplicate names/occurrences rather than silently
+  merging them. Definitions and runtime-expanded headings are not assignments.
+- Store independent virtual sequences for display and matching. Keep Master;
+  record a context override only where its applicable order differs, and
+  remove redundant overrides. Specify how context-only categories, new
+  assignments and deleted assignments enter/leave each sequence.
+- Import existing AC run and show orders separately. Importing must not
+  automatically make them equal. Before normalizing fractions/ties, determine
+  the current effective inventory order using AC's actual sort keys, not just
+  numeric `showpriority`; surface any ambiguous dynamic-heading import.
+- Re-read on editor open, after AC cache/profile changes, and immediately
+  before every write. Track the last projected snapshot and its profile/bag
+  identity so our own output is not mistaken for an external edit.
+- Reconcile against that snapshot before applying a pending IC move: adopt
+  independent AC edits, then apply the user's specific move to the fresh
+  sequence. Recompute stale moves, or report a conflicting/disappeared target;
+  never replay a stale whole-list order over newer AC edits.
+- Keep outgoing and incoming IC/AC profile snapshots separate. Profile
+  switching must not import one profile's projection into another's Master.
+  External edits to IC-owned priorities are adopted, not silently reverted.
+
+#### 3. Replace fractional insertion with an integer calculator
+
+- Installed AC run and show sliders both support **2..1000**, inclusive:
+  **999 distinct assignment priorities per bag per sequence**. Verify the
+  classifier and native sort keys with the actual installed modules.
+- Assign distinct descending integers within that range to every assignment
+  in each resolved sequence, including native AC assignments. Simple
+  consecutive values are sufficient; no even/odd scheme, fractional gaps,
+  colour-rank prefixes or alphabetical tie-block insertion.
+- Preflight all seven bags and definitions before any persistent writes.
+  Reject over-capacity or malformed external layouts with an actionable
+  visible error and no partial writes; do not silently clamp or omit rows.
+  Hidden assignments still count because they can participate in matching.
+- Preserve every unrelated assignment field and all external definitions.
+  Validate rendered sort keys as well as numeric order. Distinct priorities
+  order assignment blocks; they do not prevent arbitrary external plugins
+  from changing classification or generating unexpected heading names.
+
+#### 4. Wire projection and editor together
+
+- Replace anchor/fraction/tie allocation and rank-bearing managed names.
+  Use stable icon/name identity with collision checks. A reorder must not
+  rename a managed category or reset its collapse state.
+- Plan changes, then write changed run/show fields and owned assignments,
+  rebuild caches and refresh affected contexts once. Retain feedback-loop
+  suppression and invalidate delayed work when profile/generation changes.
+- Add the display/matching selector, move controls for native assignments,
+  override indicators/reset and the explicit copy action to the dedicated
+  AutoCategory tab. Search/filtering must not redefine underlying move order.
+- Show Set as an expandable-category parent, not a promise of one literal
+  inventory heading. Explain why a category can appear below a catch-all in
+  Display order yet match before it in Matching order.
+- Keep pattern editing on Groups. Defer shared editor-frame refactoring,
+  unrelated layout repairs and optional inventory-hiding features.
+
+#### 5. Saved-data and disable safety before live use
+
+- Update the spec and implementation report to the approved contract before
+  changing runtime behavior; mark old prefix/fraction evidence historical.
+- Bump the IC saved-variable schema for the incompatible representation.
+  Validate every profile before constructors; preserve unrelated saved data.
+  If legacy integration configuration is deliberately reset rather than
+  migrated, obtain explicit approval and report exactly what is reset. Do
+  not discard all saved variables or silently reinterpret old fields.
+- Verify downgrade rejection against supported older DEV/release sources
+  using synthetic saves, including the currently installed schema-4 build,
+  before testing on shared normal saved data.
+- Recommend disable removes IC-owned assignments but leaves the current
+  native AC priority order intact. If restoration is requested instead,
+  design conditional restoration that cannot overwrite subsequent user
+  edits; do not assume an old priority snapshot is still authoritative.
+- Test install/reload, absent dependency, both profiles, enable/disable,
+  native category CRUD, IC CRUD and external priority changes.
+
+#### 6. Focused automated acceptance
+
+- Reproduce New/Set tied at 100, Utility/Test group between 100 and 99, and
+  AC's actual integer-string display sorting. Assert the replacement UI and
+  native inventory agree, not merely that calculated numbers are distinct.
+- Two cases with real classifier/filter behavior: Set before catch-all
+  retains set headings; Set after catch-all claims no remaining items.
+  Cover named set expansion, New precedence and overlapping IC filters.
+- Display-only movement leaves matching unchanged; matching-only movement
+  leaves display unchanged; explicit copy produces the same parent order.
+- Verify strict integer priorities, exact output permutations and sort keys
+  at 0, 1, 999 and 1000 assignments. Zero is a valid empty bag; 1000 rejects
+  before any bag writes. Exercise all seven contexts and differing membership.
+- Round-trip read/project/read is idempotent. Cover external edits immediately
+  before a pending projection, conflicting moves, own-hook suppression,
+  reloads, cross-profile isolation and sparse override reconstruction.
+- Assert unrelated external fields/definitions are unchanged, stable managed
+  names survive reorders, collision/capacity errors cause no planned writes,
+  and synthetic tests never touch live inventory or saved variables.
+
+#### 7. In-game acceptance and documentation
+
+- First validate the author's Backpack: show both sequences and demonstrate
+  Set before/after Test group, independently of its display position. Get
+  explicit confirmation that the UI explains the observed inventory.
+- Check native inventory order against each context view, individual set-name
+  blocks, collapse/reorder/reload, external AC-panel edits and both profile
+  directions. Include Bank/subscriber Bank and the previously deferred Guild
+  Bank; do not mark untested contexts or gamepad supported.
+- Agree workload/timing limits, then run safe synthetic burst checks without
+  mutating live inventory or saved data.
+- Update user documentation for the two orders, catch-all behavior, Master
+  overrides, external-edit read-back, capacity and disable semantics. Update
+  the working changelog from actual changes; retain the existing release,
+  downgrade and spike-teardown gates.
+
+what is the downgrade schema test that keeps failing? Is it something to do with sv version?

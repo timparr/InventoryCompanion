@@ -345,6 +345,7 @@ local function InitEditGroupsButton(topBar)
             this.OpenEditGroupsPanel()
         end)
     end
+    GetControl(InventoryCompanion_TrackedItemsWindow, "BtnAutoCategory"):SetHidden(not this.AutoCategoryIntegration.IsEditorActive())
 end
 
 local function InitToolbar()
@@ -734,7 +735,7 @@ end
 
 local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
     local toggle = GetControl(row, "AutoCategory")
-    local label = GetControl(toggle, "Label")
+    local check, label = GetControl(toggle, "Check"), GetControl(toggle, "Label")
     local active = entry.isRule and entry.key ~= "miscellaneous"
         and this.AutoCategoryIntegration.IsAvailable() and this.GetAutoCategoryState().enabled
     toggle:SetHidden(not active)
@@ -742,25 +743,36 @@ local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
     GetControl(row, "ItemLabel"):SetWidth(active and 322 or 432)
     if not active then return end
 
-    label:SetText("AutoCategory")
     local rule = this.GetRuntimeRules()[entry.key]
     assert(rule ~= nil, "AutoCategory checkbox targets a missing group")
-    ZO_CheckButton_SetCheckState(toggle, rule.autoCategoryEnabled == true)
-    ZO_CheckButton_SetToggleFunction(toggle, function(_, enabled)
+    ZO_CheckButton_SetCheckState(check, rule.autoCategoryEnabled == true)
+    local function Apply(enabled)
         ResolveEntryData(entry)
         assert(this.AutoCategoryIntegration.IsAvailable() and this.GetAutoCategoryState().enabled,
             "AutoCategory checkbox targets an inactive integration")
         this.SetAutoCategoryParticipation(entry.key, enabled)
         refreshCallback()
-        this.RefreshGroupsEditor()
+        this.RefreshAutoCategoryEditor()
+    end
+    ZO_CheckButton_SetToggleFunction(check, function(_, enabled) Apply(enabled) end)
+    label:SetHandler("OnMouseDown", function(_, button)
+        if button == MOUSE_BUTTON_INDEX_LEFT then
+            local current = this.GetRuntimeRules()[entry.key]
+            assert(current ~= nil, "AutoCategory label targets a missing group")
+            Apply(current.autoCategoryEnabled ~= true)
+        end
     end)
-    toggle:SetHandler("OnMouseEnter", function(control)
+    local function ShowTooltip(control)
         InitializeTooltip(InformationTooltip, control, RIGHT, -4, 0)
         InformationTooltip:AddLine("Participation applies across all AutoCategory contexts.")
-    end)
-    toggle:SetHandler("OnMouseExit", function()
+    end
+    local function HideTooltip()
         ClearTooltip(InformationTooltip)
-    end)
+    end
+    check:SetHandler("OnMouseEnter", ShowTooltip)
+    check:SetHandler("OnMouseExit", HideTooltip)
+    label:SetHandler("OnMouseEnter", ShowTooltip)
+    label:SetHandler("OnMouseExit", HideTooltip)
 end
 
 local function UpdateRowVisualsAndHandlers(row, entry, refreshCallback)

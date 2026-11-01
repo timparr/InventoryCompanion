@@ -17,9 +17,100 @@ variables or live inventory were used.
   adapter. It projects only managed definitions and assignments to the active
   AutoCategory profile, reuses IC's runtime rule matching, and hooks profile and
   rule lifecycle changes.
+- Corrected startup registration timing: plugin preflight no longer requires
+  AutoCategory's active bag assignments before player activation. Projection and
+  assignment cleanup validate those bags when they become available, and
+  scheduled reconciliation waits for AutoCategory initialization.
+- The Debug Key (`/ictest`) now performs a read-only in-game AutoCategory
+  lifecycle check: plugin registration, post-initialization active bag shape,
+  integration status, and managed-assignment counts across all seven contexts.
+  Running it before AutoCategory initializes or before a scheduled projection
+  completes reports a rerunnable pending warning rather than a false pass.
+- Fixed the starting-arrangement dialog crash when enabling the integration.
+  ESO's keyboard `ZO_Dialog` has only two button controls (`NUM_DIALOG_BUTTONS = 2`),
+  so the original third button raised `ZO_Dialog.lua:560: attempt to index a nil
+  value`. The two arrangements are now dialog radio buttons, with Confirm/Cancel
+  buttons; Escape or other dismissal also refreshes the UI without applying a
+  preset. The unused gamepad dialog type was removed because both callers are
+  keyboard-only UI.
+- Fixed editor crashes after the preset was confirmed. The Items-tab row
+  AutoCategory toggle was a bare `ZO_CheckButton`, but Lua looked up a `Label`
+  child (`EditPanelItemsTab.lua:745: attempt to index a nil value`) and widened
+  the checkbox itself to 110 px. It is now a container with `Check` and `Label`
+  children; clicking the label also toggles participation, and both show the
+  tooltip. The Groups-tab AutoCategory view had the same defect on its
+  participation and heading-visibility checkboxes, which only looked up nonexistent
+  labels in order to hide them; those lookups were removed.
+- The offline suite does not instantiate XML, so Lua/XML child-name mismatches
+  passed. The test runner now asserts the item-row toggle has `Check` and `Label`
+  children and that the Groups-tab row checkboxes are not queried for children.
+  A general name-only `GetControl` check was evaluated and rejected because child
+  names such as `Label` exist in other templates and would not catch this defect.
+- Fixed `/reloadui` with integration enabled: startup registration called a
+  nonexistent `integration.InstallExternalHooks` instead of the module-local
+  hook installer (`AutoCategoryIntegration.lua:1275: function expected instead
+  of nil`). This path was unreachable until a profile was first enabled, and the
+  offline startup test covered only the disabled case.
+- Replaced the add-on-load startup reconcile with one scheduled from IC's
+  AutoCategory plugin initializer. The add-on-load reconcile always found
+  `Inited == false` (registration is refused otherwise) and was not retried,
+  leaving first activation dependent on lifecycle hooks. AutoCategory calls plugin
+  initializers and sets `Inited` in the same synchronous player-activation call,
+  so the deferred reconcile now runs after initialization.
+- Fixed projection rejecting valid AutoCategory layouts whose run and show
+  orders differ. AutoCategory's settings edit `runpriority` and `showpriority`
+  independently (`BagSet.lua` setters), and the plan requires those differences
+  to be preserved. The final order check built one expected order from external
+  show priorities and applied it to both fields, so changing one field in
+  AutoCategory settings raised `runpriority mapping cannot preserve the required
+  order in Bank` on every reconcile. The check now derives each field's expected
+  order from that field's own native sequence, matching how slot priorities were
+  already allocated, and places managed groups after entries tied with their
+  heading, as the plan requires.
+- External AutoCategory ties no longer stop projection. Tied headings are
+  ordered alphabetically by AutoCategory itself and no priority can place a
+  managed group inside a tie block, so groups anchored to any heading in a block
+  are allocated together after the whole block, in that block's alphabetical
+  heading order and then saved IC order. Duplicate heading names, which cannot be
+  separated alphabetically, anchor at the first native occurrence.
+- Unrepresentable external layouts are now treated as an external boundary
+  rather than a defect: projection writes nothing, reports
+  `unsupported` in Settings and once in chat, keeps settings and editors usable
+  so placements can be changed or integration disabled, and resumes
+  automatically on the next successful reconcile. The Debug Key reports this as a
+  WARN. After the tie handling above, the only remaining case is a floating-point
+  priority gap too small to divide. Internal order-check failures still throw.
+- Fixed definition sync corrupting AutoCategory's rule registry when an
+  integration category is renamed (rank change from a move, group rename) or
+  removed. AutoCategory's `removeRuleByName` shifts later rules without
+  reindexing `ruleNames`, and sync looked names up before rebuilding the index,
+  so a lookup could return a neighbouring rule. In game this raised
+  `AutoCategory definition collision appeared after preflight` because the
+  neighbour was the retained spike gate rule; with an integration-owned
+  neighbour it would instead have silently overwritten and dropped another IC
+  category. Sync now rebuilds the index with `cacheRuleInitialize` after
+  removals and before lookups. The offline fake previously made these
+  registry calls no-ops, which is why no test exercised it.
 - Added the settings enablement/status entry, the Edit Items participation
-  checkbox, and the Edit Groups AutoCategory view with context selection,
-  heading visibility, filters, reset and movement controls.
+  checkbox, and an AutoCategory view with context selection, heading
+  visibility, filters, reset and movement controls.
+- Moved the AutoCategory view out of Edit Groups into its own third editor
+  tab (`EditPanelAutoCategoryTab.lua/.xml`, scene
+  `InventoryCompanion_AutoCategoryScene`), at the user's request, because the
+  Groups tab shared its space with the patterns panel and order was hard to
+  inspect. The new window keeps the same behavior (context combo, search,
+  show-nonparticipating and show-all-headings options, reset, per-row move,
+  participation and heading-visibility controls, heading details) but uses an
+  830-pixel-wide list with no patterns panel. Edit Groups was restored to its
+  pre-integration panel from `main`. Items and Groups gain an `AutoCategory`
+  button that is shown only while integration is enabled and available; the
+  AutoCategory tab returns to Groups if integration becomes inactive while it
+  is open, and the editor toggle reopens Groups instead of an inactive
+  AutoCategory tab. The tab manager now handles three tabs, and the cutscene
+  ticker, Settings status refresh, Items-row participation toggle and
+  `/icclearoverrides` refresh the new tab. The ordering UI itself is
+  unchanged; buttons and further layout are to be decided once the user has
+  seen it in game.
 - Added focused adapter tests and wired them into the existing rule-test
   runner. Added schema migration and downgrade-protection coverage using
   synthetic saved-variable fixtures.
@@ -31,10 +122,20 @@ variables or live inventory were used.
 
 | Check | Result |
 | --- | --- |
-| `python Project\Tests\Run-RuleTests.py` | PASS: 107/107 isolated addon tests; runner reports Lua 5.1 syntax checked. |
-| Synthetic schema safety | PASS: migration preserves fixture data; schema-v4 saved data is rejected unchanged by the actual schema-v3 sources at `HEAD`, before constructors. |
+| `python Project\Tests\Run-RuleTests.py` | 115/115 isolated addon tests passed on 2026-11-01; addon Lua syntax checked (Lua 5.1). The downgrade fixture now pins actual schema-3 commit `a78f87957009e261e076c1c7f334f7a5fc0b1f7e` instead of moving `HEAD`; the previously reproduced fixture-version failure is fixed. |
+| Synthetic schema safety | Migration preserves fixture data; the pinned pre-feature build rejects schema-4 data before new-field validation and leaves fixture data unchanged. This is synthetic coverage, not normal saved-data testing. |
+| AutoCategory startup regression | PASS: registration succeeds with an empty active-bag registry, matching the pre-player-activation state that previously marked integration incompatible. |
+| Enabled-startup regression | PASS: with integration enabled, startup reports pending, installs lifecycle hooks, schedules nothing before AutoCategory initializes, and the plugin initializer schedules exactly one projection that runs once `Inited` is true. With only the old hook call restored, it fails with the in-game error. |
+| Independent run/show projection regression | PASS: a full `ProjectAutoCategory` run with a Bank heading whose run priority was raised above the anchor and another heading tied with the anchor in show priority writes managed groups immediately after the anchor in each field's native order. Restoring the shared show-order check reproduces the in-game `runpriority mapping` error; removing tie handling fails the show order. In game, the user first hit this error after moving a heading's priority in AutoCategory's own settings on 2026-11-01. |
+| Tie-block projection regression | PASS: groups anchored to two Bank headings tied in show priority are written after the alphabetical tie block in show order and immediately after their own headings in run order. Allocating each tied heading separately fails both projection tests and leaves AutoCategory unwritten. Duplicate-name anchoring has no dedicated offline test. |
+| Preset dialog regression | PASS: the registered dialog uses at most two buttons, Cancel and no-choice dismissal leave the profile uninitialized, and Confirm applies the selected radio arrangement and enables integration. In-game dialog display is not yet verified. |
+| Definition-sync regression | PASS offline against a fake that mirrors AutoCategory's registry (removal shifts `ruleList`; `ruleNames` is stale until `cacheRuleInitialize`): replacing an obsolete rank-prefixed category ahead of current IC categories and an external rule removes only the obsolete one and keeps every other rule exactly once. Without the index rebuild it fails with the in-game `definition collision appeared after preflight` error (first seen in ESO on 2026-11-01). Not yet re-verified in game. |
+| AutoCategory editor tab | PASS offline: with mocked controls, the tab renders managed groups and headings, filters by search, moves a group through the integration, toggles participation from the row label, shows heading details, switches context, and falls back to Groups when integration is inactive. Breaking label toggling or reversing the move direction fails the render test. Runner assertions require every child the tab Lua looks up to exist in its XML (a renamed lookup fails), the row/window children, the `AutoCategory` buttons in Items and Groups, and both new files in the DEV manifest. Not yet seen in game. |
+| Editor control-layout regression | PASS: runner XML assertions require the item-row toggle `Check`/`Label` children; both the original assertions failed against the previous commit. The Groups-tab row assertion was replaced by the AutoCategory-tab lookup check when the view moved. In-game: Confirm reached the editor refresh (dialog fix verified on 2026-11-01), then crashed on the missing label; the layout fix itself is not yet verified in game. |
+| Debug Key AutoCategory check | PASS in ESO Live on 2026-11-01 10:34:15 UTC (API 101051; AutoCategory AddOnVersion 134): plugin registered, AutoCategory initialized, all seven active assignment lists present, integration disabled, zero participating groups and zero managed assignments. This verifies startup/load readiness without writes; enabled projection and assignment-count behavior remain unverified in-game. |
+| Debug Key AutoCategory check, enabled startup | PASS in ESO Live on 2026-11-01 10:47:01 UTC (timestamp 1793530021; game eso.live.12.1.6.3309674; API 101051; AutoCategory AddOnVersion 134; 85/85 in-game tests): after `/reloadui` with integration enabled, plugin registered, AutoCategory initialized, integration active, zero participating groups and zero managed assignments across seven contexts. This verifies the enabled-startup fix and the preset Confirm path; projection with participating groups remains unverified. |
 | Normal saved data / live inventory | Not used. |
-| ESO in-game acceptance | Not run after implementation. |
+| ESO in-game acceptance | Partial: Debug Key startup checks passed with integration disabled and enabled, as described above. Projection with participating groups and the remaining acceptance matrix are not yet verified. In-game order verification is deferred by the user until the ordering UI is reworked, because the current editors make order hard to inspect. |
 | Standalone spike testing | Not reopened or repeated. |
 
 ## Differences from the implementation plan

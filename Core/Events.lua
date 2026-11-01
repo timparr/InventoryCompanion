@@ -224,9 +224,7 @@ function this.InitCutsceneTicker()
     EVENT_MANAGER:RegisterForUpdate(this.Name .. "_HideCheck", 100, function()
         if ZO_CompassFrame then
             local inCutscene = ZO_CompassFrame:IsHidden()
-            local isItemEditorOpen = InventoryCompanion_TrackedItemsWindow and (not InventoryCompanion_TrackedItemsWindow:IsHidden())
-            local isGroupEditorOpen = InventoryCompanion_GroupsWindow and (not InventoryCompanion_GroupsWindow:IsHidden())
-            local isEditorOpen = isItemEditorOpen or isGroupEditorOpen
+            local isEditorOpen = this.IsEditorWindowOpen()
         
             local isInteractionOpen = this.Utils.IsItemInteractionActive()
 

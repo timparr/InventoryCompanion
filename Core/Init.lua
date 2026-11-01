@@ -112,6 +112,7 @@ SLASH_COMMANDS["/icclearoverrides"] = function()
     
     this.RefreshTrackedItemsEditor()
     this.RefreshGroupsEditor()
+    this.RefreshAutoCategoryEditor()
     this.RefreshItemTrackerPanel()
 end
 

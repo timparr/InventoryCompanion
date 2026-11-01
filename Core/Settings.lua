@@ -141,6 +141,7 @@ function this.CreateSettingsPanel()
         end
         if this.RefreshTrackedItemsEditor then this.RefreshTrackedItemsEditor() end
         if this.RefreshGroupsEditor then this.RefreshGroupsEditor() end
+        if this.RefreshAutoCategoryEditor then this.RefreshAutoCategoryEditor() end
     end
 
     local optionsData = {

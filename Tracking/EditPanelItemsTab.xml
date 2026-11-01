@@ -15,10 +15,19 @@
                     <Anchor point="RIGHT" relativeTo="$(parent)" relativePoint="RIGHT" offsetX="-8" offsetY="0" />
                 </Button>
 
-                <Button name="$(parent)AutoCategory" inherits="ZO_CheckButton" mouseEnabled="true">
+                <Control name="$(parent)AutoCategory" hidden="true">
                     <Dimensions x="0" y="48" />
                     <Anchor point="RIGHT" relativeTo="$(parent)BtnRemove" relativePoint="LEFT" offsetX="-8" />
-                </Button>
+                    <Controls>
+                        <Button name="$(parent)Check" inherits="ZO_CheckButton">
+                            <Anchor point="LEFT" />
+                        </Button>
+                        <Label name="$(parent)Label" font="ZoFontGame" color="FFFFFF" text="AutoCategory" mouseEnabled="true" verticalAlignment="CENTER">
+                            <Dimensions x="88" y="48" />
+                            <Anchor point="LEFT" relativeTo="$(parent)Check" relativePoint="RIGHT" offsetX="4" />
+                        </Label>
+                    </Controls>
+                </Control>
                 <Control name="$(parent)CategorySpace">
                     <Dimensions x="0" y="48" />
                     <Anchor point="RIGHT" relativeTo="$(parent)AutoCategory" relativePoint="LEFT" offsetX="-4" />
@@ -101,6 +110,13 @@
 				<Button name="$(parent)BtnEditGroups" inherits="ZO_DefaultButton" text="Edit Groups">
 					<Dimensions x="100" y="26" />
 					<Anchor point="TOPRIGHT" relativeTo="$(parent)Close" relativePoint="TOPRIGHT" offsetX="-50" offsetY="18" />
+				</Button>
+				<Button name="$(parent)BtnAutoCategory" inherits="ZO_DefaultButton" text="AutoCategory" hidden="true">
+					<Dimensions x="120" y="26" />
+					<Anchor point="RIGHT" relativeTo="$(parent)BtnEditGroups" relativePoint="LEFT" offsetX="-8" />
+					<OnClicked>
+						InventoryCompanion.OpenAutoCategoryPanel()
+					</OnClicked>
 				</Button>
 				<!-- close button -->
                 <Button name="$(parent)Close" inherits="ZO_CloseButton">

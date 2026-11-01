@@ -51,6 +51,7 @@ local function NewFixture(headingLists)
     integration.OnRuleMutation = function() end
     integration.OnEnablementChanged = function() end
 end
+this.NewAutoCategoryTestFixture = NewFixture
 
 local function FindRow(rows, kind, value)
     for _, row in ipairs(rows) do
@@ -61,8 +62,283 @@ local function FindRow(rows, kind, value)
     end
 end
 
+local function NewStartupAutoCategory()
+    AutoCategory = {
+        Inited = false,
+        saved = { bags = {} },
+        acctSaved = { bags = {} },
+        charSaved = { bags = {} },
+        Plugins = {},
+        RulesW = {
+            ruleList = {},
+            ruleNames = {},
+            compiled = {},
+            AddRule = function() end,
+            CompileAll = function() end,
+        },
+        RuleList = { removeRuleByName = function() end },
+        predefinedRules = {},
+        RegisterPlugin = function(name, initialize, definitions)
+            AutoCategory.Plugins[name] = { initialize = initialize, predef = definitions }
+        end,
+        AddRuleFunc = function() end,
+        GetRuleByName = function() end,
+        RefreshList = function() end,
+        UpdateCurrentSavedVars = function() end,
+        cacheInitBag = function() end,
+        cacheInitialize = function() end,
+        cacheRuleInitialize = function() end,
+    }
+    SI_DIALOG_CONFIRM = "Confirm"
+    SI_DIALOG_CANCEL = "Cancel"
+    ZO_Dialogs_RegisterCustomDialog = function() end
+    d = function() end
+end
+
+-- Runs a full projection against fixture headings New/Selling/Low level (300/200/100) after
+-- applying external Bank edits, and returns the resulting native Bank order for a priority field.
+local function ProjectBank(editBank, buildRules)
+    NewFixture()
+    local fixtureBags = AutoCategory.saved.bags
+    NewStartupAutoCategory()
+    AutoCategory.saved.bags = fixtureBags
+    AutoCategory.Inited = true
+    AutoCategory.Plugins["Inventory Companion"] = { predef = {} }
+    this.accountWide.autoCategoryInitialized = true
+    this.accountWide.autoCategoryIntegrationEnabled = true
+    local function HeadingId(name)
+        for _, row in ipairs(integration.ResolveAutoCategoryOrder("master", { showAllHeadings = true })) do
+            if row.kind == "heading" and row.name == name then return row.occurrenceId end
+        end
+        error("Fixture heading is missing: " .. name)
+    end
+    this.accountWide.trackedRules = buildRules(HeadingId)
+    this.ValidateSavedRuleProfiles()
+    for _, assignment in ipairs(AutoCategory.saved.bags[2].rules) do editBank(assignment) end
+
+    integration.ProjectAutoCategory()
+
+    return function(field)
+        local entries = {}
+        for _, assignment in ipairs(AutoCategory.saved.bags[2].rules) do entries[#entries + 1] = assignment end
+        table.sort(entries, function(a, b)
+            if a[field] ~= b[field] then return a[field] > b[field] end
+            return a.name < b.name
+        end)
+        local names = {}
+        for _, assignment in ipairs(entries) do
+            local label = assignment.name
+            if assignment.icOwned then label = assignment.name:match("Alpha$") and "alpha" or "beta" end
+            names[#names + 1] = label
+        end
+        return table.concat(names, ",")
+    end
+end
+
+-- Mirrors AutoCategory's rule registry: removeRuleByName shifts ruleList without reindexing
+-- other ruleNames entries, and only cacheRuleInitialize rebuilds the name lookup.
+local function InstallRuleRegistry(ac)
+    local registry = ac.RulesW
+    registry.ruleList, registry.ruleNames = {}, {}
+    registry.AddRule = function(self, rule, overwrite)
+        local index = self.ruleNames[rule.name]
+        if index then
+            if overwrite then self.ruleList[index] = rule end
+        else
+            self.ruleList[#self.ruleList + 1] = rule
+            self.ruleNames[rule.name] = #self.ruleList
+        end
+    end
+    ac.RuleList.removeRuleByName = function(self, name)
+        local index = self.ruleNames[name]
+        if index then
+            self.ruleNames[name] = nil
+            table.remove(self.ruleList, index)
+        end
+    end
+    ac.GetRuleByName = function(name)
+        local index = registry.ruleNames[name]
+        return index and registry.ruleList[index]
+    end
+    ac.cacheRuleInitialize = function()
+        registry.ruleNames = {}
+        for index, rule in ipairs(registry.ruleList) do registry.ruleNames[rule.name] = index end
+    end
+end
+
 function this.GetAutoCategoryIntegrationTests()
     return {
+        {
+            name = "Definition sync replaces renamed categories without losing other registered rules",
+            run = function()
+                NewFixture()
+                local fixtureBags = AutoCategory.saved.bags
+                NewStartupAutoCategory()
+                AutoCategory.saved.bags = fixtureBags
+                AutoCategory.Inited = true
+                AutoCategory.Plugins["Inventory Companion"] = { predef = {} }
+                InstallRuleRegistry(AutoCategory)
+                this.accountWide.autoCategoryInitialized = true
+                this.accountWide.autoCategoryIntegrationEnabled = true
+                integration.ProjectAutoCategory()
+
+                local registry, plugin = AutoCategory.RulesW, AutoCategory.Plugins["Inventory Companion"]
+                local current = {}
+                for _, rule in ipairs(registry.ruleList) do current[#current + 1] = rule.name end
+                assert(#current == 3, "First sync must register one category per ordinary group")
+                -- A previous rank-prefixed name for the first group, as left behind by a move or rename.
+                local obsolete = { name = "|c000001|r" .. current[1], icIntegrationOwned = true, icRuleKey = "obsolete" }
+                local external = { name = "External gate", tag = "Other add-on" }
+                table.insert(registry.ruleList, 1, obsolete)
+                table.insert(plugin.predef, 1, obsolete)
+                registry.ruleList[#registry.ruleList + 1] = external
+                AutoCategory.cacheRuleInitialize()
+
+                integration.ProjectAutoCategory()
+
+                local counts = {}
+                for _, rule in ipairs(registry.ruleList) do counts[rule.name] = (counts[rule.name] or 0) + 1 end
+                assert(counts[obsolete.name] == nil, "Obsolete integration category must be removed")
+                assert(counts[external.name] == 1, "External categories must be preserved")
+                for _, name in ipairs(current) do
+                    assert(counts[name] == 1, "Integration category must remain registered exactly once: " .. name)
+                end
+                assert(#registry.ruleList == #current + 1, "Sync must not duplicate or drop categories")
+            end,
+        },
+        {
+            name = "AutoCategory plugin registers before active bag assignments are initialized",
+            run = function()
+                NewFixture()
+                NewStartupAutoCategory()
+
+                integration.Initialize()
+
+                local plugin = AutoCategory.Plugins["Inventory Companion"]
+                assert(plugin ~= nil, "Plugin registration must not require active bag assignments")
+                assert(#plugin.predef > 0, "Plugin definitions must be registered before AutoCategory initializes")
+                assert(select(1, integration.GetStatus()) == "disabled")
+            end,
+        },
+        {
+            name = "Enabled AutoCategory integration starts pending and projects after AutoCategory initializes",
+            run = function()
+                NewFixture()
+                this.accountWide.autoCategoryInitialized = true
+                this.accountWide.autoCategoryIntegrationEnabled = true
+                NewStartupAutoCategory()
+                local hooked, scheduled, projected = {}, {}, 0
+                ZO_PostHook = function(target, name)
+                    assert(target == AutoCategory)
+                    hooked[name] = true
+                end
+                zo_callLater = function(callback) scheduled[#scheduled + 1] = callback end
+                local project = integration.ProjectAutoCategory
+                integration.ProjectAutoCategory = function() projected = projected + 1 end
+
+                local ok, failure = pcall(function()
+                    integration.Initialize()
+                    assert(select(1, integration.GetStatus()) == "pending")
+                    assert(hooked.UpdateCurrentSavedVars and hooked.cacheInitBag and hooked.cacheInitialize,
+                        "Enabled startup must install AutoCategory lifecycle hooks")
+                    assert(#scheduled == 0, "Projection must not be scheduled before AutoCategory initializes")
+
+                    -- AutoCategory runs plugin initializers and then sets Inited in the same call.
+                    AutoCategory.Plugins["Inventory Companion"].initialize()
+                    AutoCategory.Inited = true
+                    assert(#scheduled == 1, "Plugin initialization must schedule the first projection")
+                    scheduled[1]()
+                    assert(projected == 1, "Scheduled startup reconcile must project once AutoCategory is initialized")
+                end)
+                integration.ProjectAutoCategory = project
+                assert(ok, failure)
+            end,
+        },
+        {
+            name = "AutoCategory preset dialog fits keyboard dialog buttons and applies the selected arrangement",
+            run = function()
+                NewFixture()
+                AutoCategory = {
+                    saved = { bags = {} },
+                    acctSaved = { bags = {} },
+                    charSaved = { bags = {} },
+                    Plugins = {},
+                    RegisterPlugin = function(name, initialize, definitions)
+                        AutoCategory.Plugins[name] = { initialize = initialize, predef = definitions }
+                    end,
+                }
+                SI_DIALOG_CONFIRM = "Confirm"
+                SI_DIALOG_CANCEL = "Cancel"
+                local registered
+                ZO_Dialogs_RegisterCustomDialog = function(name, info)
+                    assert(name == "INVENTORYCOMPANION_AUTOCATEGORY_PRESET")
+                    registered = info
+                end
+                d = function() end
+
+                integration.Initialize()
+
+                assert(registered ~= nil, "Preset dialog must be registered")
+                -- ESO keyboard ZO_Dialog has exactly two button controls; a third indexes nil.
+                assert(#registered.buttons <= 2, "Keyboard dialogs support at most two buttons")
+                assert(registered.noChoiceCallback ~= nil, "Escape/dismissal must have a no-choice path")
+                for _, radio in ipairs(registered.radioButtons) do
+                    integration.BuildPresetPlacements(radio.data)
+                end
+
+                local function FakeDialog(preset, reset)
+                    return {
+                        data = { reset = reset },
+                        radioButtonGroup = {
+                            GetClickedButton = function() return { data = preset } end,
+                        },
+                    }
+                end
+                registered.buttons[2].callback(FakeDialog("prefer_ic_groups", false))
+                registered.noChoiceCallback(FakeDialog("prefer_ic_groups", false))
+                assert(not this.GetAutoCategoryState().initialized, "Cancel must not apply a preset")
+
+                registered.buttons[1].callback(FakeDialog("prefer_autocategory_groups", false))
+                local state = this.GetAutoCategoryState()
+                assert(state.initialized and state.enabled, "Confirm must apply the preset and enable integration")
+            end,
+        },
+        {
+            name = "Projection preserves independent external run and show priority orders",
+            run = function()
+                local Order = ProjectBank(function(assignment)
+                    -- Mirrors an AutoCategory settings edit that moves only one priority field of a heading.
+                    if assignment.name == "Low level" then assignment.runpriority = 350 end
+                    -- Ties with the anchor stay above managed groups in that field.
+                    if assignment.name == "Selling" then assignment.showpriority = 300 end
+                end, function()
+                    return {
+                        alpha = { autoCategoryEnabled = true, autoCategoryAnchor = "@default-new", autoCategoryRank = 100 },
+                        beta = { autoCategoryEnabled = true, autoCategoryAnchor = "@default-new", autoCategoryRank = 200 },
+                    }
+                end)
+                assert(Order("runpriority") == "Low level,New,alpha,beta,Selling", Order("runpriority"))
+                assert(Order("showpriority") == "New,Selling,alpha,beta,Low level", Order("showpriority"))
+                assert(select(1, integration.GetStatus()) == "available")
+            end,
+        },
+        {
+            name = "Projection places groups of tied headings after the alphabetical tie block",
+            run = function()
+                local Order = ProjectBank(function(assignment)
+                    if assignment.name == "Selling" then assignment.showpriority = 300 end
+                end, function(headingId)
+                    return {
+                        alpha = { autoCategoryEnabled = true, autoCategoryAnchor = headingId("Selling"), autoCategoryRank = 100 },
+                        beta = { autoCategoryEnabled = true, autoCategoryAnchor = "@default-new", autoCategoryRank = 200 },
+                    }
+                end)
+                -- AutoCategory orders the New/Selling show tie alphabetically; neither group can sit inside it.
+                assert(Order("showpriority") == "New,Selling,beta,alpha,Low level", Order("showpriority"))
+                assert(Order("runpriority") == "New,beta,Selling,alpha,Low level", Order("runpriority"))
+                assert(select(1, integration.GetStatus()) == "available")
+            end,
+        },
         {
             name = "AutoCategory presets place every ordinary group without enabling participation",
             run = function()
