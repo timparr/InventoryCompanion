@@ -258,7 +258,10 @@ Count registrations/writes/cache rebuilds/refreshes; inject failures visibly.
   Normal `GetSortedGroupNames` unchanged; AutoCategory uses master/resolved order,
   heading badges/read-only filter details, group arrows/participation/conflict
   warnings and never-ordered tail. No Miscellaneous or drag/drop.
-- Add a selection-dependent info label below the dropdown using the spec's
+- Choose during development between a dropdown and small clickable context
+  icons for the eight modes. Icons require descriptive tooltips, clear selected
+  state and a visible selected-mode name; keep Master first in either layout.
+- Add a selection-dependent info label beside or below the selector using the spec's
   Master/context wording. Explain both matching and heading order, inherited
   changes and retained context overrides; do not imply every resolved context
   order stays unchanged after a Master edit.
@@ -293,8 +296,9 @@ visual distinction in selected/revealed-hidden states,
 Show-all zero writes/projections/refreshes, hide/unhide reference
 behavior, row ordering/selection/endpoints/search, external-heading restrictions,
 rename/delete/recycled callbacks, profile isolation, width and inactive layout,
-Show/Notify unchanged, and XML assertions. Verify toolbar fit, native dropdown/
-arrows, tint/readability and scrolling in ESO.
+Show/Notify unchanged, and XML assertions. Verify toolbar fit, chosen mode
+selector/tooltips/selected state, native arrows, tint/readability and scrolling
+in ESO.
 
 ## 5. Post-implementation verification and release
 

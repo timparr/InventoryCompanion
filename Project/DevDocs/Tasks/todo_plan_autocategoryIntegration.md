@@ -71,7 +71,7 @@ AutoCategory continues classifying, drawing and sorting its own sections.
   Classification sends no notifications. AutoCategory collapse remains
   independent of IC expansion.
 - Off, missing or incompatible integration hides all integration editor UI:
-  view toggle, context dropdown, order list/arrows, heading hide controls and
+  view toggle, context selector, order list/arrows, heading hide controls and
   participation. Return an open AutoCategory view to normal; preserve choices.
   Category-column width is zero, returning space to names. While active reserve
   consistent width across all row types, including nonparticipants and items.
@@ -82,12 +82,14 @@ AutoCategory continues classifying, drawing and sorting its own sections.
 
 - A top **AutoCategory** view toggle switches between the existing normal group
   view and the AutoCategory view; it does not toggle integration/participation.
-- A dropdown has eight choices: **Master (all contexts)** first, followed by
+- A mode selector has eight choices: **Master (all contexts)** first, followed by
   Backpack, Bank, Guild Bank, House Bank, Crafting Station, Craft Bag and
   Furniture Vault. Master edits shared defaults; each context displays those
   defaults with its placement overrides applied. The normal view keeps its
-  current ordering.
-- An info label below the dropdown updates immediately with the selection:
+  current ordering. Decide during development whether to use a dropdown or
+  small clickable context icons. Icons must have descriptive tooltips and an
+  obvious selected state; the selected mode's name must remain visible.
+- An info label beside or below the selector updates immediately with the selection:
   - Master: "Changes here set the default matching and heading order for all
     contexts. Context-specific overrides are retained; inherited positions
     follow these changes."
@@ -410,7 +412,7 @@ implementation; never equate deferral with a pass.
    contracts report explicit useful status, not success-shaped fallbacks.
 2. Master/context views show the master or resolved inherited order and
    available visible external headings; opening or switching produces zero
-   writes/projections/refreshes. All eight dropdown choices update the mode
+   writes/projections/refreshes. All eight selector choices update the mode
    explanation; external rows remain visually distinct in normal, selected
    and revealed-hidden states.
 3. Arrows update master anchors/ranks in Master or sparse overrides in the
