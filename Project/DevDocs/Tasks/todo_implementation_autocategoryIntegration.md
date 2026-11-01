@@ -1,6 +1,6 @@
 # AutoCategory integration: IMPLEMENTATION PLAN
 
-Updated 2026-10-31. **Planned; no integration or editor UI is implemented.**
+Updated 2026-11-01. **Planned; no integration or editor UI is implemented.**
 The [spec](todo_plan_autocategoryIntegration.md) owns required behavior and open
 decisions; the [spike results](AutoCategorySpikeResults.md) own completed spike
 evidence, failed approaches and dependency contracts. See the [review](AutoCategoryIntegrationReview.md)
@@ -18,7 +18,8 @@ integration activation or release. If a requirement cannot be met, keep
 integration disabled and return the design decision to the author; do not
 silently weaken the spec or take over AutoCategory behavior.
 
-- IC stores per-context order/markers and writes only entries it owns.
+- IC stores master anchor/rank placements, sparse context overrides and
+  external-heading visibility, and writes only entries it owns.
   AutoCategory continues native classification and rendering. Do not replace
   `MatchCategoryRules`, edit external entries/source, or project to inactive
   AutoCategory profiles.
@@ -37,7 +38,7 @@ silently weaken the spec or take over AutoCategory behavior.
 - This is substantial runtime work on the current branch; discuss branch/risk
   before implementation and do not switch branches without author approval.
 
-## 1. Save participation, order and markers
+## 1. Save participation, heading visibility and anchor/rank placements
 
 ### Proposed representation
 
@@ -50,48 +51,83 @@ trackedRules = {
     cyrodiil = { autoCategoryEnabled = true },
 }
 autoCategoryIntegrationEnabled = true
-autoCategoryMarkers = { "New", "Selling", "Container", "Stolen" }
+autoCategoryHiddenHeadings = {}
 autoCategoryOrder = {
-    [AC_BAG_TYPE_BACKPACK] = {
-        { ruleKey = "plunder" },
-        { ruleKey = "maps", below = "New" },
-        { ruleKey = "cyrodiil", below = "New" },
+    master = {
+        a = { anchor = "New", rank = 100 },
+        b = { anchor = "New", rank = 200 },
+        c = { anchor = "Selling", rank = 300 },
+        d = { anchor = "Selling", rank = 400 },
+    },
+    overrides = {
+        bank = {
+            b = { anchor = "Selling", rank = 350 },
+        },
     },
 }
 ```
 
-Names are targets, not existing fields. Example marker names stand for actual
-localized AC identities resolved through `SI_AC_DEFAULT_CATEGORY_*`.
+Names and anchor encoding are provisional, not existing APIs or finalized
+schema. Example heading names identify actual AC categories, not hardcoded
+English defaults. The top-slot encoding, rank validity, and other unresolved
+details remain subject to the [spec refinement](todo_plan_autocategoryIntegration.md#shared-order-and-context-overrides).
 
 - Sparse participation on ordinary rules, missing false; participation applies
-  across contexts. Enablement/markers/order belong to each IC tracked-list
+  across contexts. Enablement/heading visibility/placements belong to each IC tracked-list
   profile; no separate integration profile switch.
-- Missing markers resolves documented defaults; explicit empty list is valid.
-  `autoCategoryOrder` has seven independent ordered lists of `{ ruleKey, below? }`.
-  Absent `below` means top. Retain order for nonparticipants; append never-
-  ordered groups to top when first enrolled.
-- Resolve missing/deselected markers into preceding valid slot/top, without
-  read-time writes. Test reconstructing the spec's ordering after AC changes;
-  do not guess silently if the proposed representation proves insufficient.
+- All available external headings are shown unless hidden in IC; there is no
+  selected-marker checklist or special New/Selling/Container/Stolen default set.
+  Hidden heading choices are profile-scoped and do not alter AC hide settings.
+- The master assigns each ordered group a heading anchor (or top) and rank.
+  Context overrides contain only differing anchor/rank fields; omitted fields
+  inherit the master. Never save complete resolved lists or group-to-group
+  anchor chains. Standard/subscriber Bank share one context.
+- Retain placements for nonparticipants; first participation appends a never-
+  ordered group to the master top slot. Missing/hidden headings resolve to a
+  preceding usable heading/top without read-time writes. Do not invent the
+  unresolved fallback or General heading-order rules.
 - Never persist compiled patterns/computed priorities or a registry of old
   category names.
+
+### Resolve ranks and clean up spacing
+
+- Resolve inherited/overridden anchor and rank for each group, bucket by usable
+  heading and sort by ascending rank. Managed blocks immediately follow their
+  heading; native external heading order remains unchanged.
+- Enforce no rank ties between different groups in any effective context,
+  including retained nonparticipants. Rank allocation considers the master and
+  all overrides so a master move cannot collide with another group's context
+  rank. Exact allocation/master-edit semantics remain to be refined.
+- Implement one profile-wide cleanup: collect all distinct stored ranks,
+  sort them, and map them monotonically to new ranks at least 10 apart.
+  Apply the same old-to-new mapping to every master/override occurrence.
+  Prepare and validate the entire change before saving it.
+- Cleanup preserves all seven effective orders, heading anchors and sparse
+  inheritance. Never renumber just one context or clean up on view/render.
+  IC ordering ranks are distinct from native run/show priorities and D4
+  category-name rank prefixes.
 
 ### Validation, migration and mutation
 
 - Extend `ValidateSavedRules` and profile/import validation for booleans,
-  markers (nonempty-string array) and context order (valid entries, no duplicate
-  keys per context). Unknown group keys are pruned at load with a reported
+  hidden heading choices, master placements and sparse context overrides.
+  Validate recognized context/group keys, anchor/rank shapes and effective
+  no-tie invariants after inheritance. Unknown group keys are pruned at load with a reported
   count. Malformed recognized values reject before partial publication.
 - Extend `PrepareSavedVariables` to validate every profile and preserve
   unrelated data plus existing v1/v2/v3 migrations before ZOS constructors.
   Recheck current schema; planning version 3 implies next version 4.
 - Extend `NormalizeRule` / `PruneRule` and `GetRuntimeRules`; preserve sparse
-  participation-only overrides and avoid empty custom groups.
+  participation-only overrides and avoid empty custom groups. Expose
+  participation deliberately in `GetActiveTrackedRules` editor copies.
 - Proposed narrow mutations: `SetAutoCategoryParticipation`,
-  `MoveAutoCategoryGroup(context, ruleKey, direction)`,
-  `SetAutoCategoryMarkers(names)`, plus profile-scoped enablement.
-  Move swaps neighbours or changes marker slot; only selected context changes.
-- `DeleteCustomRule` removes order/participation; `ResetRule` retains them.
+  `MoveAutoCategoryGroup(view, ruleKey, direction)`,
+  `SetAutoCategoryHeadingHidden(name, hidden)`, plus profile-scoped enablement.
+  General moves update the master; context moves update the moved group's
+  differing anchor/rank fields. Cleanup may remap all saved ranks but must not
+  change any effective order. Override-reset UI/mutations remain undecided.
+- `DeleteCustomRule` removes master placement, overrides and participation;
+  `ResetRule` retains them.
   `CopyProfile` copies all integration choices without aliasing.
   `SetUseCharacterItemList` selects them consistently.
 
@@ -99,7 +135,9 @@ Extend [SavedVariablesTests.lua](../../Tests/SavedVariablesTests.lua) and
 [RulePersistenceTests.lua](../../Tests/RulePersistenceTests.lua):
 all-profile migration/import, malformed input/no partial writes, defaults vs
 explicit false/empty, proxy-shaped ZO_SavedVars isolation, round-trip/copy,
-rename/delete/Reset, marker/group moves, endpoints and Bank/Backpack independence.
+rename/delete/Reset, heading hide/unhide, master/context moves, partial-field
+inheritance, the spec's insertion/master-swap examples, no rank ties, and
+cleanup preserving every context order/anchor without materializing overrides.
 As part of post-implementation verification, execute a real pre-feature build
 on new-schema synthetic fixtures and prove rejection before mutation.
 **Do not load new fields on normal game saves until this downgrade check passes.**
@@ -119,7 +157,8 @@ Add one focused module, provisionally
   AC evaluates before its first match. Rely on native first-match dispatch,
   not a precomputed managed winner.
 - Pure proposed `ResolveAutoCategoryOrder(context)` combines saved group
-  positions with active markers in native run order.
+  master placements and sparse overrides, resolves usable heading anchors,
+  and sorts each heading bucket by rank in native external heading order.
   `ComputePlacement` uses the spike-supported placement mechanism without
   assuming run/show equality or mirroring. Keep the implementation disabled
   until the post-implementation gate proves the required output shapes.
@@ -127,13 +166,15 @@ Add one focused module, provisionally
   empty-colour rank prefix is a candidate mechanism, not an approved production
   identity strategy; keep D4 open and do not enable projection with rank-bearing
   names until the author approves the name/collapse-state trade-off.
-- Below marker M: inside the immediate lower distinct external run gap, after
-  every entry tied with M. Top above all external run priorities; last extends
-  down. Prefer whole numbers when feasible; preserve managed heading sequence
-  in fractional cases. Write no external entry.
+- Managed blocks must appear immediately below their usable heading, before
+  the next external heading, in both classification and display order.
+  Respect external priority ties and the immediate lower distinct run gap;
+  top is above all external run priorities and last extends down. Prefer whole
+  numbers when feasible. Report impossible adjacency instead of changing
+  external entries or silently placing another heading inside the block.
 
 Add focused `Project/Tests/AutoCategoryIntegrationTests.lua` with actual AC
-modules: opposite overlap order by context, subscriber mapping, marker
+modules: opposite overlap order by context, subscriber mapping, heading
 precedence/ties, top/crowded/bottom/arbitrary labels, hidden/external run/show
 differences, no-match/participation fallthrough, exclusions/empty patterns,
 non-ASCII/quoted names, missing owned state, and zero scan/compile/write/refresh
@@ -172,21 +213,23 @@ unsupported bounds; do not create an alternate pre-implementation spike.
 
 Trace every `InvalidateRuleCache` caller in
 [ItemDatabase.lua](../../../Tracking/ItemDatabase.lua): pattern/property updates,
-create/delete/Reset, profile copy/switch, participation/order/marker/enablement.
+create/delete/Reset, profile copy/switch, participation/placements/heading visibility/enablement.
 
 - Pattern-only changes need native classification cache invalidation/refresh,
   not assignment projection if labels/order remain unchanged. Renames,
-  participation, order/markers, delete and profile changes require reconciliation.
+  participation, placements/heading visibility, delete and profile changes require reconciliation.
 - Detect actual AC account/character changes and resets, select the latest active
   profile and reproject automatically. Manual probe switches do not supply that
   hook. Trace normal settings failure implications without patching installed AC
   or introducing its nil-global workaround.
-- Handle AC edits affecting markers/external priorities while preserving external
+- Handle AC edits affecting headings/external priorities while preserving external
   entries. Login with shared AC account/different character IC groups reconciles
   only active owned entries. Disable removes active owned entries; inactive
   residue is reconciled on activation.
 - Coalesce bursts to at most one projection and refresh per affected context.
-  Bank-only moves do not touch Backpack. Stale pending callbacks cannot publish
+  Bank-only moves do not refresh Backpack. General edits affect contexts whose
+  inherited order changes; rank cleanup preserving effective orders does not
+  itself require projection/refresh. Stale pending callbacks cannot publish
   after disable/profile switch; Show/Notify-only edits do no integration work.
 - Verify reclassification, not just redraw: keyboard rows cache AC timestamps/
   hashes; true does not force reevaluation. Crafting preview/restore require
@@ -210,12 +253,16 @@ Count registrations/writes/cache rebuilds/refreshes; inject failures visibly.
   Show/Notify popups, name readability, selection and recycled-row/profile checks.
 - [EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua) /
   [XML](../../../Tracking/EditPanelGroupsTab.xml): toolbar view toggle,
-  seven-context selector, marker chooser and native ordered rows.
-  Normal `GetSortedGroupNames` unchanged; AutoCategory uses resolved order,
-  marker badges/read-only filter details, group arrows/participation/conflict
+  General/seven-context selector and native ordered rows.
+  Normal `GetSortedGroupNames` unchanged; AutoCategory uses master/resolved order,
+  heading badges/read-only filter details, group arrows/participation/conflict
   warnings and never-ordered tail. No Miscellaneous or drag/drop.
-- Marker checklist includes active categories across contexts and removable
-  missing selections; save invokes marker mutation and affected reconciliation.
+- External heading rows use normal hide/unhide controls. Add
+  **Show all AutoCategory groups** to reveal hidden rows for unhiding; turning
+  it off omits them. Revealing a hidden row does not make it an anchor.
+  Checkbox changes only editor filtering, with no saved placement changes,
+  projection or inventory refresh. Hide/unhide changes effective anchors and
+  reconciles affected contexts without changing AC settings.
 - Follow [CurrencyPanel.lua](../../../Tracking/CurrencyPanel.lua)
   `GetCurrencyPanelSettingsControls` / `CreateResourceSettingsList` /
   `CreateResourceSettingsRow`: 28-by-26 `ZO_DefaultButton` arrows,
@@ -223,14 +270,17 @@ Count registrations/writes/cache rebuilds/refreshes; inject failures visibly.
   helpers or copy its hidden-resource order pruning; nonparticipants keep order.
 - Preserve moved selection/scroll. Disable endpoint/search moves. Close stale
   popup/callbacks on profile/import/reset/delete/view changes using existing
-  patterns; marker selection must never bind editable group actions.
+  patterns; external heading selection must never bind editable group actions.
+  Override indicators/reset controls await author refinement; do not invent
+  their behavior while implementing the agreed master/rank model.
 - D2: decide final texture identity/tint, convert chosen v5 plain SVG to 64x64
   DXT5 DDS/alpha and verify asset path. New asset needs game restart. Do not add
   badge UI/colour settings from D3 without separate author decision.
 
 Extend [GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) and
 [ItemEditorTests.lua](../../Tests/ItemEditorTests.lua): zero writes on view/context
-selection, row ordering/selection/endpoints/search, marker restrictions,
+selection, Show-all zero writes/projections/refreshes, hide/unhide reference
+behavior, row ordering/selection/endpoints/search, external-heading restrictions,
 rename/delete/recycled callbacks, profile isolation, width and inactive layout,
 Show/Notify unchanged, and XML assertions. Verify toolbar fit, native dropdown/
 arrows, tint/readability and scrolling in ESO.
@@ -242,7 +292,7 @@ not work to perform before implementation starts. Do not repeat completed spike
 steps. Use the actual integration adapter and UI; record observed limits and
 results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
 
-- **Q1/Q2:** verify the implemented output in top, crowded, marker, arbitrary
+- **Q1/Q2:** verify the implemented output in top, crowded, heading-anchor, arbitrary
   label and external run/show mismatch cases. Confirm both winning classification
   and native heading order, not just priority values or formatter output. Check
   finite rank/priority bounds and visible failure for unsupported layouts.
@@ -271,7 +321,7 @@ results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
   rule tests only for safe matching/synthetic workload.
 - Execute every [spec acceptance criterion](todo_plan_autocategoryIntegration.md#acceptance-criteria):
   all seven keyboard contexts, subscriber
-  Bank, top/crowded/marker heading order, all edits, both profile modes and shared
+  Bank, top/crowded/immediately-below-heading order, all edits, both profile modes and shared
   character groups, automatic switching, resets, reload/disable/uninstall,
   edit-while-absent, immutable external entries, new-schema downgrade safety.
 - Check Lua/XML, paths/whitespace, new textures against
@@ -279,7 +329,8 @@ results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
   Record version, supported contracts, precise context/platform limits, workload/
   timings and dated offline/ESO results in the spike/results record.
 - Update [UserManual.bbcode](../../../UserManual.bbcode): participation,
-  view/arrows/markers, overlap examples, owned settings moves overwritten,
+  General/context inheritance, ranks/cleanup, view/arrows/heading hide/unhide
+  and Show-all controls, overlap examples, owned settings moves overwritten,
   collapse residue, uninstall `(!)` rows, active-profile scope, compatibility,
   performance and saved-data/downgrade behavior.
 - **Before shipping, tear down the DEV spike runtime:** remove

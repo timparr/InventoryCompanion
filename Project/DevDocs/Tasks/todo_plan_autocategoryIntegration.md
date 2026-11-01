@@ -1,6 +1,6 @@
 # AutoCategory integration: SPEC
 
-Updated 2026-10-31. **Planned, not implemented or compatibility-certified.**
+Updated 2026-11-01. **Planned, not implemented or compatibility-certified.**
 This document defines required behavior, accepted author decisions, and open
 decisions. It is not a test log or a claim that all requirements are feasible.
 
@@ -127,44 +127,97 @@ AutoCategory continues classifying, drawing and sorting its own sections.
 
 ### Shared order and context overrides
 
-**Accepted direction, detailed semantics still to be refined:** configure one
-master order and store only placement differences for each context, following
-the existing group-override principle rather than maintaining seven independent
-order lists.
+**Accepted model, remaining details still to be refined:** General assigns
+each ordered IC group an AutoCategory heading anchor (or top) and an absolute
+IC ordering rank. Contexts store only differing anchors and/or ranks, following
+the existing group-override principle rather than maintaining seven complete
+order lists. This replaces group-to-group "immediately after" chains.
 
-- Groups without a context override continue to inherit master-order changes.
-  A context-specific move overrides the moved group's placement; it does not
-  freeze the rest of the context list.
-- Placement refers to stable group identities and external heading identities,
-  not numeric row indices. The exact override representation and resolution
-  algorithm are not decided here.
+- Use stable IC group keys and external heading identities, not row indices.
+  A group is anchored to an AutoCategory heading or top, never another IC group.
+- Resolve each group's effective anchor and rank from its context override,
+  inheriting any fields not overridden from General. Bucket groups by their
+  resolved heading and sort each bucket by ascending rank (most important
+  first). The resulting block immediately follows its heading.
+- These ranks express IC ordering, not AutoCategory run/show priorities.
+  The adapter translates the resolved sequence into native placement.
+- A context move changes the moved group's anchor and/or rank. Inserting A
+  between C and B does not rewrite B's override or establish an anchor chain.
+- Non-overridden values continue to inherit General changes. An overridden
+  rank retains its numerical importance rather than following a neighbouring
+  group when that group's master rank changes.
+- Rank ties are not allowed between different groups in an effective context
+  order, even if they currently have different anchors. Moves and master edits
+  must preserve this invariant across all seven contexts; no alphabetical or
+  other hidden tie-break is permitted. The same rank may represent inherited
+  placement across contexts; that is not a tie between different groups.
 - Contexts retain their actual native AutoCategory heading order and available
   headings. General must not imply that every context has the same headings.
   Missing or IC-hidden headings cannot act as references; resolve affected
-  placements to a preceding usable heading or top, without rewriting saved
+  anchors to a preceding usable heading or top without rewriting stored
   placement merely because a heading is unavailable.
 
-Required example:
+Illustrative values, not finalized saved-field names:
 
 ```text
-General: New / A / B / To sell / C / D
-Bank:    New / A / To sell / B / C / D
+General:
+  A: anchor New,     rank 100
+  B: anchor New,     rank 200
+  C: anchor To sell, rank 300
+  D: anchor To sell, rank 400
+
+Bank overrides after moving B directly below To sell:
+  B: anchor To sell, rank 250
+
+Effective Bank: New / A / To sell / B / C / D
 ```
 
-The user moved only B immediately below To sell in Bank:
+Swapping C and D's General ranks also swaps them in Bank:
+`New / A / To sell / B / D / C`. Swapping A and B's General ranks does not
+move B out of its overridden Bank anchor/rank.
 
-- Bank stores B's placement override, not a full Bank order.
-- Swapping C and D in General also swaps them in Bank:
-  `New / A / To sell / B / D / C`.
-- Swapping A and B in General does not move B out of its overridden Bank
-  placement. A remains inherited; B remains immediately below To sell.
+For a separate example, move B between C and D in Bank, then insert A between
+C and B:
+
+```text
+Bank overrides:
+  A: anchor To sell, rank 325
+  B: anchor To sell, rank 350
+
+Effective Bank: New / To sell / C / A / B / D
+```
+
+B's override is unchanged when A is inserted. If C and D subsequently exchange
+their General ranks, Bank becomes `New / To sell / D / A / B / C`: A and B
+retain their chosen ranks; neither follows C.
+
+#### Rank cleanup
+
+- Use spaced ranks, initially such as 100, 200, 300, to leave insertion room.
+  When spacing needs restoration, collect all distinct stored ranks from the
+  master and every context override in the same IC profile, including positions
+  retained for nonparticipants.
+- Sort the distinct old values and construct one strictly increasing mapping
+  to new values at least 10 apart. Apply that same mapping to every occurrence
+  in the master and all seven overrides. Equal old values map to equal new
+  values; distinct old values stay distinct and keep their relative order.
+- For example, old values `100, 200, 201, 202, 300` may map to
+  `10, 20, 30, 40, 50`. The old master gap 200..300 becomes 20..50 because
+  override positions occupy intermediate values. Many intermediate overrides
+  can require master positions hundreds apart.
+- Cleanup changes only the rank coordinate system: every effective context
+  sequence and heading anchor must remain unchanged. Preserve sparse
+  inheritance; do not materialize inherited fields or complete context lists.
+- Prepare and validate the complete remapping before publication. Never
+  renumber a single context independently, clean up during view/render
+  selection, or treat cleanup as an intentional reorder.
 
 **Still to refine with the author:** how General presents headings whose native
-order differs by context; the precise preceding-heading fallback; how moves
-within a slot are represented; interactions between overridden groups; deleted
-anchors and cycle/conflict handling; redundant-override handling; and the UI
-for identifying/resetting overrides. These are open design details, not
-authorization to add more pre-implementation spike tests.
+order differs by context; the precise preceding-heading fallback; how ordinary
+master moves preserve overridden rank intent while avoiding ties; deleted
+heading handling; rank validity/insertion and cleanup triggers; redundant-
+override handling; and the UI for identifying/resetting overrides. These are
+open design details, not authorization for more pre-implementation spike tests.
 
 ### AutoCategory heading visibility and defaults
 
@@ -238,7 +291,7 @@ references; IC hidden headings are not. This supersedes editing/storing
 AutoCategory's combined list as the order record. New field/helper names belong
 in the implementation plan, not assumed existing APIs.
 
-- Enablement, hidden-heading choices, master order and sparse context overrides
+- Enablement, hidden-heading choices, master anchor/rank placements and sparse context overrides
   live alongside groups in each IC tracked-list profile; participation lives
   on the ordinary group. Do not persist seven complete derived context lists.
   Use stable rule keys; display names are not identity. Keep master positions
@@ -344,10 +397,11 @@ implementation; never equate deferral with a pass.
 2. General/context views show the master or resolved inherited order and
    available visible external headings; opening or switching produces zero
    writes/projections/refreshes.
-3. Arrows update the master in General or sparse placement overrides in the
-   selected context, preserving selection/highlight/visibility. Untouched groups
-   inherit subsequent master changes; the B/C/D example above passes.
-   Endpoints and search are correct.
+3. Arrows update master anchors/ranks in General or sparse overrides in the
+   selected context, preserving selection/highlight/visibility. Untouched values
+   inherit subsequent master changes; the examples above pass. No effective
+   context has rank ties. Shared rank cleanup preserves all seven effective
+   orders, anchors and sparse inheritance. Endpoints and search are correct.
 4. Opposite overlap orders produce opposite winners; Bank and subscriber match.
    Immediate placement below visible headings and arbitrary managed labels
    produce matching native classification and heading order, including
