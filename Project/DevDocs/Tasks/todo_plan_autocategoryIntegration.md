@@ -32,7 +32,7 @@ ESO top/crowded order, visual appearance, rank reversal/cache rebuild and accoun
 reload persistence. Offline scale/boundary/lifecycle suite passes 31/31.
 These are supported sampled mechanisms, not an unlimited placement guarantee.
 Q1/Q2 now concern a supported placement contract and demonstrated bounds;
-D4 prefix-name adoption is an author decision. Reordering changes names and
+D4 prefix-name adoption was approved by the author on 2026-11-01. Reordering changes names and
 restarts collapse state while old flags remain. Guild Bank stays deferred;
 alignment/collapse interaction and general external run/show mismatches are not
 certified. Automatic IC integration hooks remain unbuilt. See SPIKE RESULTS for
@@ -50,7 +50,7 @@ AutoCategory continues classifying, drawing and sorting its own sections.
 
 - Integration is opt-in, disabled by default; participation defaults off.
 - Support seven contexts using one shared master order with sparse per-context
-  placement overrides: Backpack, Bank, Guild Bank, House Bank, Crafting Station,
+  placement and heading-visibility overrides: Backpack, Bank, Guild Bank, House Bank, Crafting Station,
   Craft Bag, Furniture Vault. Standard and subscriber bank share Bank. Keyboard
   is the initial platform; gamepad is outside scope unless separately verified.
 - Use the active account-wide or character-specific IC tracked-list profile.
@@ -75,6 +75,10 @@ AutoCategory continues classifying, drawing and sorting its own sections.
 
 - Main settings provide integration enablement and explicit compatibility
   status. This is the entry point, not an inactive editor preview.
+- On first enablement for an IC tracked-list profile without an initialized
+  Master arrangement, ask the user to choose a starting preset. Preselect
+  **Prefer IC groups** and briefly explain both choices. Re-enabling integration
+  after setup preserves the arrangement and does not reapply a preset.
 - Add the full **AutoCategory** label last on ordinary group rows in the item
   tracker editor, after Show and Notify, as an independent participation toggle.
   Individual items and Miscellaneous have no participation control.
@@ -97,10 +101,27 @@ AutoCategory continues classifying, drawing and sorting its own sections.
 
 - A top **AutoCategory** view toggle switches between the existing normal group
   view and the AutoCategory view; it does not toggle integration/participation.
+- In Master only, each ordinary IC group row shows an **AutoCategory**
+  participation checkbox, including nonparticipating and never-ordered groups.
+  It displays and changes the same setting as the Edit Items toggle, not a
+  separate ordering setting. Explain in its tooltip that participation applies
+  across all contexts. Keep both editors synchronized. External AC headings
+  have no participation checkbox. Turning participation off retains placement
+  and context overrides; turning it on uses an existing placement or the
+  first-participation rule below.
+- Master has **Show nonparticipating IC groups**, initially checked. Unchecking
+  it omits those rows without changing participation, placements, projection
+  or inventory. Dim nonparticipating rows using the existing left-panel group
+  treatment, keeping their names readable and participation controls usable.
+  Do not add a "Not participating" label: dimming, the unchecked checkbox and
+  absence of move controls are sufficient indicators.
+- Context views show only participating IC groups, with no participation
+  controls or nonparticipant filter. Explain: "Enable additional groups in
+  Master or Edit Items." Keep the normal group view unchanged.
 - A mode selector has eight choices: **Master (all contexts)** first, followed by
   Backpack, Bank, Guild Bank, House Bank, Crafting Station, Craft Bag and
   Furniture Vault. Master edits shared defaults; each context displays those
-  defaults with its placement overrides applied. The normal view keeps its
+  defaults with its placement and heading-visibility overrides applied. The normal view keeps its
   current ordering. Decide during development whether to use a dropdown or
   small clickable context icons. Icons must have descriptive tooltips and an
   obvious selected state; the selected mode's name must remain visible.
@@ -109,7 +130,8 @@ AutoCategory continues classifying, drawing and sorting its own sections.
     row applies; elsewhere, groups use the nearest applicable heading above.
     Context-specific overrides are retained."
   - Context: "This order controls matching and heading order in <context>.
-    Moves here override the shared Master defaults for this context only."
+    Moves and heading hide choices here override the shared Master defaults
+    for this context only."
 - Show most important first in each context: ordinary groups interleaved with
   visible headings from its active AC list in native classification order.
   Master combines those lists using labelled heading occurrences as described
@@ -123,7 +145,9 @@ AutoCategory continues classifying, drawing and sorting its own sections.
   refinement; preserve readable text and selection/highlight visibility.
 - Each external heading row has the normal hide/unhide control. Hiding a heading
   hides it from the ordinary AutoCategory editor view and removes it as an
-  ordering reference; it does not change AutoCategory's own hidden setting.
+  ordering reference in the affected contexts; it does not change AutoCategory's
+  own hidden setting. Master controls the selected occurrence's shared visibility;
+  context controls override visibility only in that context, as described below.
 - Provide a **Show all AutoCategory groups** checkbox. When checked, hidden
   heading rows are included so the user can unhide them. When unchecked, hidden
   headings are omitted to make the effective ordering easier to work with.
@@ -141,12 +165,22 @@ AutoCategory continues classifying, drawing and sorting its own sections.
   group's placement difference from the master, not a copy of the entire list.
   Crossing a visible heading changes its slot. Up means more important, Down
   less important.
+- Show move controls only in the clean ordering view: in Master, both
+  Show nonparticipating IC groups and Show all AutoCategory groups must be
+  unchecked; in contexts, Show all AutoCategory groups must be unchecked.
+  Otherwise hide all move arrows, while participation and heading hide/unhide
+  controls remain usable. Explain: "Hide inactive groups and hidden headings
+  to adjust priorities." There is no separate enable/move mode.
+  Only participating IC groups have arrows. Moves use participating groups
+  and usable heading references without changing retained nonparticipant
+  placements; no click jumps over visible inactive rows.
 - Match the currency panel's native ordering rows in ESO's main settings:
   up/down buttons, hover tooltips, click sound, immediate save/reorder and
   moved-row highlight. Also preserve selection and scroll visibility.
 - Participation is separate from position. Off retains position but contributes
-  no assignment and cannot win. Never-ordered groups appear after ordered rows
-  without arrows until first participation appends them to the top slot.
+  no assignment and cannot win. When included by Master's filter, never-ordered
+  groups appear after ordered rows without arrows until first participation
+  establishes their placement as described below.
 - Disable Up/Down at endpoints. While search hides groups, disable all moves
   with an explanation; do not move across invisible rows.
 - View/context selection alone does not save, normalize order, reorder the
@@ -167,10 +201,16 @@ inherit Master changes.
   occurrences of the same heading where their positions differ. Filtering to
   any one context must reproduce that context's native AC heading order.
   Do not choose one context's order for all or invent a best-fit common order.
-- Each occurrence explicitly labels its applicable contexts, for example
-  "New - Bank only" or "Low level - Backpack, Furniture Vault". Unavailable
-  occurrences are omitted from that context's editor and never act as anchors
-  there. This is applicability, not a change to AC's own hidden setting.
+- Each occurrence has an underlying native context scope, for example
+  Bank only or Backpack and Furniture Vault. Its ordinary Master label lists
+  only contexts where it is effectively usable as an anchor, after visibility
+  overrides. Hiding Low level in Bank removes Bank from that label; other
+  contexts remain. If none remain, omit the row from ordinary Master.
+  Show all AutoCategory groups reveals it with its original native scope and
+  hidden contexts clearly indicated, including partially hidden rows.
+  Do not change occurrence identity, native scope or saved group placements
+  when effective visibility changes. Unavailable occurrences never anchor
+  groups in that context; this is not a change to AC's own hidden setting.
 - Each IC group appears only once in Master. Its position beneath a heading
   occurrence applies directly in the contexts labelled on that row. In other
   contexts, walk upward through the combined Master heading sequence to the
@@ -236,31 +276,73 @@ neighbours or guarantee it remains between those neighbours after they move.
 This behaviour is confirmed; do not change the ordering algorithm to introduce
 neighbour-following relationships.
 
-**Still to refine with the author:** deleted heading handling and the UI for
-identifying/resetting overrides. These are open product details, not
-authorization for more pre-implementation spike tests.
+Context views show effective placement, not override bookkeeping. Do not add
+override indicators or individual-group Reset to Master controls. Users adjust
+the context order directly or use the whole-context Reset to Master.
 
 Saved representation, rank assignment and cleanup algorithms belong in the
 [implementation plan](todo_implementation_autocategoryIntegration.md#resolve-ranks-and-clean-up-spacing),
 not in this user-facing contract.
 
+### Starting presets and order reset
+
+- Offer two Master presets, with **Prefer IC groups** preselected:
+  - **Prefer IC groups:** place all ordinary IC groups immediately below AC's
+    localized default New heading where it is available and not hidden in IC;
+    otherwise use top. New retains precedence, with IC groups ahead of the
+    remaining AC categories.
+  - **Prefer AutoCategory groups:** place all ordinary IC groups below all
+    external AC headings in each context, including categories hidden only
+    from the IC editor. IC groups catch items not matched by an AC category.
+- Both presets initially order IC groups alphabetically by display name and
+  retain one IC group row in Master. Different New occurrences or final headings
+  must not require duplicate IC group rows or manual context setup.
+- The preset choice is a one-off action, not a saved preference. Store only the
+  resulting placements; do not remember the choice, reapply it later, or use it
+  to place newly created or newly participating groups. Subsequent moves change
+  those placements normally.
+- Master has **Reset to defaults**. Clicking it asks for the preset again, with
+  Prefer IC groups preselected, and warns that it replaces the shared Master
+  arrangement. Existing context overrides are retained; inherited placements
+  follow the new defaults.
+- Each context has **Reset to Master**, clearing only that context's placement
+  overrides so it inherits the current Master again. It does not reset Master
+  or another context; heading-visibility overrides are retained.
+- Preset/reset actions do not change group participation, heading hide choices,
+  filters, Show/Notify settings, or external AC entries. Canceling the preset
+  choice leaves the previous enablement and arrangement unchanged.
+
 ### AutoCategory heading visibility and defaults
 
 - Every AutoCategory heading present in any of the active profile's seven lists
   is available as an editor reference row wherever it exists. By default,
-  headings are shown unless the user has hidden them in IC. Hidden heading names
-  are stored per active IC tracked-list profile; missing external headings do
-  not cause AutoCategory data to be changed.
-- Hiding a heading removes it from the effective reference sequence. Groups
+  heading occurrences are visible in Master and contexts inherit that visibility.
+  Store shared occurrence visibility and sparse context visibility overrides
+  per active IC tracked-list profile, not a category-name-wide hide list.
+  Missing external headings do not cause AutoCategory data to be changed.
+- Master hide/unhide changes shared visibility for that occurrence only,
+  not other rows with the same category name. Context hide/unhide changes only
+  that context's visibility override for its corresponding occurrence.
+  Missing overrides inherit Master; explicit visible/hidden overrides remain
+  local when shared visibility changes. Neither operation changes native scope.
+- Derive effective visible contexts, Master labels and row inclusion from shared
+  visibility plus context overrides. Do not also store a "hidden in Bank and
+  Backpack" list or a derived Master shown/hidden flag.
+- Hiding a heading removes it from the affected context's effective reference sequence. Groups
   ordered after it resolve to the nearest preceding visible heading, or top.
   Unhiding it restores it as a reference without changing the saved group order.
 - A missing heading is not displayed in a context where it does not exist.
-  When renamed or deleted externally, preserve IC's hidden-name choice without
-  rewriting group order; resolve affected groups to the nearest preceding
-  visible heading or top.
-- First participation appends a never-ordered group to the master top slot,
-  above all external categories, inherited by contexts without an override.
-  Turning it off/on retains its master placement and context overrides.
+  When renamed or deleted externally, preserve IC's stored visibility choices without
+  rewriting group order. Resolve affected groups upward from their placement
+  in the current list to the nearest currently available, applicable and
+  IC-visible heading, or top if none exists. This is not attachment to a
+  historically selected fallback heading; reevaluate against the current list.
+- Enabling participation for a group without a saved placement inserts it
+  immediately after the last participating IC group in Master, or at the
+  bottom of Master if none participate. This applies to existing groups as
+  well as newly created ones and is inherited by contexts without an override.
+  Groups with a saved placement reuse it; turning participation off/on retains
+  their Master placement and context overrides.
 - Rename preserves stable identity/position. Delete removes participation,
   order and owned entries. Built-in name/pattern Reset retains participation
   and position.
@@ -311,12 +393,12 @@ Examples:
 ## Persistence, ownership and lifecycle
 
 Accepted author design, 2026-10-31: **IC owns the master group order, sparse
-per-context placement overrides, and external-heading visibility.** Visible external headings are ordering
+per-context placement and heading-visibility overrides.** Visible external headings are ordering
 references; IC hidden headings are not. This supersedes editing/storing
 AutoCategory's combined list as the order record. New field/helper names belong
 in the implementation plan, not assumed existing APIs.
 
-- Enablement, hidden-heading choices, master placements and sparse context overrides
+- Enablement, Master occurrence visibility, master placements and sparse context overrides
   live alongside groups in each IC tracked-list profile; participation lives
   on the ordinary group. Do not persist seven complete derived context lists.
   Use stable rule keys; display names are not identity. Keep master positions
@@ -402,10 +484,13 @@ not a reason to reopen the spike before implementation starts.**
 | D1 | CONDITIONAL author decision | If Q1/Q2 are impossible under unchanged native rendering, which explicitly revised design is acceptable? | Present failed approaches, supported alternatives and risks; obtain approval. No classification/render takeover or semantic change by assumption. |
 | D2 | OPEN author decision | Final heading texture path / DEV-release identity policy and exact gold tint? | Decide before final asset registration/publication. No new converter/tool install assumed. |
 | D3 | OPEN, separate UI scope | Where should include/exclude badges appear; which badge colours and optional colour settings? | Author choice: coloured bag/white badge, gold bag/coloured badge, or coloured bag/gold badge. Not blocking plain category headings. |
-| D4 | OPEN author decision; sampled lifecycle tests finished | Adopt empty colour-rank prefixes in production category names? | ESO appearance/order/reorder/account reload and cleanup passed; 128-group scale passed offline. Approve rank-name changes and documented expanded-after-reorder/collapse residue; suggestion alone is not adoption. |
+| D4 | APPROVED author decision, 2026-11-01 | Adopt empty colour-rank prefixes in production category names? | Author accepts rank-bearing name changes, expanded-after-reorder behavior and retained old collapse flags. ESO sampled appearance/order/reorder/account reload and cleanup passed; 128-group scale passed offline. Production acceptance remains required. |
 
-After Test 7/7 on 2026-10-31, the author explicitly chose to leave D4 open.
-The demonstrated prefix mechanism is not yet approved production naming.
+After Test 7/7 on 2026-10-31, the author initially left D4 open.
+On 2026-11-01, the author approved the demonstrated empty colour-rank prefix
+for production naming, accepting expanded-after-reorder behavior and old
+per-name collapse flags remaining in AC saved data. This closes the naming
+decision, not the post-implementation acceptance gates or known placement limits.
 
 **Deferred coverage, not open design choices:** Guild Bank requires
 post-implementation DEV acceptance; gamepad is outside initial certification.
@@ -427,11 +512,29 @@ implementation; never equate deferral with a pass.
    preserve each native heading sequence when filtered; each IC group appears
    once. The combined-heading example and upward applicable-heading fallback
    pass without creating context overrides or rewriting Master placements.
+   Master-only participation controls stay synchronized with Edit Items.
+   Its default-on nonparticipant filter only changes row visibility; dimmed
+   nonparticipants remain readable and toggleable, with no status label or
+   move controls. Context views omit them and their participation controls.
+   Heading visibility inherits Master unless overridden in a context. Hiding
+   one occurrence does not hide same-name occurrences elsewhere. Bank-only
+   changes update Master's effective context label; hiding its last visible
+   context omits the row, and Show-all reveals its original scope/hidden contexts.
+   Visibility changes preserve occurrence identity and saved group placements.
 3. Arrows update shared placement in Master or context-specific placement in
    the selected context, preserving selection/highlight/visibility. Untouched
    choices inherit subsequent Master changes; agreed behaviour examples above
    pass. Internal order maintenance preserves every context's visible order
-   and heading placement. Endpoints and search are correct.
+   and heading placement. Endpoints and search are correct. Arrows appear only
+   with inactive groups and hidden headings filtered out; expanded views keep
+   participation/hide controls and explain how to enable ordering. Moves
+   preserve nonparticipant placements. First participation without a placement
+   inserts after the last participating Master group, or bottom if none exist;
+   off/on reuses an existing placement.
+   First enablement and Master reset offer both presets with Prefer IC groups
+   preselected; re-enable preserves choices. Context Reset to Master clears
+   only that context's overrides. Presets/reset preserve participation, heading
+   hide choices and unrelated data; cancellation publishes no changes.
 4. Opposite overlap orders produce opposite winners; Bank and subscriber match.
    Immediate placement below visible headings and arbitrary managed labels
    produce matching native classification and heading order, including
