@@ -161,8 +161,170 @@ local function InstallHooks()
     return hooks, scheduled
 end
 
+local setupDialogs, shownSetup = {}, nil
+GAMEPAD_DIALOGS = { BASIC = 1 }
+SI_DIALOG_CANCEL = "Cancel"
+function ZO_Dialogs_RegisterCustomDialog(name, definition) setupDialogs[name] = definition end
+function ZO_Dialogs_ShowDialog(name, data)
+    shownSetup = { definition = assert(setupDialogs[name]), data = data }
+end
+
+local function PrepareInitialSetup()
+    NewFixture()
+    NewStartupAutoCategory()
+    d = function() end
+    this.RefreshAutoCategoryUI = function() end
+    integration.Initialize()
+    assert(integration.IsAvailable())
+    AutoCategory.Inited = true
+    shownSetup = nil
+end
+
 function this.GetAutoCategoryIntegrationTests()
     return {
+        {
+            name = "First enable prompts with IC first and cancellation leaves all saved choices unchanged",
+            run = function()
+                PrepareInitialSetup()
+                local profile = this.accountWide
+                local rules, order = profile.trackedRules, profile.autoCategoryOrder
+                assert(this.SetAutoCategoryIntegrationEnabled(true) == false)
+                assert(not integration.IsFaulted(), this.autoCategoryFailure)
+                assert(shownSetup and shownSetup.definition.buttons[1].text == "Prefer IC groups"
+                    and shownSetup.definition.buttons[2].text == "Prefer AutoCategory groups")
+                shownSetup.definition.buttons[3].callback(shownSetup)
+                shownSetup.definition.noChoiceCallback(shownSetup)
+                assert(profile.autoCategoryIntegrationEnabled == nil and profile.autoCategorySetupComplete == nil)
+                assert(profile.trackedRules == rules and next(rules) == nil and profile.autoCategoryOrder == order)
+                assert(#AutoCategory.saved.bags[1].rules == 3)
+            end,
+        },
+        {
+            name = "Prefer IC seeds all Show and Notify destinations once and places groups after New in seven contexts",
+            run = function()
+                PrepareInitialSetup()
+                local off = { showBackpack = false, showBank = false, notifyChat = false, notifyHud = false }
+                this.accountWide.trackedRules = {
+                    alpha = { display = { showBackpack = false, showBank = true } },
+                    beta = { display = { showBackpack = false, showBank = false, notifyChat = true } },
+                    gamma = { display = { showBackpack = false, showBank = false, notifyHud = true, isHidden = true } },
+                    dormant = { displayName = "Dormant", display = off },
+                    backpack = { displayName = "Backpack", display = { showBackpack = true } },
+                    miscellaneous = {},
+                }
+                this.InvalidateRuleCache()
+                assert(this.SetAutoCategoryIntegrationEnabled(true) == false)
+                shownSetup.definition.buttons[1].callback(shownSetup)
+                assert(not integration.IsFaulted(), this.autoCategoryFailure)
+                local profile = this.accountWide
+                assert(profile.autoCategoryIntegrationEnabled and profile.autoCategorySetupComplete)
+                local rules = this.GetRuntimeRules()
+                assert(rules.alpha.autoCategoryEnabled and rules.beta.autoCategoryEnabled
+                    and rules.gamma.autoCategoryEnabled and rules.backpack.autoCategoryEnabled)
+                assert(not rules.dormant.autoCategoryEnabled and not rules.miscellaneous.autoCategoryEnabled)
+                for _, context in ipairs(contexts) do
+                    for _, mode in ipairs({ "display", "matching" }) do
+                        assert(Names(profile.autoCategoryOrder.contexts[context.key][mode])
+                            == "New,alpha,backpack,beta,gamma,Selling,Low level")
+                    end
+                end
+                this.SetAutoCategoryParticipation("alpha", false)
+                local order = profile.autoCategoryOrder
+                this.SetAutoCategoryIntegrationEnabled(false)
+                shownSetup = nil
+                this.SetAutoCategoryIntegrationEnabled(true)
+                assert(shownSetup == nil and profile.autoCategoryOrder == order
+                    and not this.GetRuntimeRules().alpha.autoCategoryEnabled,
+                    "Re-enable must preserve orders and manual participation, not reseed from Show")
+                this.character.useCharacterItemList = true
+                this.SetAutoCategoryIntegrationEnabled(true)
+                assert(shownSetup and shownSetup.data.profile == this.character,
+                    "First-time setup must follow the selected profile")
+            end,
+        },
+        {
+            name = "Prefer AutoCategory puts IC groups last in both orders without copying between native orders",
+            run = function()
+                PrepareInitialSetup()
+                AutoCategory.saved.bags[1].rules[1].showpriority = 0
+                this.SetAutoCategoryIntegrationEnabled(true)
+                shownSetup.definition.buttons[2].callback(shownSetup)
+                assert(not integration.IsFaulted(), this.autoCategoryFailure)
+                local order = this.accountWide.autoCategoryOrder.contexts.backpack
+                assert(Names(order.matching) == "New,Selling,Low level,alpha,beta,gamma")
+                assert(Names(order.display) == "Selling,Low level,New,alpha,beta,gamma")
+                for _, context in ipairs(contexts) do
+                    assert(Names(this.accountWide.autoCategoryOrder.contexts[context.key].matching)
+                        == "New,Selling,Low level,alpha,beta,gamma")
+                end
+            end,
+        },
+        {
+            name = "Prefer IC uses the top when New is hidden or missing",
+            run = function()
+                PrepareInitialSetup()
+                AutoCategory.saved.bags[1].rules[1].isHidden = true
+                table.remove(AutoCategory.saved.bags[2].rules, 1)
+                assert(integration.CompleteInitialSetup("ic", this.accountWide))
+                for _, mode in ipairs({ "display", "matching" }) do
+                    assert(Names(this.accountWide.autoCategoryOrder.contexts.backpack[mode])
+                        == "alpha,beta,gamma,New,Selling,Low level")
+                    assert(Names(this.accountWide.autoCategoryOrder.contexts.bank[mode])
+                        == "alpha,beta,gamma,Selling,Low level")
+                end
+                assert(AutoCategory.saved.bags[1].rules[1].isHidden)
+            end,
+        },
+        {
+            name = "Setup with no participating groups is remembered across re-enable",
+            run = function()
+                PrepareInitialSetup()
+                for _, key in ipairs({ "alpha", "beta", "gamma" }) do
+                    this.accountWide.trackedRules[key] = { display = {
+                        showBackpack = false, showBank = false, notifyChat = false, notifyHud = false,
+                    } }
+                end
+                this.InvalidateRuleCache()
+                assert(integration.CompleteInitialSetup("ic", this.accountWide))
+                assert(this.accountWide.autoCategorySetupComplete)
+                assert(Names(this.accountWide.autoCategoryOrder.contexts.backpack.display) == "New,Selling,Low level")
+                this.SetAutoCategoryIntegrationEnabled(false)
+                shownSetup = nil
+                this.SetAutoCategoryIntegrationEnabled(true)
+                assert(shownSetup == nil)
+            end,
+        },
+        {
+            name = "Setup preflight failure leaves participation enablement and order untouched",
+            run = function()
+                PrepareInitialSetup()
+                local profile = this.accountWide
+                local rules, order = profile.trackedRules, profile.autoCategoryOrder
+                local assignments = AutoCategory.saved.bags[7].rules
+                for index = 4, 1000 do assignments[index] = Assignment("Native " .. index, index, index) end
+                d = function() end
+                assert(integration.CompleteInitialSetup("ic", profile) == false)
+                assert(integration.IsFaulted())
+                assert(profile.autoCategoryIntegrationEnabled == nil and profile.autoCategorySetupComplete == nil)
+                assert(profile.trackedRules == rules and next(rules) == nil and profile.autoCategoryOrder == order)
+                assert(#AutoCategory.saved.bags[1].rules == 3)
+            end,
+        },
+        {
+            name = "Changing profile while setup is open cancels without applying to either profile",
+            run = function()
+                PrepareInitialSetup()
+                this.SetAutoCategoryIntegrationEnabled(true)
+                this.character.useCharacterItemList = true
+                local warning
+                d = function(message) warning = message end
+                shownSetup.definition.buttons[1].callback(shownSetup)
+                assert(warning:find("profile changed", 1, true))
+                assert(not this.accountWide.autoCategorySetupComplete and not this.character.autoCategorySetupComplete)
+                assert(not this.accountWide.autoCategoryIntegrationEnabled and not this.character.autoCategoryIntegrationEnabled)
+                assert(not integration.IsFaulted())
+            end,
+        },
         {
             name = "Startup imports the native fractional display key independently from matching priority",
             run = function()

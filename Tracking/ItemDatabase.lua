@@ -249,6 +249,8 @@ local function ValidateAutoCategoryProfile(profile, context)
     end
     assert(profile.autoCategoryIntegrationEnabled == nil or type(profile.autoCategoryIntegrationEnabled) == "boolean",
         context .. ".autoCategoryIntegrationEnabled must be boolean")
+    assert(profile.autoCategorySetupComplete == nil or type(profile.autoCategorySetupComplete) == "boolean",
+        context .. ".autoCategorySetupComplete must be boolean")
     assert(profile.autoCategoryInitialized == nil,
         context .. ".autoCategoryInitialized is obsolete in schema 5")
     if profile.autoCategoryOrder ~= nil then
@@ -463,10 +465,12 @@ function this.PrepareSavedVariables()
                     context, tostring(version), tostring(this.SettingsVersion)))
             assert(version == this.SettingsVersion
                     or (version == 1 and (this.SettingsVersion == 2 or this.SettingsVersion == 3 or this.SettingsVersion == 4
-                        or this.SettingsVersion == 5))
-                    or (version == 2 and (this.SettingsVersion == 3 or this.SettingsVersion == 4 or this.SettingsVersion == 5))
-                    or (version == 3 and (this.SettingsVersion == 4 or this.SettingsVersion == 5))
-                    or (version == 4 and this.SettingsVersion == 5),
+                        or this.SettingsVersion == 5 or this.SettingsVersion == 6))
+                    or (version == 2 and (this.SettingsVersion == 3 or this.SettingsVersion == 4
+                        or this.SettingsVersion == 5 or this.SettingsVersion == 6))
+                    or (version == 3 and (this.SettingsVersion == 4 or this.SettingsVersion == 5 or this.SettingsVersion == 6))
+                    or (version == 4 and (this.SettingsVersion == 5 or this.SettingsVersion == 6))
+                    or (version == 5 and this.SettingsVersion == 6),
                 context .. " has no supported migration from version " .. tostring(version)
                     .. " to version " .. tostring(this.SettingsVersion))
             table.insert(profiles, { data = profile, context = context })
@@ -497,14 +501,7 @@ function this.PrepareSavedVariables()
                 end
             end
             table.insert(migrations, { profile = profile, rules = rules })
-        elseif profile.version == 2 and (this.SettingsVersion == 3 or this.SettingsVersion == 4 or this.SettingsVersion == 5) then
-            table.insert(migrations, { profile = profile })
-        elseif profile.version == 3 and (this.SettingsVersion == 4 or this.SettingsVersion == 5) then
-            table.insert(migrations, { profile = profile })
-        elseif profile.version == 4 and this.SettingsVersion == 5 then
-            table.insert(migrations, { profile = profile })
-        end
-        if profile.version == this.SettingsVersion then
+        else
             table.insert(migrations, { profile = profile })
         end
     end
@@ -514,6 +511,23 @@ function this.PrepareSavedVariables()
         if migration.rules ~= nil then migration.profile.trackedRules = migration.rules end
         if not invalidAutoCategoryProfiles[migration.profile] then
             migration.profile.autoCategoryOrder = NormalizeAutoCategoryOrder(migration.profile.autoCategoryOrder)
+            if migration.profile.version == 5 and migration.profile.autoCategorySetupComplete == nil then
+                for _, rule in pairs(migration.profile.trackedRules or {}) do
+                    if rule.autoCategoryEnabled ~= nil then
+                        migration.profile.autoCategorySetupComplete = true
+                        break
+                    end
+                end
+                for _, orders in pairs(migration.profile.autoCategoryOrder.contexts) do
+                    for _, mode in ipairs({ "display", "matching" }) do
+                        for _, reference in ipairs(orders[mode]) do
+                            if reference:sub(1, 3) == "ic:" then
+                                migration.profile.autoCategorySetupComplete = true
+                            end
+                        end
+                    end
+                end
+            end
         end
         migration.profile.version = this.SettingsVersion
     end
@@ -603,6 +617,7 @@ end
 
 function this.SetAutoCategoryParticipation(ruleKey, enabled)
     assert(type(enabled) == "boolean", "AutoCategory participation must be boolean")
+    this.AutoCategoryIntegration.FlushPendingOrders()
     local runtimeRule = this.GetRuntimeRules()[ruleKey]
     assert(runtimeRule ~= nil and ruleKey ~= "miscellaneous",
         "AutoCategory participation requires an ordinary group: " .. tostring(ruleKey))
@@ -633,8 +648,13 @@ end
 function this.SetAutoCategoryIntegrationEnabled(enabled)
     assert(type(enabled) == "boolean", "AutoCategory enablement must be boolean")
     local profile = this.GetAutoCategoryProfile()
+    if not enabled then this.AutoCategoryIntegration.FlushPendingOrders() end
+    if enabled and profile.autoCategorySetupComplete ~= true then
+        return this.AutoCategoryIntegration.ShowInitialSetup()
+    end
     profile.autoCategoryIntegrationEnabled = enabled and true or nil
     this.AutoCategoryIntegration.OnEnablementChanged(enabled)
+    return true
 end
 
 local function NormalizeAccountName(name)
@@ -680,9 +700,11 @@ function this.CleanAutoCategorySavedData(accountName)
     end
 
     local assignmentRemovals = this.AutoCategoryIntegration.PreflightSavedDataCleanup()
+    this.AutoCategoryIntegration.CancelPendingOrders()
     for _, profile in ipairs(profilePlans) do
         invalidAutoCategoryProfiles[profile] = nil
         profile.autoCategoryIntegrationEnabled = nil
+        profile.autoCategorySetupComplete = nil
         profile.autoCategoryOrder = nil
         profile.autoCategoryInitialized = nil
         for _, rule in pairs(profile.trackedRules or {}) do
@@ -711,6 +733,7 @@ end
 
 function this.SetUseCharacterItemList(value)
     assert(type(value) == "boolean", "Character list preference must be boolean")
+    this.AutoCategoryIntegration.FlushPendingOrders()
     this.character.useCharacterItemList = value
     trackerContextRevision = trackerContextRevision + 1
     this.InvalidateRuleCache()
@@ -741,6 +764,7 @@ this.SetRuleFlag = this.UpdateRuleFlag
 function this.UpdateRuleProperty(ruleName, propertyKey, value)
     assert(propertyKey == "displayName", "Use UpdateRulePatterns for pattern edits")
     assert(value == nil or type(value) == "string", "Rule display name must be a string or nil")
+    this.AutoCategoryIntegration.FlushPendingOrders()
     local base = GetBaseline(ruleName)
     local savedRules = GetRawSavedRules()
     if savedRules[ruleName] == nil then savedRules[ruleName] = {} end
@@ -754,6 +778,7 @@ function this.UpdateRulePatterns(ruleName, uiPatterns)
     assert(type(uiPatterns) == "table", "Rule patterns must be a list")
     -- Validate before creating an override, so failed edits leave saved state unchanged.
     PatternSet(uiPatterns)
+    this.AutoCategoryIntegration.FlushPendingOrders()
     local base = GetBaseline(ruleName)
     local savedRules = GetRawSavedRules()
     if savedRules[ruleName] == nil then savedRules[ruleName] = {} end
@@ -777,6 +802,7 @@ end
 
 function this.DeleteCustomRule(ruleName)
     assert(not this.preLoadedRulesets[ruleName], "Built-in rules cannot be deleted")
+    this.AutoCategoryIntegration.FlushPendingOrders()
     GetRawSavedRules()[ruleName] = nil
     this.InvalidateRuleCache()
     this.AutoCategoryIntegration.OnRuleMutation("delete", ruleName)
@@ -784,6 +810,7 @@ end
 
 function this.ResetRule(ruleName)
     assert(this.preLoadedRulesets[ruleName], "Only built-in rules can be reset")
+    this.AutoCategoryIntegration.FlushPendingOrders()
     local savedRules = GetRawSavedRules()
     local saved = savedRules[ruleName]
     if saved then
@@ -882,12 +909,14 @@ function this.CopyProfile(sourceKey)
         }
     end
 
+    this.AutoCategoryIntegration.FlushPendingOrders()
     ZO_ClearTable(destTable)
     for key, value in pairs(copiedItems) do destTable[key] = value end
     ZO_ClearTable(destRules)
     for key, value in pairs(copiedRules) do destRules[key] = value end
     local destinationProfile = this.GetAutoCategoryProfile()
     destinationProfile.autoCategoryIntegrationEnabled = sourceBlock.autoCategoryIntegrationEnabled
+    destinationProfile.autoCategorySetupComplete = sourceBlock.autoCategorySetupComplete
     destinationProfile.autoCategoryOrder = copiedAutoCategoryOrder
     this.InvalidateRuleCache()
     trackerContextRevision = trackerContextRevision + 1

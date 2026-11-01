@@ -136,9 +136,7 @@ function this.CreateSettingsPanel()
         end
     end)
     this.RefreshAutoCategoryUI = function()
-        if type(LibAddonMenu2.RefreshAddonPanel) == "function" then
-            LibAddonMenu2:RefreshAddonPanel("InventoryCompanionPanel")
-        end
+        CALLBACK_MANAGER:FireCallbacks("LAM-RefreshPanel", settingsPanel)
         if this.RefreshTrackedItemsEditor then this.RefreshTrackedItemsEditor() end
         if this.RefreshGroupsEditor then this.RefreshGroupsEditor() end
         if this.RefreshAutoCategoryEditor then this.RefreshAutoCategoryEditor() end
@@ -192,6 +190,16 @@ function this.CreateSettingsPanel()
                 this.RefreshAutoCategoryUI()
             end,
             disabled = function() return not this.AutoCategoryIntegration.IsAvailable() end,
+        },
+        {
+            type = "button",
+            name = "Open AutoCategory Editor",
+            tooltip = "Manage category order and choose which IC groups to include in AutoCategory.",
+            func = function()
+                this.OpenAutoCategoryPanel()
+            end,
+            disabled = function() return not this.AutoCategoryIntegration.IsEditorActive() end,
+            width = "full",
         },
         {
             type = "header",

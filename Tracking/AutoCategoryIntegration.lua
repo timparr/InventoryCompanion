@@ -32,8 +32,11 @@ local registeredPlugin
 local hooksInstalled = false
 local reconciling = false
 local pendingGeneration = 0
+local pendingOrder
+local orderGeneration = 0
 local InstallExternalHooks
 local function SetStatus(state, message)
+    if status.state == state and status.message == message then return end
     status = { state = state, message = message }
     if this.RefreshAutoCategoryUI then this.RefreshAutoCategoryUI() end
 end
@@ -123,8 +126,8 @@ local function BuildDefinition(ruleKey, rule)
     }
 end
 
-local function BuildDefinitions()
-    local rules = GetRuntimeRules()
+local function BuildDefinitions(rules)
+    rules = rules or GetRuntimeRules()
     local definitions = {}
     for _, ruleKey in ipairs(GetOrderedRuleKeys(rules)) do
         definitions[#definitions + 1] = BuildDefinition(ruleKey, rules[ruleKey])
@@ -228,9 +231,40 @@ local function CheckDefinitionCollision(ac, definitions)
     return true
 end
 
+local function SameDefinition(existing, desired)
+    if type(existing) ~= "table" then return false end
+    for key, value in pairs(desired) do
+        if existing[key] ~= value then return false end
+    end
+    return true
+end
+
+local function DefinitionsMatch(ac, plugin, definitions)
+    if #plugin.predef ~= #definitions then return false end
+    local pluginByName, predefinedByName = {}, {}
+    for _, definition in ipairs(plugin.predef) do pluginByName[definition.name] = definition end
+    local ownedCount = 0
+    for _, definition in ipairs(ac.predefinedRules) do
+        if definition.icIntegrationOwned then
+            predefinedByName[definition.name] = definition
+            ownedCount = ownedCount + 1
+        end
+    end
+    if ownedCount ~= #definitions then return false end
+    for _, definition in ipairs(definitions) do
+        if not SameDefinition(pluginByName[definition.name], definition)
+            or not SameDefinition(predefinedByName[definition.name], definition)
+            or not SameDefinition(ac.GetRuleByName(definition.name), definition) then
+            return false
+        end
+    end
+    return true
+end
+
 local function SyncDefinitions(ac, definitions)
     local plugin = ac.Plugins[pluginName]
     assert(plugin and type(plugin.predef) == "table", "AutoCategory did not retain the integration plugin")
+    if DefinitionsMatch(ac, plugin, definitions) then return end
     local desiredNames = {}
     for _, definition in ipairs(definitions) do desiredNames[definition.name] = true end
 
@@ -312,6 +346,7 @@ function integration.Fail(failure)
     if integration.IsFaulted() then return end
     this.autoCategoryFailure = tostring(failure)
     pendingGeneration = pendingGeneration + 1
+    integration.CancelPendingOrders()
     reconciling = false
     status = {
         state = "error",
@@ -397,6 +432,7 @@ local function ScheduleReconcile(reason, refreshOnly)
     zo_callLater(function() integration.Run(function()
         if generation ~= pendingGeneration or not this.GetAutoCategoryState().enabled then return end
         if AutoCategory.Inited ~= true then return end
+        if integration.HasPendingOrderChanges() then return end
         if refreshOnly then
             local changed = {}
             for _, context in ipairs(contexts) do changed[context.key] = true end
@@ -457,6 +493,10 @@ InstallExternalHooks = function()
         and type(ac.cacheInitBag) == "function" and type(ac.cacheInitialize) == "function",
         "AutoCategory lifecycle hook targets are unavailable")
     assert(type(ZO_PostHook) == "function", "ESO post-hook API is unavailable")
+    assert(type(ZO_PreHook) == "function", "ESO pre-hook API is unavailable")
+    ZO_PreHook(ac, "UpdateCurrentSavedVars", function()
+        if not reconciling then integration.FlushPendingOrders() end
+    end)
     ZO_PostHook(ac, "UpdateCurrentSavedVars", function() integration.Run(function()
         if not reconciling then integration.OnProfileChanged() end
     end) end)
@@ -576,7 +616,7 @@ local function SortAssignments(entries, mode)
     end)
 end
 
-local function BuildContextModel(context, definitions)
+local function BuildContextModel(context, definitions, rules)
     local ac = AutoCategory
     local bag = ac.saved.bags[context.bagType()]
     local definitionsByName, definitionsByKey = {}, {}
@@ -603,7 +643,7 @@ local function BuildContextModel(context, definitions)
             assert(actualAssignments[reference] == nil,
                 "AutoCategory has duplicate managed assignments for " .. reference .. " in " .. context.title)
             actualAssignments[reference] = assignment
-            local rule = GetRuntimeRules()[ruleKey]
+            local rule = rules[ruleKey]
             assert(rule ~= nil, "AutoCategory assignment references an unknown IC group: " .. ruleKey)
             if rule.autoCategoryEnabled then
                 members[reference] = { reference = reference, ruleKey = ruleKey, assignment = assignment }
@@ -620,7 +660,7 @@ local function BuildContextModel(context, definitions)
             assignment = assignment,
         }
     end
-    for ruleKey, rule in pairs(GetRuntimeRules()) do
+    for ruleKey, rule in pairs(rules) do
         if IsOrdinaryRule(ruleKey, rule) and rule.autoCategoryEnabled then
             local reference = "ic:" .. ruleKey
             if members[reference] == nil then
@@ -721,25 +761,59 @@ end
 local function GetCurrentOrderData()
     local profile = this.GetAutoCategoryProfile()
     local order = profile.autoCategoryOrder
+    if pendingOrder ~= nil then
+        assert(pendingOrder.profile == profile and pendingOrder.acProfile == AutoCategory.saved.bags,
+            "AutoCategory pending order belongs to a different profile")
+        order = pendingOrder.order
+    end
     assert(type(order) == "table" and type(order.contexts) == "table",
         "Schema-5 AutoCategory context orders are unavailable")
     return profile, order
 end
 
-local function BuildPlans(orderOverride)
+local function BuildStartingSequence(model, mode, rules, preset)
+    local sequence, groups = {}, {}
+    for _, reference in ipairs(model.entries[mode]) do
+        if reference:sub(1, 3) == "ac:" then sequence[#sequence + 1] = reference end
+    end
+    for _, ruleKey in ipairs(GetOrderedRuleKeys(rules)) do
+        if rules[ruleKey].autoCategoryEnabled then groups[#groups + 1] = "ic:" .. ruleKey end
+    end
+    local insertion = #sequence + 1
+    if preset == "ic" then
+        insertion = 1
+        assert(SI_AC_DEFAULT_CATEGORY_NEW ~= nil, "AutoCategory's default New category string is unavailable")
+        local newName = GetString(SI_AC_DEFAULT_CATEGORY_NEW)
+        assert(type(newName) == "string" and newName ~= "",
+            "AutoCategory's default New category name is unavailable")
+        local newReference = "ac:" .. newName
+        for index, reference in ipairs(sequence) do
+            if reference == newReference and model.members[reference].assignment.isHidden ~= true then
+                insertion = index + 1
+                break
+            end
+        end
+    end
+    for index, reference in ipairs(groups) do table.insert(sequence, insertion + index - 1, reference) end
+    return sequence
+end
+
+local function BuildPlans(orderOverride, setupRules, preset)
     local ac = AutoCategory
     CheckExternalShape(ac)
     assert(ac.Inited == true, "AutoCategory must finish initialization before projection")
     CheckActiveAssignments(ac)
-    assert(this.GetAutoCategoryState().enabled, "Cannot project while AutoCategory integration is disabled")
-    local definitions = BuildDefinitions()
+    assert(setupRules ~= nil or this.GetAutoCategoryState().enabled,
+        "Cannot project while AutoCategory integration is disabled")
+    local rules = setupRules or GetRuntimeRules()
+    local definitions = BuildDefinitions(rules)
     local collisionFree, collision = CheckDefinitionCollision(ac, definitions)
     assert(collisionFree, collision)
     local profile, storedOrder = GetCurrentOrderData()
     local snapshotByContext = projectedOrders[ac.saved]
     local plans, reconciled = {}, { contexts = {} }
     for _, context in ipairs(contexts) do
-        local model = BuildContextModel(context, definitions)
+        local model = BuildContextModel(context, definitions, rules)
         local savedContext = storedOrder.contexts[context.key]
         assert(type(savedContext) == "table", "Missing saved AutoCategory context: " .. context.key)
         local override = orderOverride and orderOverride[context.key]
@@ -750,8 +824,13 @@ local function BuildPlans(orderOverride)
             local savedSequence = savedContext[mode]
             assert(type(savedSequence) == "table", "Missing saved AutoCategory " .. mode .. " order: " .. context.key)
             local sequence
-            if override and override[mode] ~= nil then
+            if preset then
+                sequence = BuildStartingSequence(model, mode, rules, preset)
+            elseif override and override[mode] ~= nil then
                 sequence = CopySequence(override[mode])
+            elseif pendingOrder and pendingOrder.modes[context.key]
+                and pendingOrder.modes[context.key][mode] then
+                sequence = MergeObservedReferences(savedSequence, observed, model.members)
             elseif priorSnapshot and SnapshotMatches(priorSnapshot[mode], observed, model.members) then
                 sequence = MergeObservedReferences(savedSequence, observed, model.members)
             else
@@ -888,10 +967,84 @@ function integration.ProjectAutoCategory(preflight)
         prepared, failure = integration.PreflightAutoCategory()
         if prepared == nil then return ReportProjectionFailure(failure) end
     end
+
     local changed = ProjectPlans(prepared.plans)
     prepared.profile.autoCategoryOrder = prepared.order
+    integration.CancelPendingOrders()
     SetStatus("available", "AutoCategory display and matching orders are synchronized for the selected context.")
     return changed
+end
+
+function integration.CompleteInitialSetup(preset, profile)
+    assert(preset == "ic" or preset == "ac", "Unknown AutoCategory starting preset")
+    assert(profile == this.GetAutoCategoryProfile(), "AutoCategory setup profile changed while the dialog was open")
+    assert(profile.autoCategorySetupComplete ~= true, "AutoCategory initial setup is already complete")
+    assert(integration.IsAvailable(), "AutoCategory integration is unavailable")
+    local rules, participation = {}, {}
+    for ruleKey, rule in pairs(GetRuntimeRules()) do
+        local copy = {}
+        for key, value in pairs(rule) do copy[key] = value end
+        rules[ruleKey] = copy
+        if IsOrdinaryRule(ruleKey, rule) then
+            local display = this.ResolveItemDisplay(rule.display)
+            copy.autoCategoryEnabled = rule.autoCategoryEnabled or display.show or display.notify
+            if copy.autoCategoryEnabled then participation[#participation + 1] = ruleKey end
+        end
+    end
+    -- Check every context before publishing participation, enablement, or orders.
+    local plans, order = BuildPlans(nil, rules, preset)
+    for _, ruleKey in ipairs(participation) do
+        local saved = profile.trackedRules[ruleKey]
+        if saved == nil then saved = {}; profile.trackedRules[ruleKey] = saved end
+        saved.autoCategoryEnabled = true
+    end
+    this.InvalidateRuleCache()
+    profile.autoCategoryIntegrationEnabled = true
+    integration.ProjectAutoCategory({ plans = plans, order = order, profile = profile })
+    if integration.IsFaulted() then return false end
+    profile.autoCategorySetupComplete = true
+    integration.OnEnablementChanged(true)
+    this.RefreshAutoCategoryUI()
+    return true
+end
+
+local setupDialogRegistered = false
+function integration.ShowInitialSetup()
+    assert(integration.IsAvailable(), "AutoCategory integration is unavailable")
+    if not setupDialogRegistered then
+        local function Choose(dialog, preset)
+            if dialog.data.profile ~= this.GetAutoCategoryProfile() then
+                d("[InventoryCompanion] AutoCategory setup cancelled because the selected item-list profile changed.")
+                this.RefreshAutoCategoryUI()
+                return
+            end
+            integration.CompleteInitialSetup(preset, dialog.data.profile)
+        end
+        ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_AUTOCATEGORY_SETUP", {
+            gamepadInfo = { dialogType = GAMEPAD_DIALOGS.BASIC },
+            title = { text = "Set Up AutoCategory Integration" },
+            mainText = { text = "Enable AutoCategory integration to manage category order in Inventory Companion "
+                .. "and use your IC groups in your backpack, bank and other inventories.\n\n"
+                .. "Where should IC groups appear among your existing AutoCategory categories? "
+                .. "You can change this later in the group editor." },
+            radioButtons = {
+                { text = "Near the top (default)", data = "ic" },
+                { text = "At the bottom", data = "ac" },
+            },
+            buttons = {
+                { text = SI_DIALOG_CONFIRM, callback = function(dialog)
+                    local selected = dialog.radioButtonGroup:GetClickedButton()
+                    assert(selected ~= nil, "AutoCategory setup dialog has no selected arrangement")
+                    Choose(dialog, selected.data)
+                end },
+                { text = SI_DIALOG_CANCEL, callback = function() this.RefreshAutoCategoryUI() end },
+            },
+            noChoiceCallback = function() this.RefreshAutoCategoryUI() end,
+        })
+        setupDialogRegistered = true
+    end
+    ZO_Dialogs_ShowDialog("InventoryCompanion_AUTOCATEGORY_SETUP", { profile = this.GetAutoCategoryProfile() })
+    return false
 end
 
 function integration.ResolveAutoCategoryOrder(contextKey, options)
@@ -938,18 +1091,64 @@ function integration.ResolveAutoCategoryOrder(contextKey, options)
 end
 
 local function ApplyOrderOverride(orderOverride)
-    local prepared, failure = integration.PreflightAutoCategory(orderOverride)
-    if prepared == nil then return ReportProjectionFailure(failure) end
-    return integration.ProjectAutoCategory(prepared) ~= false
+    assert(integration.IsEditorActive(), "Cannot queue AutoCategory order while integration is inactive")
+    local profile, order = GetCurrentOrderData()
+    if pendingOrder == nil then
+        local copy = { contexts = {} }
+        for _, context in ipairs(contexts) do
+            local lists = order.contexts[context.key]
+            copy.contexts[context.key] = {
+                display = CopySequence(lists.display),
+                matching = CopySequence(lists.matching),
+            }
+        end
+        pendingOrder = { profile = profile, acProfile = AutoCategory.saved.bags, order = copy, modes = {} }
+    end
+    for contextKey, overrides in pairs(orderOverride) do
+        assert(contextByKey[contextKey], "Unknown AutoCategory queued context")
+        local lists = pendingOrder.order.contexts[contextKey]
+        local modes = pendingOrder.modes[contextKey]
+        if modes == nil then modes = {}; pendingOrder.modes[contextKey] = modes end
+        for mode, sequence in pairs(overrides) do
+            assert(mode == "display" or mode == "matching", "Unknown AutoCategory queued ordering mode")
+            lists[mode] = CopySequence(sequence)
+            modes[mode] = true
+        end
+    end
+    orderGeneration = orderGeneration + 1
+    local generation = orderGeneration
+    zo_callLater(function()
+        if generation == orderGeneration then integration.FlushPendingOrders() end
+    end, 5000)
+    return true
+end
+
+function integration.HasPendingOrderChanges()
+    return pendingOrder ~= nil
+end
+
+function integration.CancelPendingOrders()
+    orderGeneration = orderGeneration + 1
+    pendingOrder = nil
+end
+
+function integration.FlushPendingOrders()
+    if pendingOrder == nil then return true end
+    assert(pendingOrder.profile == this.GetAutoCategoryProfile()
+        and pendingOrder.acProfile == AutoCategory.saved.bags,
+        "Cannot apply AutoCategory queued changes to a different profile")
+    assert(this.GetAutoCategoryState().enabled, "Cannot apply AutoCategory queued changes while integration is disabled")
+    local applied = integration.ProjectAutoCategory() ~= false
+    if applied then this.RefreshAutoCategoryEditor() end
+    return applied
 end
 
 function integration.MoveEntry(reference, contextKey, mode, direction)
     assert(contextByKey[contextKey], "Unknown AutoCategory context: " .. tostring(contextKey))
     assert(mode == "display" or mode == "matching", "Unknown AutoCategory ordering mode: " .. tostring(mode))
     assert(direction == -1 or direction == 1, "AutoCategory move direction must be -1 or 1")
-    local prepared, failure = integration.PreflightAutoCategory()
-    if prepared == nil then return ReportProjectionFailure(failure) end
-    local sequence = CopySequence(prepared.order.contexts[contextKey][mode])
+    local _, order = GetCurrentOrderData()
+    local sequence = CopySequence(order.contexts[contextKey][mode])
     local index
     for position, candidate in ipairs(sequence) do
         if candidate == reference then index = position; break end
@@ -964,11 +1163,10 @@ end
 function integration.UseOtherOrder(contextKey, activeMode)
     assert(contextByKey[contextKey], "Unknown AutoCategory context: " .. tostring(contextKey))
     assert(activeMode == "display" or activeMode == "matching", "Unknown AutoCategory ordering mode")
-    local prepared, failure = integration.PreflightAutoCategory()
-    if prepared == nil then return ReportProjectionFailure(failure) end
+    local _, order = GetCurrentOrderData()
     local sourceMode = activeMode == "display" and "matching" or "display"
     return ApplyOrderOverride({
-        [contextKey] = { [activeMode] = CopySequence(prepared.order.contexts[contextKey][sourceMode]) },
+        [contextKey] = { [activeMode] = CopySequence(order.contexts[contextKey][sourceMode]) },
     })
 end
 
@@ -996,9 +1194,8 @@ function integration.CopyBothOrders(sourceContext, destinationContext)
     assert(contextByKey[sourceContext] and contextByKey[destinationContext],
         "Unknown AutoCategory copy context")
     if sourceContext == destinationContext then return false end
-    local prepared, failure = integration.PreflightAutoCategory()
-    if prepared == nil then return ReportProjectionFailure(failure) end
-    local source, destination = prepared.order.contexts[sourceContext], prepared.order.contexts[destinationContext]
+    local _, order = GetCurrentOrderData()
+    local source, destination = order.contexts[sourceContext], order.contexts[destinationContext]
     local override = { [destinationContext] = {} }
     for _, mode in ipairs({ "display", "matching" }) do
         override[destinationContext][mode] = MergeDestinationSlots(source[mode], destination[mode])
@@ -1019,14 +1216,18 @@ InstallExternalHooks = function()
         local profile = this.GetAutoCategoryProfile()
         local oldReference, newReference = "ac:" .. oldName, "ac:" .. newName
         for _, context in ipairs(contexts) do
-            local lists = profile.autoCategoryOrder.contexts[context.key]
-            for _, mode in ipairs({ "display", "matching" }) do
-                local seen = {}
-                for index, reference in ipairs(lists[mode]) do
-                    if reference == oldReference then lists[mode][index] = newReference end
-                    assert(not seen[lists[mode][index]],
-                        "AutoCategory rename creates duplicate order reference: " .. newReference)
-                    seen[lists[mode][index]] = true
+            local orders = { profile.autoCategoryOrder }
+            if pendingOrder then orders[#orders + 1] = pendingOrder.order end
+            for _, order in ipairs(orders) do
+                local lists = order.contexts[context.key]
+                for _, mode in ipairs({ "display", "matching" }) do
+                    local seen = {}
+                    for index, reference in ipairs(lists[mode]) do
+                        if reference == oldReference then lists[mode][index] = newReference end
+                        assert(not seen[lists[mode][index]],
+                            "AutoCategory rename creates duplicate order reference: " .. newReference)
+                        seen[lists[mode][index]] = true
+                    end
                 end
             end
         end
@@ -1048,6 +1249,8 @@ end
 for _, name in ipairs({
     "Initialize", "OnRuleMutation", "OnProfileChanged", "OnEnablementChanged",
     "ProjectAutoCategory", "MoveEntry", "UseOtherOrder", "CopyBothOrders", "GetHeadingDetails",
+    "CompleteInitialSetup", "ShowInitialSetup",
+    "FlushPendingOrders",
 }) do
     local operation = integration[name]
     integration[name] = function(...) return integration.Run(operation, ...) end

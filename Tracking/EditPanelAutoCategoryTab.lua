@@ -119,6 +119,9 @@ local function ConfigureToolbar()
     else
         info:SetText("Priority order — First matching assignment wins. A catch-all group before Set shadows Set; moving Set changes classification, not its inventory heading position. Display order is independent.")
     end
+    if this.AutoCategoryIntegration.HasPendingOrderChanges() then
+        info:SetText(info:GetText() .. " Changes apply to AutoCategory five seconds after your last edit.")
+    end
 end
 
 local function GetOrCreateRow(scrollChild, index)

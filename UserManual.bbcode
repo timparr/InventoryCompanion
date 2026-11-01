@@ -74,11 +74,15 @@ Only your edits to predefined groups are saved. Unmodified names, patterns, and 
 
 AutoCategory integration is optional and is disabled by default. It requires a compatible AutoCategory addon; the Inventory Companion settings page reports whether the integration is available. The enablement and group choices follow the active account-wide or character-specific item list.
 
+On first enablement, choose whether IC groups start [B]Near the top[/B] (the default) or [B]At the bottom[/B] of your existing categories. Groups with any Show or Notify option enabled are included automatically during setup. You can change their order and participation later. While integration is enabled, use [B]Open AutoCategory Editor[/B] in settings to open the editor directly.
+
 In [B]Edit Items[/B], the [B]AutoCategory[/B] checkbox on an ordinary group controls whether its matching filters also classify items into AutoCategory. This is independent of the group's Show, Notify, and tracker visibility settings. Individual items and [B]Miscellaneous[/B] do not have this option.
 
 Open the [B]AutoCategory[/B] tab to choose Backpack, Bank, Guild Bank, House Bank, Crafting Station, Craft Bag, or Furniture Vault. Each context has independent [B]Display order[/B] and [B]Priority order[/B] lists. Display order controls where assignments appear; Priority order controls which matching assignment wins first. Moving an entry changes only the selected list and context. Native AutoCategory assignments are included as rows. Use [B]Use priority list[/B] or [B]Use display list[/B] for a one-time copy between the current context's lists, or choose another context and select [B]Copy both orders[/B] for a one-time copy of shared entries. Later changes do not stay linked.
 
 Moving an assignment does not rename its AutoCategory category. AutoCategory's native hidden state and other assignment settings are preserved. An AutoCategory error displays a warning and disables integration for the current session, while other Inventory Companion features remain available. Correct the reported problem, then run [B]/reloadui[/B] to retry. Existing integration choices are retained.
+
+Order changes appear immediately in the editor and apply to AutoCategory five seconds after your last move or order-copy action. Pending changes apply sooner if you switch profiles, disable integration, change group participation, or leave the world (including a normal UI reload). Closing the editor does not discard them. Unsaved pending changes can be lost if the game crashes.
 
 [B]Saved settings upgrades and rollback:[/B] This release upgrades saved settings to schema version 5, preserving tracked items, group edits, and unrelated settings. All stored account and character lists are validated at startup, including inactive characters. Invalid or legacy AutoCategory settings are preserved but disabled rather than blocking the rest of the addon. They must be explicitly cleaned or restored before rebuilding integration. Core settings still upgrade safely, and incompatible newer saved schemas still stop loading. Back up your saved variables before upgrading. No automatic backup is created.
 

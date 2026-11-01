@@ -112,6 +112,13 @@ for field, relative in (
         ["git", "--no-pager", "show", f"{legacy_saved_variables_commit}:{relative}"], cwd=root
     ).decode("utf-8-sig")
 saved_variables_lua.execute((root / "Project\\Tests\\SavedVariablesTests.lua").read_text(encoding="utf-8-sig"))
+for field, relative in (
+    ("Schema5InitSource", "Core/Init.lua"),
+    ("Schema5DatabaseSource", "Tracking/ItemDatabase.lua"),
+):
+    saved_variables_lua.globals()[field] = subprocess.check_output(
+        ["git", "--no-pager", "show", f"3e1afd6faf202769229add36dc148ade5b6a6912:{relative}"], cwd=root
+    ).decode("utf-8-sig")
 tracker_lua = LuaRuntime(unpack_returned_tuples=True)
 tracker_lua.execute("SLASH_COMMANDS = {}; EVENT_MANAGER = { RegisterForEvent = function() end }")
 tracker_lua.globals().GetGameTimeMilliseconds = lambda: int(perf_counter() * 1000)
