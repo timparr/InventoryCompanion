@@ -732,10 +732,42 @@ local function ConfigureRowTextAndRemoval(row, entry, refreshCallback)
     end
 end
 
+local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
+    local toggle = GetControl(row, "AutoCategory")
+    local label = GetControl(toggle, "Label")
+    local active = entry.isRule and entry.key ~= "miscellaneous"
+        and this.AutoCategoryIntegration.IsAvailable() and this.GetAutoCategoryState().enabled
+    toggle:SetHidden(not active)
+    toggle:SetWidth(active and 110 or 0)
+    GetControl(row, "ItemLabel"):SetWidth(active and 322 or 432)
+    if not active then return end
+
+    label:SetText("AutoCategory")
+    local rule = this.GetRuntimeRules()[entry.key]
+    assert(rule ~= nil, "AutoCategory checkbox targets a missing group")
+    ZO_CheckButton_SetCheckState(toggle, rule.autoCategoryEnabled == true)
+    ZO_CheckButton_SetToggleFunction(toggle, function(_, enabled)
+        ResolveEntryData(entry)
+        assert(this.AutoCategoryIntegration.IsAvailable() and this.GetAutoCategoryState().enabled,
+            "AutoCategory checkbox targets an inactive integration")
+        this.SetAutoCategoryParticipation(entry.key, enabled)
+        refreshCallback()
+        this.RefreshGroupsEditor()
+    end)
+    toggle:SetHandler("OnMouseEnter", function(control)
+        InitializeTooltip(InformationTooltip, control, RIGHT, -4, 0)
+        InformationTooltip:AddLine("Participation applies across all AutoCategory contexts.")
+    end)
+    toggle:SetHandler("OnMouseExit", function()
+        ClearTooltip(InformationTooltip)
+    end)
+end
+
 local function UpdateRowVisualsAndHandlers(row, entry, refreshCallback)
     ConfigureRowStateStyles(row, entry)
     ConfigureRowClickHandlers(row, entry, refreshCallback)
     ConfigureRowTextAndRemoval(row, entry, refreshCallback)
+    ConfigureAutoCategoryToggle(row, entry, refreshCallback)
 end
 
 function this.RefreshTrackedItemsEditor()

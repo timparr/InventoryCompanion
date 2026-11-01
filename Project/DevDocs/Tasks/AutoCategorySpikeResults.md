@@ -2,7 +2,10 @@
 
 Updated 2026-10-31, incorporating ESO evidence through 23:08 UTC and subsequent
 offline follow-up.
-**Integration is not implemented or compatibility-certified.**
+**Integration is implemented but not compatibility-certified.** This file
+retains dated spike evidence; see the
+[implementation report](AutoCategoryImplementationReport.md) for current code
+and test status.
 
 This is the authoritative evidence record and reusable dependency-learnings
 document. Read the [spec](todo_plan_autocategoryIntegration.md) for requirements
@@ -20,35 +23,36 @@ inspection, and user visual confirmation are different kinds of evidence.
 | --- | --- | --- |
 | Native insertion / first-match precedence | PASS: offline and keyboard Backpack in ESO | Mixed managed/external order, cache rebuild, no-match fallthrough; not a complete public CRUD contract. |
 | Inline texture and category identity | PASS: offline and keyboard Backpack in ESO | Decorated lookup/classification/native heading and item; 7 skulls moved into the rendered section, 11 unrelated items retained categories. No items were transferred. Heading collapse clicks were not tested. |
-| Many groups above existing categories | PASS sampled empty-colour-prefix candidate in ESO 22:47 | Five run priorities 1005..1001, all show 1000, ordered Zulu through Victor above Maps & Surveys. Appearance, rank replacement and account reload also passed. General bounds and production naming approval remain open. |
-| Fractional priorities / between-category headings | PASS sampled prefixed crowded order in ESO 22:47 | Unprefixed identical `0914` keys failed at 22:40; rank prefixes restored desired five-heading order with the same crowded fractions. Production naming/general external-order constraints remain open. |
+| Many groups above existing categories | PASS sampled empty-colour-prefix candidate in ESO 22:47 | Five run priorities 1005..1001, all show 1000, ordered Zulu through Victor above Maps & Surveys. Appearance, rank replacement and account reload also passed. D4 naming approval is complete; general bounds remain open. |
+| Fractional priorities / between-category headings | PASS sampled prefixed crowded order in ESO 22:47 | Unprefixed identical `0914` keys failed at 22:40; rank prefixes restored desired five-heading order with the same crowded fractions. D4 naming approval is complete; general external-order constraints remain open. |
 | Pre-registration name collision refusal | PASS: offline and ESO 21:22 | Maps & Surveys detected without registration; definition/identity and both profiles' assignments unchanged. Destructive rename path intentionally not invoked. |
 | Plugin startup and persisted assignments | PASS: sampled Backpack in both profiles | Corrected load timing; explicit reload/check 21:21 account and 22:00 character: one assignment plus predefined definition/cache and correct classification. Not reload coverage for every context or original priority retention. |
 | All seven contexts | PARTIAL | Six contexts sampled successfully, Bank including subscriber source. Guild Bank explicitly deferred, not passed. See context table. |
-| Profile switching / active-only manual projection | PASS in both directions | Core switches preserve both assignment lists; projection changes active only. Automatic IC reprojection hook does not exist and is not proven. **Q3 implementation investigation.** |
+| Profile switching / active-only manual projection | PASS manually in both directions | Core switches preserve both assignment lists; projection changes active only. Automatic IC lifecycle hooks are implemented and covered offline; in-game acceptance remains open under Q3. |
 | Prefix rank replacement / persistence | PASS sampled ESO 23:01-23:04 | Five-name reversal/full rebuild, one active-only persisted rank change and explicit account reload/check. Both predefined variants intentionally retained; old collapse flags remain. |
 | Cleanup / original mode restoration | PASS, ESO 22:05-22:06 and 23:08 | Original account-wide mode restored; 2 earlier tagged assignments and 1 final prefix assignment removed. No other reported changes. DEV code-defined plugin remains. |
-| Production dynamic edits / disable / performance | NOT TESTED as integration | Must be implemented and accepted, not inferred from the spike. **Q3, Q5.** |
+| Production dynamic edits / disable / performance | NOT TESTED in ESO | Lifecycle hooks are implemented and covered offline; in-game behavior and Q5 workload/timing acceptance remain open. |
 
 ## Open questions, decisions, and deferred coverage
 
 IDs match the [spec's open-question register](todo_plan_autocategoryIntegration.md#open-questions-and-decisions).
 
-- **Q1 - BLOCKING:** find a safe top-heading mapping without changing external
+- **Q1 - POST-IMPLEMENTATION ACCEPTANCE:** verify safe top-heading mapping without changing external
   entries for the final general contract. Sampled prefix top placement, appearance,
   rank replacement and account reload passed ESO; 128-group scale passed offline.
   Arbitrary external priority/name bounds still need a compatibility decision.
   Mirroring above 1000 is not a solution. Negative bottom classification was
   tested offline only, not a negative top-placement alternative.
-- **Q2 - BLOCKING supported contract / decision:** prefixed crowded managed order
-  and reversal passed ESO; distinct unprefixed fractions fail. External run/show
-  mismatch and finite floating-point gaps remain demonstrated limits.
+- **Q2 - POST-IMPLEMENTATION ACCEPTANCE:** prefixed crowded managed order and
+  reversal passed in the sampled ESO case; distinct unprefixed fractions fail.
+  External run/show mismatch and finite floating-point gaps remain demonstrated limits.
   Decide supported behavior without silently changing external entries/spec.
-- **Q3 - OPEN implementation research:** production profile-switch detection,
-  refresh/cache invalidation, dynamic definitions/renames/deletes and safe
-  disable. Manual core switching is evidence, not an automatic hook.
-- **Q4 - OPEN validation:** schema migration and pre-feature downgrade rejection
-  have not been tested for new integration fields.
+- **Q3 - IMPLEMENTED; IN-GAME ACCEPTANCE OPEN:** profile switching, refresh/cache
+  invalidation, dynamic definitions/renames/deletes and disable hooks are
+  covered by the adapter and offline tests; in-game behavior is not certified.
+- **Q4 - SYNTHETIC SAFETY CHECKS PASS:** schema migration and pre-feature
+  downgrade rejection are covered by the focused runner against the actual
+  pre-feature sources at `HEAD`. No normal saved data has been loaded.
 - **Q5 - OPEN decision/measurement:** agree synthetic workload and numerical
   timing limits, then measure the real integration.
 - **D1 - CONDITIONAL author decision:** if Q1/Q2 cannot satisfy the spec safely,
@@ -60,12 +64,10 @@ IDs match the [spec's open-question register](todo_plan_autocategoryIntegration.
 - **D3 - OPEN, outside the initial heading requirement:** include/exclude badge
   placement, badge colours, and optional colour settings. These do not block
   using a plain category icon.
-- **D4 - OPEN author decision after lifecycle evidence:** adopt rank-bearing
-  empty colour prefixes as production category names? They passed sampled ESO
-  order/appearance, but a reorder changes the name and restarts collapse state
-  while leaving old name flags. Do not assume the suggestion authorized adoption.
-  After Test 7/7 the author explicitly selected **leave the naming decision
-  open**. No production prefix adoption is authorized.
+- **D4 - APPROVED author decision (2026-11-01):** rank-bearing empty colour
+  prefixes are approved for production category names. The author accepts that
+  reorders change names, restart collapse state and leave old per-name flags.
+  This approval does not close Q1/Q2 or claim general placement compatibility.
 - **Deferred / not certified:** Guild Bank (author deferred at 21:53 and
   22:16), gamepad, other crafting tabs/professions/universal deconstruction,
   merchant buy/buyback. Sampled merchant Sell is supplementary, not an eighth

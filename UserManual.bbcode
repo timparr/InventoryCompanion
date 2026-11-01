@@ -70,7 +70,17 @@ A category that is too large on its own, an oversized flat list, or too many cat
 
 Only your edits to predefined groups are saved. Unmodified names, patterns, and display settings can follow updated defaults in future addon versions. Restoring an edited value to its default removes that override.
 
-[B]Saved settings upgrades and rollback:[/B] This release upgrades saved settings from version 1 to version 2, preserving tracked items, group edits, and other settings. All stored account and character lists are converted at startup, including inactive characters. Back up your saved variables before upgrading. No automatic backup is created.
+[SIZE="4"][B]Use AutoCategory with tracked groups[/B][/SIZE]
+
+AutoCategory integration is optional and is disabled by default. It requires a compatible AutoCategory addon; the Inventory Companion settings page reports whether the integration is available. The enablement and group choices follow the active account-wide or character-specific item list.
+
+When enabling the integration for a list for the first time, choose [B]Prefer IC groups[/B] to place tracked groups before the existing AutoCategory headings, or [B]Prefer AutoCategory groups[/B] to place them after those headings. This initializes the list's shared [B]Master[/B] arrangement; it does not turn on group participation. You can later reset Master to either preset, or reset a context to inherit Master again.
+
+In [B]Edit Items[/B], the [B]AutoCategory[/B] checkbox on an ordinary group controls whether its matching filters also classify items into AutoCategory. This is independent of the group's Show, Notify, and tracker visibility settings. Individual items and [B]Miscellaneous[/B] do not have this option. In [B]Edit Groups[/B], use the [B]AutoCategory[/B] view to inspect shared Master placement or choose Backpack, Bank, Guild Bank, House Bank, Crafting Station, Craft Bag, or Furniture Vault. Master can show nonparticipating groups and heading references; context views show participating groups in their effective order. Use the row checkboxes to hide or restore an external heading in the selected context, and the arrows to move a participating group. Context changes are overrides for that one group; reset them to inherit Master.
+
+Managed category names include a rank prefix so their visible order follows the editor. Reordering can change a category's name, causing that renamed category to start expanded; AutoCategory's old collapse-state entries are retained. AutoCategory settings moved manually are restored to the Inventory Companion order at the next projection. Keep the integration disabled if its status reports an incompatible or unavailable AutoCategory API.
+
+[B]Saved settings upgrades and rollback:[/B] This release upgrades saved settings to schema version 4, preserving tracked items, group edits, and other settings. All stored account and character lists are validated and migrated at startup, including inactive characters. Back up your saved variables before upgrading. No automatic backup is created.
 
 If saved settings require a newer version than the installed addon supports, the addon stops initialization with an error before loading or changing those settings. Install a compatible newer addon or restore a compatible backup. This protection only exists in builds containing the version check: older releases without it cannot safely read the new group format. To return to one of those releases, restore a backup from before migration; reinstalling the older addon alone is not sufficient.
 

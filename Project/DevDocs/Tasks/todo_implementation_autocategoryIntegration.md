@@ -1,6 +1,9 @@
 # AutoCategory integration: IMPLEMENTATION PLAN
 
-Updated 2026-11-01. **Planned; no integration or editor UI is implemented.**
+Updated 2026-11-01. **Implemented; automated tests pass, but post-implementation
+compatibility acceptance is incomplete.** See the
+[implementation report](AutoCategoryImplementationReport.md) for delivered
+work, verification, deviations and remaining gates.
 The [spec](todo_plan_autocategoryIntegration.md) owns required behavior and open
 decisions; the [spike results](AutoCategorySpikeResults.md) own completed spike
 evidence, failed approaches and dependency contracts. See the [review](AutoCategoryIntegrationReview.md)
@@ -615,8 +618,9 @@ results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
   remaining. Naming approval is complete; implementation acceptance is not.
 - **Q3:** verify automatic edits, profile switches, disable, cache invalidation,
   reclassification and affected-context refresh through the implemented hooks.
-- **Q4:** verify migration/import across profiles and old-build downgrade
-  rejection on synthetic saves before any normal-save testing.
+- **Q4:** synthetic migration/import validation and pre-feature downgrade
+  rejection have passed in the focused runner. No normal saved data has been
+  loaded; retain that boundary for further testing.
 - **Q5:** agree workload and numerical timing limits when preparing the
   post-implementation measurement; count matchers, scans, compilation,
   projection writes and refreshes, then measure off/on sort and edit bursts.
@@ -668,7 +672,7 @@ results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
 - [ ] Q1/Q2: post-implementation classification and native heading-order checks
       pass for the supported contract; unsupported cases fail visibly.
 - [ ] Q3: automatic CRUD, profile hook, cache/refresh and disable pass.
-- [ ] Q4: migration/import/downgrade pass on synthetic data before normal saves.
+- [x] Q4: migration/import/downgrade pass on synthetic data before normal saves.
 - [ ] Q5: workload/threshold agreement and post-implementation measurement pass.
 - [ ] D1 author approval if a revised strategy is needed; otherwise not applicable.
 - [ ] D2 final asset identity/tint approved and asset verified.

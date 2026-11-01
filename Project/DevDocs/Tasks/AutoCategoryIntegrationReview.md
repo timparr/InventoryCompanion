@@ -7,6 +7,10 @@ Review dated 2026-10-31. This is a reference assessment of the
 It is a review, not an authorization to implement or a claim that the feature
 has passed acceptance.
 
+**Status update:** D4 was approved by the author on 2026-11-01, and the
+integration has since been implemented. The findings below preserve the
+review's 2026-10-31 assessment; post-implementation acceptance remains pending.
+
 ## Overall assessment
 
 The spec is useful and unusually clear about ownership, safety, user experience,

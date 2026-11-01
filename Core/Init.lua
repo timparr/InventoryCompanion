@@ -5,7 +5,7 @@ InventoryCompanion = {
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
     Version = "1.5.1",
-    SettingsVersion = 3,
+    SettingsVersion = 4,
     SettingsName = "InventoryCompanion_SavedVariables",
 }
 local this = InventoryCompanion
@@ -49,6 +49,7 @@ local function Initialize()
     this.character   = ZO_SavedVars:NewCharacterIdSettings(this.SettingsName, this.SettingsVersion, nil, this.defaultsCharacter)
     this.ValidateTrackerSettings()
     this.ValidateSavedRuleProfiles()
+    this.AutoCategoryIntegration.Initialize()
     this.state.isCurrencySettingsOpen = false
 
     -- Initialize modules

@@ -15,9 +15,13 @@
                     <Anchor point="RIGHT" relativeTo="$(parent)" relativePoint="RIGHT" offsetX="-8" offsetY="0" />
                 </Button>
 
-                <Control name="$(parent)CategorySpace">
+                <Button name="$(parent)AutoCategory" inherits="ZO_CheckButton" mouseEnabled="true">
                     <Dimensions x="0" y="48" />
                     <Anchor point="RIGHT" relativeTo="$(parent)BtnRemove" relativePoint="LEFT" offsetX="-8" />
+                </Button>
+                <Control name="$(parent)CategorySpace">
+                    <Dimensions x="0" y="48" />
+                    <Anchor point="RIGHT" relativeTo="$(parent)AutoCategory" relativePoint="LEFT" offsetX="-4" />
                 </Control>
                 <Button name="$(parent)Notify" mouseEnabled="true">
                     <Dimensions x="120" y="48" />

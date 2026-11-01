@@ -135,6 +135,13 @@ function this.CreateSettingsPanel()
             this.state.isCurrencySettingsOpen = false
         end
     end)
+    this.RefreshAutoCategoryUI = function()
+        if type(LibAddonMenu2.RefreshAddonPanel) == "function" then
+            LibAddonMenu2:RefreshAddonPanel("InventoryCompanionPanel")
+        end
+        if this.RefreshTrackedItemsEditor then this.RefreshTrackedItemsEditor() end
+        if this.RefreshGroupsEditor then this.RefreshGroupsEditor() end
+    end
 
     local optionsData = {
         {
@@ -162,6 +169,32 @@ function this.CreateSettingsPanel()
                 this.UpdateEventRegistry()
             end,
             default = this.defaultsAccount.autoMergeChests,
+        },
+        {
+            type = "header",
+            name = "AutoCategory Integration",
+        },
+        {
+            type = "description",
+            text = function()
+                local _, message = this.AutoCategoryIntegration.GetStatus()
+                return message
+            end,
+        },
+        {
+            type = "checkbox",
+            name = "Enable AutoCategory Integration",
+            tooltip = "Use participating Inventory Companion groups as native AutoCategory categories. This setting follows the selected account-wide or character-specific item list.",
+            getFunc = function() return this.GetAutoCategoryState().enabled end,
+            setFunc = function(enabled)
+                if enabled and not this.GetAutoCategoryState().initialized then
+                    this.AutoCategoryIntegration.ChoosePreset(false)
+                else
+                    this.SetAutoCategoryIntegrationEnabled(enabled)
+                    this.RefreshAutoCategoryUI()
+                end
+            end,
+            disabled = function() return not this.AutoCategoryIntegration.IsAvailable() end,
         },
         {
             type = "header",

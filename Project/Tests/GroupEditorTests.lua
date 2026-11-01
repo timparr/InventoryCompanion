@@ -15,6 +15,8 @@ local function Control(name)
         self.anchor = { point = point, relative = relative, relativePoint = relativePoint, x = x, y = y }
     end
     function control:SetFont() end
+    function control:SetWidth(width) self.width = width end
+    function control:SetEnabled(enabled) self.enabled = enabled end
     function control:SetColor(r, g, b, a) self.color = { r, g, b, a } end
     function control:SetTexture(texture) self.texture = texture end
     function control:SetNormalTexture(texture) self.normalTexture = texture end

@@ -4,7 +4,15 @@ local groupRows = {}
 local patternRows = {}
 local patternExclusionDivider
 local selectedGroupName = nil
+local selectedAutoCategoryHeading
 local SetActionButtons
+local autoCategoryViewActive = false
+local autoCategoryContext = "master"
+local showNonparticipatingGroups = true
+local showAllAutoCategoryHeadings = false
+local autoCategorySearch = ""
+local autoCategoryModeCombo
+local movedAutoCategoryGroup
 
 ------------------------------------------------------------------
 -- Constants
@@ -13,6 +21,10 @@ local constants = {
     newGroupBaseName = "New Group",
 	quirkyNameList = {"%s","Another %s", "Yet another %s", "Now you are starting to annoy me"}
 }
+
+local function EscapeEsoMarkup(value)
+    return value:gsub("|", "||")
+end
 
 ------------------------------------------------------------------
 -- Sanitization & Commit Logic
@@ -61,6 +73,114 @@ local function GetOrCreateGroupRow(scrollChild, index)
     return row
 end
 
+local function IsAutoCategoryActive()
+    return this.AutoCategoryIntegration.IsAvailable() and this.GetAutoCategoryState().enabled
+end
+
+local function ConfigureAutoCategoryToolbar()
+    local topBar = GetControl(InventoryCompanion_GroupsWindow, "TopActionBar")
+    local btnMode = GetControl(topBar, "BtnAutoCategory")
+    local modeControl = GetControl(topBar, "AutoCategoryMode")
+    local reset = GetControl(topBar, "BtnResetAutoCategory")
+    local newGroup = GetControl(topBar, "BtnNewGroup")
+    local autoBar = GetControl(InventoryCompanion_GroupsWindow, "AutoCategoryBar")
+    local active = IsAutoCategoryActive()
+    if not active then autoCategoryViewActive = false end
+    btnMode:SetHidden(not active)
+    btnMode:SetText(autoCategoryViewActive and "Groups" or "AutoCategory")
+    btnMode:SetHandler("OnClicked", function()
+        assert(IsAutoCategoryActive(), "AutoCategory view is no longer available")
+        autoCategoryViewActive = not autoCategoryViewActive
+        if autoCategoryViewActive then
+            local findBox = GetControl(topBar, "FindBox")
+            autoCategorySearch = findBox:GetText():lower():match("^%s*(.-)%s*$")
+        else
+            selectedAutoCategoryHeading = nil
+        end
+        this.RefreshGroupsEditor()
+    end)
+
+    modeControl:SetHidden(not (active and autoCategoryViewActive))
+    reset:SetHidden(not (active and autoCategoryViewActive))
+    newGroup:SetHidden(active and autoCategoryViewActive)
+    autoBar:SetHidden(not (active and autoCategoryViewActive))
+    local leftPane = GetControl(InventoryCompanion_GroupsWindow, "LeftPane")
+    leftPane:ClearAnchors()
+    leftPane:SetAnchor(TOPLEFT, topBar, BOTTOMLEFT, 0,
+        autoCategoryViewActive and 42 or 12)
+
+    if not (active and autoCategoryViewActive) then return end
+
+    autoCategoryModeCombo = autoCategoryModeCombo or ZO_ComboBox_ObjectFromContainer(modeControl)
+    assert(autoCategoryModeCombo, "AutoCategory editor is missing its context selector")
+    autoCategoryModeCombo:SetSortsItems(false)
+    autoCategoryModeCombo:ClearItems()
+    for _, context in ipairs(this.AutoCategoryIntegration.GetContexts()) do
+        local entry = autoCategoryModeCombo:CreateItemEntry(context.title,
+            function(_, _, itemData, selectionChanged)
+                if selectionChanged and itemData then
+                    autoCategoryContext = itemData.key
+                    this.RefreshGroupsEditor()
+                end
+            end)
+        entry.key = context.key
+        autoCategoryModeCombo:AddItem(entry)
+        if context.key == autoCategoryContext then
+            autoCategoryModeCombo:SetSelectedItem(context.title)
+        end
+    end
+
+    local master = autoCategoryContext == "master"
+    local showNon = GetControl(autoBar, "ChkShowNonparticipating")
+    local showAll = GetControl(autoBar, "ChkShowAllHeadings")
+    showNon:SetHidden(not master)
+    GetControl(autoBar, "LblShowNonparticipating"):SetHidden(not master)
+    ZO_CheckButton_SetCheckState(showNon, showNonparticipatingGroups)
+    ZO_CheckButton_SetToggleFunction(showNon, function(_, checked)
+        assert(autoCategoryViewActive and autoCategoryContext == "master",
+            "Nonparticipating filter callback targets a stale view")
+        showNonparticipatingGroups = checked
+        this.RefreshGroupsEditor()
+    end)
+    ZO_CheckButton_SetCheckState(showAll, showAllAutoCategoryHeadings)
+    ZO_CheckButton_SetToggleFunction(showAll, function(_, checked)
+        assert(autoCategoryViewActive, "Heading filter callback targets a stale view")
+        showAllAutoCategoryHeadings = checked
+        this.RefreshGroupsEditor()
+    end)
+
+    local info = GetControl(autoBar, "Info")
+    if autoCategorySearch ~= "" then
+        info:SetText("Clear search to move groups.")
+    elseif (master and showNonparticipatingGroups) or showAllAutoCategoryHeadings then
+        info:SetText("Hide inactive groups and hidden headings to adjust priorities.")
+    elseif master then
+        info:SetText("Set shared group placements here. Heading labels show where each row applies; elsewhere, groups fall back to the nearest applicable heading.")
+    else
+        info:SetText("This shows effective order for " .. autoCategoryContext
+            .. ". Group matching uses the same IC filters; Master changes flow through unless you override a group here.")
+    end
+    local resetText = autoCategoryContext == "master" and "Reset" or "Reset to Master"
+    reset:SetText(resetText)
+    reset:SetHandler("OnClicked", function()
+        assert(IsAutoCategoryActive() and autoCategoryViewActive,
+            "AutoCategory reset action targets an inactive view")
+        if autoCategoryContext == "master" then
+            this.AutoCategoryIntegration.ChoosePreset(true)
+        else
+            this.ResetAutoCategoryContext(autoCategoryContext)
+            this.RefreshGroupsEditor()
+        end
+    end)
+    local findBox = GetControl(topBar, "FindBox")
+    findBox:SetHandler("OnTextChanged", function(control)
+        if autoCategoryViewActive then
+            autoCategorySearch = control:GetText():lower():match("^%s*(.-)%s*$")
+            this.RefreshGroupsEditor()
+        end
+    end)
+end
+
 local function PopulateGroupRow(row, groupName, index, scrollChild, activeRules)
     local rowHeight = 32
     row:ClearAnchors()
@@ -69,6 +189,10 @@ local function PopulateGroupRow(row, groupName, index, scrollChild, activeRules)
 
     local isSelected = (groupName == selectedGroupName)
     local nameLabel = GetControl(row, "Name")
+    nameLabel:SetWidth(240)
+    for _, controlName in ipairs({ "Participation", "Visibility", "MoveUp", "MoveDown" }) do
+        GetControl(row, controlName):SetHidden(true)
+    end
 
     local ruleData = activeRules[groupName]
     local displayName = ruleData.displayName
@@ -109,6 +233,7 @@ local function PopulateGroupRow(row, groupName, index, scrollChild, activeRules)
 
     row:SetHandler("OnMouseDown", function()
         selectedGroupName = groupName
+        selectedAutoCategoryHeading = nil
         this.RefreshGroupsEditor()
     end)
 end
@@ -127,6 +252,172 @@ local function PopulateGroupListPane(groupNames, activeRules)
         local row = GetOrCreateGroupRow(scrollChild, index)
         PopulateGroupRow(row, groupName, index, scrollChild, activeRules)
     end
+end
+
+local function PopulateAutoCategoryListPane(activeRules)
+    HideAllGroupRows()
+    local scrollChild = GetControl(InventoryCompanion_GroupsWindowLeftPane, "ScrollChild")
+    assert(scrollChild, "Groups editor is missing its group-list ScrollChild")
+    local rows = this.AutoCategoryIntegration.ResolveAutoCategoryOrder(autoCategoryContext, {
+        showNonparticipants = showNonparticipatingGroups,
+        showAllHeadings = showAllAutoCategoryHeadings,
+    })
+    local filtered = {}
+    local query = autoCategorySearch
+    local selectedHeadingStillVisible = false
+    for _, entry in ipairs(rows) do
+        local include = entry.kind == "heading"
+            or autoCategoryContext == "master" and showNonparticipatingGroups
+            or entry.participating
+        if include and (query == "" or entry.name:lower():find(query, 1, true)) then
+            filtered[#filtered + 1] = entry
+            if selectedAutoCategoryHeading
+                and entry.kind == "heading"
+                and entry.occurrenceId == selectedAutoCategoryHeading.occurrenceId then
+                selectedHeadingStillVisible = true
+                selectedAutoCategoryHeading = entry
+            end
+        end
+    end
+    if selectedAutoCategoryHeading and not selectedHeadingStillVisible then
+        selectedAutoCategoryHeading = nil
+    end
+    local hasSelectedGroup = selectedGroupName and activeRules[selectedGroupName]
+    if not hasSelectedGroup then
+        selectedGroupName = nil
+        for _, entry in ipairs(filtered) do
+            if entry.kind == "group" then
+                selectedGroupName = entry.ruleKey
+                break
+            end
+        end
+    end
+
+    local movesAllowed = autoCategorySearch == ""
+        and not showAllAutoCategoryHeadings
+        and (autoCategoryContext ~= "master" or not showNonparticipatingGroups)
+    local state = this.GetAutoCategoryState()
+    for index, entry in ipairs(filtered) do
+        local row = GetOrCreateGroupRow(scrollChild, index)
+        row:ClearAnchors()
+        row:SetAnchor(TOPLEFT, scrollChild, TOPLEFT, 0, (index - 1) * 32)
+        row:SetHidden(false)
+        row.autoCategoryEntry = entry
+        local selected = entry.kind == "group" and entry.ruleKey == selectedGroupName
+            or entry.kind == "heading" and selectedAutoCategoryHeading
+                and entry.occurrenceId == selectedAutoCategoryHeading.occurrenceId
+        local label = GetControl(row, "Name")
+        label:SetWidth(154)
+        local bg = GetControl(row, "BG")
+        bg:SetAlpha(selected and 0.4 or (entry.kind == "group" and entry.ruleKey == movedAutoCategoryGroup and 0.45 or 0))
+        if entry.kind == "heading" then
+            label:SetText("|cFFD27FAutoCategory|r " .. EscapeEsoMarkup(entry.name)
+                .. "  |cAAAAAA[" .. EscapeEsoMarkup(entry.scopeLabel) .. "]|r")
+            label:SetColor(0.9, 0.82, 0.65, 1)
+        else
+            label:SetText(entry.name)
+            local isNonparticipant = not entry.participating
+            label:SetColor(isNonparticipant and 0.48 or (selected and 0.95 or 0.7),
+                isNonparticipant and 0.48 or (selected and 0.95 or 0.7),
+                isNonparticipant and 0.48 or (selected and 0.95 or 0.7), 1)
+        end
+        row:SetHandler("OnMouseEnter", function()
+            if not selected then bg:SetAlpha(0.2) end
+        end)
+        row:SetHandler("OnMouseExit", function()
+            bg:SetAlpha(selected and 0.4 or (entry.kind == "group" and entry.ruleKey == movedAutoCategoryGroup and 0.45 or 0))
+        end)
+        row:SetHandler("OnMouseDown", function()
+            assert(row.autoCategoryEntry == entry and IsAutoCategoryActive(),
+                "AutoCategory row selection targets stale data")
+            if entry.kind == "group" then
+                selectedGroupName = entry.ruleKey
+                selectedAutoCategoryHeading = nil
+            else
+                selectedAutoCategoryHeading = entry
+            end
+            this.RefreshGroupsEditor()
+        end)
+
+        local participation = GetControl(row, "Participation")
+        local visibility = GetControl(row, "Visibility")
+        local moveUp, moveDown = GetControl(row, "MoveUp"), GetControl(row, "MoveDown")
+        local contextAtRender = autoCategoryContext
+        participation:SetHidden(not (autoCategoryContext == "master" and entry.kind == "group"))
+        visibility:SetHidden(entry.kind ~= "heading")
+        moveUp:SetHidden(not (movesAllowed and entry.kind == "group" and entry.participating))
+        moveDown:SetHidden(not (movesAllowed and entry.kind == "group" and entry.participating))
+
+        if entry.kind == "group" and autoCategoryContext == "master" then
+            local checkLabel = GetControl(participation, "Label")
+            checkLabel:SetHidden(true)
+            ZO_CheckButton_SetCheckState(participation, entry.participating)
+            ZO_CheckButton_SetToggleFunction(participation, function(_, enabled)
+                assert(row.autoCategoryEntry == entry and autoCategoryContext == "master"
+                    and IsAutoCategoryActive(), "AutoCategory participation action targets a stale row")
+                this.SetAutoCategoryParticipation(entry.ruleKey, enabled)
+                this.RefreshGroupsEditor()
+                this.RefreshTrackedItemsEditor()
+            end)
+            participation:SetHandler("OnMouseEnter", function(control)
+                InitializeTooltip(InformationTooltip, control, RIGHT, -4, 0)
+                InformationTooltip:AddLine("Participation applies across all AutoCategory contexts.")
+            end)
+            participation:SetHandler("OnMouseExit", function()
+                ClearTooltip(InformationTooltip)
+            end)
+        end
+        if entry.kind == "heading" then
+            local visibilityLabel = GetControl(visibility, "Label")
+            visibilityLabel:SetHidden(true)
+            local isVisible
+            if autoCategoryContext == "master" then
+                isVisible = not (state.order.headingVisibility
+                    and state.order.headingVisibility[entry.occurrenceId] == false)
+            else
+                isVisible = not entry.hidden
+            end
+            ZO_CheckButton_SetCheckState(visibility, isVisible)
+            ZO_CheckButton_SetToggleFunction(visibility, function(_, visible)
+                assert(row.autoCategoryEntry == entry and IsAutoCategoryActive()
+                    and autoCategoryContext == contextAtRender,
+                    "AutoCategory heading action targets a stale row")
+                this.SetAutoCategoryHeadingVisibility(contextAtRender, entry.occurrenceId, visible)
+                this.RefreshGroupsEditor()
+            end)
+        end
+        if entry.kind == "group" and entry.participating and movesAllowed then
+            local canMoveUp = index > 1
+            local canMoveDown = index < #filtered
+            moveUp:SetEnabled(canMoveUp)
+            moveDown:SetEnabled(canMoveDown)
+            local function Move(direction)
+                assert(row.autoCategoryEntry == entry and IsAutoCategoryActive()
+                    and autoCategoryViewActive and autoCategoryContext == contextAtRender
+                    and autoCategorySearch == "" and not showAllAutoCategoryHeadings
+                    and (autoCategoryContext ~= "master" or not showNonparticipatingGroups),
+                    "AutoCategory move action targets a stale or expanded view")
+                if direction < 0 and not canMoveUp or direction > 0 and not canMoveDown then return end
+                this.AutoCategoryIntegration.MoveGroup(entry.ruleKey, autoCategoryContext, direction)
+                movedAutoCategoryGroup = entry.ruleKey
+                if SOUNDS and SOUNDS.MENU_BAR_CLICK then PlaySound(SOUNDS.MENU_BAR_CLICK) end
+                this.RefreshGroupsEditor()
+            end
+            moveUp:SetHandler("OnClicked", function() Move(-1) end)
+            moveDown:SetHandler("OnClicked", function() Move(1) end)
+            moveUp:SetHandler("OnMouseEnter", function(control)
+                InitializeTooltip(InformationTooltip, control, RIGHT, -4, 0)
+                InformationTooltip:AddLine("Move this group up.")
+            end)
+            moveDown:SetHandler("OnMouseEnter", function(control)
+                InitializeTooltip(InformationTooltip, control, RIGHT, -4, 0)
+                InformationTooltip:AddLine("Move this group down.")
+            end)
+            moveUp:SetHandler("OnMouseExit", function() ClearTooltip(InformationTooltip) end)
+            moveDown:SetHandler("OnMouseExit", function() ClearTooltip(InformationTooltip) end)
+        end
+    end
+    if #filtered == 0 then selectedAutoCategoryHeading = nil end
 end
 
 ------------------------------------------------------------------
@@ -461,6 +752,15 @@ SetActionButtons = function(activeRules)
     local btnDelete = GetControl(actionBar, "BtnDelete")
 
     local groupId = selectedGroupName
+    if autoCategoryViewActive and selectedAutoCategoryHeading then
+        btnReset:SetHidden(true)
+        btnHide:SetHidden(true)
+        btnDelete:SetHidden(true)
+        btnReset:SetHandler("OnClicked", nil)
+        btnHide:SetHandler("OnClicked", nil)
+        btnDelete:SetHandler("OnClicked", nil)
+        return
+    end
     
     -- Miscellaneous can never be hidden or deleted.
     if groupId == "miscellaneous" then
@@ -503,15 +803,32 @@ SetActionButtons = function(activeRules)
 end
 
 local function PopulateSingleGroupPane(activeRules)
-    if not selectedGroupName then return end
-
     local rightPane = InventoryCompanion_GroupsWindowRightPane
     local titleLabel = GetControl(rightPane, "GroupTitleLabel")
     local editBox = GetControl(rightPane, "GroupEditBox")
     local pencilBtn = GetControl(rightPane, "BtnEditGroupName")
     local descLabel = GetControl(rightPane, "DescriptionLabel")
+    local headingDetails = GetControl(rightPane, "AutoCategoryHeadingDetails")
     local patternScrollContainer = GetControl(rightPane, "PatternScrollContainer")
     local btnAddRule = GetControl(rightPane, "BtnAddRule")
+
+    headingDetails:SetHidden(true)
+    if autoCategoryViewActive and selectedAutoCategoryHeading then
+        editBox:SetHidden(true)
+        titleLabel:SetHidden(false)
+        pencilBtn:SetHidden(true)
+        patternScrollContainer:SetHidden(true)
+        btnAddRule:SetHidden(true)
+        descLabel:SetHidden(true)
+        HideAllPatternRows()
+        titleLabel:SetText("AutoCategory heading: " .. EscapeEsoMarkup(selectedAutoCategoryHeading.name))
+        local details = this.AutoCategoryIntegration.GetHeadingDetails(selectedAutoCategoryHeading.name)
+        headingDetails:SetText(details and ("AutoCategory filter: " .. EscapeEsoMarkup(details.rule))
+            or "This AutoCategory heading is no longer available. Refresh the editor to use the current heading list.")
+        headingDetails:SetHidden(false)
+        return
+    end
+    if not selectedGroupName then return end
 
     editBox:SetHidden(true)
     titleLabel:SetHidden(false)
@@ -653,14 +970,19 @@ end
 local function InitToolbar()
     InitEditItemsButton()
     InitNewGroupButton()
+    ConfigureAutoCategoryToolbar()
 end
 
 function this.RefreshGroupsEditor()
     InitToolbar()
 
     local groupNames, activeRules = GetSortedGroupNames()
-
-    PopulateGroupListPane(groupNames, activeRules)
+    if autoCategoryViewActive and IsAutoCategoryActive() then
+        PopulateAutoCategoryListPane(activeRules)
+    else
+        selectedAutoCategoryHeading = nil
+        PopulateGroupListPane(groupNames, activeRules)
+    end
     PopulateSingleGroupPane(activeRules)
 	SetActionButtons(activeRules)
     this.UpdateEventRegistry()

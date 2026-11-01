@@ -21,9 +21,25 @@
                     <AnchorFill />
                 </Texture>
                 <Label name="$(parent)Name" font="ZoFontGame" color="FFFFFF" verticalAlignment="CENTER" wrapMode="ELLIPSE">
-                    <Dimensions x="240" y="32" />
+                    <Dimensions x="160" y="32" />
                     <Anchor point="LEFT" relativeTo="$(parent)" relativePoint="LEFT" offsetX="10" offsetY="0" />
                 </Label>
+                <Button name="$(parent)MoveDown" inherits="ZO_DefaultButton" text="v" hidden="true">
+                    <Dimensions x="24" y="24" />
+                    <Anchor point="RIGHT" relativeTo="$(parent)" relativePoint="RIGHT" offsetX="-2" />
+                </Button>
+                <Button name="$(parent)MoveUp" inherits="ZO_DefaultButton" text="^" hidden="true">
+                    <Dimensions x="24" y="24" />
+                    <Anchor point="RIGHT" relativeTo="$(parent)MoveDown" relativePoint="LEFT" offsetX="-2" />
+                </Button>
+                <Button name="$(parent)Participation" inherits="ZO_CheckButton" hidden="true">
+                    <Dimensions x="24" y="24" />
+                    <Anchor point="RIGHT" relativeTo="$(parent)MoveUp" relativePoint="LEFT" offsetX="-2" />
+                </Button>
+                <Button name="$(parent)Visibility" inherits="ZO_CheckButton" hidden="true">
+                    <Dimensions x="24" y="24" />
+                    <Anchor point="RIGHT" relativeTo="$(parent)MoveUp" relativePoint="LEFT" offsetX="-2" />
+                </Button>
             </Controls>
         </Control>
 
@@ -111,10 +127,50 @@
                             </Controls>
                         </EditBox>
 
+                        <Button name="$(parent)BtnAutoCategory" inherits="ZO_DefaultButton" text="AutoCategory">
+                            <Dimensions x="110" y="26" />
+                            <Anchor point="LEFT" relativeTo="$(parent)FindBox" relativePoint="RIGHT" offsetX="8" />
+                        </Button>
+                        <Control name="$(parent)AutoCategoryMode" inherits="ZO_ComboBox" subOfType="ZO_ComboBox" hidden="true">
+                            <Dimensions x="150" y="28" />
+                            <Anchor point="LEFT" relativeTo="$(parent)BtnAutoCategory" relativePoint="RIGHT" offsetX="8" />
+                        </Control>
+                        <Button name="$(parent)BtnResetAutoCategory" inherits="ZO_DefaultButton" text="Reset">
+                            <Dimensions x="100" y="26" />
+                            <Anchor point="RIGHT" relativeTo="$(parent)" relativePoint="RIGHT" offsetX="-120" />
+                            <OnClicked>
+                                InventoryCompanion.AutoCategoryIntegration.ChoosePreset(true)
+                            </OnClicked>
+                        </Button>
                         <Button name="$(parent)BtnNewGroup" inherits="ZO_DefaultButton" text="+ New Group">
                             <Dimensions x="110" y="26" />
                             <Anchor point="RIGHT" relativeTo="$(parent)" relativePoint="RIGHT" offsetX="0" offsetY="0" />
                         </Button>
+                    </Controls>
+                </Control>
+
+                <Control name="$(parent)AutoCategoryBar" hidden="true">
+                    <Dimensions x="830" y="32" />
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)TopActionBar" relativePoint="BOTTOMLEFT" offsetX="0" offsetY="4" />
+                    <Controls>
+                        <Button name="$(parent)ChkShowNonparticipating" inherits="ZO_CheckButton">
+                            <Anchor point="LEFT" relativeTo="$(parent)" relativePoint="LEFT" />
+                        </Button>
+                        <Label name="$(parent)LblShowNonparticipating" font="ZoFontGameSmall" color="FFFFFF" text="Show nonparticipating IC groups">
+                            <Dimensions x="155" y="30" />
+                            <Anchor point="LEFT" relativeTo="$(parent)ChkShowNonparticipating" relativePoint="RIGHT" offsetX="3" />
+                        </Label>
+                        <Button name="$(parent)ChkShowAllHeadings" inherits="ZO_CheckButton">
+                            <Anchor point="LEFT" relativeTo="$(parent)LblShowNonparticipating" relativePoint="RIGHT" offsetX="8" />
+                        </Button>
+                        <Label name="$(parent)LblShowAllHeadings" font="ZoFontGameSmall" color="FFFFFF" text="Show all AutoCategory headings">
+                            <Dimensions x="160" y="30" />
+                            <Anchor point="LEFT" relativeTo="$(parent)ChkShowAllHeadings" relativePoint="RIGHT" offsetX="3" />
+                        </Label>
+                        <Label name="$(parent)Info" font="ZoFontGameSmall" color="AAAAAA" wrapMode="ELLIPSE">
+                            <Dimensions x="325" y="30" />
+                            <Anchor point="LEFT" relativeTo="$(parent)LblShowAllHeadings" relativePoint="RIGHT" offsetX="8" />
+                        </Label>
                     </Controls>
                 </Control>
 
@@ -178,6 +234,10 @@
                         <!-- Special Group Description Label -->
                         <Label name="$(parent)DescriptionLabel" font="ZoFontGame" color="CCCCCC" text="" hidden="true" wrapMode="TEXT_WRAP_MODE_WORD">
                             <Dimensions x="510" y="200" />
+                            <Anchor point="TOPLEFT" relativeTo="$(parent)InstructionsLabel" relativePoint="BOTTOMLEFT" offsetX="0" offsetY="12" />
+                        </Label>
+                        <Label name="$(parent)AutoCategoryHeadingDetails" font="ZoFontGame" color="CCCCCC" text="" hidden="true" wrapMode="TEXT_WRAP_MODE_WORD">
+                            <Dimensions x="510" y="240" />
                             <Anchor point="TOPLEFT" relativeTo="$(parent)InstructionsLabel" relativePoint="BOTTOMLEFT" offsetX="0" offsetY="12" />
                         </Label>
 

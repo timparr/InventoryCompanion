@@ -14,6 +14,7 @@ local function Control(name)
     function control:SetFont() end
     function control:SetColor(r, g, b, a) self.color = { r, g, b, a } end
     function control:SetDimensions(w, h) self.width, self.height = w, h end
+    function control:SetWidth(width) self.width = width end
     function control:GetHeight() return self.height or 52 end
     function control:GetTop() return self.top or 0 end
     function control:GetParent() return self.parent end
@@ -36,13 +37,16 @@ function ZO_ComboBox_ObjectFromContainer()
     return { SetSortsItems = function() end }
 end
 function ZO_Dialogs_RegisterCustomDialog() end
+InformationTooltip = { AddLine = function() end }
+function InitializeTooltip() end
+function ClearTooltip() end
 function SetGameCameraUIMode() end
 function GetUnitName() return "Test character" end
 function GetItemLinkName(link) return link end
 function GetItemLinkIcon() return "icon" end
 function IsESOPlusSubscriber() return false end
 TOPLEFT, SCENE_SHOWING, SCENE_HIDDEN = "TOPLEFT", "showing", "hidden"
-TOPRIGHT, BOTTOMRIGHT, DT_HIGH, KEY_ESCAPE = "TOPRIGHT", "BOTTOMRIGHT", 1, 27
+TOPRIGHT, BOTTOMRIGHT, RIGHT, DT_HIGH, KEY_ESCAPE = "TOPRIGHT", "BOTTOMRIGHT", "RIGHT", 1, 27
 MOUSE_BUTTON_INDEX_LEFT, EVENT_GLOBAL_MOUSE_DOWN = 1, 9
 BAG_BACKPACK, BAG_BANK, BAG_SUBSCRIBER_BANK = 1, 2, 3
 SCENE_MANAGER = {}

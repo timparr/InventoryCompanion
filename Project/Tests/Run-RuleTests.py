@@ -30,6 +30,7 @@ for folder in ("Core", "Banking", "Tracking"):
 lua.execute((root / "Core\\Constants.lua").read_text(encoding="utf-8-sig"), name="Core\\Constants.lua")
 for relative in (
     "Tracking\\ItemDatabase.lua",
+    "Tracking\\AutoCategoryIntegration.lua",
     "Core\\RuleTests.lua",
     "Project\\Tests\\GroupEditorTests.lua",
     "Tracking\\EditPanelGroupsTab.lua",
@@ -47,19 +48,26 @@ for relative in ("Core\\Init.lua", "Tracking\\ItemDatabase.lua", "Project\\Tests
     if relative == "Tracking\\ItemDatabase.lua":
         persistence_lua.execute((root / "Core\\Constants.lua").read_text(encoding="utf-8-sig"), name="Core\\Constants.lua")
     persistence_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
+persistence_lua.execute(
+    (root / "Tracking\\AutoCategoryIntegration.lua").read_text(encoding="utf-8-sig"),
+    name="Tracking\\AutoCategoryIntegration.lua",
+)
 persistence_lua.globals().RuleDatabaseSource = (root / "Tracking\\ItemDatabase.lua").read_text(encoding="utf-8-sig")
 persistence_lua.globals().RuleConstantsSource = (root / "Core\\Constants.lua").read_text(encoding="utf-8-sig")
 saved_variables_lua = LuaRuntime(unpack_returned_tuples=True)
 saved_variables_lua.globals().SavedVariablesInitSource = (root / "Core\\Init.lua").read_text(encoding="utf-8-sig")
 saved_variables_lua.globals().SavedVariablesConstantsSource = (root / "Core\\Constants.lua").read_text(encoding="utf-8-sig")
 saved_variables_lua.globals().SavedVariablesDatabaseSource = (root / "Tracking\\ItemDatabase.lua").read_text(encoding="utf-8-sig")
+saved_variables_lua.globals().SavedVariablesIntegrationSource = (
+    root / "Tracking\\AutoCategoryIntegration.lua"
+).read_text(encoding="utf-8-sig")
 for field, relative in (
     ("LegacySavedVariablesInitSource", "Core/Init.lua"),
     ("LegacySavedVariablesConstantsSource", "Core/Constants.lua"),
     ("LegacySavedVariablesDatabaseSource", "Tracking/ItemDatabase.lua"),
 ):
     saved_variables_lua.globals()[field] = subprocess.check_output(
-        ["git", "--no-pager", "show", f"9dc0e12:{relative}"], cwd=root
+        ["git", "--no-pager", "show", f"HEAD:{relative}"], cwd=root
     ).decode("utf-8-sig")
 saved_variables_lua.execute((root / "Project\\Tests\\SavedVariablesTests.lua").read_text(encoding="utf-8-sig"))
 tracker_lua = LuaRuntime(unpack_returned_tuples=True)
@@ -71,6 +79,7 @@ for relative in (
     "Core\\Init.lua",
     "Core\\Constants.lua",
     "Tracking\\ItemDatabase.lua",
+    "Tracking\\AutoCategoryIntegration.lua",
     "Project\\Tests\\TrackerPanelTests.lua",
     "Tracking\\ItemTrackerPanel.lua",
     "Core\\Settings.lua",
@@ -82,10 +91,22 @@ item_editor_lua.execute('InventoryCompanion = { Name = "InventoryCompanion_DEV",
 for relative in (
     "Core\\Constants.lua",
     "Tracking\\ItemDatabase.lua",
+    "Tracking\\AutoCategoryIntegration.lua",
     "Project\\Tests\\ItemEditorTests.lua",
     "Tracking\\EditPanelItemsTab.lua",
 ):
     item_editor_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
+autocategory_lua = LuaRuntime(unpack_returned_tuples=True)
+autocategory_lua.execute(
+    'InventoryCompanion = { SettingsName = "InventoryCompanion_AutoCategoryTests" }'
+)
+for relative in (
+    "Core\\Constants.lua",
+    "Tracking\\ItemDatabase.lua",
+    "Tracking\\AutoCategoryIntegration.lua",
+    "Project\\Tests\\AutoCategoryIntegrationTests.lua",
+):
+    autocategory_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
 tests = []
 suites = (item_editor_lua.globals().InventoryCompanion.GetItemEditorTests(),)
 if not args.item_editor_only:
@@ -100,6 +121,7 @@ if not args.item_editor_only:
         persistence_lua.globals().InventoryCompanion.GetRulePersistenceTests(),
         saved_variables_lua.globals().GetSavedVariablesTests(),
         tracker_lua.globals().InventoryCompanion.GetTrackerPanelTests(),
+        autocategory_lua.globals().InventoryCompanion.GetAutoCategoryIntegrationTests(),
     )
 for suite in suites:
     tests.extend(suite[index] for index in range(1, len(suite) + 1))

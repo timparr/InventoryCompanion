@@ -1,6 +1,6 @@
 # AutoCategory integration: SPEC
 
-Updated 2026-11-01. **Planned, not implemented or compatibility-certified.**
+Updated 2026-11-01. **Implemented, but not compatibility-certified.**
 This document defines required behavior, accepted author decisions, and open
 decisions. It is not a test log or a claim that all requirements are feasible.
 
@@ -25,6 +25,8 @@ evidence, failed approaches, dependency contracts and current gate status.
 See the [review](AutoCategoryIntegrationReview.md) for the spec/plan assessment
 and concrete recommendations.
 The [Show/Notify prerequisite](../Completed/ItemTrackerFlags.md) is complete.
+The current implementation and remaining acceptance gates are summarized in
+the [implementation report](AutoCategoryImplementationReport.md).
 
 **Handoff status, 2026-10-31 23:08 UTC:** all seven follow-up test steps are
 finished, including exact-tag cleanup. Empty colour-rank prefixes passed sampled
@@ -35,7 +37,8 @@ Q1/Q2 now concern a supported placement contract and demonstrated bounds;
 D4 prefix-name adoption was approved by the author on 2026-11-01. Reordering changes names and
 restarts collapse state while old flags remain. Guild Bank stays deferred;
 alignment/collapse interaction and general external run/show mismatches are not
-certified. Automatic IC integration hooks remain unbuilt. See SPIKE RESULTS for
+certified. The production integration hooks have since been implemented; their
+automated coverage does not replace in-game acceptance. See SPIKE RESULTS for
 commands, dated outcomes, failed alternatives and exact evidence limits.
 No further standalone pre-implementation spike work is planned. The remaining
 assumptions and deferred context coverage are post-implementation acceptance
@@ -479,7 +482,7 @@ not a reason to reopen the spike before implementation starts.**
 | Q1 | POST-IMPLEMENTATION ACCEPTANCE | How can all top-slot managed headings appear above existing headings in saved order? | Verify the implemented adapter's classification and native heading order, bounds, and visible unsupported-state behavior before activation. Spike evidence is sampled; no additional pre-implementation probe. |
 | Q2 | POST-IMPLEMENTATION ACCEPTANCE | How does managed order handle crowded keys and external run/show differences? | Verify implemented output, including heading order and known finite/mismatch limits, before activation. If the unchanged spec cannot be met, stop for D1; no silent alphabetical fallback. |
 | Q3 | IMPLEMENTATION + ACCEPTANCE | Which lifecycle hooks and dynamic definition/cache/refresh paths reliably cover edits, AC profile changes, disable and pending work? | Implement the hooks, then verify active-only automatic behavior against the completed feature. Manual projection alone is not closure. |
-| Q4 | POST-IMPLEMENTATION SAFETY GATE | Does migration preserve all profiles/imports and do older builds reject new schema without mutation? | Verify on synthetic proxy fixtures and with the real pre-feature build before loading new-schema data from normal game saves. |
+| Q4 | SYNTHETIC SAFETY CHECKS PASS; NO NORMAL SAVES USED | Does migration preserve all profiles/imports and do older builds reject new schema without mutation? | Focused runner verifies synthetic migration/import fixtures and schema-v4 rejection by the actual pre-feature schema-v3 sources at `HEAD`; no normal saved data has been loaded. |
 | Q5 | POST-IMPLEMENTATION MEASUREMENT | What synthetic inventory/group/burst workload and numerical timing limits define performance acceptance? | Agree workload and limits when preparing post-implementation measurement; record call counts and off/on timings. No numerical limits are accepted yet. |
 | D1 | CONDITIONAL author decision | If Q1/Q2 are impossible under unchanged native rendering, which explicitly revised design is acceptable? | Present failed approaches, supported alternatives and risks; obtain approval. No classification/render takeover or semantic change by assumption. |
 | D2 | OPEN author decision | Final heading texture path / DEV-release identity policy and exact gold tint? | Decide before final asset registration/publication. No new converter/tool install assumed. |
