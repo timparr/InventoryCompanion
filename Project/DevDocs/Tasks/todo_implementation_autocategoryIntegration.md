@@ -69,8 +69,10 @@ autoCategoryOrder = {
 
 Names and anchor encoding are provisional, not existing APIs or finalized
 schema. Example heading names identify actual AC categories, not hardcoded
-English defaults. The top-slot encoding, rank validity, and other unresolved
-details remain subject to the [spec refinement](todo_plan_autocategoryIntegration.md#shared-order-and-context-overrides).
+English defaults. Product behaviour remains subject to the
+[spec refinement](todo_plan_autocategoryIntegration.md#shared-order-and-context-overrides);
+top-slot encoding, rank validity and insertion/cleanup triggers are
+implementation details to settle here without changing that behaviour.
 
 - Sparse participation on ordinary rules, missing false; participation applies
   across contexts. Enablement/heading visibility/placements belong to each IC tracked-list
@@ -91,21 +93,75 @@ details remain subject to the [spec refinement](todo_plan_autocategoryIntegratio
 
 ### Resolve ranks and clean up spacing
 
+Implement the [shared-order UX](todo_plan_autocategoryIntegration.md#shared-order-and-context-overrides):
+moving B between C and D in Bank changes only Bank's placement and preserves
+that location when unrelated parts of the list change. Neighbour-move semantics
+still await author confirmation; the numeric examples below record the
+previously discussed behaviour, not an additional UX guarantee.
+
 - Resolve inherited/overridden anchor and rank for each group, bucket by usable
   heading and sort by ascending rank. Managed blocks immediately follow their
   heading; native external heading order remains unchanged.
+- Anchor to an external heading or top, never another IC group. A context
+  override can independently replace anchor and/or rank; other fields inherit.
+  Inserting a group allocates its own position rather than rewriting neighbours.
 - Enforce no rank ties between different groups in any effective context,
   including retained nonparticipants. Rank allocation considers the master and
   all overrides so a master move cannot collide with another group's context
-  rank. Exact allocation/master-edit semantics remain to be refined.
+  rank, even if the groups currently have different anchors. The same inherited
+  rank for the same group across contexts is not a tie between different groups.
+  No alphabetical tie-break is permitted. Exact allocation/master-edit
+  mechanics remain to be refined.
+- Use spaced ranks such as 100, 200, 300 initially. Allocate insertion values
+  considering every saved rank in the profile, cleaning up when needed rather
+  than introducing collisions.
 - Implement one profile-wide cleanup: collect all distinct stored ranks,
-  sort them, and map them monotonically to new ranks at least 10 apart.
+  including retained nonparticipants, sort them, and map them strictly
+  monotonically to new ranks at least 10 apart.
   Apply the same old-to-new mapping to every master/override occurrence.
+  Equal old values receive equal new values; distinct values remain distinct.
   Prepare and validate the entire change before saving it.
+- For example, `100, 200, 201, 202, 300` maps to `10, 20, 30, 40, 50`.
+  The old master gap 200..300 becomes 20..50 because override positions occupy
+  intermediate values. Many overrides can require master positions hundreds
+  apart.
 - Cleanup preserves all seven effective orders, heading anchors and sparse
-  inheritance. Never renumber just one context or clean up on view/render.
+  inheritance; do not materialize inherited fields or complete context lists.
+  Never renumber just one context or clean up on view/render.
   IC ordering ranks are distinct from native run/show priorities and D4
   category-name rank prefixes.
+
+Numeric examples retained from the spec for implementation reference:
+
+```text
+Master:
+  A: anchor New,     rank 100
+  B: anchor New,     rank 200
+  C: anchor To sell, rank 300
+  D: anchor To sell, rank 400
+
+Bank, B moved directly below To sell:
+  B override: anchor To sell, rank 250
+  Result: New / A / To sell / B / C / D
+```
+
+Swapping C/D's Master ranks also swaps them in Bank; swapping A/B's Master
+ranks leaves B's Bank anchor/rank overridden.
+
+Alternatively, B between C/D uses rank 350; inserting A between C/B uses
+rank 325 without rewriting B:
+
+```text
+Bank overrides:
+  A: anchor To sell, rank 325
+  B: anchor To sell, rank 350
+Result: New / To sell / C / A / B / D
+```
+
+If C/D exchange Master ranks, the numeric model produces
+`New / To sell / D / A / B / C`. Confirm the spec's remaining neighbour-move
+decision before treating this as finalized behaviour. Overridden numerical
+importance is not a group-following relationship.
 
 ### Validation, migration and mutation
 
