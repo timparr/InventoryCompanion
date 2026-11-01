@@ -13,6 +13,7 @@ local function Control(name)
     function control:SetColor(...) self.color = { ... } end
     function control:SetAlpha(alpha) self.alpha = alpha end
     function control:SetEnabled(enabled) self.enabled = enabled end
+    function control:SetHeight(height) self.height = height end
     return control
 end
 
@@ -52,6 +53,9 @@ InformationTooltip = { AddLine = function() end }
 function InitializeTooltip() end
 function ClearTooltip() end
 function PlaySound() end
+local scrolledRow
+function ZO_Scroll_ScrollControlIntoView(_, row) scrolledRow = row end
+function ZO_Scroll_UpdateScrollBar() end
 SOUNDS = { MENU_BAR_CLICK = "click" }
 TOPLEFT, RIGHT, MOUSE_BUTTON_INDEX_LEFT = "TOPLEFT", "RIGHT", 1
 SCENE_MANAGER = {}
@@ -82,6 +86,29 @@ local function RowTexts()
     return table.concat(texts, ",")
 end
 
+local function ClickRow(text)
+    local row = RowByText(text)
+    row.handlers.OnMouseDown(row, MOUSE_BUTTON_INDEX_LEFT)
+end
+
+local function CheckRow(text, checked)
+    GetControl(RowByText(text), "Selection"):toggleFunction(checked)
+end
+
+local function SelectedTexts()
+    local texts = {}
+    for _, row in ipairs(VisibleRows()) do
+        if GetControl(row, "Selection").checked then texts[#texts + 1] = GetControl(row, "Name").text end
+    end
+    return table.concat(texts, ",")
+end
+
+local function ClickToolbar(name)
+    local button = GetControl(GetControl(window, "MovementBar"), name)
+    assert(button.enabled, "Toolbar button is disabled: " .. name)
+    button.handlers.OnClicked()
+end
+
 local function Setup(rules)
     this.NewAutoCategoryTestFixture()
     local contexts = this.AutoCategoryIntegration.GetContexts()
@@ -90,17 +117,29 @@ local function Setup(rules)
         local native = { "ac:New", "ac:Selling", "ac:Low level" }
         order.contexts[entry.key] = { display = native, matching = { "ac:New", "ac:Selling", "ac:Low level" } }
     end
-    order.contexts.backpack.display = { "ac:New", "ic:alpha", "ic:beta", "ac:Selling", "ac:Low level" }
-    order.contexts.backpack.matching = { "ac:New", "ic:alpha", "ic:beta", "ac:Selling", "ac:Low level" }
+    for _, mode in ipairs({ "display", "matching" }) do
+        local sequence = { "ac:New" }
+        for _, key in ipairs({ "alpha", "beta" }) do
+            if rules[key] and rules[key].autoCategoryEnabled then sequence[#sequence + 1] = "ic:" .. key end
+        end
+        sequence[#sequence + 1] = "ac:Selling"
+        sequence[#sequence + 1] = "ac:Low level"
+        order.contexts.backpack[mode] = sequence
+    end
     this.accountWide.trackedRules = rules
     this.accountWide.autoCategoryOrder = order
     this.accountWide.autoCategoryIntegrationEnabled = true
     this.InvalidateRuleCache()
     this.ValidateSavedRuleProfiles()
     this.AutoCategoryIntegration.GetHeadingDetails = function(name) return { rule = "filter(" .. name .. ")" } end
-    this.AutoCategoryIntegration.MoveEntry = function(reference, context, mode, direction)
-        this.AutoCategoryIntegration.lastMove = { reference, context, mode, direction }
-        return true
+    this.AutoCategoryIntegration.MoveEntries = function(selection, context, mode, movement)
+        local selected = {}
+        for reference in pairs(selection) do selected[reference] = true end
+        this.AutoCategoryIntegration.lastMove = { selected, context, mode, movement }
+        local orders = this.accountWide.autoCategoryOrder.contexts[context]
+        local sequence, changed = integration.GetMovedSequence(orders[mode], selection, movement)
+        orders[mode] = sequence
+        return changed
     end
     this.AutoCategoryIntegration.UseOtherOrder = function(context, mode)
         this.AutoCategoryIntegration.lastCopyMode = { context, mode }
@@ -113,6 +152,15 @@ local function Setup(rules)
     this.RefreshTrackedItemsEditor = function() end
     this.UpdateEditorLayout = function() end
     window.hidden = false
+    this.RefreshAutoCategoryEditor()
+    GetControl(GetControl(window, "OptionsBar"), "BtnDisplayOrder").handlers.OnClicked()
+    local contextCombo = combos[window.name .. "TopActionBarContextMode"]
+    contextCombo.items[1].callback(nil, nil, contextCombo.items[1], true)
+    local find = GetControl(GetControl(window, "TopActionBar"), "FindBox")
+    find.text = ""
+    find.handlers.OnTextChanged(find)
+    integration.lastMove = nil
+    scrolledRow = nil
 end
 
 function this.GetAutoCategoryEditorTests()
@@ -127,6 +175,146 @@ function this.GetAutoCategoryEditorTests()
     end
 
     return {
+        {
+            name = "AutoCategory editor row clicks replace a singleton and toggle only that row in a multi-selection",
+            run = WithActiveIntegration(function()
+                Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true }, gamma = {} })
+                ClickRow("Alpha")
+                assert(SelectedTexts() == "Alpha")
+                ClickRow("Beta")
+                assert(SelectedTexts() == "Beta")
+                CheckRow("Alpha", true)
+                assert(SelectedTexts() == "Alpha,Beta")
+                ClickRow("Selling")
+                assert(SelectedTexts() == "Alpha,Beta,Selling")
+                ClickRow("Alpha")
+                assert(SelectedTexts() == "Beta,Selling")
+                CheckRow("Selling", false)
+                ClickRow("Beta")
+                assert(SelectedTexts() == "")
+                ClickRow("Gamma")
+                assert(SelectedTexts() == "" and GetControl(RowByText("Gamma"), "Selection").hidden)
+                assert(GetControl(RowByText("Gamma"), "MoveUp").hidden)
+                assert(not this.GetRuntimeRules().gamma.autoCategoryEnabled)
+            end),
+        },
+        {
+            name = "AutoCategory editor highlights and moves the whole block from every selected row",
+            run = WithActiveIntegration(function()
+                Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
+                CheckRow("Alpha", true)
+                CheckRow("Beta", true)
+                local alpha = RowByText("Alpha")
+                local background = GetControl(alpha, "BG")
+                assert(background.alpha > 0.5)
+                alpha.handlers.OnMouseEnter()
+                alpha.handlers.OnMouseExit()
+                assert(background.alpha > 0.5, "Hover exit must retain the selection highlight")
+                GetControl(RowByText("Beta"), "MoveUp").handlers.OnClicked()
+                assert(RowTexts() == "Alpha,Beta,New,Selling,Low level,Gamma", RowTexts())
+                assert(SelectedTexts() == "Alpha,Beta")
+                assert(scrolledRow == RowByText("Alpha"))
+                assert(not GetControl(RowByText("Beta"), "MoveUp").enabled)
+                GetControl(RowByText("Alpha"), "MoveDown").handlers.OnClicked()
+                assert(RowTexts() == "New,Alpha,Beta,Selling,Low level,Gamma")
+                assert(scrolledRow == RowByText("Beta"))
+                ClickToolbar("BtnClear")
+                assert(SelectedTexts() == "")
+                assert(GetControl(RowByText("Alpha"), "BG").alpha == 0)
+                assert(this.GetRuntimeRules().alpha.autoCategoryEnabled)
+            end),
+        },
+        {
+            name = "AutoCategory editor Select block expands every same-type seed and disables mixed selections",
+            run = WithActiveIntegration(function()
+                Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
+                CheckRow("New", true)
+                CheckRow("Low level", true)
+                ClickToolbar("BtnSelectBlock")
+                assert(SelectedTexts() == "New,Selling,Low level", SelectedTexts())
+                CheckRow("Alpha", true)
+                assert(not GetControl(GetControl(window, "MovementBar"), "BtnSelectBlock").enabled)
+                ClickToolbar("BtnClear")
+                ClickRow("Alpha")
+                ClickToolbar("BtnSelectBlock")
+                assert(SelectedTexts() == "Alpha,Beta")
+                local find = GetControl(GetControl(window, "TopActionBar"), "FindBox")
+                find.text = "Alpha"
+                find.handlers.OnTextChanged(find)
+                assert(SelectedTexts() == "")
+                ClickRow("Alpha")
+                assert(not GetControl(GetControl(window, "MovementBar"), "BtnSelectBlock").enabled)
+                GetControl(GetControl(window, "OptionsBar"), "BtnPriorityOrder").handlers.OnClicked()
+                assert(SelectedTexts() == "")
+                find.text = ""
+                find.handlers.OnTextChanged(find)
+                CheckRow("Alpha", true)
+                local combo = combos[window.name .. "TopActionBarContextMode"]
+                combo.items[2].callback(nil, nil, combo.items[2], true)
+                assert(SelectedTexts() == "")
+            end),
+        },
+        {
+            name = "AutoCategory editor flood-fills separate IC runs without selecting the intervening AC heading",
+            run = WithActiveIntegration(function()
+                Setup({
+                    alpha = { autoCategoryEnabled = true },
+                    beta = { autoCategoryEnabled = true },
+                    gamma = { autoCategoryEnabled = true },
+                })
+                this.accountWide.autoCategoryOrder.contexts.backpack.display = {
+                    "ac:New", "ic:alpha", "ac:Selling", "ic:beta", "ic:gamma", "ac:Low level",
+                }
+                this.RefreshAutoCategoryEditor()
+                CheckRow("Alpha", true)
+                CheckRow("Gamma", true)
+                ClickToolbar("BtnSelectBlock")
+                assert(SelectedTexts() == "Alpha,Beta,Gamma", SelectedTexts())
+                assert(not GetControl(RowByText("Selling"), "Selection").checked)
+            end),
+        },
+        {
+            name = "AutoCategory editor clears selection on profile switches even when references are shared",
+            run = WithActiveIntegration(function()
+                Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
+                CheckRow("Alpha", true)
+                CheckRow("Beta", true)
+                this.character.trackedRules = { alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } }
+                this.character.autoCategoryOrder = this.accountWide.autoCategoryOrder
+                this.character.autoCategoryIntegrationEnabled = true
+                this.character.useCharacterItemList = true
+                this.ValidateSavedRuleProfiles()
+                this.InvalidateRuleCache()
+                this.RefreshAutoCategoryEditor()
+                assert(RowTexts():find("Alpha", 1, true) and SelectedTexts() == "")
+                assert(not GetControl(GetControl(window, "MovementBar"), "BtnClear").enabled)
+            end),
+        },
+        {
+            name = "AutoCategory editor toolbar handles separated selections, boundaries and stable top-bottom gathering",
+            run = WithActiveIntegration(function()
+                Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
+                CheckRow("Alpha", true)
+                CheckRow("Selling", true)
+                GetControl(RowByText("Selling"), "MoveUp").handlers.OnClicked()
+                assert(RowTexts() == "Alpha,New,Selling,Beta,Low level,Gamma", RowTexts())
+                ClickToolbar("BtnBottom")
+                assert(RowTexts() == "New,Beta,Low level,Alpha,Selling,Gamma", RowTexts())
+                assert(SelectedTexts() == "Alpha,Selling")
+                assert(not GetControl(GetControl(window, "MovementBar"), "BtnBottom").enabled)
+                ClickToolbar("BtnTop")
+                assert(RowTexts() == "Alpha,Selling,New,Beta,Low level,Gamma")
+                ClickToolbar("BtnDown5")
+                assert(RowTexts() == "New,Beta,Low level,Alpha,Selling,Gamma")
+                ClickToolbar("BtnUp10")
+                assert(RowTexts() == "Alpha,Selling,New,Beta,Low level,Gamma")
+                ClickToolbar("BtnDown10")
+                ClickToolbar("BtnUp5")
+                assert(RowTexts() == "Alpha,Selling,New,Beta,Low level,Gamma")
+                GetControl(RowByText("New"), "MoveDown").handlers.OnClicked()
+                assert(SelectedTexts() == "New", "Moving an unselected row must select only that row")
+            end),
+        },
         {
             name = "AutoCategory editor exposes independent modes, all assignments, and full-list move semantics",
             run = WithActiveIntegration(function()
@@ -150,7 +338,7 @@ function this.GetAutoCategoryEditorTests()
                 assert(RowTexts() == "Alpha")
                 GetControl(RowByText("Alpha"), "MoveDown").handlers.OnClicked()
                 local move = integration.lastMove
-                assert(move[1] == "ic:alpha" and move[2] == "backpack" and move[3] == "display" and move[4] == 1)
+                assert(move[1]["ic:alpha"] and move[2] == "backpack" and move[3] == "display" and move[4] == 1)
 
                 local options = GetControl(window, "OptionsBar")
                 GetControl(options, "BtnPriorityOrder").handlers.OnClicked()
@@ -183,6 +371,72 @@ function this.GetAutoCategoryEditorTests()
                 assert(opened == 1, "Inactive integration must leave the AutoCategory tab")
                 window.hidden = true
                 this.RefreshAutoCategoryEditor()
+            end),
+        },
+        {
+            name = "AutoCategory editor timing reports slow clicks with start state and phases without disabling integration",
+            run = WithActiveIntegration(function()
+                Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true }, gamma = {} })
+                local clock = this.AutoCategoryTestClock
+                clock.Reset()
+                ClickRow("Alpha")
+                assert(clock.RunFrame() == 1, "Each timed action must schedule one next-frame check")
+                local resolve = integration.ResolveAutoCategoryOrder
+                integration.ResolveAutoCategoryOrder = function(...)
+                    clock.Advance(120)
+                    return resolve(...)
+                end
+                local ok, report = pcall(ClickRow, "Beta")
+                integration.ResolveAutoCategoryOrder = resolve
+                assert(ok, "A slow click must report to chat without raising: " .. tostring(report))
+                report = tostring(integration.Timing.lastSlowReport)
+                for _, expected in ipairs({
+                    "Slow AutoCategory editor: row click 1 took 120 ms synchronously (threshold 100 ms)",
+                    "row: ic:beta (group",
+                    "selected: [1] ic:alpha",
+                    "*ic:alpha",
+                    "context: backpack",
+                    "mode: display",
+                    "\n  RefreshAutoCategoryEditor: 120 ms",
+                    "\n    ResolveAutoCategoryOrder: 120 ms",
+                    "editor: row click 1, 0 ms",
+                }) do
+                    assert(report:find(expected, 1, true), "Missing '" .. expected .. "' in:\n" .. report)
+                end
+                assert(SelectedTexts() == "Beta", "The slow action must still complete before reporting")
+                assert(not integration.IsFaulted(), "Timing reports must not disable integration")
+                assert(clock.RunFrame() == 0, "A synchronously reported action needs no frame check")
+            end),
+        },
+        {
+            name = "AutoCategory editor timing reports slow next frames and does nothing when Debug Mode is off",
+            run = WithActiveIntegration(function()
+                Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true }, gamma = {} })
+                local clock = this.AutoCategoryTestClock
+                clock.Reset()
+                ClickRow("Alpha")
+                clock.RunFrame()
+                ClickRow("Beta")
+                clock.Advance(130)
+                local ok, failure = pcall(clock.RunFrame)
+                local report = tostring(integration.Timing.lastSlowReport)
+                assert(ok and report:find("row click 1 took 130 ms before the next frame", 1, true),
+                    tostring(failure) .. "\n" .. report)
+                assert(clock.RunFrame() == 0, "Next-frame checks must unregister before reporting")
+                local reported = integration.Timing.lastSlowReport
+                local previous = integration.Timing.lastAction
+                this.accountWide.debugEnabled = false
+                local resolve = integration.ResolveAutoCategoryOrder
+                integration.ResolveAutoCategoryOrder = function(...)
+                    clock.Advance(1000)
+                    return resolve(...)
+                end
+                ClickRow("Alpha")
+                integration.ResolveAutoCategoryOrder = resolve
+                assert(clock.RunFrame() == 0, "Debug Mode off must not schedule frame checks")
+                assert(integration.Timing.lastSlowReport == reported and integration.Timing.lastAction == previous,
+                    "Debug Mode off must not time or report actions")
+                assert(SelectedTexts() == "Alpha", "Untimed actions must still run")
             end),
         },
     }

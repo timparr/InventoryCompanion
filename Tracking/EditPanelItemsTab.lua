@@ -735,44 +735,40 @@ end
 
 local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
     local toggle = GetControl(row, "AutoCategory")
-    local check, label = GetControl(toggle, "Check"), GetControl(toggle, "Label")
-    local active = entry.isRule and entry.key ~= "miscellaneous"
-        and this.AutoCategoryIntegration.IsAvailable() and this.GetAutoCategoryState().enabled
-    toggle:SetHidden(not active)
-    toggle:SetWidth(active and 110 or 0)
-    GetControl(row, "ItemLabel"):SetWidth(active and 322 or 432)
-    if not active then return end
+    local columnActive = this.AutoCategoryIntegration.IsAvailable() and this.GetAutoCategoryState().enabled
+    local rowActive = columnActive and entry.isRule and entry.key ~= "miscellaneous"
+    -- Reserve the column width on every row while the integration is active so
+    -- the Notify/Show columns stay aligned; hidden controls still anchor.
+    toggle:SetWidth(columnActive and 130 or 0)
+    GetControl(row, "ItemLabel"):SetWidth(columnActive and 302 or 432)
+    toggle:SetHidden(not rowActive)
+    if not rowActive then return end
 
     local rule = this.GetRuntimeRules()[entry.key]
-    assert(rule ~= nil, "AutoCategory checkbox targets a missing group")
-    ZO_CheckButton_SetCheckState(check, rule.autoCategoryEnabled == true)
-    local function Apply(enabled)
+    assert(rule ~= nil, "AutoCategory toggle targets a missing group")
+    local enabled = rule.autoCategoryEnabled == true
+    GetControl(toggle, "Title"):SetColor(1.0, 0.94, 0.76, enabled and 1.0 or 0.5)
+    local detail = GetControl(toggle, "Detail")
+    detail:SetColor(1.0, 0.94, 0.76, enabled and 1.0 or 0.5)
+    detail:SetText(enabled and "Shown as category" or "Ignored")
+
+    toggle:SetHandler("OnClicked", function() this.AutoCategoryIntegration.Run(function()
         ResolveEntryData(entry)
         assert(this.AutoCategoryIntegration.IsAvailable() and this.GetAutoCategoryState().enabled,
-            "AutoCategory checkbox targets an inactive integration")
-        this.SetAutoCategoryParticipation(entry.key, enabled)
+            "AutoCategory toggle targets an inactive integration")
+        local current = this.GetRuntimeRules()[entry.key]
+        assert(current ~= nil, "AutoCategory toggle targets a missing group")
+        this.SetAutoCategoryParticipation(entry.key, current.autoCategoryEnabled ~= true)
         refreshCallback()
         this.RefreshAutoCategoryEditor()
-    end
-    ZO_CheckButton_SetToggleFunction(check, function(_, enabled) this.AutoCategoryIntegration.Run(Apply, enabled) end)
-    label:SetHandler("OnMouseDown", function(_, button) this.AutoCategoryIntegration.Run(function()
-        if button == MOUSE_BUTTON_INDEX_LEFT then
-            local current = this.GetRuntimeRules()[entry.key]
-            assert(current ~= nil, "AutoCategory label targets a missing group")
-            Apply(current.autoCategoryEnabled ~= true)
-        end
     end) end)
-    local function ShowTooltip(control)
+    toggle:SetHandler("OnMouseEnter", function(control)
         InitializeTooltip(InformationTooltip, control, RIGHT, -4, 0)
         InformationTooltip:AddLine("Participation applies across all AutoCategory contexts.")
-    end
-    local function HideTooltip()
+    end)
+    toggle:SetHandler("OnMouseExit", function()
         ClearTooltip(InformationTooltip)
-    end
-    check:SetHandler("OnMouseEnter", ShowTooltip)
-    check:SetHandler("OnMouseExit", HideTooltip)
-    label:SetHandler("OnMouseEnter", ShowTooltip)
-    label:SetHandler("OnMouseExit", HideTooltip)
+    end)
 end
 
 local function UpdateRowVisualsAndHandlers(row, entry, refreshCallback)

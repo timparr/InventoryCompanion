@@ -38,6 +38,9 @@ local autoCategoryOrderFields = { contexts = true }
 local autoCategoryOrderModes = { display = true, matching = true }
 local autoCategoryReferenceNamespaces = { ic = true, ac = true }
 local invalidAutoCategoryProfiles = setmetatable({}, { __mode = "k" })
+-- profile -> trackedRules table it was validated with; the AutoCategory matcher reads rules per item, so
+-- boundary validation must not rerun on every read.
+local validatedAutoCategoryProfiles = setmetatable({}, { __mode = "k" })
 
 function this.ResolveItemDisplay(display)
     local resolved = {}
@@ -279,13 +282,19 @@ local function LoadSavedRules(profile, context, initializeMissing)
         ValidateSavedRules(rules, context .. ".trackedRules")
         validatedSavedRules[rules] = true
     end
-    ValidateAutoCategoryBoundary(profile, context)
+    if rules == nil or validatedAutoCategoryProfiles[profile] ~= rules then
+        if ValidateAutoCategoryBoundary(profile, context) and rules ~= nil then
+            validatedAutoCategoryProfiles[profile] = rules
+        end
+    end
     return rules
 end
 
 function this.ValidateSavedRuleProfiles()
     assert(type(this.character.useCharacterItemList) == "boolean",
         "Character.useCharacterItemList must be boolean")
+    validatedAutoCategoryProfiles[this.accountWide] = nil
+    validatedAutoCategoryProfiles[this.character] = nil
     LoadSavedRules(this.accountWide, "Account-wide", true)
     LoadSavedRules(this.character, "Character", true)
     for _, profile in ipairs({ this.accountWide, this.character }) do
@@ -617,7 +626,6 @@ end
 
 function this.SetAutoCategoryParticipation(ruleKey, enabled)
     assert(type(enabled) == "boolean", "AutoCategory participation must be boolean")
-    this.AutoCategoryIntegration.FlushPendingOrders()
     local runtimeRule = this.GetRuntimeRules()[ruleKey]
     assert(runtimeRule ~= nil and ruleKey ~= "miscellaneous",
         "AutoCategory participation requires an ordinary group: " .. tostring(ruleKey))
@@ -648,7 +656,6 @@ end
 function this.SetAutoCategoryIntegrationEnabled(enabled)
     assert(type(enabled) == "boolean", "AutoCategory enablement must be boolean")
     local profile = this.GetAutoCategoryProfile()
-    if not enabled then this.AutoCategoryIntegration.FlushPendingOrders() end
     if enabled and profile.autoCategorySetupComplete ~= true then
         return this.AutoCategoryIntegration.ShowInitialSetup()
     end
@@ -700,7 +707,6 @@ function this.CleanAutoCategorySavedData(accountName)
     end
 
     local assignmentRemovals = this.AutoCategoryIntegration.PreflightSavedDataCleanup()
-    this.AutoCategoryIntegration.CancelPendingOrders()
     for _, profile in ipairs(profilePlans) do
         invalidAutoCategoryProfiles[profile] = nil
         profile.autoCategoryIntegrationEnabled = nil
@@ -733,7 +739,6 @@ end
 
 function this.SetUseCharacterItemList(value)
     assert(type(value) == "boolean", "Character list preference must be boolean")
-    this.AutoCategoryIntegration.FlushPendingOrders()
     this.character.useCharacterItemList = value
     trackerContextRevision = trackerContextRevision + 1
     this.InvalidateRuleCache()
@@ -764,7 +769,6 @@ this.SetRuleFlag = this.UpdateRuleFlag
 function this.UpdateRuleProperty(ruleName, propertyKey, value)
     assert(propertyKey == "displayName", "Use UpdateRulePatterns for pattern edits")
     assert(value == nil or type(value) == "string", "Rule display name must be a string or nil")
-    this.AutoCategoryIntegration.FlushPendingOrders()
     local base = GetBaseline(ruleName)
     local savedRules = GetRawSavedRules()
     if savedRules[ruleName] == nil then savedRules[ruleName] = {} end
@@ -778,7 +782,6 @@ function this.UpdateRulePatterns(ruleName, uiPatterns)
     assert(type(uiPatterns) == "table", "Rule patterns must be a list")
     -- Validate before creating an override, so failed edits leave saved state unchanged.
     PatternSet(uiPatterns)
-    this.AutoCategoryIntegration.FlushPendingOrders()
     local base = GetBaseline(ruleName)
     local savedRules = GetRawSavedRules()
     if savedRules[ruleName] == nil then savedRules[ruleName] = {} end
@@ -802,7 +805,6 @@ end
 
 function this.DeleteCustomRule(ruleName)
     assert(not this.preLoadedRulesets[ruleName], "Built-in rules cannot be deleted")
-    this.AutoCategoryIntegration.FlushPendingOrders()
     GetRawSavedRules()[ruleName] = nil
     this.InvalidateRuleCache()
     this.AutoCategoryIntegration.OnRuleMutation("delete", ruleName)
@@ -810,7 +812,6 @@ end
 
 function this.ResetRule(ruleName)
     assert(this.preLoadedRulesets[ruleName], "Only built-in rules can be reset")
-    this.AutoCategoryIntegration.FlushPendingOrders()
     local savedRules = GetRawSavedRules()
     local saved = savedRules[ruleName]
     if saved then
@@ -909,7 +910,6 @@ function this.CopyProfile(sourceKey)
         }
     end
 
-    this.AutoCategoryIntegration.FlushPendingOrders()
     ZO_ClearTable(destTable)
     for key, value in pairs(copiedItems) do destTable[key] = value end
     ZO_ClearTable(destRules)

@@ -15,19 +15,20 @@
                     <Anchor point="RIGHT" relativeTo="$(parent)" relativePoint="RIGHT" offsetX="-8" offsetY="0" />
                 </Button>
 
-                <Control name="$(parent)AutoCategory" hidden="true">
+                <Button name="$(parent)AutoCategory" mouseEnabled="true" hidden="true">
                     <Dimensions x="0" y="48" />
                     <Anchor point="RIGHT" relativeTo="$(parent)BtnRemove" relativePoint="LEFT" offsetX="-8" />
                     <Controls>
-                        <Button name="$(parent)Check" inherits="ZO_CheckButton">
-                            <Anchor point="LEFT" />
-                        </Button>
-                        <Label name="$(parent)Label" font="ZoFontGame" color="FFFFFF" text="AutoCategory" mouseEnabled="true" verticalAlignment="CENTER">
-                            <Dimensions x="88" y="48" />
-                            <Anchor point="LEFT" relativeTo="$(parent)Check" relativePoint="RIGHT" offsetX="4" />
+                        <Label name="$(parent)Title" font="ZoFontGame" horizontalAlignment="CENTER" text="AutoCategory">
+                            <Dimensions x="130" y="24" />
+                            <Anchor point="TOP" />
+                        </Label>
+                        <Label name="$(parent)Detail" font="ZoFontGameSmall" horizontalAlignment="CENTER">
+                            <Dimensions x="130" y="22" />
+                            <Anchor point="TOP" relativeTo="$(parent)Title" relativePoint="BOTTOM" />
                         </Label>
                     </Controls>
-                </Control>
+                </Button>
                 <Control name="$(parent)CategorySpace">
                     <Dimensions x="0" y="48" />
                     <Anchor point="RIGHT" relativeTo="$(parent)AutoCategory" relativePoint="LEFT" offsetX="-4" />

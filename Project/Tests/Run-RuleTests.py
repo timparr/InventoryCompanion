@@ -18,13 +18,13 @@ assert item_label.find("Dimensions").get("x") == "432", "Collapsed category colu
 assert len(item_label.findall("Anchor")) == 1, "Item names must not depend on a forward sibling anchor"
 assert editor_row.find("Control[@name='$(parent)CategorySpace']/Dimensions").get("x") == "0"
 # Lua addresses these children through GetControl, which returns nil for a missing name.
-auto_toggle = editor_row.find("Control[@name='$(parent)AutoCategory']/Controls")
-assert auto_toggle is not None, "Item row AutoCategory toggle must be a container with child controls"
-assert auto_toggle.find("Button[@name='$(parent)Check']") is not None, "Item row AutoCategory toggle needs a Check child"
-assert auto_toggle.find("Label[@name='$(parent)Label']") is not None, "Item row AutoCategory toggle needs a Label child"
+auto_toggle = editor_row.find("Button[@name='$(parent)AutoCategory']/Controls")
+assert auto_toggle is not None, "Item row AutoCategory toggle must be a button with child controls"
+assert auto_toggle.find("Label[@name='$(parent)Title']") is not None, "Item row AutoCategory toggle needs a Title child"
+assert auto_toggle.find("Label[@name='$(parent)Detail']") is not None, "Item row AutoCategory toggle needs a Detail child"
 autocategory_xml = ET.parse(root / "Tracking" / "EditPanelAutoCategoryTab.xml")
 autocategory_row = autocategory_xml.find(".//Control[@name='InventoryCompanion_AutoCategoryRow_Template']/Controls")
-for child in ("BG", "Name", "MoveUp", "MoveDown", "Participation"):
+for child in ("BG", "Name", "MoveUp", "MoveDown", "Participation", "Selection"):
     assert autocategory_row.find(f"*[@name='$(parent){child}']") is not None, f"AutoCategory row needs {child}"
 autocategory_window = autocategory_xml.find(".//TopLevelControl[@name='InventoryCompanion_AutoCategoryWindow']/Controls")
 for path in (
@@ -35,12 +35,16 @@ for path in (
     "OptionsBar/Controls/*[@name='$(parent)BtnDisplayOrder']",
     "OptionsBar/Controls/*[@name='$(parent)BtnPriorityOrder']",
     "OptionsBar/Controls/*[@name='$(parent)BtnUseOtherOrder']",
-    "Info", "List", "HeadingDetails",
+    "Info", "List", "MovementBar",
 ):
     parent, _, rest = path.partition("/")
     node = autocategory_window.find(f"*[@name='$(parent){parent}']")
     assert node is not None and (not rest or node.find(rest) is not None), f"AutoCategory window needs {path}"
 assert autocategory_row.find("*[@name='$(parent)Visibility']") is None, "Heading visibility controls are obsolete"
+assert autocategory_window.find("*[@name='$(parent)HeadingDetails']") is None, "Movement toolbar replaces heading details"
+movement_bar = autocategory_window.find("*[@name='$(parent)MovementBar']/Controls")
+for child in ("BtnTop", "BtnBottom", "BtnUp5", "BtnDown5", "BtnUp10", "BtnDown10", "BtnSelectBlock", "BtnClear"):
+    assert movement_bar.find(f"Button[@name='$(parent){child}']") is not None, f"Movement toolbar needs {child}"
 for xml_name, window_name in (
     ("EditPanelItemsTab.xml", "InventoryCompanion_TrackedItemsWindow"),
     ("EditPanelGroupsTab.xml", "InventoryCompanion_GroupsWindow"),
@@ -58,6 +62,7 @@ for relative in ("Tracking/EditPanelAutoCategoryTab.xml", "Tracking/EditPanelAut
     assert relative in manifest, f"Manifest must load {relative}"
 parser = argparse.ArgumentParser()
 parser.add_argument("--item-editor-only", action="store_true", help="Run only item-editor regression tests.")
+parser.add_argument("--test-filter", help="Run tests whose names match this regular expression.")
 args = parser.parse_args()
 lua = LuaRuntime(unpack_returned_tuples=True)
 lua.execute('InventoryCompanion = { SettingsName = "InventoryCompanion_RuleTests" }')
@@ -177,6 +182,9 @@ if not args.item_editor_only:
     )
 for suite in suites:
     tests.extend(suite[index] for index in range(1, len(suite) + 1))
+if args.test_filter:
+    tests = [test for test in tests if re.search(args.test_filter, test.name, re.IGNORECASE)]
+    assert tests, f"No tests matched {args.test_filter!r}"
 
 failures = []
 for test in tests:

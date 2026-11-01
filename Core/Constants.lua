@@ -210,6 +210,7 @@ this.preLoadedRulesets = {
 this.defaultsAccount = {
     bankItemDelay = 100,
     debugEnabled = false,
+    autoCategoryTimingThresholdMs = 500,
     houseBankNames = {},
     autoMergeChests = true,
 	

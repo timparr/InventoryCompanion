@@ -34,6 +34,14 @@ function this.ValidateTrackerSettings()
     this.accountWide.trackerTitleSize = titleSize
 end
 
+function this.ValidateDebugSettings()
+    local threshold = this.accountWide.autoCategoryTimingThresholdMs
+    if threshold == nil then threshold = this.defaultsAccount.autoCategoryTimingThresholdMs end
+    assert(type(threshold) == "number" and threshold == threshold and threshold >= 50 and threshold <= 5000
+        and threshold == math.floor(threshold), "Saved autoCategoryTimingThresholdMs must be an integer from 50 to 5000")
+    this.accountWide.autoCategoryTimingThresholdMs = threshold
+end
+
 local function Initialize()
     this.PrepareSavedVariables()
 
@@ -48,6 +56,7 @@ local function Initialize()
     this.accountWide = ZO_SavedVars:NewAccountWide(this.SettingsName, this.SettingsVersion, nil, this.defaultsAccount)
     this.character   = ZO_SavedVars:NewCharacterIdSettings(this.SettingsName, this.SettingsVersion, nil, this.defaultsCharacter)
     this.ValidateTrackerSettings()
+    this.ValidateDebugSettings()
     this.ValidateSavedRuleProfiles()
     this.AutoCategoryIntegration.Initialize()
     this.state.isCurrencySettingsOpen = false

@@ -32,14 +32,144 @@ local registeredPlugin
 local hooksInstalled = false
 local reconciling = false
 local pendingGeneration = 0
-local pendingOrder
-local orderGeneration = 0
 local InstallExternalHooks
 local function SetStatus(state, message)
     if status.state == state and status.message == message then return end
     status = { state = state, message = message }
     if this.RefreshAutoCategoryUI then this.RefreshAutoCategoryUI() end
 end
+
+-- Action timing diagnostics, active only in Debug Mode. Slow actions are reported to chat, never raised, so
+-- diagnostics cannot block the editor or disable the integration.
+local timing = {
+    historySize = 12,
+    history = {},
+}
+integration.Timing = timing
+local activeAction
+local nextFrameCheck = 0
+local unpackValues = unpack or table.unpack
+
+local function PackValues(...)
+    return { n = select("#", ...), ... }
+end
+
+local function FormatTimingValue(value)
+    if type(value) ~= "table" then return tostring(value) end
+    local parts = {}
+    for index, item in ipairs(value) do parts[index] = tostring(item) end
+    return "[" .. #parts .. "] " .. table.concat(parts, ", ")
+end
+
+local function BuildTimingReport(record, stage, elapsedMs)
+    local lines = {
+        string.format("[InventoryCompanion] Slow AutoCategory %s: %s took %d ms %s (threshold %d ms).",
+            record.source, record.operation, elapsedMs, stage, record.thresholdMs),
+        "Synchronous total: " .. tostring(record.totalMs) .. " ms",
+        "Since previous timed action finished: "
+            .. (record.sincePreviousMs and (record.sincePreviousMs .. " ms") or "none this session"),
+    }
+    if record.failure then lines[#lines + 1] = "Integration failed during this action: " .. record.failure end
+    lines[#lines + 1] = "Phases:"
+    for _, phase in ipairs(record.phases) do
+        lines[#lines + 1] = "  " .. string.rep("  ", phase.depth) .. phase.name .. ": "
+            .. (phase.ms and (phase.ms .. " ms") or "did not finish")
+    end
+    lines[#lines + 1] = "State at start:"
+    local keys = {}
+    for key in pairs(record.snapshot) do keys[#keys + 1] = key end
+    table.sort(keys)
+    for _, key in ipairs(keys) do
+        lines[#lines + 1] = "  " .. key .. ": " .. FormatTimingValue(record.snapshot[key])
+    end
+    lines[#lines + 1] = "Recent timed actions (oldest first):"
+    for _, entry in ipairs(timing.history) do
+        lines[#lines + 1] = string.format("  %s: %s, %d ms, +%s ms after previous", entry.source, entry.operation,
+            entry.totalMs, tostring(entry.sincePreviousMs or "-"))
+    end
+    return table.concat(lines, "\n")
+end
+
+local function ReportSlowAction(record, stage, elapsedMs)
+    local report = BuildTimingReport(record, stage, elapsedMs)
+    timing.lastSlowReport = report
+    d(report)
+end
+
+local function ScheduleNextFrameCheck(record)
+    nextFrameCheck = nextFrameCheck + 1
+    local updateName = "InventoryCompanion_AutoCategoryTiming" .. nextFrameCheck
+    EVENT_MANAGER:RegisterForUpdate(updateName, 0, function()
+        EVENT_MANAGER:UnregisterForUpdate(updateName)
+        local elapsed = GetGameTimeMilliseconds() - record.started
+        record.nextFrameMs = elapsed
+        if elapsed > record.thresholdMs then ReportSlowAction(record, "before the next frame", elapsed) end
+    end)
+end
+
+local function AppendTraceback(failure)
+    return debug.traceback(tostring(failure), 2)
+end
+
+function integration.TimePhase(name, operation, ...)
+    local record = activeAction
+    if record == nil then return operation(...) end
+    local phase = { name = name, depth = record.depth }
+    record.phases[#record.phases + 1] = phase
+    record.depth = record.depth + 1
+    local started = GetGameTimeMilliseconds()
+    local results = PackValues(operation(...))
+    phase.ms = GetGameTimeMilliseconds() - started
+    record.depth = phase.depth
+    return unpackValues(results, 1, results.n)
+end
+
+-- Times a user action or deferred callback; nested calls are recorded as phases of the outer action.
+function integration.TimeAction(source, operation, snapshot, action, ...)
+    assert(type(source) == "string" and type(operation) == "string", "Timed action requires source and operation names")
+    assert(type(snapshot) == "function" and type(action) == "function", "Timed action requires snapshot and action functions")
+    if activeAction ~= nil then return integration.TimePhase(source .. " " .. operation, action, ...) end
+    if this.accountWide.debugEnabled ~= true then return action(...) end
+    local started = GetGameTimeMilliseconds()
+    local record = {
+        source = source, operation = operation, snapshot = snapshot(), phases = {}, depth = 0, started = started,
+        sincePreviousMs = timing.lastFinished and started - timing.lastFinished or nil,
+        thresholdMs = this.accountWide.autoCategoryTimingThresholdMs,
+    }
+    local faultedBefore = integration.IsFaulted()
+    local arguments = PackValues(...)
+    activeAction = record
+    -- Lua 5.1 xpcall does not forward extra arguments.
+    local results = PackValues(xpcall(function() return action(unpackValues(arguments, 1, arguments.n)) end,
+        AppendTraceback))
+    activeAction = nil
+    if not faultedBefore and integration.IsFaulted() then record.failure = this.autoCategoryFailure end
+    local finished = GetGameTimeMilliseconds()
+    record.totalMs = finished - started
+    timing.lastFinished = finished
+    timing.lastAction = record
+    table.insert(timing.history, {
+        source = source, operation = operation, totalMs = record.totalMs, sincePreviousMs = record.sincePreviousMs,
+    })
+    if #timing.history > timing.historySize then table.remove(timing.history, 1) end
+    if not results[1] then error(results[2], 0) end
+    if record.totalMs > record.thresholdMs then
+        ReportSlowAction(record, "synchronously", record.totalMs)
+    else
+        ScheduleNextFrameCheck(record)
+    end
+    return unpackValues(results, 2, results.n)
+end
+
+local function IntegrationSnapshot()
+    return {
+        integrationState = status.state,
+        faulted = integration.IsFaulted(),
+        reconciling = reconciling,
+        autoCategoryInited = AutoCategory ~= nil and AutoCategory.Inited == true,
+    }
+end
+integration.TimingSnapshot = IntegrationSnapshot
 
 function integration.GetStatus()
     return status.state, status.message
@@ -51,9 +181,16 @@ end
 
 function integration.Run(operation, ...)
     if integration.IsFaulted() then return false, this.autoCategoryFailure end
-    local ok, result = pcall(operation, ...)
+    local arguments = { n = select("#", ...), ... }
+    local traceback
+    -- Lua 5.1 xpcall does not forward extra arguments; the handler keeps the stack for Debug Mode reports.
+    local ok, result = xpcall(function() return operation(unpackValues(arguments, 1, arguments.n)) end,
+        function(failure)
+            traceback = debug.traceback(tostring(failure), 2)
+            return failure
+        end)
     if not ok then
-        integration.Fail(result)
+        integration.Fail(result, traceback)
         return false, result
     end
     return result
@@ -319,8 +456,12 @@ end
 local function RefreshContexts(ac, changed, rebuildCache)
     for _, context in ipairs(contexts) do
         if changed[context.key] then
-            if rebuildCache then ac.cacheInitBag(context.bagType()) end
-            ac.RefreshList(context.inventoryType(), context.key ~= "crafting_station")
+            if rebuildCache then
+                integration.TimePhase("AutoCategory cacheInitBag " .. context.key, ac.cacheInitBag, context.bagType())
+            end
+            -- Hidden inventories are only marked dirty by ZOS and rebuild when next shown; forcing them re-sorts every bag.
+            integration.TimePhase("AutoCategory RefreshList " .. context.key, ac.RefreshList,
+                context.inventoryType(), false)
         end
     end
 end
@@ -342,11 +483,24 @@ local function RemoveOwnedAssignments(refresh)
     if refresh then RefreshContexts(ac, changed, true) end
 end
 
-function integration.Fail(failure)
+-- Debug Mode raises the failure from the next frame so the failing caller still gets its normal false result.
+local function RaiseDebugFailure(message, traceback)
+    -- Saved-variable migration can disable the integration before accountWide (and its Debug Mode flag) loads.
+    if this.accountWide == nil or this.accountWide.debugEnabled ~= true then return end
+    local report = "[InventoryCompanion] AutoCategory integration was disabled by this failure (Debug Mode report):\n"
+        .. (traceback or debug.traceback(message, 3))
+    integration.lastFailureReport = report
+    EVENT_MANAGER:RegisterForUpdate("InventoryCompanion_AutoCategoryFailure", 0, function()
+        EVENT_MANAGER:UnregisterForUpdate("InventoryCompanion_AutoCategoryFailure")
+        error(report, 0)
+    end)
+end
+
+function integration.Fail(failure, traceback)
     if integration.IsFaulted() then return end
     this.autoCategoryFailure = tostring(failure)
+    RaiseDebugFailure(this.autoCategoryFailure, traceback)
     pendingGeneration = pendingGeneration + 1
-    integration.CancelPendingOrders()
     reconciling = false
     status = {
         state = "error",
@@ -432,7 +586,6 @@ local function ScheduleReconcile(reason, refreshOnly)
     zo_callLater(function() integration.Run(function()
         if generation ~= pendingGeneration or not this.GetAutoCategoryState().enabled then return end
         if AutoCategory.Inited ~= true then return end
-        if integration.HasPendingOrderChanges() then return end
         if refreshOnly then
             local changed = {}
             for _, context in ipairs(contexts) do changed[context.key] = true end
@@ -493,10 +646,6 @@ InstallExternalHooks = function()
         and type(ac.cacheInitBag) == "function" and type(ac.cacheInitialize) == "function",
         "AutoCategory lifecycle hook targets are unavailable")
     assert(type(ZO_PostHook) == "function", "ESO post-hook API is unavailable")
-    assert(type(ZO_PreHook) == "function", "ESO pre-hook API is unavailable")
-    ZO_PreHook(ac, "UpdateCurrentSavedVars", function()
-        if not reconciling then integration.FlushPendingOrders() end
-    end)
     ZO_PostHook(ac, "UpdateCurrentSavedVars", function() integration.Run(function()
         if not reconciling then integration.OnProfileChanged() end
     end) end)
@@ -761,11 +910,6 @@ end
 local function GetCurrentOrderData()
     local profile = this.GetAutoCategoryProfile()
     local order = profile.autoCategoryOrder
-    if pendingOrder ~= nil then
-        assert(pendingOrder.profile == profile and pendingOrder.acProfile == AutoCategory.saved.bags,
-            "AutoCategory pending order belongs to a different profile")
-        order = pendingOrder.order
-    end
     assert(type(order) == "table" and type(order.contexts) == "table",
         "Schema-5 AutoCategory context orders are unavailable")
     return profile, order
@@ -828,9 +972,6 @@ local function BuildPlans(orderOverride, setupRules, preset)
                 sequence = BuildStartingSequence(model, mode, rules, preset)
             elseif override and override[mode] ~= nil then
                 sequence = CopySequence(override[mode])
-            elseif pendingOrder and pendingOrder.modes[context.key]
-                and pendingOrder.modes[context.key][mode] then
-                sequence = MergeObservedReferences(savedSequence, observed, model.members)
             elseif priorSnapshot and SnapshotMatches(priorSnapshot[mode], observed, model.members) then
                 sequence = MergeObservedReferences(savedSequence, observed, model.members)
             else
@@ -864,7 +1005,7 @@ end
 
 local function ProjectPlans(plans)
     local ac = AutoCategory
-    SyncDefinitions(ac, BuildDefinitions())
+    integration.TimePhase("SyncDefinitions", SyncDefinitions, ac, integration.TimePhase("BuildDefinitions", BuildDefinitions))
     local changed = {}
     reconciling = true
     local ok, failure = xpcall(function()
@@ -952,7 +1093,7 @@ end
 
 function integration.PreflightAutoCategory(orderOverride)
     if integration.IsFaulted() then return nil, this.autoCategoryFailure end
-    local ok, plans, reconciled, profile = pcall(BuildPlans, orderOverride)
+    local ok, plans, reconciled, profile = pcall(integration.TimePhase, "BuildPlans", BuildPlans, orderOverride)
     if not ok then
         integration.Fail(plans)
         return nil, tostring(plans)
@@ -968,9 +1109,8 @@ function integration.ProjectAutoCategory(preflight)
         if prepared == nil then return ReportProjectionFailure(failure) end
     end
 
-    local changed = ProjectPlans(prepared.plans)
+    local changed = integration.TimePhase("ProjectPlans", ProjectPlans, prepared.plans)
     prepared.profile.autoCategoryOrder = prepared.order
-    integration.CancelPendingOrders()
     SetStatus("available", "AutoCategory display and matching orders are synchronized for the selected context.")
     return changed
 end
@@ -1091,73 +1231,60 @@ function integration.ResolveAutoCategoryOrder(contextKey, options)
 end
 
 local function ApplyOrderOverride(orderOverride)
-    assert(integration.IsEditorActive(), "Cannot queue AutoCategory order while integration is inactive")
-    local profile, order = GetCurrentOrderData()
-    if pendingOrder == nil then
-        local copy = { contexts = {} }
-        for _, context in ipairs(contexts) do
-            local lists = order.contexts[context.key]
-            copy.contexts[context.key] = {
-                display = CopySequence(lists.display),
-                matching = CopySequence(lists.matching),
-            }
-        end
-        pendingOrder = { profile = profile, acProfile = AutoCategory.saved.bags, order = copy, modes = {} }
+    local prepared, failure = integration.PreflightAutoCategory(orderOverride)
+    if prepared == nil then return ReportProjectionFailure(failure) end
+    return integration.ProjectAutoCategory(prepared) ~= false
+end
+
+function integration.GetMovedSequence(sequence, selection, movement)
+    assert(movement == "top" or movement == "bottom"
+        or movement == -1 or movement == 1 or movement == -5 or movement == 5
+        or movement == -10 or movement == 10, "Unknown AutoCategory movement")
+    local present = {}
+    for _, reference in ipairs(sequence) do present[reference] = true end
+    for reference, selected in pairs(selection) do
+        assert(selected == true and present[reference],
+            "AutoCategory selection references a missing assignment: " .. tostring(reference))
     end
-    for contextKey, overrides in pairs(orderOverride) do
-        assert(contextByKey[contextKey], "Unknown AutoCategory queued context")
-        local lists = pendingOrder.order.contexts[contextKey]
-        local modes = pendingOrder.modes[contextKey]
-        if modes == nil then modes = {}; pendingOrder.modes[contextKey] = modes end
-        for mode, sequence in pairs(overrides) do
-            assert(mode == "display" or mode == "matching", "Unknown AutoCategory queued ordering mode")
-            lists[mode] = CopySequence(sequence)
-            modes[mode] = true
+    local result
+    if movement == "top" or movement == "bottom" then
+        result = {}
+        for _, selected in ipairs({ movement == "top", movement ~= "top" }) do
+            for _, reference in ipairs(sequence) do
+                if (selection[reference] == true) == selected then result[#result + 1] = reference end
+            end
+        end
+    else
+        result = CopySequence(sequence)
+        local first, last, step = 2, #result, 1
+        if movement > 0 then first, last, step = #result - 1, 1, -1 end
+        for _ = 1, math.abs(movement) do
+            for index = first, last, step do
+                local neighbour = index - step
+                if selection[result[index]] and not selection[result[neighbour]] then
+                    result[index], result[neighbour] = result[neighbour], result[index]
+                end
+            end
         end
     end
-    orderGeneration = orderGeneration + 1
-    local generation = orderGeneration
-    zo_callLater(function()
-        if generation == orderGeneration then integration.FlushPendingOrders() end
-    end, 5000)
-    return true
+    for index, reference in ipairs(result) do
+        if reference ~= sequence[index] then return result, true end
+    end
+    return result, false
 end
 
-function integration.HasPendingOrderChanges()
-    return pendingOrder ~= nil
-end
-
-function integration.CancelPendingOrders()
-    orderGeneration = orderGeneration + 1
-    pendingOrder = nil
-end
-
-function integration.FlushPendingOrders()
-    if pendingOrder == nil then return true end
-    assert(pendingOrder.profile == this.GetAutoCategoryProfile()
-        and pendingOrder.acProfile == AutoCategory.saved.bags,
-        "Cannot apply AutoCategory queued changes to a different profile")
-    assert(this.GetAutoCategoryState().enabled, "Cannot apply AutoCategory queued changes while integration is disabled")
-    local applied = integration.ProjectAutoCategory() ~= false
-    if applied then this.RefreshAutoCategoryEditor() end
-    return applied
+function integration.MoveEntries(selection, contextKey, mode, movement)
+    assert(contextByKey[contextKey], "Unknown AutoCategory context: " .. tostring(contextKey))
+    assert(mode == "display" or mode == "matching", "Unknown AutoCategory ordering mode: " .. tostring(mode))
+    local _, order = GetCurrentOrderData()
+    local sequence, changed = integration.GetMovedSequence(order.contexts[contextKey][mode], selection, movement)
+    if not changed then return false end
+    return ApplyOrderOverride({ [contextKey] = { [mode] = sequence } })
 end
 
 function integration.MoveEntry(reference, contextKey, mode, direction)
-    assert(contextByKey[contextKey], "Unknown AutoCategory context: " .. tostring(contextKey))
-    assert(mode == "display" or mode == "matching", "Unknown AutoCategory ordering mode: " .. tostring(mode))
     assert(direction == -1 or direction == 1, "AutoCategory move direction must be -1 or 1")
-    local _, order = GetCurrentOrderData()
-    local sequence = CopySequence(order.contexts[contextKey][mode])
-    local index
-    for position, candidate in ipairs(sequence) do
-        if candidate == reference then index = position; break end
-    end
-    assert(index ~= nil, "AutoCategory move target disappeared during reconciliation: " .. tostring(reference))
-    local target = index + direction
-    if target < 1 or target > #sequence then return false end
-    sequence[index], sequence[target] = sequence[target], sequence[index]
-    return ApplyOrderOverride({ [contextKey] = { [mode] = sequence } })
+    return integration.MoveEntries({ [reference] = true }, contextKey, mode, direction)
 end
 
 function integration.UseOtherOrder(contextKey, activeMode)
@@ -1216,18 +1343,14 @@ InstallExternalHooks = function()
         local profile = this.GetAutoCategoryProfile()
         local oldReference, newReference = "ac:" .. oldName, "ac:" .. newName
         for _, context in ipairs(contexts) do
-            local orders = { profile.autoCategoryOrder }
-            if pendingOrder then orders[#orders + 1] = pendingOrder.order end
-            for _, order in ipairs(orders) do
-                local lists = order.contexts[context.key]
-                for _, mode in ipairs({ "display", "matching" }) do
-                    local seen = {}
-                    for index, reference in ipairs(lists[mode]) do
-                        if reference == oldReference then lists[mode][index] = newReference end
-                        assert(not seen[lists[mode][index]],
-                            "AutoCategory rename creates duplicate order reference: " .. newReference)
-                        seen[lists[mode][index]] = true
-                    end
+            local lists = profile.autoCategoryOrder.contexts[context.key]
+            for _, mode in ipairs({ "display", "matching" }) do
+                local seen = {}
+                for index, reference in ipairs(lists[mode]) do
+                    if reference == oldReference then lists[mode][index] = newReference end
+                    assert(not seen[lists[mode][index]],
+                        "AutoCategory rename creates duplicate order reference: " .. newReference)
+                    seen[lists[mode][index]] = true
                 end
             end
         end
@@ -1248,10 +1371,9 @@ end
 
 for _, name in ipairs({
     "Initialize", "OnRuleMutation", "OnProfileChanged", "OnEnablementChanged",
-    "ProjectAutoCategory", "MoveEntry", "UseOtherOrder", "CopyBothOrders", "GetHeadingDetails",
+    "ProjectAutoCategory", "MoveEntry", "MoveEntries", "UseOtherOrder", "CopyBothOrders", "GetHeadingDetails",
     "CompleteInitialSetup", "ShowInitialSetup",
-    "FlushPendingOrders",
 }) do
     local operation = integration[name]
-    integration[name] = function(...) return integration.Run(operation, ...) end
+    integration[name] = function(...) return integration.TimePhase(name, integration.Run, operation, ...) end
 end

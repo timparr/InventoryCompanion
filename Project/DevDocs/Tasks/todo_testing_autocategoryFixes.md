@@ -157,7 +157,12 @@ or verified in ESO.
   external edits between clicks, and profile switches. Preserve immediate
   editor updates and existing failure reporting.
 
-### Five-second deferred projection
+### Five-second deferred projection (removed)
+
+This queue was removed once the hang and slow-matcher fixes made projection
+fast. Moves and copy actions now project to AutoCategory immediately, as before.
+In-game measurement with the slow-action limit at 50 ms produced no reports.
+The checklist below is obsolete and kept only for history.
 
 The user subsequently requested in-memory ordering with projection five
 seconds after the last move. This supersedes the earlier immediate-projection

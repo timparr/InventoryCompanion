@@ -331,6 +331,18 @@ function this.CreateSettingsPanel()
             end,
             default = this.defaultsAccount.debugEnabled,
         },
+        {
+            type = "slider",
+            name = "AutoCategory Editor Slow-Action Limit (ms)",
+            tooltip = "With Debug Mode on, AutoCategory editor actions that take longer than this print a timing report to chat.",
+            min = 50,
+            max = 5000,
+            step = 50,
+            getFunc = function() return this.accountWide.autoCategoryTimingThresholdMs end,
+            setFunc = function(v) this.accountWide.autoCategoryTimingThresholdMs = v end,
+            disabled = function() return not this.accountWide.debugEnabled end,
+            default = this.defaultsAccount.autoCategoryTimingThresholdMs,
+        },
     }
 
     LAM:RegisterOptionControls("InventoryCompanionPanel", optionsData)

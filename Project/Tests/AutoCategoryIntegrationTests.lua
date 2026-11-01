@@ -21,6 +21,28 @@ INVENTORY_HOUSE_BANK, INVENTORY_CRAFT_BAG, INVENTORY_FURNITURE_VAULT = 14, 15, 1
 SI_ITEMFILTERTYPE_NEW = 999
 function GetString() return "New" end
 
+local fakeClock = 0
+function GetGameTimeMilliseconds() return fakeClock end
+local frameUpdates = {}
+EVENT_MANAGER = EVENT_MANAGER or {}
+function EVENT_MANAGER:RegisterForUpdate(name, _, callback) frameUpdates[name] = callback end
+function EVENT_MANAGER:UnregisterForUpdate(name) frameUpdates[name] = nil end
+this.AutoCategoryTestClock = {
+    Advance = function(ms) fakeClock = fakeClock + ms end,
+    RunFrame = function()
+        local callbacks = {}
+        for _, callback in pairs(frameUpdates) do callbacks[#callbacks + 1] = callback end
+        for _, callback in ipairs(callbacks) do callback() end
+        return #callbacks
+    end,
+    Reset = function()
+        frameUpdates = {}
+        this.accountWide.debugEnabled = true
+        this.accountWide.autoCategoryTimingThresholdMs = 100
+        integration.Timing.lastSlowReport = nil
+    end,
+}
+
 local function NewOrder()
     local order = { contexts = {} }
     for _, context in ipairs(contexts) do
@@ -182,6 +204,166 @@ end
 
 function this.GetAutoCategoryIntegrationTests()
     return {
+        {
+            name = "AutoCategory bulk movement preserves contiguous blocks and separated selections",
+            run = function()
+                local sequence = { "ac:A", "ic:alpha", "ic:beta", "ac:B", "ac:C" }
+                local block = { ["ic:alpha"] = true, ["ic:beta"] = true }
+                local moved, changed = integration.GetMovedSequence(sequence, block, -1)
+                assert(changed and Names(moved) == "alpha,beta,A,B,C", Names(moved))
+                moved = integration.GetMovedSequence(sequence, block, 1)
+                assert(Names(moved) == "A,B,alpha,beta,C", Names(moved))
+                local separated = { ["ic:alpha"] = true, ["ac:B"] = true }
+                moved = integration.GetMovedSequence(sequence, separated, -1)
+                assert(Names(moved) == "alpha,A,B,beta,C", Names(moved))
+                moved = integration.GetMovedSequence(sequence, separated, "top")
+                assert(Names(moved) == "alpha,B,A,beta,C")
+                moved = integration.GetMovedSequence(sequence, separated, "bottom")
+                assert(Names(moved) == "A,beta,C,alpha,B")
+                assert(Names(sequence) == "A,alpha,beta,B,C", "Movement must not mutate its input")
+                local ok = pcall(integration.GetMovedSequence, sequence, { missing = true }, 1)
+                assert(not ok, "Missing selected references must fail")
+            end,
+        },
+        {
+            name = "AutoCategory bulk jumps equal repeated single steps for every selection including merging and boundaries",
+            run = function()
+                local sequence = { "ac:1", "ic:2", "ac:3", "ic:4", "ac:5", "ic:6", "ac:7" }
+                for mask = 0, 127 do
+                    local selection = {}
+                    for index, reference in ipairs(sequence) do
+                        if math.floor(mask / 2 ^ (index - 1)) % 2 == 1 then selection[reference] = true end
+                    end
+                    for _, movement in ipairs({ -10, -5, -1, 1, 5, 10, "top", "bottom" }) do
+                        local moved = integration.GetMovedSequence(sequence, selection, movement)
+                        local selectedBefore, otherBefore, selectedAfter, otherAfter = {}, {}, {}, {}
+                        for _, reference in ipairs(sequence) do
+                            local target = selection[reference] and selectedBefore or otherBefore
+                            target[#target + 1] = reference
+                        end
+                        for _, reference in ipairs(moved) do
+                            local target = selection[reference] and selectedAfter or otherAfter
+                            target[#target + 1] = reference
+                        end
+                        assert(#moved == #sequence and Names(selectedBefore) == Names(selectedAfter)
+                            and Names(otherBefore) == Names(otherAfter), "Movement changed membership or relative order")
+                        if type(movement) == "number" then
+                            local repeated = sequence
+                            for _ = 1, math.abs(movement) do
+                                repeated = integration.GetMovedSequence(repeated, selection, movement < 0 and -1 or 1)
+                            end
+                            assert(Names(moved) == Names(repeated), "Jump differs from repeated steps")
+                        end
+                    end
+                end
+                local moved = integration.GetMovedSequence(sequence, { ["ac:1"] = true, ["ac:3"] = true }, -1)
+                assert(Names(moved) == "1,3,2,4,5,6,7", "Only the boundary run should remain pinned")
+            end,
+        },
+        {
+            name = "AutoCategory bulk operations apply immediately once and isolate context and mode",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
+                local _, scheduled = InstallHooks()
+                assert(integration.ProjectAutoCategory(), this.autoCategoryFailure)
+                local saved = this.accountWide.autoCategoryOrder
+                local oldMatching = Names(saved.contexts.backpack.matching)
+                local oldBank = Names(saved.contexts.bank.display)
+                local callbacks = #scheduled
+                local selection = { ["ic:alpha"] = true, ["ic:beta"] = true }
+                assert(integration.MoveEntries(selection, "backpack", "display", -10), this.autoCategoryFailure)
+                assert(#scheduled == callbacks, "Bulk movement must apply without scheduling a deferred apply")
+                local orders = this.accountWide.autoCategoryOrder.contexts
+                assert(Names(orders.backpack.display) == "alpha,beta,New,Selling,Low level")
+                assert(Names(orders.backpack.matching) == oldMatching and Names(orders.bank.display) == oldBank)
+                local bag
+                for _, context in ipairs(contexts) do
+                    if context.key == "backpack" then bag = AutoCategory.saved.bags[context.bag] end
+                end
+                local alpha
+                for _, assignment in ipairs(bag.rules) do
+                    if assignment.icRuleKey == "alpha" then alpha = assignment end
+                end
+                assert(alpha.showpriority == 1000, "AutoCategory must receive the moved order immediately")
+                assert(not integration.MoveEntries(selection, "backpack", "display", -1))
+            end,
+        },
+        {
+            name = "AutoCategory timing reports a slow move with phases without disabling integration",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
+                this.AutoCategoryTestClock.Reset()
+                InstallHooks()
+                assert(integration.ProjectAutoCategory(), this.autoCategoryFailure)
+                local refreshList = AutoCategory.RefreshList
+                local forcedRefreshes = 0
+                AutoCategory.RefreshList = function(inventoryType, evenIfHidden)
+                    if evenIfHidden ~= false then forcedRefreshes = forcedRefreshes + 1 end
+                    this.AutoCategoryTestClock.Advance(150)
+                    return refreshList(inventoryType, evenIfHidden)
+                end
+                local ok, report = pcall(integration.TimeAction, "editor", "move", integration.TimingSnapshot,
+                    integration.MoveEntries, { ["ic:beta"] = true }, "backpack", "display", -1)
+                AutoCategory.RefreshList = refreshList
+                assert(ok, "A slow move must report to chat without raising: " .. tostring(report))
+                assert(forcedRefreshes == 0, "Projection must not force hidden inventories to rebuild")
+                report = tostring(integration.Timing.lastSlowReport)
+                assert(report:find("editor: move took 150 ms synchronously", 1, true), report)
+                assert(report:find("\n  MoveEntries: 150 ms", 1, true), report)
+                assert(report:find("ProjectPlans: 150 ms", 1, true), report)
+                assert(report:find("AutoCategory RefreshList backpack: 150 ms", 1, true), report)
+                assert(not integration.IsFaulted(), "Timing reports must not disable integration")
+            end,
+        },
+        {
+            name = "AutoCategory timing reports an integration failure caught during a slow action",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.AutoCategoryTestClock.Reset()
+                local ok, failure = pcall(integration.TimeAction, "editor", "failing click", integration.TimingSnapshot,
+                    integration.Run, function()
+                        this.AutoCategoryTestClock.Advance(150)
+                        error("simulated editor defect")
+                    end)
+                assert(ok, "Run absorbs the failure and the timing report goes to chat: " .. tostring(failure))
+                local report = tostring(integration.Timing.lastSlowReport)
+                assert(report:find("Integration failed during this action: ", 1, true)
+                    and report:find("simulated editor defect", 1, true), report)
+                assert(integration.IsFaulted())
+            end,
+        },
+        {
+            name = "AutoCategory timing raises integration failures with a traceback next frame only in Debug Mode",
+            run = function()
+                local function FailingDefect() error("simulated integration defect") end
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.AutoCategoryTestClock.Reset()
+                this.AutoCategoryTestClock.RunFrame()
+                assert(integration.Run(FailingDefect) == false, "The failing caller must still get false")
+                assert(integration.IsFaulted(), "Debug Mode must still disable the integration")
+                local ok, report = pcall(this.AutoCategoryTestClock.RunFrame)
+                report = tostring(report)
+                assert(not ok and report:find("disabled by this failure", 1, true)
+                    and report:find("simulated integration defect", 1, true)
+                    and report:find("stack traceback", 1, true), report)
+                assert(this.AutoCategoryTestClock.RunFrame() == 0, "The failure report must unregister before raising")
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                assert(integration.Run(FailingDefect) == false and integration.IsFaulted())
+                assert(this.AutoCategoryTestClock.RunFrame() == 0, "Debug Mode off must only warn in chat")
+            end,
+        },
+        {
+            name = "AutoCategory profile boundary validation runs at load, not on every matcher rule read",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.accountWide.autoCategorySetupComplete = "not a boolean"
+                this.GetRuntimeRules()
+                assert(not integration.IsFaulted(), "Hot-path rule reads must not repeat boundary validation")
+                this.ValidateSavedRuleProfiles()
+                assert(integration.IsFaulted() and this.autoCategoryFailure:find("autoCategorySetupComplete", 1, true),
+                    "Load-boundary validation must still catch malformed saved data")
+            end,
+        },
         {
             name = "First enable prompts with IC first and cancellation leaves all saved choices unchanged",
             run = function()

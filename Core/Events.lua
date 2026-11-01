@@ -4,10 +4,6 @@ local this = InventoryCompanion
 
 local activeListeners = {}
 
-EVENT_MANAGER:RegisterForEvent(this.Name .. "_AutoCategoryFlush", EVENT_PLAYER_DEACTIVATED, function()
-    this.AutoCategoryIntegration.FlushPendingOrders()
-end)
-
 ------------------------------------------------------------------
 -- Debounce Queue System (Local)
 ------------------------------------------------------------------
