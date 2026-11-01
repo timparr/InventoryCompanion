@@ -5,7 +5,7 @@ InventoryCompanion = {
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
     Version = "1.5.1",
-    SettingsVersion = 4,
+    SettingsVersion = 5,
     SettingsName = "InventoryCompanion_SavedVariables",
 }
 local this = InventoryCompanion
@@ -114,6 +114,20 @@ SLASH_COMMANDS["/icclearoverrides"] = function()
     this.RefreshGroupsEditor()
     this.RefreshAutoCategoryEditor()
     this.RefreshItemTrackerPanel()
+end
+
+SLASH_COMMANDS["/iccleanautocategory"] = function()
+    assert(type(GetDisplayName) == "function", "ESO account-name API is unavailable; no cleanup was performed")
+    local accountName = GetDisplayName()
+    assert(type(accountName) == "string" and accountName ~= "",
+        "ESO account-name API returned an invalid name; no cleanup was performed")
+    if accountName:lower():gsub("^@", "") ~= "tim-p" then
+        d("[InventoryCompanion] AutoCategory saved-data cleanup is restricted to the @Tim-P account; no data was changed.")
+        return
+    end
+
+    local profiles, assignments = this.CleanAutoCategorySavedData(accountName)
+    d(string.format("[InventoryCompanion] Cleared AutoCategory integration data from %d @Tim-P IC profile(s) and removed %d IC-owned AutoCategory assignment(s). Other accounts and unrelated settings were preserved. Run /reloadui to finish.", profiles, assignments))
 end
 
 ------------------------------------------------------------------

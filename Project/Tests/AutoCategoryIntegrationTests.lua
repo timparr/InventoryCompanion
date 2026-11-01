@@ -10,6 +10,8 @@ local contexts = {
     { key = "craft_bag", bag = 6 },
     { key = "furniture_vault", bag = 7 },
 }
+local originalOnRuleMutation = integration.OnRuleMutation
+local originalOnEnablementChanged = integration.OnEnablementChanged
 
 AC_BAG_TYPE_BACKPACK, AC_BAG_TYPE_BANK, AC_BAG_TYPE_GUILDBANK = 1, 2, 3
 AC_BAG_TYPE_HOUSEBANK, AC_BAG_TYPE_CRAFTSTATION, AC_BAG_TYPE_CRAFTBAG = 4, 5, 6
@@ -19,7 +21,25 @@ INVENTORY_HOUSE_BANK, INVENTORY_CRAFT_BAG, INVENTORY_FURNITURE_VAULT = 14, 15, 1
 SI_ITEMFILTERTYPE_NEW = 999
 function GetString() return "New" end
 
+local function NewOrder()
+    local order = { contexts = {} }
+    for _, context in ipairs(contexts) do
+        order.contexts[context.key] = { display = {}, matching = {} }
+    end
+    return order
+end
+
+local function Assignment(name, runpriority, showpriority, extra)
+    local assignment = {
+        name = name, runpriority = runpriority, showpriority = showpriority,
+        isHidden = false,
+    }
+    for key, value in pairs(extra or {}) do assignment[key] = value end
+    return assignment
+end
+
 local function NewFixture(headingLists)
+    this.autoCategoryFailure = nil
     local function Display()
         return { show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false }
     end
@@ -29,8 +49,8 @@ local function NewFixture(headingLists)
         gamma = { displayName = "Gamma", patterns = { "gamma" }, display = Display() },
         miscellaneous = { displayName = "Miscellaneous", patterns = {}, display = Display() },
     }
-    this.accountWide = { trackedRules = {}, trackedItems = {} }
-    this.character = { trackedRules = {}, trackedItems = {}, useCharacterItemList = false }
+    this.accountWide = { trackedRules = {}, trackedItems = {}, autoCategoryOrder = NewOrder() }
+    this.character = { trackedRules = {}, trackedItems = {}, useCharacterItemList = false, autoCategoryOrder = NewOrder() }
     this.InvalidateRuleCache()
     this.ValidateSavedRuleProfiles()
     AutoCategory = { saved = { bags = {} } }
@@ -39,12 +59,8 @@ local function NewFixture(headingLists)
         local names = headingLists and headingLists[context.key] or defaults
         local assignments = {}
         for index, name in ipairs(names) do
-            assignments[#assignments + 1] = {
-                name = name,
-                runpriority = (#names - index + 1) * 100,
-                showpriority = (#names - index + 1) * 100,
-                isHidden = false,
-            }
+            assignments[#assignments + 1] = Assignment(name,
+                (#names - index + 1) * 100, (#names - index + 1) * 100)
         end
         AutoCategory.saved.bags[context.bag] = { rules = assignments }
     end
@@ -53,93 +69,8 @@ local function NewFixture(headingLists)
 end
 this.NewAutoCategoryTestFixture = NewFixture
 
-local function FindRow(rows, kind, value)
-    for _, row in ipairs(rows) do
-        if row.kind == kind and (kind == "group" and row.ruleKey == value
-            or kind == "heading" and row.name == value) then
-            return row
-        end
-    end
-end
-
 local function NewStartupAutoCategory()
-    AutoCategory = {
-        Inited = false,
-        saved = { bags = {} },
-        acctSaved = { bags = {} },
-        charSaved = { bags = {} },
-        Plugins = {},
-        RulesW = {
-            ruleList = {},
-            ruleNames = {},
-            compiled = {},
-            AddRule = function() end,
-            CompileAll = function() end,
-        },
-        RuleList = { removeRuleByName = function() end },
-        predefinedRules = {},
-        RegisterPlugin = function(name, initialize, definitions)
-            AutoCategory.Plugins[name] = { initialize = initialize, predef = definitions }
-        end,
-        AddRuleFunc = function() end,
-        GetRuleByName = function() end,
-        RefreshList = function() end,
-        UpdateCurrentSavedVars = function() end,
-        cacheInitBag = function() end,
-        cacheInitialize = function() end,
-        cacheRuleInitialize = function() end,
-    }
-    SI_DIALOG_CONFIRM = "Confirm"
-    SI_DIALOG_CANCEL = "Cancel"
-    ZO_Dialogs_RegisterCustomDialog = function() end
-    d = function() end
-end
-
--- Runs a full projection against fixture headings New/Selling/Low level (300/200/100) after
--- applying external Bank edits, and returns the resulting native Bank order for a priority field.
-local function ProjectBank(editBank, buildRules)
-    NewFixture()
-    local fixtureBags = AutoCategory.saved.bags
-    NewStartupAutoCategory()
-    AutoCategory.saved.bags = fixtureBags
-    AutoCategory.Inited = true
-    AutoCategory.Plugins["Inventory Companion"] = { predef = {} }
-    this.accountWide.autoCategoryInitialized = true
-    this.accountWide.autoCategoryIntegrationEnabled = true
-    local function HeadingId(name)
-        for _, row in ipairs(integration.ResolveAutoCategoryOrder("master", { showAllHeadings = true })) do
-            if row.kind == "heading" and row.name == name then return row.occurrenceId end
-        end
-        error("Fixture heading is missing: " .. name)
-    end
-    this.accountWide.trackedRules = buildRules(HeadingId)
-    this.ValidateSavedRuleProfiles()
-    for _, assignment in ipairs(AutoCategory.saved.bags[2].rules) do editBank(assignment) end
-
-    integration.ProjectAutoCategory()
-
-    return function(field)
-        local entries = {}
-        for _, assignment in ipairs(AutoCategory.saved.bags[2].rules) do entries[#entries + 1] = assignment end
-        table.sort(entries, function(a, b)
-            if a[field] ~= b[field] then return a[field] > b[field] end
-            return a.name < b.name
-        end)
-        local names = {}
-        for _, assignment in ipairs(entries) do
-            local label = assignment.name
-            if assignment.icOwned then label = assignment.name:match("Alpha$") and "alpha" or "beta" end
-            names[#names + 1] = label
-        end
-        return table.concat(names, ",")
-    end
-end
-
--- Mirrors AutoCategory's rule registry: removeRuleByName shifts ruleList without reindexing
--- other ruleNames entries, and only cacheRuleInitialize rebuilds the name lookup.
-local function InstallRuleRegistry(ac)
-    local registry = ac.RulesW
-    registry.ruleList, registry.ruleNames = {}, {}
+    local registry = { ruleList = {}, ruleNames = {}, compiled = {} }
     registry.AddRule = function(self, rule, overwrite)
         local index = self.ruleNames[rule.name]
         if index then
@@ -149,6 +80,26 @@ local function InstallRuleRegistry(ac)
             self.ruleNames[rule.name] = #self.ruleList
         end
     end
+    local ac = {
+        Inited = false,
+        saved = AutoCategory.saved,
+        acctSaved = { bags = {}, rules = {} },
+        charSaved = { bags = {}, rules = {} },
+        Plugins = {},
+        RulesW = registry,
+        RuleList = {},
+        predefinedRules = {},
+        RefreshList = function() end,
+        UpdateCurrentSavedVars = function() end,
+        cacheInitBag = function() end,
+        cacheInitialize = function() end,
+        cacheRuleInitialize = function()
+            registry.ruleNames = {}
+            for index, rule in ipairs(registry.ruleList) do registry.ruleNames[rule.name] = index end
+        end,
+        AddRuleFunc = function(_, predicate) registry.predicate = predicate end,
+        renameBagRule = function() end,
+    }
     ac.RuleList.removeRuleByName = function(self, name)
         local index = self.ruleNames[name]
         if index then
@@ -160,328 +111,347 @@ local function InstallRuleRegistry(ac)
         local index = registry.ruleNames[name]
         return index and registry.ruleList[index]
     end
-    ac.cacheRuleInitialize = function()
-        registry.ruleNames = {}
-        for index, rule in ipairs(registry.ruleList) do registry.ruleNames[rule.name] = index end
+    ac.RulesW.CompileAll = function() end
+    ac.RegisterPlugin = function(name, initialize, definitions)
+        ac.Plugins[name] = { initialize = initialize, predef = definitions }
     end
+    ac.RefreshList = function() end
+    AutoCategory = ac
+    return ac
+end
+
+local function PrepareActive(rules)
+    NewFixture()
+    local bags = AutoCategory.saved.bags
+    NewStartupAutoCategory()
+    AutoCategory.saved.bags = bags
+    AutoCategory.Inited = true
+    AutoCategory.Plugins["Inventory Companion"] = { predef = {} }
+    this.accountWide.trackedRules = rules or {}
+    this.accountWide.autoCategoryIntegrationEnabled = true
+    this.ValidateSavedRuleProfiles()
+    this.InvalidateRuleCache()
+    d = function() end
+end
+
+local function Names(sequence)
+    local names = {}
+    for _, reference in ipairs(sequence) do names[#names + 1] = reference:sub(4) end
+    return table.concat(names, ",")
+end
+
+local function FindAssignment(contextKey, name)
+    local bag = AutoCategory.saved.bags[contexts[1].bag]
+    for _, context in ipairs(contexts) do
+        if context.key == contextKey then bag = AutoCategory.saved.bags[context.bag]; break end
+    end
+    for _, assignment in ipairs(bag.rules) do
+        if assignment.name == name then return assignment end
+    end
+end
+
+local function InstallHooks()
+    local hooks = {}
+    ZO_PostHook = function(target, name, callback)
+        assert(target == AutoCategory)
+        hooks[name] = callback or true
+    end
+    local scheduled = {}
+    zo_callLater = function(callback) scheduled[#scheduled + 1] = callback end
+    return hooks, scheduled
 end
 
 function this.GetAutoCategoryIntegrationTests()
     return {
         {
-            name = "Definition sync replaces renamed categories without losing other registered rules",
+            name = "Startup imports the native fractional display key independently from matching priority",
             run = function()
-                NewFixture()
-                local fixtureBags = AutoCategory.saved.bags
-                NewStartupAutoCategory()
-                AutoCategory.saved.bags = fixtureBags
-                AutoCategory.Inited = true
-                AutoCategory.Plugins["Inventory Companion"] = { predef = {} }
-                InstallRuleRegistry(AutoCategory)
-                this.accountWide.autoCategoryInitialized = true
-                this.accountWide.autoCategoryIntegrationEnabled = true
-                integration.ProjectAutoCategory()
-
-                local registry, plugin = AutoCategory.RulesW, AutoCategory.Plugins["Inventory Companion"]
-                local current = {}
-                for _, rule in ipairs(registry.ruleList) do current[#current + 1] = rule.name end
-                assert(#current == 3, "First sync must register one category per ordinary group")
-                -- A previous rank-prefixed name for the first group, as left behind by a move or rename.
-                local obsolete = { name = "|c000001|r" .. current[1], icIntegrationOwned = true, icRuleKey = "obsolete" }
-                local external = { name = "External gate", tag = "Other add-on" }
-                table.insert(registry.ruleList, 1, obsolete)
-                table.insert(plugin.predef, 1, obsolete)
-                registry.ruleList[#registry.ruleList + 1] = external
-                AutoCategory.cacheRuleInitialize()
-
-                integration.ProjectAutoCategory()
-
-                local counts = {}
-                for _, rule in ipairs(registry.ruleList) do counts[rule.name] = (counts[rule.name] or 0) + 1 end
-                assert(counts[obsolete.name] == nil, "Obsolete integration category must be removed")
-                assert(counts[external.name] == 1, "External categories must be preserved")
-                for _, name in ipairs(current) do
-                    assert(counts[name] == 1, "Integration category must remain registered exactly once: " .. name)
-                end
-                assert(#registry.ruleList == #current + 1, "Sync must not duplicate or drop categories")
-            end,
-        },
-        {
-            name = "AutoCategory plugin registers before active bag assignments are initialized",
-            run = function()
-                NewFixture()
-                NewStartupAutoCategory()
-
-                integration.Initialize()
-
-                local plugin = AutoCategory.Plugins["Inventory Companion"]
-                assert(plugin ~= nil, "Plugin registration must not require active bag assignments")
-                assert(#plugin.predef > 0, "Plugin definitions must be registered before AutoCategory initializes")
-                assert(select(1, integration.GetStatus()) == "disabled")
-            end,
-        },
-        {
-            name = "Enabled AutoCategory integration starts pending and projects after AutoCategory initializes",
-            run = function()
-                NewFixture()
-                this.accountWide.autoCategoryInitialized = true
-                this.accountWide.autoCategoryIntegrationEnabled = true
-                NewStartupAutoCategory()
-                local hooked, scheduled, projected = {}, {}, 0
-                ZO_PostHook = function(target, name)
-                    assert(target == AutoCategory)
-                    hooked[name] = true
-                end
-                zo_callLater = function(callback) scheduled[#scheduled + 1] = callback end
-                local project = integration.ProjectAutoCategory
-                integration.ProjectAutoCategory = function() projected = projected + 1 end
-
-                local ok, failure = pcall(function()
-                    integration.Initialize()
-                    assert(select(1, integration.GetStatus()) == "pending")
-                    assert(hooked.UpdateCurrentSavedVars and hooked.cacheInitBag and hooked.cacheInitialize,
-                        "Enabled startup must install AutoCategory lifecycle hooks")
-                    assert(#scheduled == 0, "Projection must not be scheduled before AutoCategory initializes")
-
-                    -- AutoCategory runs plugin initializers and then sets Inited in the same call.
-                    AutoCategory.Plugins["Inventory Companion"].initialize()
-                    AutoCategory.Inited = true
-                    assert(#scheduled == 1, "Plugin initialization must schedule the first projection")
-                    scheduled[1]()
-                    assert(projected == 1, "Scheduled startup reconcile must project once AutoCategory is initialized")
-                end)
-                integration.ProjectAutoCategory = project
-                assert(ok, failure)
-            end,
-        },
-        {
-            name = "AutoCategory preset dialog fits keyboard dialog buttons and applies the selected arrangement",
-            run = function()
-                NewFixture()
-                AutoCategory = {
-                    saved = { bags = {} },
-                    acctSaved = { bags = {} },
-                    charSaved = { bags = {} },
-                    Plugins = {},
-                    RegisterPlugin = function(name, initialize, definitions)
-                        AutoCategory.Plugins[name] = { initialize = initialize, predef = definitions }
-                    end,
-                }
-                SI_DIALOG_CONFIRM = "Confirm"
-                SI_DIALOG_CANCEL = "Cancel"
-                local registered
-                ZO_Dialogs_RegisterCustomDialog = function(name, info)
-                    assert(name == "INVENTORYCOMPANION_AUTOCATEGORY_PRESET")
-                    registered = info
-                end
-                d = function() end
-
-                integration.Initialize()
-
-                assert(registered ~= nil, "Preset dialog must be registered")
-                -- ESO keyboard ZO_Dialog has exactly two button controls; a third indexes nil.
-                assert(#registered.buttons <= 2, "Keyboard dialogs support at most two buttons")
-                assert(registered.noChoiceCallback ~= nil, "Escape/dismissal must have a no-choice path")
-                for _, radio in ipairs(registered.radioButtons) do
-                    integration.BuildPresetPlacements(radio.data)
-                end
-
-                local function FakeDialog(preset, reset)
-                    return {
-                        data = { reset = reset },
-                        radioButtonGroup = {
-                            GetClickedButton = function() return { data = preset } end,
-                        },
-                    }
-                end
-                registered.buttons[2].callback(FakeDialog("prefer_ic_groups", false))
-                registered.noChoiceCallback(FakeDialog("prefer_ic_groups", false))
-                assert(not this.GetAutoCategoryState().initialized, "Cancel must not apply a preset")
-
-                registered.buttons[1].callback(FakeDialog("prefer_autocategory_groups", false))
-                local state = this.GetAutoCategoryState()
-                assert(state.initialized and state.enabled, "Confirm must apply the preset and enable integration")
-            end,
-        },
-        {
-            name = "Projection preserves independent external run and show priority orders",
-            run = function()
-                local Order = ProjectBank(function(assignment)
-                    -- Mirrors an AutoCategory settings edit that moves only one priority field of a heading.
-                    if assignment.name == "Low level" then assignment.runpriority = 350 end
-                    -- Ties with the anchor stay above managed groups in that field.
-                    if assignment.name == "Selling" then assignment.showpriority = 300 end
-                end, function()
-                    return {
-                        alpha = { autoCategoryEnabled = true, autoCategoryAnchor = "@default-new", autoCategoryRank = 100 },
-                        beta = { autoCategoryEnabled = true, autoCategoryAnchor = "@default-new", autoCategoryRank = 200 },
-                    }
-                end)
-                assert(Order("runpriority") == "Low level,New,alpha,beta,Selling", Order("runpriority"))
-                assert(Order("showpriority") == "New,Selling,alpha,beta,Low level", Order("showpriority"))
-                assert(select(1, integration.GetStatus()) == "available")
-            end,
-        },
-        {
-            name = "Projection places groups of tied headings after the alphabetical tie block",
-            run = function()
-                local Order = ProjectBank(function(assignment)
-                    if assignment.name == "Selling" then assignment.showpriority = 300 end
-                end, function(headingId)
-                    return {
-                        alpha = { autoCategoryEnabled = true, autoCategoryAnchor = headingId("Selling"), autoCategoryRank = 100 },
-                        beta = { autoCategoryEnabled = true, autoCategoryAnchor = "@default-new", autoCategoryRank = 200 },
-                    }
-                end)
-                -- AutoCategory orders the New/Selling show tie alphabetically; neither group can sit inside it.
-                assert(Order("showpriority") == "New,Selling,beta,alpha,Low level", Order("showpriority"))
-                assert(Order("runpriority") == "New,beta,Selling,alpha,Low level", Order("runpriority"))
-                assert(select(1, integration.GetStatus()) == "available")
-            end,
-        },
-        {
-            name = "AutoCategory presets place every ordinary group without enabling participation",
-            run = function()
-                NewFixture()
-                local placements = integration.BuildPresetPlacements("prefer_ic_groups")
-                assert(placements.alpha and placements.beta and placements.gamma)
-                assert(placements.miscellaneous == nil, "Miscellaneous must not be exported")
-                assert(placements.alpha.anchor == "@default-new" and placements.beta.rank == 200)
-                this.ApplyAutoCategoryPreset("prefer_ic_groups", false)
-                assert(this.GetAutoCategoryState().initialized and not this.GetAutoCategoryState().enabled)
-                assert(this.accountWide.trackedRules.alpha.autoCategoryEnabled == nil)
-                assert(this.accountWide.trackedRules.gamma.autoCategoryRank == 300)
-            end,
-        },
-        {
-            name = "First participation inserts after the last participating group before inactive peers",
-            run = function()
-                NewFixture()
-                this.accountWide.autoCategoryInitialized = true
-                this.accountWide.trackedRules = {
-                    alpha = { autoCategoryEnabled = true, autoCategoryAnchor = "@default-new", autoCategoryRank = 100 },
-                    beta = { autoCategoryAnchor = "@default-new", autoCategoryRank = 200 },
-                }
-                this.ValidateSavedRuleProfiles()
-                assert(this.GetRuntimeRules().gamma ~= nil, "Fixture must include gamma")
-                local alpha
-                for _, row in ipairs(integration.ResolveAutoCategoryOrder("master", { showNonparticipants = true })) do
-                    if row.kind == "group" and row.ruleKey == "alpha" then alpha = row end
-                end
-                assert(alpha ~= nil, "Fixture must resolve the participating group")
-                this.SetAutoCategoryParticipation("gamma", true)
-                local gamma = this.accountWide.trackedRules.gamma
-                assert(gamma.autoCategoryEnabled == true and gamma.autoCategoryAnchor == alpha.resolvedAnchorId)
-                assert(gamma.autoCategoryRank == 101, "The new group must fit between the last active and inactive groups")
-                assert(this.accountWide.trackedRules.alpha.autoCategoryRank == 100)
-                assert(this.accountWide.trackedRules.beta.autoCategoryRank == 200)
-            end,
-        },
-        {
-            name = "First participation persists rank rebalancing and preserves context overrides",
-            run = function()
-                NewFixture()
-                this.accountWide.autoCategoryInitialized = true
-                this.accountWide.trackedRules = {
-                    alpha = { autoCategoryEnabled = true, autoCategoryAnchor = "New", autoCategoryRank = 1000 },
-                    beta = {
-                        autoCategoryAnchor = "New", autoCategoryRank = 1001,
-                        autoCategoryOverrides = { bank = { rank = 2000 } },
-                    },
-                }
-                this.ValidateSavedRuleProfiles()
-                this.SetAutoCategoryParticipation("gamma", true)
-                local saved = this.accountWide.trackedRules
-                assert(saved.alpha.autoCategoryRank == 100 and saved.beta.autoCategoryRank == 200)
-                assert(saved.beta.autoCategoryOverrides.bank.rank == 300)
-                assert(saved.gamma.autoCategoryRank == 101)
-                assert(saved.beta.autoCategoryOverrides.bank.anchor == nil,
-                    "Rank cleanup must preserve sparse context placement fields")
-            end,
-        },
-        {
-            name = "Context moves alter only the moved group and leave Master ordering unchanged",
-            run = function()
-                NewFixture()
-                this.accountWide.autoCategoryInitialized = true
-                this.accountWide.autoCategoryIntegrationEnabled = true
-                this.accountWide.trackedRules = {
-                    alpha = { autoCategoryEnabled = true, autoCategoryAnchor = "@default-new", autoCategoryRank = 100 },
-                    beta = { autoCategoryEnabled = true, autoCategoryAnchor = "@default-new", autoCategoryRank = 200 },
-                    gamma = { autoCategoryEnabled = true, autoCategoryAnchor = "@default-new", autoCategoryRank = 300 },
-                }
-                this.ValidateSavedRuleProfiles()
-                assert(integration.MoveGroup("beta", "bank", -1))
-                local master = integration.ResolveAutoCategoryOrder("master")
-                local bank = integration.ResolveAutoCategoryOrder("bank")
-                local function GroupNames(rows)
-                    local names = {}
-                    for _, row in ipairs(rows) do
-                        if row.kind == "group" and row.participating then names[#names + 1] = row.ruleKey end
-                    end
-                    return table.concat(names, ",")
-                end
-                assert(GroupNames(master) == "alpha,beta,gamma")
-                assert(GroupNames(bank) == "beta,alpha,gamma")
-                assert(this.accountWide.trackedRules.alpha.autoCategoryOverrides == nil)
-                assert(this.accountWide.trackedRules.gamma.autoCategoryOverrides == nil)
-                assert(this.accountWide.trackedRules.beta.autoCategoryOverrides.bank.rank == 99)
-            end,
-        },
-        {
-            name = "Context heading visibility overrides are isolated and reset to Master",
-            run = function()
-                NewFixture()
-                local master = integration.ResolveAutoCategoryOrder("master")
-                local newHeading = FindRow(master, "heading", "New")
-                assert(newHeading)
-                local scopeCount = 0
-                for _ in pairs(newHeading.contexts) do scopeCount = scopeCount + 1 end
-                assert(scopeCount == 7, "Identical heading order should share one Master occurrence, got "
-                    .. tostring(scopeCount))
-                this.SetAutoCategoryHeadingVisibility("master", newHeading.occurrenceId, false)
-                local afterMasterHide = integration.ResolveAutoCategoryOrder("master")
-                local visibleNew = {}
-                for _, row in ipairs(afterMasterHide) do
-                    if row.kind == "heading" and row.name == "New" then
-                        visibleNew[#visibleNew + 1] = row.occurrenceId
-                    end
-                end
-                assert(#visibleNew == 0,
-                    "Master heading remained visible for " .. newHeading.occurrenceId .. "; still visible: "
-                        .. table.concat(visibleNew, ",") .. "; stored="
-                        .. tostring(this.GetAutoCategoryState().order.headingVisibility[newHeading.occurrenceId]))
-                this.SetAutoCategoryHeadingVisibility("bank", newHeading.occurrenceId, true)
-                assert(FindRow(integration.ResolveAutoCategoryOrder("bank"), "heading", "New"))
-                this.ResetAutoCategoryContext("bank")
-                assert(FindRow(integration.ResolveAutoCategoryOrder("bank"), "heading", "New") == nil)
-                assert(this.accountWide.autoCategoryOrder.overrides == nil)
-            end,
-        },
-        {
-            name = "Context views preserve their native heading sequences when orders differ",
-            run = function()
-                NewFixture({
-                    backpack = { "New", "Selling", "Low level" },
-                    bank = { "New", "Low level", "Selling" },
-                    guild_bank = { "Selling", "New", "Low level" },
+                PrepareActive({
+                    alpha = { autoCategoryEnabled = true },
+                    beta = {}, gamma = {},
                 })
-                local function HeadingNames(key)
-                    local names = {}
-                    for _, row in ipairs(integration.ResolveAutoCategoryOrder(key)) do
-                        if row.kind == "heading" then names[#names + 1] = row.name end
+                AutoCategory.saved.bags[1].rules = {
+                    Assignment("New", 100, 100),
+                    Assignment("Set", 100, 100, { isHidden = true, externalMetadata = "preserved" }),
+                    Assignment("Utility", 99.94, 99.94, { icOwned = true, icRuleKey = "alpha" }),
+                    Assignment("Test group", 99.89, 99.89),
+                }
+                assert(integration.ProjectAutoCategory())
+                local orders = this.accountWide.autoCategoryOrder.contexts.backpack
+                assert(Names(orders.display) == "New,Set,Test group,alpha", Names(orders.display))
+                assert(Names(orders.matching) == "New,Set,alpha,Test group", Names(orders.matching))
+                local unique = {}
+                for _, assignment in ipairs(AutoCategory.saved.bags[1].rules) do
+                    assert(assignment.showpriority >= 2 and assignment.showpriority <= 1000
+                        and assignment.showpriority == math.floor(assignment.showpriority))
+                    assert(assignment.runpriority >= 2 and assignment.runpriority <= 1000
+                        and assignment.runpriority == math.floor(assignment.runpriority))
+                    unique[assignment.showpriority] = true
+                end
+                assert(#AutoCategory.saved.bags[1].rules == 4)
+                assert(FindAssignment("backpack", "Set").isHidden == true)
+                assert(FindAssignment("backpack", "Set").externalMetadata == "preserved")
+            end,
+        },
+        {
+            name = "Display and matching moves update only their own context sequence",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                integration.ProjectAutoCategory()
+                local contextOrder = this.accountWide.autoCategoryOrder.contexts.backpack
+                local bankDisplay = Names(this.accountWide.autoCategoryOrder.contexts.bank.display)
+                local oldMatching, oldRun = Names(contextOrder.matching), {}
+                for _, assignment in ipairs(AutoCategory.saved.bags[1].rules) do
+                    oldRun[assignment.name] = assignment.runpriority
+                end
+                assert(integration.MoveEntry("ic:alpha", "backpack", "display", -1))
+                contextOrder = this.accountWide.autoCategoryOrder.contexts.backpack
+                assert(Names(contextOrder.matching) == oldMatching)
+                for name, priority in pairs(oldRun) do
+                    assert(FindAssignment("backpack", name).runpriority == priority)
+                end
+                local oldDisplay = Names(contextOrder.display)
+                assert(integration.MoveEntry("ic:alpha", "backpack", "matching", -1))
+                contextOrder = this.accountWide.autoCategoryOrder.contexts.backpack
+                assert(Names(contextOrder.display) == oldDisplay)
+                assert(Names(contextOrder.matching) ~= oldMatching)
+                assert(Names(this.accountWide.autoCategoryOrder.contexts.bank.display) == bankDisplay)
+            end,
+        },
+        {
+            name = "Cross-context copy preserves destination-only slots and never changes participation",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                AutoCategory.saved.bags[2].rules[#AutoCategory.saved.bags[2].rules + 1] =
+                    Assignment("Bank only", 50, 50)
+                integration.ProjectAutoCategory()
+                integration.MoveEntry("ac:New", "backpack", "display", 1)
+                local sourceBefore = Names(this.accountWide.autoCategoryOrder.contexts.backpack.display)
+                local alphaParticipation = this.accountWide.trackedRules.alpha.autoCategoryEnabled
+                assert(integration.CopyBothOrders("backpack", "bank"))
+                local bankOrder = this.accountWide.autoCategoryOrder.contexts.bank
+                assert(Names(bankOrder.display) == "Selling,New,Low level,Bank only,alpha", Names(bankOrder.display))
+                assert(this.accountWide.trackedRules.alpha.autoCategoryEnabled == alphaParticipation)
+                assert(Names(this.accountWide.autoCategoryOrder.contexts.backpack.display) == sourceBefore)
+                local matching = Names(bankOrder.matching)
+                assert(integration.UseOtherOrder("bank", "display"))
+                assert(Names(this.accountWide.autoCategoryOrder.contexts.bank.display) == matching)
+                assert(integration.CopyBothOrders("bank", "bank") == false)
+            end,
+        },
+        {
+            name = "Participation adds and removes stable IC references without rank-based fields",
+            run = function()
+                PrepareActive({})
+                integration.OnRuleMutation = originalOnRuleMutation
+                this.SetAutoCategoryParticipation("alpha", true)
+                local reference = "ic:alpha"
+                for _, context in ipairs(contexts) do
+                    local order = this.accountWide.autoCategoryOrder.contexts[context.key]
+                    assert(order.display[#order.display] == reference)
+                    assert(order.matching[#order.matching] == reference)
+                end
+                local managed = FindAssignment("backpack", "|t18:18:EsoUI/Art/Buttons/plus_up.dds|t Alpha")
+                assert(managed and managed.icRuleKey == "alpha")
+                this.SetAutoCategoryParticipation("alpha", false)
+                local savedAlpha = this.accountWide.trackedRules.alpha or {}
+                assert(savedAlpha.autoCategoryAnchor == nil and savedAlpha.autoCategoryRank == nil)
+                assert(FindAssignment("backpack", managed.name) == nil)
+            end,
+        },
+        {
+            name = "Projection round-trip is idempotent and disabling preserves native assignments",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                integration.ProjectAutoCategory()
+                local nativeBefore = {}
+                for _, assignment in ipairs(AutoCategory.saved.bags[1].rules) do
+                    if assignment.icOwned ~= true then
+                        nativeBefore[assignment.name] = {
+                            runpriority = assignment.runpriority,
+                            showpriority = assignment.showpriority,
+                            isHidden = assignment.isHidden,
+                        }
                     end
-                    return table.concat(names, ",")
                 end
-                assert(HeadingNames("backpack") == "New,Selling,Low level")
-                assert(HeadingNames("bank") == "New,Low level,Selling")
-                assert(HeadingNames("guild_bank") == "Selling,New,Low level")
-                local master = integration.ResolveAutoCategoryOrder("master")
-                local newOccurrences = 0
-                for _, row in ipairs(master) do
-                    if row.kind == "heading" and row.name == "New" then newOccurrences = newOccurrences + 1 end
+                integration.ProjectAutoCategory()
+                for name, previous in pairs(nativeBefore) do
+                    local assignment = FindAssignment("backpack", name)
+                    assert(assignment.runpriority == previous.runpriority)
+                    assert(assignment.showpriority == previous.showpriority)
+                    assert(assignment.isHidden == previous.isHidden)
                 end
-                assert(newOccurrences >= 2, "Differing native orders require separate heading occurrences")
+
+                integration.OnEnablementChanged = originalOnEnablementChanged
+                this.SetAutoCategoryIntegrationEnabled(false)
+                for _, assignment in ipairs(AutoCategory.saved.bags[1].rules) do
+                    assert(assignment.icOwned ~= true)
+                    local previous = nativeBefore[assignment.name]
+                    assert(previous ~= nil, "Disabling must leave native assignments intact")
+                    assert(assignment.runpriority == previous.runpriority)
+                    assert(assignment.showpriority == previous.showpriority)
+                    assert(assignment.isHidden == previous.isHidden)
+                end
+            end,
+        },
+        {
+            name = "Saved-data cleanup removes only explicitly IC-owned assignments in both AC profiles",
+            run = function()
+                PrepareActive({})
+                for _, profileName in ipairs({ "acctSaved", "charSaved" }) do
+                    local profile = AutoCategory[profileName]
+                    for _, context in ipairs(contexts) do
+                        profile.bags[context.bag] = { rules = {
+                            Assignment("IC-owned", 100, 100, { icOwned = true, icRuleKey = "alpha" }),
+                            Assignment("Native", 90, 90, { custom = "preserved" }),
+                        } }
+                    end
+                end
+                local removals = integration.PreflightSavedDataCleanup()
+                assert(#removals == 14)
+                assert(integration.ApplySavedDataCleanup(removals) == 14)
+                for _, profileName in ipairs({ "acctSaved", "charSaved" }) do
+                    for _, context in ipairs(contexts) do
+                        local rules = AutoCategory[profileName].bags[context.bag].rules
+                        assert(#rules == 1 and rules[1].name == "Native" and rules[1].custom == "preserved")
+                    end
+                end
+            end,
+        },
+        {
+            name = "Reconciliation removes deleted native rows and imports newly assigned categories",
+            run = function()
+                PrepareActive({})
+                integration.ProjectAutoCategory()
+                local bank = AutoCategory.saved.bags[2].rules
+                table.remove(bank, 2)
+                bank[#bank + 1] = Assignment("New native", 75, 75)
+                integration.ProjectAutoCategory()
+                local order = this.accountWide.autoCategoryOrder.contexts.bank
+                assert(not table.concat(order.display, ","):find("ac:Selling", 1, true))
+                assert(table.concat(order.display, ","):find("ac:New native", 1, true))
+                assert(#order.display == 3 and #order.matching == 3)
+            end,
+        },
+        {
+            name = "Integer projection accepts 999 assignments and rejects 1000 without writes",
+            run = function()
+                PrepareActive({})
+                local backpack = AutoCategory.saved.bags[1]
+                backpack.rules = {}
+                for index = 1, 999 do
+                    backpack.rules[index] = Assignment(string.format("Native %03d", index), 1000 - index, 1000 - index,
+                        { filter = "preserved" })
+                end
+                assert(integration.ProjectAutoCategory())
+                assert(#backpack.rules == 999)
+                for index, assignment in ipairs(backpack.rules) do
+                    assert(assignment.showpriority >= 2 and assignment.runpriority >= 2)
+                    assert(assignment.filter == "preserved")
+                end
+                local beforeOrder = table.concat(this.accountWide.autoCategoryOrder.contexts.backpack.display, ",")
+                backpack.rules[1000] = Assignment("Native 1000", 1, 1)
+                local beforeFirst, beforeLast = backpack.rules[1].showpriority, backpack.rules[1000].showpriority
+                local prepared = integration.PreflightAutoCategory()
+                assert(prepared == nil, "1000 assignments must fail preflight")
+                assert(table.concat(this.accountWide.autoCategoryOrder.contexts.backpack.display, ",") == beforeOrder)
+                assert(backpack.rules[1].showpriority == beforeFirst and backpack.rules[1000].showpriority == beforeLast)
+                assert(integration.IsFaulted() and not this.GetAutoCategoryState().enabled)
+            end,
+        },
+        {
+            name = "AutoCategory classifier failure disables the predicate and preserves core rules",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                AutoCategory.Inited = false
+                AutoCategory.Plugins["Inventory Companion"] = nil
+                this.accountWide.autoCategoryIntegrationEnabled = nil
+                integration.Initialize()
+                AutoCategory.Plugins["Inventory Companion"].initialize()
+                this.accountWide.autoCategoryIntegrationEnabled = true
+                AutoCategory.checkingItemLink = "synthetic link"
+                local match = this.ItemMatchesRuntimeRule
+                this.ItemMatchesRuntimeRule = function() error("synthetic matching failure") end
+                local predicate = AutoCategory.RulesW.predicate
+                local ok, result = pcall(predicate, "alpha")
+                this.ItemMatchesRuntimeRule = match
+                assert(ok and result == false and integration.IsFaulted())
+                assert(predicate("alpha") == false)
+                assert(this.GetRuntimeRules().alpha, "IC core rule resolution must remain available")
+            end,
+        },
+        {
+            name = "AutoCategory startup errors disable integration without escaping to core startup",
+            run = function()
+                PrepareActive({})
+                AutoCategory.Inited = false
+                AutoCategory.Plugins["Inventory Companion"] = nil
+                AutoCategory.RegisterPlugin = function() error("synthetic registration failure") end
+                local warnings = {}
+                d = function(message) warnings[#warnings + 1] = message end
+                assert(pcall(integration.Initialize))
+                assert(integration.IsFaulted() and not integration.IsAvailable())
+                assert(not this.GetAutoCategoryState().enabled)
+                assert(select(1, integration.GetStatus()) == "error")
+                assert(warnings[1]:find("synthetic registration failure", 1, true))
+                assert(this.accountWide.autoCategoryIntegrationEnabled,
+                    "Session disable must preserve the saved enablement choice")
+            end,
+        },
+        {
+            name = "AutoCategory plugin registers before assignments initialize and projects after activation",
+            run = function()
+                NewFixture()
+                NewStartupAutoCategory()
+                integration.Initialize()
+                assert(AutoCategory.Plugins["Inventory Companion"] ~= nil)
+                assert(select(1, integration.GetStatus()) == "disabled")
+
+                PrepareActive({})
+                AutoCategory.Inited = false
+                AutoCategory.Plugins["Inventory Companion"] = nil
+                local hooks, scheduled = InstallHooks()
+                integration.Initialize()
+                assert(select(1, integration.GetStatus()) == "pending")
+                assert(hooks.UpdateCurrentSavedVars and hooks.cacheInitBag and hooks.cacheInitialize and hooks.renameBagRule)
+                AutoCategory.Plugins["Inventory Companion"].initialize()
+                AutoCategory.Inited = true
+                assert(#scheduled == 1)
+                scheduled[1]()
+                assert(select(1, integration.GetStatus()) == "available")
+                for _, context in ipairs(contexts) do
+                    for _, assignment in ipairs(AutoCategory.saved.bags[context.bag].rules) do
+                        if assignment.name == "Selling" then assignment.name = "Sale" end
+                    end
+                end
+                hooks.renameBagRule("Selling", "Sale")
+                for _, context in ipairs(contexts) do
+                    local order = this.accountWide.autoCategoryOrder.contexts[context.key]
+                    for _, mode in ipairs({ "display", "matching" }) do
+                        for _, reference in ipairs(order[mode]) do
+                            assert(reference ~= "ac:Selling")
+                        end
+                    end
+                end
+                assert(#scheduled == 2)
+                scheduled[2]()
+                for _, context in ipairs(contexts) do
+                    local order = this.accountWide.autoCategoryOrder.contexts[context.key]
+                    assert(table.concat(order.display, ","):find("ac:Sale", 1, true))
+                    assert(table.concat(order.matching, ","):find("ac:Sale", 1, true))
+                end
+                local warnings = {}
+                d = function(message) warnings[#warnings + 1] = message end
+                hooks.cacheInitBag()
+                assert(#scheduled == 3)
+                AutoCategory.cacheRuleInitialize = function() error("synthetic cache failure") end
+                assert(pcall(scheduled[3]), "Deferred integration errors must not escape")
+                assert(integration.IsFaulted() and not this.GetAutoCategoryState().enabled)
+                assert(warnings[1]:find("synthetic cache failure", 1, true))
+                local warningCount = #warnings
+                hooks.cacheInitBag()
+                assert(#scheduled == 3 and #warnings == warningCount,
+                    "A failed session must stop scheduling and avoid repeated warnings")
             end,
         },
     }

@@ -4,6 +4,28 @@ Updated 2026-11-01. **Implemented, but not compatibility-certified.**
 This document defines required behavior, accepted author decisions, and open
 decisions. It is not a test log or a claim that all requirements are feasible.
 
+**Ordering contract supersession:** the [ordering-fix plan](todo_implementation_autocategoryOrderingFix.md)
+replaces this document's earlier Master, preset, heading-visibility, and
+rank/anchor ordering design. Each of the seven contexts now has independent
+Display and Priority sequences; native assignments are reorderable rows;
+cross-context copying is one-time; there is no Master inheritance or hide
+control. Saved ordering is a schema-5 list of `ic:<rule key>` and
+`ac:<category name>` references. Runtime priority projection uses distinct
+integers 2-1000 and preserves all unrelated native assignment fields. The
+ordering-fix plan and current implementation report are authoritative for
+these behaviors; unrelated integration requirements and release gates below
+remain in force. This also supersedes the earlier D4 approval for rank-bearing
+category prefixes; current category names are stable when order changes.
+
+**Failure isolation:** AutoCategory-related failures warn and disable integration
+for the session instead of aborting IC startup or other features. Invalid
+integration settings are preserved but not used; core profiles still upgrade
+safely before ZOS loading. Pending integration work is cancelled, predicates
+fall through, and managed assignments are removed when external APIs permit.
+Cleanup failures are reported separately. Reload is required after correcting
+the cause. Newer unsupported saved schemas and unrelated core-data errors
+continue to stop initialization.
+
 ## Terminology
 
 - **Group:** an ordinary Inventory Companion (IC) group with IC name/pattern
@@ -12,12 +34,9 @@ decisions. It is not a test log or a claim that all requirements are feasible.
   row in the IC editor. A visible heading can anchor IC groups; it is not an
   IC group. "Managed heading" specifically means the native AC section created
   for a participating IC group.
-- **Heading occurrence:** a context-labelled reference row in Master. An AC
-  heading can have multiple occurrences where context orders differ; these
-  are editor references, not duplicate AC categories.
+- **Order reference:** a stable `ic:<rule key>` or native `ac:<category name>`
+  entry in one context's Display or Priority sequence.
 - **Context:** one of the seven native inventory/container contexts.
-- **Master:** a combined, context-aware editor of shared placement defaults,
-  not an eighth native AC context.
 
 Read the [implementation plan](todo_implementation_autocategoryIntegration.md)
 for sequencing and the [spike results](AutoCategorySpikeResults.md) for dated
@@ -494,6 +513,7 @@ On 2026-11-01, the author approved the demonstrated empty colour-rank prefix
 for production naming, accepting expanded-after-reorder behavior and old
 per-name collapse flags remaining in AC saved data. This closes the naming
 decision, not the post-implementation acceptance gates or known placement limits.
+This historical approval is superseded by the ordering-fix contract above.
 
 **Deferred coverage, not open design choices:** Guild Bank requires
 post-implementation DEV acceptance; gamepad is outside initial certification.

@@ -33,11 +33,11 @@ local autoCategoryContexts = {
 }
 local autoCategoryRuleFields = {
     autoCategoryEnabled = true,
-    autoCategoryAnchor = true,
-    autoCategoryRank = true,
-    autoCategoryOverrides = true,
 }
-local autoCategoryOrderFields = { headingVisibility = true, overrides = true }
+local autoCategoryOrderFields = { contexts = true }
+local autoCategoryOrderModes = { display = true, matching = true }
+local autoCategoryReferenceNamespaces = { ic = true, ac = true }
+local invalidAutoCategoryProfiles = setmetatable({}, { __mode = "k" })
 
 function this.ResolveItemDisplay(display)
     local resolved = {}
@@ -123,40 +123,92 @@ local function CheckAutoCategoryPlacement(placement, context, allowPartial)
     end
 end
 
-local function CheckAutoCategoryOrder(order, context)
+local function CheckAutoCategoryOrder(order, context, trackedRules)
     assert(type(order) == "table", context .. " must be a table")
     for key in pairs(order) do
         assert(autoCategoryOrderFields[key], context .. " has an unknown field: " .. tostring(key))
     end
-    if order.headingVisibility ~= nil then
-        assert(type(order.headingVisibility) == "table", context .. ".headingVisibility must be a table")
-        for occurrenceId, visible in pairs(order.headingVisibility) do
-            assert(type(occurrenceId) == "string" and occurrenceId ~= "",
-                context .. ".headingVisibility has an invalid occurrence identity")
-            assert(type(visible) == "boolean",
-                context .. ".headingVisibility[" .. occurrenceId .. "] must be boolean")
+    assert(type(order.contexts) == "table", context .. ".contexts must be a table")
+    for contextKey, contextOrder in pairs(order.contexts) do
+        local path = context .. ".contexts[" .. tostring(contextKey) .. "]"
+        assert(autoCategoryContexts[contextKey], path .. " has an unknown context")
+        assert(type(contextOrder) == "table", path .. " must be a table")
+        for key in pairs(contextOrder) do
+            assert(autoCategoryOrderModes[key], path .. " has an unknown order: " .. tostring(key))
         end
-    end
-    if order.overrides ~= nil then
-        assert(type(order.overrides) == "table", context .. ".overrides must be a table")
-        for contextKey, overrides in pairs(order.overrides) do
-            local path = context .. ".overrides[" .. tostring(contextKey) .. "]"
-            assert(autoCategoryContexts[contextKey], path .. " has an unknown context")
-            assert(type(overrides) == "table", path .. " must be a table")
-            for key in pairs(overrides) do
-                assert(key == "headings", path .. " has an unknown field: " .. tostring(key))
-            end
-            if overrides.headings ~= nil then
-                assert(type(overrides.headings) == "table", path .. ".headings must be a table")
-                for occurrenceId, visible in pairs(overrides.headings) do
-                    assert(type(occurrenceId) == "string" and occurrenceId ~= "",
-                        path .. ".headings has an invalid occurrence identity")
-                    assert(type(visible) == "boolean",
-                        path .. ".headings[" .. occurrenceId .. "] must be boolean")
+        for _, mode in ipairs({ "display", "matching" }) do
+            local references = contextOrder[mode]
+            assert(type(references) == "table", path .. "." .. mode .. " must be a dense list")
+            local count, seen = 0, {}
+            for index, reference in pairs(references) do
+                assert(type(index) == "number" and index >= 1 and index % 1 == 0,
+                    path .. "." .. mode .. " must contain only positive integer indices")
+                assert(type(reference) == "string", path .. "." .. mode .. "[" .. tostring(index) .. "] must be a string")
+                local namespace, identity = reference:match("^([^:]+):(.*)$")
+                assert(namespace and autoCategoryReferenceNamespaces[namespace] and identity ~= "",
+                    path .. "." .. mode .. "[" .. tostring(index) .. "] has an unsupported reference")
+                if namespace == "ic" then
+                    assert(identity ~= "miscellaneous"
+                        and (this.preLoadedRulesets[identity] ~= nil
+                            or trackedRules ~= nil and trackedRules[identity] ~= nil),
+                        path .. "." .. mode .. "[" .. tostring(index) .. "] references an unknown IC group: " .. identity)
                 end
+                assert(not seen[reference], path .. "." .. mode .. " contains a duplicate reference: " .. reference)
+                seen[reference] = true
+                count = count + 1
+            end
+            for index = 1, count do
+                assert(rawget(references, index) ~= nil, path .. "." .. mode .. " must not contain holes")
             end
         end
     end
+end
+
+local function HasLegacyAutoCategoryOrdering(profile)
+    if profile.autoCategoryInitialized ~= nil or profile.autoCategoryOrder ~= nil then return true end
+    for _, rule in pairs(profile.trackedRules or {}) do
+        if rule.autoCategoryAnchor ~= nil or rule.autoCategoryRank ~= nil
+            or rule.autoCategoryOverrides ~= nil or rule.autoCategoryEnabled == true then
+            return true
+        end
+    end
+    return false
+end
+
+local function NewAutoCategoryOrder()
+    local order = { contexts = {} }
+    for contextKey in pairs(autoCategoryContexts) do
+        order.contexts[contextKey] = { display = {}, matching = {} }
+    end
+    return order
+end
+
+local function NormalizeAutoCategoryOrder(order)
+    if order == nil then return NewAutoCategoryOrder() end
+    assert(type(order) == "table" and type(order.contexts) == "table",
+        "AutoCategory order must contain a contexts table")
+    local function CopyList(values)
+        if values == nil then return {} end
+        assert(type(values) == "table", "AutoCategory order sequence must be a table")
+        local copy = {}
+        for key, value in pairs(values) do copy[key] = value end
+        return copy
+    end
+    local normalized = { contexts = {} }
+    for contextKey, contextOrder in pairs(order.contexts) do
+        assert(autoCategoryContexts[contextKey], "AutoCategory order has an unknown context: " .. tostring(contextKey))
+        assert(type(contextOrder) == "table", "AutoCategory context order must be a table")
+        normalized.contexts[contextKey] = {
+            display = CopyList(contextOrder.display),
+            matching = CopyList(contextOrder.matching),
+        }
+    end
+    for contextKey in pairs(autoCategoryContexts) do
+        if normalized.contexts[contextKey] == nil then
+            normalized.contexts[contextKey] = { display = {}, matching = {} }
+        end
+    end
+    return normalized
 end
 
 local function ValidateSavedRules(rules, context)
@@ -174,65 +226,44 @@ local function ValidateSavedRules(rules, context)
             assert(type(saved.display) == "table", path .. ".display must be a table")
             CheckDisplay(saved.display, path .. ".display", true)
         end
-        if saved.autoCategoryEnabled ~= nil then
-            assert(type(saved.autoCategoryEnabled) == "boolean", path .. ".autoCategoryEnabled must be boolean")
-        end
-        local hasAnchor = saved.autoCategoryAnchor ~= nil
-        local hasRank = saved.autoCategoryRank ~= nil
-        assert(hasAnchor == hasRank, path .. " must store both Master anchor and rank or neither")
-        if hasAnchor then
-            CheckAutoCategoryPlacement({ anchor = saved.autoCategoryAnchor, rank = saved.autoCategoryRank },
-                path .. " Master placement", false)
-        end
-        if saved.autoCategoryOverrides ~= nil then
-            assert(type(saved.autoCategoryOverrides) == "table", path .. ".autoCategoryOverrides must be a table")
-            assert(hasAnchor, path .. ".autoCategoryOverrides requires a Master placement")
-            for contextKey, placement in pairs(saved.autoCategoryOverrides) do
-                local placementPath = path .. ".autoCategoryOverrides[" .. tostring(contextKey) .. "]"
-                assert(autoCategoryContexts[contextKey], placementPath .. " has an unknown context")
-                CheckAutoCategoryPlacement(placement, placementPath, true)
-            end
-        end
-        for field in pairs(saved) do
-            if autoCategoryRuleFields[field] then
-                assert(ruleName ~= "miscellaneous", path .. " cannot participate in AutoCategory integration")
-            end
-        end
-    end
-
-    local ranksByAnchor = {}
-    local ranksByContext = {}
-    for contextKey in pairs(autoCategoryContexts) do ranksByContext[contextKey] = {} end
-    for ruleName, saved in pairs(rules) do
-        if saved.autoCategoryAnchor ~= nil then
-            ranksByAnchor[saved.autoCategoryAnchor] = ranksByAnchor[saved.autoCategoryAnchor] or {}
-            local otherMasterRule = ranksByAnchor[saved.autoCategoryAnchor][saved.autoCategoryRank]
-            assert(otherMasterRule == nil,
-                context .. " has a Master rank tie below " .. saved.autoCategoryAnchor
-                    .. " between " .. tostring(otherMasterRule) .. " and " .. ruleName)
-            ranksByAnchor[saved.autoCategoryAnchor][saved.autoCategoryRank] = ruleName
-            for contextKey in pairs(autoCategoryContexts) do
-                local rank = saved.autoCategoryRank
-                local override = saved.autoCategoryOverrides and saved.autoCategoryOverrides[contextKey]
-                if override and override.rank ~= nil then rank = override.rank end
-                local otherRule = ranksByContext[contextKey][rank]
-                assert(otherRule == nil,
-                    context .. " has an AutoCategory rank tie in " .. contextKey .. " between "
-                        .. tostring(otherRule) .. " and " .. ruleName)
-                ranksByContext[contextKey][rank] = ruleName
-            end
-        end
     end
 end
 
 local function ValidateAutoCategoryProfile(profile, context)
+    if profile.version == 4 then
+        assert(not HasLegacyAutoCategoryOrdering(profile),
+            context .. " contains schema-4 AutoCategory ordering data that schema 5 cannot migrate safely. "
+                .. "Restore a compatible saved-variable backup and rebuild AutoCategory integration.")
+    end
+    for ruleName, saved in pairs(profile.trackedRules or {}) do
+        local path = context .. ".trackedRules[" .. ruleName .. "]"
+        assert(saved.autoCategoryEnabled == nil or type(saved.autoCategoryEnabled) == "boolean",
+            path .. ".autoCategoryEnabled must be boolean")
+        assert(saved.autoCategoryAnchor == nil and saved.autoCategoryRank == nil
+            and saved.autoCategoryOverrides == nil,
+            path .. " contains obsolete rank-based AutoCategory ordering data")
+        for field in pairs(autoCategoryRuleFields) do
+            assert(saved[field] == nil or ruleName ~= "miscellaneous",
+                path .. " cannot participate in AutoCategory integration")
+        end
+    end
     assert(profile.autoCategoryIntegrationEnabled == nil or type(profile.autoCategoryIntegrationEnabled) == "boolean",
         context .. ".autoCategoryIntegrationEnabled must be boolean")
-    assert(profile.autoCategoryInitialized == nil or type(profile.autoCategoryInitialized) == "boolean",
-        context .. ".autoCategoryInitialized must be boolean")
+    assert(profile.autoCategoryInitialized == nil,
+        context .. ".autoCategoryInitialized is obsolete in schema 5")
     if profile.autoCategoryOrder ~= nil then
-        CheckAutoCategoryOrder(profile.autoCategoryOrder, context .. ".autoCategoryOrder")
+        CheckAutoCategoryOrder(profile.autoCategoryOrder, context .. ".autoCategoryOrder", profile.trackedRules)
     end
+end
+
+local function ValidateAutoCategoryBoundary(profile, context)
+    if invalidAutoCategoryProfiles[profile] then return false end
+    local ok, failure = pcall(ValidateAutoCategoryProfile, profile, context)
+    if not ok then
+        invalidAutoCategoryProfiles[profile] = true
+        this.AutoCategoryIntegration.Fail(failure)
+    end
+    return ok
 end
 
 local function LoadSavedRules(profile, context, initializeMissing)
@@ -246,7 +277,7 @@ local function LoadSavedRules(profile, context, initializeMissing)
         ValidateSavedRules(rules, context .. ".trackedRules")
         validatedSavedRules[rules] = true
     end
-    ValidateAutoCategoryProfile(profile, context)
+    ValidateAutoCategoryBoundary(profile, context)
     return rules
 end
 
@@ -256,6 +287,10 @@ function this.ValidateSavedRuleProfiles()
     LoadSavedRules(this.accountWide, "Account-wide", true)
     LoadSavedRules(this.character, "Character", true)
     for _, profile in ipairs({ this.accountWide, this.character }) do
+        if not invalidAutoCategoryProfiles[profile] then
+            profile.autoCategoryOrder = NormalizeAutoCategoryOrder(profile.autoCategoryOrder)
+            CheckAutoCategoryOrder(profile.autoCategoryOrder, "Profile.autoCategoryOrder", profile.trackedRules)
+        end
         if profile.trackedItems == nil then profile.trackedItems = {} end
         CheckTrackedItems(profile.trackedItems, "Profile.trackedItems")
         for _, item in pairs(profile.trackedItems) do
@@ -405,15 +440,6 @@ local function CopyOptionalValues(values)
     return CopyValues(values)
 end
 
-local function CopyAutoCategoryOverrides(overrides)
-    if overrides == nil then return nil end
-    local copy = {}
-    for contextKey, placement in pairs(overrides) do
-        copy[contextKey] = CopyValues(placement)
-    end
-    return copy
-end
-
 function this.PrepareSavedVariables()
     local saved = _G[this.SettingsName]
     if saved == nil then return end
@@ -436,9 +462,11 @@ function this.PrepareSavedVariables()
                     .. "Initialization stopped without changing saved data. Install a compatible newer addon or restore a compatible backup.",
                     context, tostring(version), tostring(this.SettingsVersion)))
             assert(version == this.SettingsVersion
-                    or (version == 1 and (this.SettingsVersion == 2 or this.SettingsVersion == 3 or this.SettingsVersion == 4))
-                    or (version == 2 and (this.SettingsVersion == 3 or this.SettingsVersion == 4))
-                    or (version == 3 and this.SettingsVersion == 4),
+                    or (version == 1 and (this.SettingsVersion == 2 or this.SettingsVersion == 3 or this.SettingsVersion == 4
+                        or this.SettingsVersion == 5))
+                    or (version == 2 and (this.SettingsVersion == 3 or this.SettingsVersion == 4 or this.SettingsVersion == 5))
+                    or (version == 3 and (this.SettingsVersion == 4 or this.SettingsVersion == 5))
+                    or (version == 4 and this.SettingsVersion == 5),
                 context .. " has no supported migration from version " .. tostring(version)
                     .. " to version " .. tostring(this.SettingsVersion))
             table.insert(profiles, { data = profile, context = context })
@@ -452,7 +480,7 @@ function this.PrepareSavedVariables()
         if profile.trackedRules ~= nil then
             ValidateSavedRules(profile.trackedRules, context .. ".trackedRules")
         end
-        ValidateAutoCategoryProfile(profile, context)
+        ValidateAutoCategoryBoundary(profile, context)
         if profile.trackedItems ~= nil then
             CheckTrackedItems(profile.trackedItems, context .. ".trackedItems")
         end
@@ -469,9 +497,14 @@ function this.PrepareSavedVariables()
                 end
             end
             table.insert(migrations, { profile = profile, rules = rules })
-        elseif profile.version == 2 and (this.SettingsVersion == 3 or this.SettingsVersion == 4) then
+        elseif profile.version == 2 and (this.SettingsVersion == 3 or this.SettingsVersion == 4 or this.SettingsVersion == 5) then
             table.insert(migrations, { profile = profile })
-        elseif profile.version == 3 and this.SettingsVersion == 4 then
+        elseif profile.version == 3 and (this.SettingsVersion == 4 or this.SettingsVersion == 5) then
+            table.insert(migrations, { profile = profile })
+        elseif profile.version == 4 and this.SettingsVersion == 5 then
+            table.insert(migrations, { profile = profile })
+        end
+        if profile.version == this.SettingsVersion then
             table.insert(migrations, { profile = profile })
         end
     end
@@ -479,6 +512,9 @@ function this.PrepareSavedVariables()
     -- Publish only after every profile has passed validation and conversion.
     for _, migration in ipairs(migrations) do
         if migration.rules ~= nil then migration.profile.trackedRules = migration.rules end
+        if not invalidAutoCategoryProfiles[migration.profile] then
+            migration.profile.autoCategoryOrder = NormalizeAutoCategoryOrder(migration.profile.autoCategoryOrder)
+        end
         migration.profile.version = this.SettingsVersion
     end
     this.InvalidateRuleCache()
@@ -515,9 +551,6 @@ function this.GetRuntimeRules()
             display = this.ResolveItemDisplay(display),
             isPreloaded = base ~= nil,
             autoCategoryEnabled = saved.autoCategoryEnabled == true,
-            autoCategoryAnchor = saved.autoCategoryAnchor,
-            autoCategoryRank = saved.autoCategoryRank,
-            autoCategoryOverrides = CopyAutoCategoryOverrides(saved.autoCategoryOverrides),
         }
     end
     for ruleName, base in pairs(this.preLoadedRulesets) do Resolve(ruleName, base) end
@@ -543,9 +576,6 @@ function this.GetActiveTrackedRules(includeHidden)
                 display = CopyValues(rule.display),
                 isPreloaded = rule.isPreloaded,
                 autoCategoryEnabled = rule.autoCategoryEnabled,
-                autoCategoryAnchor = rule.autoCategoryAnchor,
-                autoCategoryRank = rule.autoCategoryRank,
-                autoCategoryOverrides = CopyAutoCategoryOverrides(rule.autoCategoryOverrides),
             }
         end
     end
@@ -566,34 +596,9 @@ end
 function this.GetAutoCategoryState()
     local profile = this.GetAutoCategoryProfile()
     return {
-        enabled = profile.autoCategoryIntegrationEnabled == true,
-        initialized = profile.autoCategoryInitialized == true,
-        order = profile.autoCategoryOrder or {},
+        enabled = not this.AutoCategoryIntegration.IsFaulted() and profile.autoCategoryIntegrationEnabled == true,
+        order = profile.autoCategoryOrder,
     }
-end
-
-local function CopySavedRulesForAutoCategory(rules)
-    local copy = {}
-    for ruleKey, saved in pairs(rules) do
-        copy[ruleKey] = CopyValues(saved)
-        copy[ruleKey].autoCategoryOverrides = CopyAutoCategoryOverrides(saved.autoCategoryOverrides)
-    end
-    return copy
-end
-
-local function PublishAutoCategoryRuleFields(destination, source)
-    for ruleKey, sourceRule in pairs(source) do
-        local destinationRule = destination[ruleKey]
-        if destinationRule == nil then
-            destinationRule = {}
-            destination[ruleKey] = destinationRule
-        end
-        destinationRule.autoCategoryEnabled = sourceRule.autoCategoryEnabled
-        destinationRule.autoCategoryAnchor = sourceRule.autoCategoryAnchor
-        destinationRule.autoCategoryRank = sourceRule.autoCategoryRank
-        destinationRule.autoCategoryOverrides = CopyAutoCategoryOverrides(sourceRule.autoCategoryOverrides)
-        PruneRule(destination, ruleKey)
-    end
 end
 
 function this.SetAutoCategoryParticipation(ruleKey, enabled)
@@ -601,222 +606,107 @@ function this.SetAutoCategoryParticipation(ruleKey, enabled)
     local runtimeRule = this.GetRuntimeRules()[ruleKey]
     assert(runtimeRule ~= nil and ruleKey ~= "miscellaneous",
         "AutoCategory participation requires an ordinary group: " .. tostring(ruleKey))
-    local profile = this.GetAutoCategoryProfile()
-    if enabled then
-        assert(profile.autoCategoryInitialized == true,
-            "Choose an AutoCategory starting preset before enabling group participation")
-    end
-
     local savedRules = GetRawSavedRules()
-    local candidate = CopySavedRulesForAutoCategory(savedRules)
-    local saved = candidate[ruleKey] or {}
-    candidate[ruleKey] = saved
-    if enabled then
-        if saved.autoCategoryAnchor == nil then
-            local anchor, rank, cleanup = this.AutoCategoryIntegration.InitializeRulePlacement(ruleKey)
-            for otherKey, replacement in pairs(cleanup or {}) do
-                local other = candidate[otherKey]
-                assert(other ~= nil, "AutoCategory rank cleanup references a missing saved group: " .. otherKey)
-                if other.autoCategoryRank ~= nil then other.autoCategoryRank = replacement.master end
-                for contextKey, replacementRank in pairs(replacement.overrides) do
-                    local override = other.autoCategoryOverrides[contextKey]
-                    assert(override ~= nil and override.rank ~= nil,
-                        "AutoCategory rank cleanup references a missing context placement")
-                    override.rank = replacementRank
-                end
-            end
-            saved.autoCategoryAnchor, saved.autoCategoryRank = anchor, rank
-        end
-        saved.autoCategoryEnabled = true
-    else
-        saved.autoCategoryEnabled = nil
-    end
-    ValidateSavedRules(candidate, "AutoCategory participation")
-    PublishAutoCategoryRuleFields(savedRules, candidate)
+    local saved = savedRules[ruleKey] or {}
+    savedRules[ruleKey] = saved
+    saved.autoCategoryEnabled = enabled and true or nil
+    ValidateSavedRules(savedRules, "AutoCategory participation")
+    PruneRule(savedRules, ruleKey)
     this.InvalidateRuleCache()
     this.AutoCategoryIntegration.OnRuleMutation("participation", ruleKey)
 end
 
-function this.SetAutoCategoryPlacement(ruleKey, anchor, rank, contextKey)
-    return this.SetAutoCategoryPlacements({
-        { ruleKey = ruleKey, anchor = anchor, rank = rank },
-    }, contextKey)
-end
-
-function this.SetAutoCategoryPlacements(changes, contextKey)
-    assert(type(changes) == "table" and #changes > 0,
-        "AutoCategory placement updates must be a non-empty list")
-    if contextKey ~= nil then
-        assert(autoCategoryContexts[contextKey], "Unknown AutoCategory context: " .. tostring(contextKey))
-    end
-    local savedRules = GetRawSavedRules()
-    local candidate = CopySavedRulesForAutoCategory(savedRules)
-    local changedKeys = {}
-    for _, change in ipairs(changes) do
-        local ruleKey = change.ruleKey
-        local rule = this.GetRuntimeRules()[ruleKey]
-        assert(rule ~= nil and ruleKey ~= "miscellaneous" and not changedKeys[ruleKey],
-            "AutoCategory placement requires an ordinary group: " .. tostring(ruleKey))
-        CheckAutoCategoryPlacement({ anchor = change.anchor, rank = change.rank },
-            "AutoCategory placement", false)
-        local saved = candidate[ruleKey]
-        assert(saved and saved.autoCategoryAnchor ~= nil,
-            "AutoCategory placement requires an initialized Master placement: " .. ruleKey)
-        if contextKey == nil then
-            saved.autoCategoryAnchor, saved.autoCategoryRank = change.anchor, change.rank
-        else
-            local override = {}
-            if change.anchor ~= saved.autoCategoryAnchor then override.anchor = change.anchor end
-            if change.rank ~= saved.autoCategoryRank then override.rank = change.rank end
-            saved.autoCategoryOverrides = saved.autoCategoryOverrides or {}
-            if next(override) ~= nil then
-                saved.autoCategoryOverrides[contextKey] = override
-            else
-                saved.autoCategoryOverrides[contextKey] = nil
-                if next(saved.autoCategoryOverrides) == nil then saved.autoCategoryOverrides = nil end
-            end
-        end
-        changedKeys[ruleKey] = true
-    end
-    ValidateSavedRules(candidate, "AutoCategory placement")
-    PublishAutoCategoryRuleFields(savedRules, candidate)
-    this.InvalidateRuleCache()
-    this.AutoCategoryIntegration.OnRuleMutation("placement", next(changedKeys))
-end
-
-function this.RebalanceAutoCategoryRanks()
-    local savedRules = GetRawSavedRules()
-    local candidate = CopySavedRulesForAutoCategory(savedRules)
-    local uniqueRanks = {}
-    for _, saved in pairs(candidate) do
-        if saved.autoCategoryRank ~= nil then uniqueRanks[saved.autoCategoryRank] = true end
-        for _, placement in pairs(saved.autoCategoryOverrides or {}) do
-            if placement.rank ~= nil then uniqueRanks[placement.rank] = true end
-        end
-    end
-    local ranks = {}
-    for rank in pairs(uniqueRanks) do ranks[#ranks + 1] = rank end
-    table.sort(ranks)
-    assert(#ranks * 100 <= 0xFFFFFF, "AutoCategory rank space is exhausted")
-    local replacement = {}
-    for index, rank in ipairs(ranks) do replacement[rank] = index * 100 end
-    for _, saved in pairs(candidate) do
-        if saved.autoCategoryRank ~= nil then
-            saved.autoCategoryRank = replacement[saved.autoCategoryRank]
-        end
-        for _, placement in pairs(saved.autoCategoryOverrides or {}) do
-            if placement.rank ~= nil then placement.rank = replacement[placement.rank] end
-        end
-    end
-    ValidateSavedRules(candidate, "AutoCategory rank rebalance")
-    PublishAutoCategoryRuleFields(savedRules, candidate)
-    this.InvalidateRuleCache()
-    this.AutoCategoryIntegration.OnRuleMutation("rank-rebalance")
-end
-
-function this.SetAutoCategoryHeadingVisibility(view, occurrenceId, visible)
-    assert(type(occurrenceId) == "string" and occurrenceId ~= "",
-        "AutoCategory heading occurrence identity must be a non-empty string")
-    assert(type(visible) == "boolean", "AutoCategory heading visibility must be boolean")
-    assert(view == "master" or autoCategoryContexts[view],
-        "Unknown AutoCategory heading view: " .. tostring(view))
-    local profile = this.GetAutoCategoryProfile()
-    local current = profile.autoCategoryOrder or {}
-    local order = {
-        headingVisibility = CopyOptionalValues(current.headingVisibility) or {},
-        overrides = {},
-    }
-    for contextKey, overrides in pairs(current.overrides or {}) do
-        order.overrides[contextKey] = { headings = CopyOptionalValues(overrides.headings) or {} }
-    end
-    if view == "master" then
-        if visible then
-            order.headingVisibility[occurrenceId] = nil
-        else
-            order.headingVisibility[occurrenceId] = false
-        end
-    else
-        order.overrides[view] = order.overrides[view] or { headings = {} }
-        order.overrides[view].headings[occurrenceId] = visible
-    end
-    if next(order.headingVisibility) == nil then order.headingVisibility = nil end
-    for contextKey, overrides in pairs(order.overrides) do
-        if next(overrides.headings) == nil then
-            order.overrides[contextKey] = nil
-        end
-    end
-    if next(order.overrides) == nil then order.overrides = nil end
-    if order.headingVisibility == nil and order.overrides == nil then order = nil end
-    if order ~= nil then CheckAutoCategoryOrder(order, "AutoCategory order") end
-    profile.autoCategoryOrder = order
-    this.AutoCategoryIntegration.OnRuleMutation("visibility")
-end
-
-function this.ResetAutoCategoryContext(contextKey)
+function this.SetAutoCategoryContextOrder(contextKey, mode, sequence)
     assert(autoCategoryContexts[contextKey], "Unknown AutoCategory context: " .. tostring(contextKey))
-    local savedRules = GetRawSavedRules()
-    local candidate = CopySavedRulesForAutoCategory(savedRules)
-    for _, saved in pairs(candidate) do
-        if saved.autoCategoryOverrides ~= nil then
-            saved.autoCategoryOverrides[contextKey] = nil
-            if next(saved.autoCategoryOverrides) == nil then saved.autoCategoryOverrides = nil end
-        end
+    assert(mode == "display" or mode == "matching", "Unknown AutoCategory ordering mode: " .. tostring(mode))
+    assert(type(sequence) == "table", "AutoCategory ordering sequence must be a list")
+    local prepared, failure = this.AutoCategoryIntegration.PreflightAutoCategory({
+        [contextKey] = { [mode] = sequence },
+    })
+    if prepared == nil then
+        this.AutoCategoryIntegration.Fail(failure)
+        return false
     end
-    local profile = this.GetAutoCategoryProfile()
-    local order = profile.autoCategoryOrder
-    local candidateOrder
-    if order ~= nil then
-        candidateOrder = {
-            headingVisibility = CopyOptionalValues(order.headingVisibility),
-            overrides = {},
-        }
-        for key, overrides in pairs(order.overrides or {}) do
-            candidateOrder.overrides[key] = { headings = CopyOptionalValues(overrides.headings) }
-        end
-        candidateOrder.overrides[contextKey] = nil
-        if next(candidateOrder.overrides) == nil then candidateOrder.overrides = nil end
-        if candidateOrder.headingVisibility == nil and candidateOrder.overrides == nil then candidateOrder = nil end
-        if candidateOrder ~= nil then CheckAutoCategoryOrder(candidateOrder, "AutoCategory context reset") end
-    end
-    ValidateSavedRules(candidate, "AutoCategory context reset")
-    PublishAutoCategoryRuleFields(savedRules, candidate)
-    profile.autoCategoryOrder = candidateOrder
-    this.InvalidateRuleCache()
-    this.AutoCategoryIntegration.OnRuleMutation("placement-reset", contextKey)
-end
-
-function this.ApplyAutoCategoryPreset(preset, enabled)
-    assert(enabled == nil or type(enabled) == "boolean",
-        "AutoCategory enablement must be boolean or nil")
-    local placements = this.AutoCategoryIntegration.BuildPresetPlacements(preset)
-    local savedRules = GetRawSavedRules()
-    local candidate = CopySavedRulesForAutoCategory(savedRules)
-    for ruleKey, placement in pairs(placements) do
-        candidate[ruleKey] = candidate[ruleKey] or {}
-        candidate[ruleKey].autoCategoryAnchor = placement.anchor
-        candidate[ruleKey].autoCategoryRank = placement.rank
-    end
-    ValidateSavedRules(candidate, "AutoCategory preset")
-    local profile = this.GetAutoCategoryProfile()
-    if profile.autoCategoryOrder ~= nil then
-        CheckAutoCategoryOrder(profile.autoCategoryOrder, "AutoCategory order")
-    end
-    PublishAutoCategoryRuleFields(savedRules, candidate)
-    profile.autoCategoryInitialized = true
-    if enabled ~= nil then profile.autoCategoryIntegrationEnabled = enabled end
-    this.InvalidateRuleCache()
-    this.AutoCategoryIntegration.OnEnablementChanged(profile.autoCategoryIntegrationEnabled == true)
+    return this.AutoCategoryIntegration.ProjectAutoCategory(prepared) ~= false
 end
 
 function this.SetAutoCategoryIntegrationEnabled(enabled)
     assert(type(enabled) == "boolean", "AutoCategory enablement must be boolean")
     local profile = this.GetAutoCategoryProfile()
-    if enabled then
-        assert(profile.autoCategoryInitialized == true,
-            "Choose an AutoCategory starting preset before enabling integration")
-    end
     profile.autoCategoryIntegrationEnabled = enabled and true or nil
     this.AutoCategoryIntegration.OnEnablementChanged(enabled)
+end
+
+local function NormalizeAccountName(name)
+    assert(type(name) == "string" and name ~= "", "ESO account name must be a non-empty string")
+    return name:lower():gsub("^@", "")
+end
+
+function this.CleanAutoCategorySavedData(accountName)
+    assert(type(accountName) == "string" and NormalizeAccountName(accountName) == "tim-p",
+        "AutoCategory saved-data cleanup is restricted to the @Tim-P account")
+    local saved = _G[this.SettingsName]
+    assert(type(saved) == "table" and type(saved.Default) == "table",
+        "Inventory Companion saved profiles are unavailable; no cleanup was performed")
+
+    local account
+    for savedAccountName, savedAccount in pairs(saved.Default) do
+        assert(type(savedAccount) == "table", "Saved account profiles are malformed; no cleanup was performed")
+        if NormalizeAccountName(savedAccountName) == "tim-p" then
+            assert(account == nil, "Duplicate @Tim-P saved-variable account buckets; no cleanup was performed")
+            account = savedAccount
+        end
+    end
+    assert(account ~= nil, "No @Tim-P Inventory Companion saved profiles were found; no cleanup was performed")
+
+    local profilePlans = {}
+    for profileName, profile in pairs(account) do
+        assert(type(profile) == "table",
+            "Saved profile " .. tostring(profileName) .. " is malformed; no cleanup was performed")
+        local version = profile.version
+        assert(type(version) == "number" and version >= 1 and version % 1 == 0
+                and version <= this.SettingsVersion,
+            "Saved profile " .. tostring(profileName) .. " has an unsupported version; no cleanup was performed")
+        local rules = profile.trackedRules
+        assert(rules == nil or type(rules) == "table",
+            "Saved rules in profile " .. tostring(profileName) .. " are malformed; no cleanup was performed")
+        if rules ~= nil then
+            for ruleKey, rule in pairs(rules) do
+                assert(type(ruleKey) == "string" and type(rule) == "table",
+                    "Saved rule in profile " .. tostring(profileName) .. " is malformed; no cleanup was performed")
+            end
+        end
+        profilePlans[#profilePlans + 1] = profile
+    end
+
+    local assignmentRemovals = this.AutoCategoryIntegration.PreflightSavedDataCleanup()
+    for _, profile in ipairs(profilePlans) do
+        invalidAutoCategoryProfiles[profile] = nil
+        profile.autoCategoryIntegrationEnabled = nil
+        profile.autoCategoryOrder = nil
+        profile.autoCategoryInitialized = nil
+        for _, rule in pairs(profile.trackedRules or {}) do
+            rule.autoCategoryEnabled = nil
+            rule.autoCategoryAnchor = nil
+            rule.autoCategoryRank = nil
+            rule.autoCategoryOverrides = nil
+        end
+    end
+    local removedAssignments = 0
+    if assignmentRemovals ~= nil then
+        removedAssignments = this.AutoCategoryIntegration.ApplySavedDataCleanup(assignmentRemovals)
+    end
+
+    if this.accountWide ~= nil and this.character ~= nil then
+        this.InvalidateRuleCache()
+        this.ValidateSavedRuleProfiles()
+        this.AutoCategoryIntegration.OnEnablementChanged(false)
+        this.RefreshTrackedItemsEditor()
+        this.RefreshGroupsEditor()
+        this.RefreshAutoCategoryEditor()
+        this.RefreshItemTrackerPanel()
+    end
+    return #profilePlans, removedAssignments
 end
 
 function this.SetUseCharacterItemList(value)
@@ -942,7 +832,7 @@ function this.CopyProfile(sourceKey)
     if sourceBlock.trackedRules ~= nil then
         ValidateSavedRules(sourceBlock.trackedRules, context .. ".trackedRules")
     end
-    ValidateAutoCategoryProfile(sourceBlock, context)
+    if not ValidateAutoCategoryBoundary(sourceBlock, context) then return false end
     if sourceBlock.trackedItems ~= nil then
         CheckTrackedItems(sourceBlock.trackedItems, context .. ".trackedItems")
     end
@@ -979,31 +869,17 @@ function this.CopyProfile(sourceKey)
                 removedPatterns = CopyOptionalValues(ruleData.removedPatterns),
                 display = CopyOptionalValues(ruleData.display),
                 autoCategoryEnabled = ruleData.autoCategoryEnabled,
-                autoCategoryAnchor = ruleData.autoCategoryAnchor,
-                autoCategoryRank = ruleData.autoCategoryRank,
-                autoCategoryOverrides = nil,
             }
-            if ruleData.autoCategoryOverrides ~= nil then
-                copiedRules[ruleKey].autoCategoryOverrides = {}
-                for contextKey, placement in pairs(ruleData.autoCategoryOverrides) do
-                    copiedRules[ruleKey].autoCategoryOverrides[contextKey] = CopyValues(placement)
-                end
-            end
             NormalizeRule(copiedRules, ruleKey)
         end
     end
 
-    local copiedAutoCategoryOrder
-    if sourceBlock.autoCategoryOrder ~= nil then
-        copiedAutoCategoryOrder = {
-            headingVisibility = CopyOptionalValues(sourceBlock.autoCategoryOrder.headingVisibility),
-            overrides = {},
+    local copiedAutoCategoryOrder = NormalizeAutoCategoryOrder(sourceBlock.autoCategoryOrder)
+    for contextKey, contextOrder in pairs(copiedAutoCategoryOrder.contexts) do
+        copiedAutoCategoryOrder.contexts[contextKey] = {
+            display = CopyValues(contextOrder.display),
+            matching = CopyValues(contextOrder.matching),
         }
-        for contextKey, overrides in pairs(sourceBlock.autoCategoryOrder.overrides or {}) do
-            copiedAutoCategoryOrder.overrides[contextKey] = {
-                headings = CopyOptionalValues(overrides.headings),
-            }
-        end
     end
 
     ZO_ClearTable(destTable)
@@ -1012,7 +888,6 @@ function this.CopyProfile(sourceKey)
     for key, value in pairs(copiedRules) do destRules[key] = value end
     local destinationProfile = this.GetAutoCategoryProfile()
     destinationProfile.autoCategoryIntegrationEnabled = sourceBlock.autoCategoryIntegrationEnabled
-    destinationProfile.autoCategoryInitialized = sourceBlock.autoCategoryInitialized
     destinationProfile.autoCategoryOrder = copiedAutoCategoryOrder
     this.InvalidateRuleCache()
     trackerContextRevision = trackerContextRevision + 1

@@ -1,4 +1,3 @@
--- Loaded only by the headless runner, before Tracking/EditPanelAutoCategoryTab.lua, in the AutoCategory test state.
 local this = InventoryCompanion
 local integration = this.AutoCategoryIntegration
 
@@ -11,7 +10,7 @@ local function Control(name)
     function control:GetText() return self.text end
     function control:ClearAnchors() end
     function control:SetAnchor(_, _, _, x, y) self.offsetX, self.offsetY = x, y end
-    function control:SetColor() end
+    function control:SetColor(...) self.color = { ... } end
     function control:SetAlpha(alpha) self.alpha = alpha end
     function control:SetEnabled(enabled) self.enabled = enabled end
     return control
@@ -19,8 +18,7 @@ end
 
 local window = Control("InventoryCompanion_AutoCategoryWindow")
 InventoryCompanion_AutoCategoryWindow = window
-local combo
-local createdRows = {}
+local combos, createdRows = {}, {}
 
 function GetControl(parent, name)
     if not parent.children[name] then parent.children[name] = Control(parent.name .. name) end
@@ -32,8 +30,8 @@ function CreateControlFromVirtual(prefix, parent, template, index)
     createdRows[index] = row
     return row
 end
-function ZO_ComboBox_ObjectFromContainer()
-    combo = {
+function ZO_ComboBox_ObjectFromContainer(container)
+    local combo = {
         items = {},
         SetSortsItems = function() end,
         ClearItems = function(self) self.items = {} end,
@@ -41,6 +39,7 @@ function ZO_ComboBox_ObjectFromContainer()
         AddItem = function(self, entry) self.items[#self.items + 1] = entry end,
         SetSelectedItem = function(self, name) self.selected = name end,
     }
+    combos[container.name] = combo
     return combo
 end
 function ZO_CheckButton_SetCheckState(control, checked) control.checked = checked end
@@ -78,19 +77,39 @@ end
 local function RowTexts()
     local texts = {}
     for _, row in ipairs(VisibleRows()) do
-        local text = GetControl(row, "Name").text
-        texts[#texts + 1] = text:match("|cFFD27FAutoCategory|r (.-)  ") or text
+        texts[#texts + 1] = GetControl(row, "Name").text
     end
     return table.concat(texts, ",")
 end
 
 local function Setup(rules)
     this.NewAutoCategoryTestFixture()
-    AutoCategory.GetRuleByName = function(name) return { rule = "filter(" .. name .. ")" } end
-    this.accountWide.autoCategoryInitialized = true
-    this.accountWide.autoCategoryIntegrationEnabled = true
+    local contexts = this.AutoCategoryIntegration.GetContexts()
+    local order = { contexts = {} }
+    for _, entry in ipairs(contexts) do
+        local native = { "ac:New", "ac:Selling", "ac:Low level" }
+        order.contexts[entry.key] = { display = native, matching = { "ac:New", "ac:Selling", "ac:Low level" } }
+    end
+    order.contexts.backpack.display = { "ac:New", "ic:alpha", "ic:beta", "ac:Selling", "ac:Low level" }
+    order.contexts.backpack.matching = { "ac:New", "ic:alpha", "ic:beta", "ac:Selling", "ac:Low level" }
     this.accountWide.trackedRules = rules
+    this.accountWide.autoCategoryOrder = order
+    this.accountWide.autoCategoryIntegrationEnabled = true
+    this.InvalidateRuleCache()
     this.ValidateSavedRuleProfiles()
+    this.AutoCategoryIntegration.GetHeadingDetails = function(name) return { rule = "filter(" .. name .. ")" } end
+    this.AutoCategoryIntegration.MoveEntry = function(reference, context, mode, direction)
+        this.AutoCategoryIntegration.lastMove = { reference, context, mode, direction }
+        return true
+    end
+    this.AutoCategoryIntegration.UseOtherOrder = function(context, mode)
+        this.AutoCategoryIntegration.lastCopyMode = { context, mode }
+        return true
+    end
+    this.AutoCategoryIntegration.CopyBothOrders = function(source, destination)
+        this.AutoCategoryIntegration.lastCrossCopy = { source, destination }
+        return true
+    end
     this.RefreshTrackedItemsEditor = function() end
     this.UpdateEditorLayout = function() end
     window.hidden = false
@@ -109,46 +128,49 @@ function this.GetAutoCategoryEditorTests()
 
     return {
         {
-            name = "AutoCategory editor tab renders, filters, moves, and toggles participation",
+            name = "AutoCategory editor exposes independent modes, all assignments, and full-list move semantics",
             run = WithActiveIntegration(function()
                 Setup({
-                    alpha = { autoCategoryEnabled = true, autoCategoryAnchor = "@default-new", autoCategoryRank = 100 },
-                    beta = { autoCategoryEnabled = true, autoCategoryAnchor = "@default-new", autoCategoryRank = 200 },
-                    gamma = { autoCategoryAnchor = "@default-new", autoCategoryRank = 300 },
+                    alpha = { autoCategoryEnabled = true },
+                    beta = { autoCategoryEnabled = true },
+                    gamma = {},
                 })
                 this.RefreshAutoCategoryEditor()
-                assert(RowTexts() == "New,Alpha,Beta,Gamma,Selling,Low level", RowTexts())
-                assert(combo.selected == "Master (all contexts)" and #combo.items == 8)
+                assert(RowTexts() == "New,Alpha,Beta,Selling,Low level,Gamma", RowTexts())
+                local contextCombo = combos[window.name .. "TopActionBarContextMode"]
+                assert(contextCombo.selected == "Backpack" and #contextCombo.items == 7)
                 assert(not GetControl(RowByText("Gamma"), "Participation").hidden)
                 assert(GetControl(RowByText("Gamma"), "Participation").checked == false)
-                assert(not GetControl(RowByText("Selling"), "Visibility").hidden)
-                assert(GetControl(RowByText("Alpha"), "MoveDown").hidden,
-                    "Moves stay hidden while nonparticipating groups are shown")
+                assert(GetControl(RowByText("New"), "Participation").hidden)
+                assert(GetControl(RowByText("Alpha"), "MoveDown").hidden == false)
 
-                local optionsBar = GetControl(window, "OptionsBar")
-                GetControl(optionsBar, "LblShowNonparticipating").handlers.OnMouseDown(nil, MOUSE_BUTTON_INDEX_LEFT)
-                assert(RowTexts() == "New,Alpha,Beta,Selling,Low level", RowTexts())
-                local moveDown = GetControl(RowByText("Alpha"), "MoveDown")
-                assert(not moveDown.hidden and moveDown.enabled)
-                moveDown.handlers.OnClicked()
-                assert(RowTexts() == "New,Beta,Alpha,Selling,Low level", RowTexts())
+                local find = GetControl(GetControl(window, "TopActionBar"), "FindBox")
+                find.text = "Alpha"
+                find.handlers.OnTextChanged(find)
+                assert(RowTexts() == "Alpha")
+                GetControl(RowByText("Alpha"), "MoveDown").handlers.OnClicked()
+                local move = integration.lastMove
+                assert(move[1] == "ic:alpha" and move[2] == "backpack" and move[3] == "display" and move[4] == 1)
 
-                ZO_CheckButton_OnClicked(GetControl(optionsBar, "ChkShowNonparticipating"))
-                local gammaParticipation = GetControl(RowByText("Gamma"), "Participation")
-                gammaParticipation:toggleFunction(true)
-                assert(this.accountWide.trackedRules.gamma.autoCategoryEnabled == true)
+                local options = GetControl(window, "OptionsBar")
+                GetControl(options, "BtnPriorityOrder").handlers.OnClicked()
+                assert(GetControl(window, "Info").text:find("First matching assignment wins", 1, true))
+                assert(GetControl(options, "BtnUseOtherOrder").text == "Use display list")
+                GetControl(options, "BtnUseOtherOrder").handlers.OnClicked()
+                assert(integration.lastCopyMode[1] == "backpack" and integration.lastCopyMode[2] == "matching")
+                GetControl(options, "BtnDisplayOrder").handlers.OnClicked()
+                assert(GetControl(options, "BtnUseOtherOrder").text == "Use priority list")
 
-                RowByText("Selling").handlers.OnMouseDown()
-                assert(GetControl(window, "HeadingDetails").text:find("filter(Selling)", 1, true),
-                    GetControl(window, "HeadingDetails").text)
-
-                combo.items[3].callback(nil, nil, combo.items[3], true)
-                assert(GetControl(GetControl(window, "TopActionBar"), "BtnReset").text == "Reset to Master")
-                assert(GetControl(optionsBar, "ChkShowNonparticipating").hidden)
+                find.text = ""
+                find.handlers.OnTextChanged(find)
+                local participation = GetControl(RowByText("Gamma"), "Participation")
+                participation:toggleFunction(true)
+                assert(this.GetRuntimeRules().gamma.autoCategoryEnabled)
+                assert(integration.lastCrossCopy == nil)
             end),
         },
         {
-            name = "AutoCategory editor tab falls back to Groups when integration becomes inactive",
+            name = "AutoCategory editor falls back to Groups when integration becomes inactive",
             run = WithActiveIntegration(function()
                 Setup({})
                 this.accountWide.autoCategoryIntegrationEnabled = false

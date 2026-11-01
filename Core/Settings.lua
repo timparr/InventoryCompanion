@@ -188,12 +188,8 @@ function this.CreateSettingsPanel()
             tooltip = "Use participating Inventory Companion groups as native AutoCategory categories. This setting follows the selected account-wide or character-specific item list.",
             getFunc = function() return this.GetAutoCategoryState().enabled end,
             setFunc = function(enabled)
-                if enabled and not this.GetAutoCategoryState().initialized then
-                    this.AutoCategoryIntegration.ChoosePreset(false)
-                else
-                    this.SetAutoCategoryIntegrationEnabled(enabled)
-                    this.RefreshAutoCategoryUI()
-                end
+                this.SetAutoCategoryIntegrationEnabled(enabled)
+                this.RefreshAutoCategoryUI()
             end,
             disabled = function() return not this.AutoCategoryIntegration.IsAvailable() end,
         },

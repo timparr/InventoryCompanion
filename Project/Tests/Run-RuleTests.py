@@ -24,22 +24,23 @@ assert auto_toggle.find("Button[@name='$(parent)Check']") is not None, "Item row
 assert auto_toggle.find("Label[@name='$(parent)Label']") is not None, "Item row AutoCategory toggle needs a Label child"
 autocategory_xml = ET.parse(root / "Tracking" / "EditPanelAutoCategoryTab.xml")
 autocategory_row = autocategory_xml.find(".//Control[@name='InventoryCompanion_AutoCategoryRow_Template']/Controls")
-for child in ("BG", "Name", "MoveUp", "MoveDown", "Participation", "Visibility"):
+for child in ("BG", "Name", "MoveUp", "MoveDown", "Participation"):
     assert autocategory_row.find(f"*[@name='$(parent){child}']") is not None, f"AutoCategory row needs {child}"
 autocategory_window = autocategory_xml.find(".//TopLevelControl[@name='InventoryCompanion_AutoCategoryWindow']/Controls")
 for path in (
     "TopActionBar/Controls/*[@name='$(parent)FindBox']",
     "TopActionBar/Controls/*[@name='$(parent)ContextMode']",
-    "TopActionBar/Controls/*[@name='$(parent)BtnReset']",
-    "OptionsBar/Controls/*[@name='$(parent)ChkShowNonparticipating']",
-    "OptionsBar/Controls/*[@name='$(parent)LblShowNonparticipating']",
-    "OptionsBar/Controls/*[@name='$(parent)ChkShowAllHeadings']",
-    "OptionsBar/Controls/*[@name='$(parent)LblShowAllHeadings']",
+    "TopActionBar/Controls/*[@name='$(parent)CopyContext']",
+    "TopActionBar/Controls/*[@name='$(parent)BtnCopyBoth']",
+    "OptionsBar/Controls/*[@name='$(parent)BtnDisplayOrder']",
+    "OptionsBar/Controls/*[@name='$(parent)BtnPriorityOrder']",
+    "OptionsBar/Controls/*[@name='$(parent)BtnUseOtherOrder']",
     "Info", "List", "HeadingDetails",
 ):
     parent, _, rest = path.partition("/")
     node = autocategory_window.find(f"*[@name='$(parent){parent}']")
     assert node is not None and (not rest or node.find(rest) is not None), f"AutoCategory window needs {path}"
+assert autocategory_row.find("*[@name='$(parent)Visibility']") is None, "Heading visibility controls are obsolete"
 for xml_name, window_name in (
     ("EditPanelItemsTab.xml", "InventoryCompanion_TrackedItemsWindow"),
     ("EditPanelGroupsTab.xml", "InventoryCompanion_GroupsWindow"),
@@ -100,8 +101,8 @@ saved_variables_lua.globals().SavedVariablesDatabaseSource = (root / "Tracking\\
 saved_variables_lua.globals().SavedVariablesIntegrationSource = (
     root / "Tracking\\AutoCategoryIntegration.lua"
 ).read_text(encoding="utf-8-sig")
-# Pin the schema-3 fixture: HEAD advances with the current saved-data format.
-legacy_saved_variables_commit = "a78f87957009e261e076c1c7f334f7a5fc0b1f7e"
+# Pin the last schema-4 build so downgrade protection tests the incompatible ordering change.
+legacy_saved_variables_commit = "9d2531ef621725351039ad7d3044b4a55d426b75"
 for field, relative in (
     ("LegacySavedVariablesInitSource", "Core/Init.lua"),
     ("LegacySavedVariablesConstantsSource", "Core/Constants.lua"),

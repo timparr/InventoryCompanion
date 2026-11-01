@@ -6,9 +6,6 @@ local pluginName = "Inventory Companion"
 local ruleTag = "Inventory Companion"
 local predicateName = "ic_group"
 local iconMarkup = "|t18:18:EsoUI/Art/Buttons/plus_up.dds|t "
-local topAnchor = "@top"
-local bottomAnchor = "@bottom"
-local defaultNewAnchor = "@default-new"
 
 local contexts = {
     { key = "backpack", title = "Backpack", bagType = function() return AC_BAG_TYPE_BACKPACK end,
@@ -45,9 +42,22 @@ function integration.GetStatus()
     return status.state, status.message
 end
 
+function integration.IsFaulted()
+    return this.autoCategoryFailure ~= nil
+end
+
+function integration.Run(operation, ...)
+    if integration.IsFaulted() then return false, this.autoCategoryFailure end
+    local ok, result = pcall(operation, ...)
+    if not ok then
+        integration.Fail(result)
+        return false, result
+    end
+    return result
+end
+
 function integration.IsAvailable()
-    -- An unsupported external layout must stay editable so placements can be changed or integration disabled.
-    return status.state == "available" or status.state == "disabled" or status.state == "unsupported"
+    return not integration.IsFaulted() and (status.state == "available" or status.state == "disabled")
 end
 
 function integration.IsEditorActive()
@@ -55,7 +65,7 @@ function integration.IsEditorActive()
 end
 
 function integration.GetContexts()
-    local result = { { key = "master", title = "Master (all contexts)" } }
+    local result = {}
     for _, context in ipairs(contexts) do
         result[#result + 1] = { key = context.key, title = context.title }
     end
@@ -69,11 +79,6 @@ function integration.GetHeadingDetails(name)
     assert(type(definition) == "table" and type(definition.rule) == "string",
         "AutoCategory heading definition is malformed: " .. name)
     return { name = name, rule = definition.rule }
-end
-
-function integration.ChoosePreset(reset)
-    assert(type(reset) == "boolean", "Preset chooser mode must be boolean")
-    ZO_Dialogs_ShowDialog("INVENTORYCOMPANION_AUTOCATEGORY_PRESET", { reset = reset })
 end
 
 local function GetRuntimeRules()
@@ -91,11 +96,6 @@ local function GetOrderedRuleKeys(rules)
     end
     table.sort(keys, function(left, right)
         local a, b = rules[left], rules[right]
-        if a.autoCategoryRank ~= b.autoCategoryRank then
-            if a.autoCategoryRank == nil then return false end
-            if b.autoCategoryRank == nil then return true end
-            return a.autoCategoryRank < b.autoCategoryRank
-        end
         local nameA, nameB = a.displayName:lower(), b.displayName:lower()
         if nameA ~= nameB then return nameA < nameB end
         return left < right
@@ -104,11 +104,7 @@ local function GetOrderedRuleKeys(rules)
 end
 
 local function GetCategoryName(rule)
-    local rank = rule.autoCategoryRank
-    if rank == nil then return iconMarkup .. rule.displayName end
-    assert(rank == math.floor(rank) and rank <= 0xFFFFFF,
-        "AutoCategory rank cannot be represented by the approved category-name prefix: " .. tostring(rank))
-    return "|c" .. string.format("%06X", rank) .. "|r" .. iconMarkup .. rule.displayName
+    return iconMarkup .. rule.displayName
 end
 
 local function QuoteLuaString(value)
@@ -232,790 +228,6 @@ local function CheckDefinitionCollision(ac, definitions)
     return true
 end
 
-local function GetNativeAssignments(context)
-    local ac = AutoCategory
-    local bag = ac.saved.bags[context.bagType()]
-    local assignments = {}
-    for _, assignment in ipairs(bag.rules) do
-        if assignment.icOwned ~= true then
-            assert(type(assignment.name) == "string" and assignment.name ~= "",
-                "AutoCategory external assignment has an invalid name")
-            assert(type(assignment.runpriority) == "number" and assignment.runpriority == assignment.runpriority
-                and math.abs(assignment.runpriority) < math.huge,
-                "AutoCategory external assignment has an invalid run priority")
-            assert(type(assignment.showpriority) == "number" and assignment.showpriority == assignment.showpriority
-                and math.abs(assignment.showpriority) < math.huge,
-                "AutoCategory external assignment has an invalid show priority")
-            assignments[#assignments + 1] = {
-                name = assignment.name,
-                runpriority = assignment.runpriority,
-                showpriority = assignment.showpriority,
-                isHidden = assignment.isHidden == true,
-            }
-        end
-    end
-    return assignments
-end
-
-local function SortRun(entries)
-    table.sort(entries, function(a, b)
-        if a.runpriority ~= b.runpriority then return a.runpriority > b.runpriority end
-        return a.name < b.name
-    end)
-    return entries
-end
-
-local function SortShow(entries)
-    table.sort(entries, function(a, b)
-        if a.showpriority ~= b.showpriority then return a.showpriority > b.showpriority end
-        return a.name < b.name
-    end)
-    return entries
-end
-
-local function HeadingId(name, ordinal, firstContext)
-    return "heading:" .. string.format("%q", name) .. ":" .. tostring(ordinal) .. ":" .. firstContext
-end
-
-local function NativeHeadingSequence(context)
-    local assignments = GetNativeAssignments(context)
-    local sequence = {}
-    for _, entry in ipairs(SortShow(assignments)) do
-        sequence[#sequence + 1] = entry.name
-    end
-    return sequence, assignments
-end
-
-local function HasCycle(nodes, sequences)
-    local edges, indegree, nodeCount = {}, {}, 0
-    for node in pairs(nodes) do
-        edges[node], indegree[node] = {}, 0
-        nodeCount = nodeCount + 1
-    end
-    for _, sequence in pairs(sequences) do
-        for index = 1, #sequence - 1 do
-            local left, right = sequence[index], sequence[index + 1]
-            if left ~= right and not edges[left][right] then
-                edges[left][right] = true
-                indegree[right] = indegree[right] + 1
-            end
-        end
-    end
-    local queue = {}
-    for node, degree in pairs(indegree) do
-        if degree == 0 then queue[#queue + 1] = node end
-    end
-    local visited = 0
-    while #queue > 0 do
-        local node = table.remove(queue)
-        visited = visited + 1
-        for target in pairs(edges[node]) do
-            indegree[target] = indegree[target] - 1
-            if indegree[target] == 0 then queue[#queue + 1] = target end
-        end
-    end
-    return visited ~= nodeCount
-end
-
-local function BuildHeadingModel()
-    local nodes, sequences, byContext = {}, {}, {}
-    local candidates = {}
-    local serial = 0
-    for _, context in ipairs(contexts) do
-        local names = NativeHeadingSequence(context)
-        local sequence, ordinals = {}, {}
-        for _, name in ipairs(names) do
-            ordinals[name] = (ordinals[name] or 0) + 1
-            local ordinal = ordinals[name]
-            local candidateKey = name .. "\0" .. tostring(ordinal)
-            local node
-            for _, existing in ipairs(candidates[candidateKey] or {}) do
-                if not existing.contexts[context.key] then
-                    node = existing
-                    sequence[#sequence + 1] = node
-                    sequences[context.key] = sequence
-                    if HasCycle(nodes, sequences) then
-                        sequence[#sequence] = nil
-                        sequences[context.key] = nil
-                        node = nil
-                    else
-                        node.contexts[context.key] = true
-                        break
-                    end
-                end
-            end
-            if node == nil then
-                serial = serial + 1
-                node = { name = name, ordinal = ordinal, serial = serial, contexts = { [context.key] = true } }
-                nodes[node] = true
-                sequence[#sequence + 1] = node
-                sequences[context.key] = sequence
-                candidates[candidateKey] = candidates[candidateKey] or {}
-                candidates[candidateKey][#candidates[candidateKey] + 1] = node
-            end
-        end
-        sequences[context.key] = sequence
-        byContext[context.key] = {}
-        for index, node in ipairs(sequence) do byContext[context.key][index] = node end
-    end
-
-    local ordered, used = {}, {}
-    while #ordered < (function() local count = 0; for _ in pairs(nodes) do count = count + 1 end; return count end)() do
-        local available = {}
-        for node in pairs(nodes) do
-            if not used[node] then
-                local blocked = false
-                for _, sequence in pairs(sequences) do
-                    for index = 1, #sequence - 1 do
-                        if sequence[index + 1] == node and not used[sequence[index]] then
-                            blocked = true
-                            break
-                        end
-                    end
-                    if blocked then break end
-                end
-                if not blocked then available[#available + 1] = node end
-            end
-        end
-        assert(#available > 0, "AutoCategory heading occurrence ordering contains a cycle")
-        table.sort(available, function(a, b) return a.serial < b.serial end)
-        local node = available[1]
-        used[node] = true
-        node.id = HeadingId(node.name, node.ordinal, (function()
-            for _, context in ipairs(contexts) do
-                if node.contexts[context.key] then return context.key end
-            end
-        end)())
-        ordered[#ordered + 1] = node
-    end
-    return ordered, byContext
-end
-
-local function IsHeadingVisible(state, contextKey, occurrenceId)
-    local order = state.order
-    local visible = order.headingVisibility and order.headingVisibility[occurrenceId]
-    local contextOverride = order.overrides and order.overrides[contextKey]
-    local headingOverride = contextOverride and contextOverride.headings
-        and contextOverride.headings[occurrenceId]
-    if headingOverride ~= nil then visible = headingOverride end
-    return visible ~= false
-end
-
-local function ResolveAnchor(anchor, contextKey, nodeById, sequence)
-    if anchor == topAnchor then return nil end
-    if anchor == bottomAnchor then return "bottom" end
-    if anchor == defaultNewAnchor then
-        local newName = GetString(SI_ITEMFILTERTYPE_NEW)
-        for _, node in ipairs(sequence) do
-            if node.name == newName and IsHeadingVisible(this.GetAutoCategoryState(), contextKey, node.id) then
-                return node
-            end
-        end
-        return nil
-    end
-    local node = nodeById[anchor]
-    if node and node.contexts[contextKey] then return node end
-    for index = #sequence, 1, -1 do
-        if sequence[index].contexts[contextKey]
-            and IsHeadingVisible(this.GetAutoCategoryState(), contextKey, sequence[index].id) then
-            return sequence[index]
-        end
-    end
-    return nil
-end
-
-local function GetRulePlacement(rule, contextKey)
-    local placement = { anchor = rule.autoCategoryAnchor, rank = rule.autoCategoryRank }
-    local overrides = rule.autoCategoryOverrides
-    local override = overrides and overrides[contextKey]
-    if override then
-        if override.anchor ~= nil then placement.anchor = override.anchor end
-        if override.rank ~= nil then placement.rank = override.rank end
-    end
-    return placement
-end
-
-local function GetMasterAnchorIndex(anchor, orderedNodes, nodeById)
-    if anchor == topAnchor or anchor == defaultNewAnchor then return 0 end
-    if anchor == bottomAnchor then return #orderedNodes + 1 end
-    for index, node in ipairs(orderedNodes) do
-        if node.id == anchor then return index end
-    end
-    return #orderedNodes + 1
-end
-
-local function ResolveRows(contextKey, options)
-    local state = this.GetAutoCategoryState()
-    local rules = GetRuntimeRules()
-    local orderedNodes, byContext = BuildHeadingModel()
-    local nodesById = {}
-    for _, node in ipairs(orderedNodes) do nodesById[node.id] = node end
-    local groups = {}
-    for ruleKey, rule in pairs(rules) do
-        if IsOrdinaryRule(ruleKey, rule) then
-            local placement = GetRulePlacement(rule, contextKey)
-            local participating = rule.autoCategoryEnabled == true
-            if contextKey == "master" or participating then
-                assert(not (participating and state.enabled)
-                    or (placement.anchor ~= nil and placement.rank ~= nil),
-                    "Participating AutoCategory group has no saved placement: " .. ruleKey)
-                groups[#groups + 1] = {
-                    kind = "group",
-                    ruleKey = ruleKey,
-                    name = rule.displayName,
-                    participating = participating,
-                    anchor = placement.anchor,
-                    rank = placement.rank,
-                    placementIndex = GetMasterAnchorIndex(placement.anchor, orderedNodes, nodesById),
-                }
-            end
-        end
-    end
-    table.sort(groups, function(a, b)
-        if a.placementIndex ~= b.placementIndex then return a.placementIndex < b.placementIndex end
-        if a.rank == nil and b.rank == nil then return a.ruleKey < b.ruleKey end
-        if a.rank == nil then return false end
-        if b.rank == nil then return true end
-        if a.rank ~= b.rank then return a.rank < b.rank end
-        return a.ruleKey < b.ruleKey
-    end)
-
-    local output, groupsByAnchor = {}, {}
-    local function IsUsable(node)
-        if contextKey == "master" then
-            for _, context in ipairs(contexts) do
-                if node.contexts[context.key] and IsHeadingVisible(state, context.key, node.id) then return true end
-            end
-            return false
-        end
-        return node.contexts[contextKey] and IsHeadingVisible(state, contextKey, node.id)
-    end
-    local function ResolveGroupAnchor(group)
-        if group.anchor == nil then return "@never-ordered" end
-        if group.anchor == topAnchor then return nil end
-        if group.anchor == bottomAnchor then return bottomAnchor end
-        local anchorIndex = GetMasterAnchorIndex(group.anchor, orderedNodes, nodesById)
-        if group.anchor == defaultNewAnchor then
-            local newName = GetString(SI_ITEMFILTERTYPE_NEW)
-            for _, node in ipairs(orderedNodes) do
-                if node.name == newName and IsUsable(node) then return node.id end
-            end
-            return nil
-        end
-        local exact = nodesById[group.anchor]
-        if exact and IsUsable(exact) then return exact.id end
-        for index = math.min(anchorIndex - 1, #orderedNodes), 1, -1 do
-            if IsUsable(orderedNodes[index]) then return orderedNodes[index].id end
-        end
-        return nil
-    end
-    for _, group in ipairs(groups) do
-        group.resolvedAnchorId = ResolveGroupAnchor(group)
-        local bucketKey = group.resolvedAnchorId or topAnchor
-        groupsByAnchor[bucketKey] = groupsByAnchor[bucketKey] or {}
-        groupsByAnchor[bucketKey][#groupsByAnchor[bucketKey] + 1] = group
-    end
-    for _, bucket in pairs(groupsByAnchor) do
-        table.sort(bucket, function(a, b)
-            if a.rank == nil and b.rank == nil then return a.ruleKey < b.ruleKey end
-            if a.rank == nil then return false end
-            if b.rank == nil then return true end
-            if a.rank ~= b.rank then return a.rank < b.rank end
-            return a.ruleKey < b.ruleKey
-        end)
-    end
-    local function AppendGroups(anchorId)
-        for _, group in ipairs(groupsByAnchor[anchorId or topAnchor] or {}) do
-            output[#output + 1] = {
-                kind = group.kind,
-                ruleKey = group.ruleKey,
-                name = group.name,
-                participating = group.participating,
-                anchor = group.anchor,
-                rank = group.rank,
-                resolvedAnchorId = group.resolvedAnchorId,
-            }
-        end
-    end
-
-    if contextKey == "master" then
-        AppendGroups(nil)
-        for _, node in ipairs(orderedNodes) do
-            local visibleContexts, hiddenContexts = {}, {}
-            for _, context in ipairs(contexts) do
-                if node.contexts[context.key] then
-                    if IsHeadingVisible(state, context.key, node.id) then
-                        visibleContexts[#visibleContexts + 1] = context.title
-                    else
-                        hiddenContexts[#hiddenContexts + 1] = context.title
-                    end
-                end
-            end
-            if #visibleContexts > 0 or (options and options.showAllHeadings) then
-                local scopeLabel = #visibleContexts > 0 and table.concat(visibleContexts, ", ") or "Hidden"
-                if options and options.showAllHeadings and #hiddenContexts > 0 then
-                    scopeLabel = scopeLabel .. "; hidden in " .. table.concat(hiddenContexts, ", ")
-                end
-                output[#output + 1] = {
-                    kind = "heading",
-                    occurrenceId = node.id,
-                    name = node.name,
-                    contexts = node.contexts,
-                    scopeLabel = scopeLabel,
-                    visibleContexts = visibleContexts,
-                    hiddenContexts = hiddenContexts,
-                }
-            end
-            AppendGroups(node.id)
-        end
-        AppendGroups(bottomAnchor)
-        if options == nil or options.showNonparticipants ~= false then
-            for _, ruleKey in ipairs(GetOrderedRuleKeys(rules)) do
-                local rule = rules[ruleKey]
-                if IsOrdinaryRule(ruleKey, rule) and not rule.autoCategoryEnabled
-                    and rule.autoCategoryAnchor == nil then
-                    output[#output + 1] = {
-                        kind = "group", ruleKey = ruleKey, name = rule.displayName,
-                        participating = false, anchor = nil, rank = nil, resolvedAnchorId = nil,
-                    }
-                end
-            end
-        end
-        return output
-    end
-
-    local nativeNodes = byContext[contextKey]
-    assert(nativeNodes, "Unknown AutoCategory context: " .. tostring(contextKey))
-    local selectedContext = contextByKey[contextKey]
-    AppendGroups(nil)
-    for _, node in ipairs(nativeNodes) do
-        if IsHeadingVisible(state, contextKey, node.id) or (options and options.showAllHeadings) then
-            output[#output + 1] = {
-                kind = "heading",
-                occurrenceId = node.id,
-                name = node.name,
-                contexts = node.contexts,
-                scopeLabel = selectedContext.title,
-                hidden = not IsHeadingVisible(state, contextKey, node.id),
-            }
-        end
-        AppendGroups(node.id)
-    end
-    AppendGroups(bottomAnchor)
-    return output
-end
-
-function integration.ResolveAutoCategoryOrder(contextKey, options)
-    assert(contextKey == "master" or contextByKey[contextKey],
-        "Unknown AutoCategory view: " .. tostring(contextKey))
-    return ResolveRows(contextKey, options)
-end
-
-function integration.MoveGroup(ruleKey, contextKey, direction, rebalanced)
-    assert(contextKey == "master" or contextByKey[contextKey],
-        "Unknown AutoCategory view: " .. tostring(contextKey))
-    assert(direction == -1 or direction == 1, "AutoCategory move direction must be -1 or 1")
-    local rows = {}
-    for _, candidate in ipairs(ResolveRows(contextKey, {
-        showNonparticipants = false,
-        showAllHeadings = false,
-    })) do
-        if candidate.kind ~= "group" or candidate.participating then
-            rows[#rows + 1] = candidate
-        end
-    end
-    local rowIndex
-    for index, row in ipairs(rows) do
-        if row.kind == "group" and row.ruleKey == ruleKey then rowIndex = index; break end
-    end
-    assert(rowIndex, "AutoCategory move targets a group outside the current view: " .. tostring(ruleKey))
-    local row = rows[rowIndex]
-    assert(row.participating, "Only participating AutoCategory groups can be moved")
-    local neighbor = rows[rowIndex + direction]
-    if neighbor == nil then return false end
-    local placementContext = contextKey
-    if contextKey == "master" then placementContext = nil end
-    local rules = GetRuntimeRules()
-    local selectedPlacement = GetRulePlacement(rules[ruleKey], contextKey)
-    assert(selectedPlacement.anchor ~= nil and selectedPlacement.rank ~= nil,
-        "Participating AutoCategory group has no saved placement: " .. ruleKey)
-
-    local targetAnchor
-    local lowerRank, upperRank
-    if neighbor.kind == "heading" then
-        targetAnchor = neighbor.occurrenceId
-    elseif neighbor.kind == "group" then
-        assert(neighbor.participating, "A participating group cannot move across a nonparticipating row")
-        targetAnchor = neighbor.resolvedAnchorId or topAnchor
-        if direction < 0 then upperRank = neighbor.rank else lowerRank = neighbor.rank end
-    else
-        error("Unsupported AutoCategory move target")
-    end
-
-    local targetRank
-    for index, candidateRow in ipairs(rows) do
-        if candidateRow.kind == "group" and candidateRow.participating
-            and candidateRow.resolvedAnchorId == targetAnchor then
-            if neighbor.kind == "heading" then
-                targetRank = targetRank and math.min(targetRank, candidateRow.rank) or candidateRow.rank
-            elseif direction < 0 and index < rowIndex - 1 then
-                lowerRank = lowerRank and math.max(lowerRank, candidateRow.rank) or candidateRow.rank
-            elseif direction > 0 and index > rowIndex + 1 then
-                upperRank = upperRank and math.min(upperRank, candidateRow.rank) or candidateRow.rank
-            end
-        end
-    end
-    if neighbor.kind == "heading" then upperRank = targetRank end
-
-    local function FindAvailableRank()
-        local usedRanks = {}
-        for candidateKey, candidate in pairs(rules) do
-            if candidateKey ~= ruleKey and IsOrdinaryRule(candidateKey, candidate) then
-                for _, context in ipairs(contexts) do
-                    local override = candidate.autoCategoryOverrides
-                        and candidate.autoCategoryOverrides[context.key]
-                    local effectiveRank = override and override.rank or candidate.autoCategoryRank
-                    if effectiveRank ~= nil then usedRanks[effectiveRank] = true end
-                end
-            end
-        end
-        local rank
-        if lowerRank ~= nil and upperRank ~= nil then
-            rank = math.floor(upperRank) - 1
-            while rank > lowerRank and usedRanks[rank] do rank = rank - 1 end
-            if rank <= lowerRank then return nil end
-        elseif upperRank ~= nil then
-            rank = math.floor(upperRank) - 1
-            while rank > 0 and usedRanks[rank] do rank = rank - 1 end
-            if rank <= 0 then return nil end
-        elseif lowerRank ~= nil then
-            rank = math.floor(lowerRank) + 1
-            while rank <= 0xFFFFFF and usedRanks[rank] do rank = rank + 1 end
-            if rank > 0xFFFFFF then return nil end
-        else
-            rank = selectedPlacement.rank + 1
-            while rank <= 0xFFFFFF and usedRanks[rank] do rank = rank + 1 end
-            if rank > 0xFFFFFF then
-                rank = selectedPlacement.rank - 1
-                while rank > 0 and usedRanks[rank] do rank = rank - 1 end
-                if rank <= 0 then return nil end
-            end
-        end
-        return rank
-    end
-
-    local rank = FindAvailableRank()
-    if rank == nil then
-        assert(not rebalanced, "AutoCategory cannot allocate a rank for this move")
-        this.RebalanceAutoCategoryRanks()
-        return integration.MoveGroup(ruleKey, contextKey, direction, true)
-    end
-    assert(targetAnchor ~= nil and rank > 0 and rank <= 0xFFFFFF,
-        "AutoCategory move cannot be represented in the target placement")
-    this.SetAutoCategoryPlacement(ruleKey, targetAnchor, rank, placementContext)
-    return true
-end
-
-function integration.BuildPresetPlacements(preset)
-    assert(preset == "prefer_ic_groups" or preset == "prefer_autocategory_groups",
-        "Unknown AutoCategory starting preset: " .. tostring(preset))
-    local rules = GetRuntimeRules()
-    local keys = GetOrderedRuleKeys(rules)
-    table.sort(keys, function(left, right)
-        local a, b = rules[left], rules[right]
-        local nameA, nameB = a.displayName:lower(), b.displayName:lower()
-        if nameA ~= nameB then return nameA < nameB end
-        return left < right
-    end)
-    local placements = {}
-    for index, ruleKey in ipairs(keys) do
-        placements[ruleKey] = {
-            anchor = preset == "prefer_ic_groups" and defaultNewAnchor or bottomAnchor,
-            rank = index * 100,
-        }
-    end
-    return placements
-end
-
-function integration.InitializeRulePlacement(ruleKey)
-    local rules = GetRuntimeRules()
-    local rule = rules[ruleKey]
-    assert(rule ~= nil and IsOrdinaryRule(ruleKey, rule),
-        "Cannot initialize AutoCategory placement for unknown or excluded group: " .. tostring(ruleKey))
-    if rule.autoCategoryAnchor ~= nil then
-        return rule.autoCategoryAnchor, rule.autoCategoryRank
-    end
-
-    local function BuildCleanup()
-        local ranks = {}
-        for _, candidate in pairs(rules) do
-            if candidate.autoCategoryRank ~= nil then ranks[candidate.autoCategoryRank] = true end
-            for _, placement in pairs(candidate.autoCategoryOverrides or {}) do
-                if placement.rank ~= nil then ranks[placement.rank] = true end
-            end
-        end
-        local orderedRanks = {}
-        for rank in pairs(ranks) do orderedRanks[#orderedRanks + 1] = rank end
-        table.sort(orderedRanks)
-        assert(#orderedRanks * 100 <= 0xFFFFFF, "AutoCategory rank space is exhausted")
-        local replacement = {}
-        for index, rank in ipairs(orderedRanks) do replacement[rank] = index * 100 end
-        local cleanup = {}
-        for candidateKey, candidate in pairs(rules) do
-            local entry = { overrides = {} }
-            if candidate.autoCategoryRank ~= nil then
-                entry.master = replacement[candidate.autoCategoryRank]
-            end
-            for contextKey, placement in pairs(candidate.autoCategoryOverrides or {}) do
-                if placement.rank ~= nil then entry.overrides[contextKey] = replacement[placement.rank] end
-            end
-            if entry.master ~= nil or next(entry.overrides) ~= nil then cleanup[candidateKey] = entry end
-        end
-        return cleanup, replacement
-    end
-
-    local function FindPlacement(cleanup, replacement)
-        local rows = ResolveRows("master", { showNonparticipants = true, showAllHeadings = false })
-        local lastGroup
-        for _, row in ipairs(rows) do
-            if row.kind == "group" and row.participating then lastGroup = row end
-        end
-        local used, maximumRank = {}, 0
-        for _, candidate in pairs(rules) do
-            local rank = candidate.autoCategoryRank
-            if rank ~= nil then rank = replacement and replacement[rank] or rank end
-            if rank ~= nil then used[rank] = true; maximumRank = math.max(maximumRank, rank) end
-            for _, placement in pairs(candidate.autoCategoryOverrides or {}) do
-                rank = placement.rank
-                if rank ~= nil then rank = replacement and replacement[rank] or rank end
-                if rank ~= nil then used[rank] = true; maximumRank = math.max(maximumRank, rank) end
-            end
-        end
-        if not lastGroup then
-            if maximumRank <= 0xFFFFFF - 100 then return bottomAnchor, maximumRank + 100 end
-            return nil
-        end
-        local anchor = lastGroup.resolvedAnchorId or topAnchor
-        local previousRank = lastGroup.rank
-        if replacement then previousRank = replacement[previousRank] end
-        local nextRank
-        for index = 1, #rows do
-            if rows[index] == lastGroup then
-                for nextIndex = index + 1, #rows do
-                    local nextRow = rows[nextIndex]
-                    if nextRow.kind == "heading" then break end
-                    if nextRow.kind == "group" and nextRow.resolvedAnchorId == lastGroup.resolvedAnchorId then
-                        nextRank = nextRow.rank
-                        if replacement then nextRank = replacement[nextRank] end
-                        break
-                    end
-                end
-                break
-            end
-        end
-        local rank = previousRank + 1
-        while rank <= 0xFFFFFF and (used[rank] or (nextRank ~= nil and rank >= nextRank)) do
-            rank = rank + 1
-        end
-        if rank <= 0xFFFFFF then return anchor, rank end
-        return nil
-    end
-
-    local anchor, rank = FindPlacement()
-    if anchor ~= nil then return anchor, rank end
-    local cleanup, replacement = BuildCleanup()
-    anchor, rank = FindPlacement(cleanup, replacement)
-    assert(anchor ~= nil, "AutoCategory cannot allocate a rank after the last participating group")
-    return anchor, rank, cleanup
-end
-
-local function GetExternalPrioritySequence(entries, field)
-    local copy = {}
-    for _, entry in ipairs(entries) do
-        copy[#copy + 1] = {
-            name = entry.name,
-            runpriority = entry.runpriority,
-            showpriority = entry.showpriority,
-            priority = entry[field],
-        }
-    end
-    table.sort(copy, function(a, b)
-        if a.priority ~= b.priority then return a.priority > b.priority end
-        return a.name < b.name
-    end)
-    return copy
-end
-
-local function GetInsertionTarget(group, contextKey)
-    if group.resolvedAnchorId == nil then return topAnchor end
-    if group.resolvedAnchorId == bottomAnchor then return bottomAnchor end
-    local _, byContext = BuildHeadingModel()
-    for _, node in ipairs(byContext[contextKey]) do
-        if node.id == group.resolvedAnchorId then return node.name end
-    end
-    error("Resolved AutoCategory anchor is unavailable in " .. contextKey .. ": " .. group.resolvedAnchorId)
-end
-
-local function SpreadPriorities(high, low, count)
-    local values = {}
-    for index = 1, count do
-        local value
-        if high - low > count then
-            value = high - index
-        else
-            value = high - (high - low) * index / (count + 1)
-        end
-        if not (value < high and value > low) then return nil end
-        values[index] = value
-    end
-    return values
-end
-
--- Ties among external headings resolve alphabetically in AutoCategory, so groups anchored to any
--- heading in a tie block follow the whole block, in that block's alphabetical heading order.
--- Duplicate heading names cannot be ordered alphabetically; the first native occurrence anchors.
-local function AllocateFieldPriorities(external, field, groupBuckets)
-    local sequence = GetExternalPrioritySequence(external, field)
-    local priorities = {}
-    local placed = {}
-    local function Assign(bucketNames, high, low)
-        local groups = {}
-        for _, name in ipairs(bucketNames) do
-            if not placed[name] then
-                placed[name] = true
-                for _, group in ipairs(groupBuckets[name] or {}) do groups[#groups + 1] = group end
-            end
-        end
-        if #groups == 0 then return true end
-        local values = SpreadPriorities(high, low, #groups)
-        if values == nil then return false end
-        for index, group in ipairs(groups) do priorities[group.ruleKey] = values[index] end
-        return true
-    end
-
-    local maximum, minimum = 0, 0
-    for _, entry in ipairs(sequence) do
-        maximum = math.max(maximum, entry.priority)
-        minimum = math.min(minimum, entry.priority)
-    end
-    local topCount = groupBuckets[topAnchor] and #groupBuckets[topAnchor] or 0
-    local bottomCount = groupBuckets[bottomAnchor] and #groupBuckets[bottomAnchor] or 0
-    assert(Assign({ topAnchor }, maximum + topCount + 1, maximum))
-    assert(Assign({ bottomAnchor }, minimum, minimum - bottomCount - 1))
-
-    local index = 1
-    while index <= #sequence do
-        local high = sequence[index].priority
-        local block = {}
-        while index <= #sequence and sequence[index].priority == high do
-            block[#block + 1] = sequence[index].name
-            index = index + 1
-        end
-        local blockCount = 0
-        for _, name in ipairs(block) do
-            if not placed[name] then
-                blockCount = blockCount + (groupBuckets[name] and #groupBuckets[name] or 0)
-            end
-        end
-        local low = sequence[index] and sequence[index].priority or high - blockCount - 1
-        if not Assign(block, high, low) then
-            return nil, "AutoCategory has no " .. field .. " room below '" .. block[1] .. "'"
-        end
-    end
-    return priorities
-end
-
-local function GetContextProjection(context)
-    local rows = ResolveRows(context.key)
-    local groups = {}
-    for _, row in ipairs(rows) do
-        if row.kind == "group" and row.participating then groups[#groups + 1] = row end
-    end
-    local groupBuckets = {}
-    for _, group in ipairs(groups) do
-        local target = GetInsertionTarget(group, context.key)
-        groupBuckets[target] = groupBuckets[target] or {}
-        groupBuckets[target][#groupBuckets[target] + 1] = group
-    end
-    local external = GetNativeAssignments(context)
-    local runPriorities, runFailure = AllocateFieldPriorities(external, "runpriority", groupBuckets)
-    if runPriorities == nil then return nil, runFailure .. " in " .. context.title end
-    local showPriorities, showFailure = AllocateFieldPriorities(external, "showpriority", groupBuckets)
-    if showPriorities == nil then return nil, showFailure .. " in " .. context.title end
-    local proposed = {}
-    for _, group in ipairs(groups) do
-        local rule = GetRuntimeRules()[group.ruleKey]
-        proposed[group.ruleKey] = {
-            ruleKey = group.ruleKey,
-            name = GetCategoryName(rule),
-            runpriority = runPriorities[group.ruleKey],
-            showpriority = showPriorities[group.ruleKey],
-            isHidden = false,
-            icOwned = true,
-        }
-    end
-
-    -- AutoCategory edits run and show priorities independently, so each field has its own native order.
-    local function Desired(field)
-        local desired = {}
-        local placed = {}
-        local function AddDesiredTarget(target)
-            local bucket = groupBuckets[target]
-            if bucket and not placed[target] then
-                placed[target] = true
-                for _, group in ipairs(bucket) do desired[#desired + 1] = group.ruleKey end
-            end
-        end
-        AddDesiredTarget(topAnchor)
-        local sequence = GetExternalPrioritySequence(external, field)
-        local tiedTargets = {}
-        for index, entry in ipairs(sequence) do
-            desired[#desired + 1] = entry.name
-            tiedTargets[#tiedTargets + 1] = entry.name
-            local nextEntry = sequence[index + 1]
-            if nextEntry == nil or nextEntry.priority ~= entry.priority then
-                for _, target in ipairs(tiedTargets) do AddDesiredTarget(target) end
-                tiedTargets = {}
-            end
-        end
-        AddDesiredTarget(bottomAnchor)
-        return desired
-    end
-
-    local function Expected(field)
-        local desired = Desired(field)
-        local sorted = {}
-        for _, entry in ipairs(external) do
-            sorted[#sorted + 1] = {
-                name = entry.name, priority = entry[field], key = entry.name,
-            }
-        end
-        for key, assignment in pairs(proposed) do
-            sorted[#sorted + 1] = { name = assignment.name, priority = assignment[field], key = key }
-        end
-        table.sort(sorted, function(a, b)
-            if a.priority ~= b.priority then return a.priority > b.priority end
-            return a.name < b.name
-        end)
-        local result = {}
-        for _, entry in ipairs(sorted) do result[#result + 1] = entry.key end
-        assert(#result == #desired, "AutoCategory projection order is incomplete in " .. context.title)
-        for index = 1, #result do
-            assert(result[index] == desired[index],
-                "AutoCategory " .. field .. " mapping cannot preserve the required order in " .. context.title)
-        end
-    end
-    Expected("runpriority")
-    Expected("showpriority")
-    return proposed, external
-end
-
-local function SameAssignment(left, right)
-    return left.name == right.name and left.runpriority == right.runpriority
-        and left.showpriority == right.showpriority and left.isHidden == right.isHidden
-        and left.icOwned == right.icOwned
-end
-
 local function SyncDefinitions(ac, definitions)
     local plugin = ac.Plugins[pluginName]
     assert(plugin and type(plugin.predef) == "table", "AutoCategory did not retain the integration plugin")
@@ -1070,57 +282,6 @@ local function SyncDefinitions(ac, definitions)
     ac.RulesW.CompileAll(ac.RulesW)
 end
 
-local function WriteProjection(ac, plans)
-    local changed = {}
-    for _, context in ipairs(contexts) do
-        local bagType = context.bagType()
-        local bag = ac.saved.bags[bagType]
-        local plan = plans[context.key]
-        local externalNames = {}
-        for _, assignment in ipairs(bag.rules) do
-            if assignment.icOwned ~= true then externalNames[assignment.name] = true end
-        end
-        local desiredNames = {}
-        for _, assignment in pairs(plan) do
-            assert(not externalNames[assignment.name],
-                "AutoCategory assignment collision appeared after preflight: " .. assignment.name)
-            desiredNames[assignment.name] = true
-        end
-        for index = #bag.rules, 1, -1 do
-            local assignment = bag.rules[index]
-            if assignment.icOwned == true and not desiredNames[assignment.name] then
-                table.remove(bag.rules, index)
-                changed[context.key] = true
-            end
-        end
-        for _, assignment in pairs(plan) do
-            local existing
-            for _, candidate in ipairs(bag.rules) do
-                if candidate.icOwned == true and candidate.name == assignment.name then
-                    existing = candidate
-                    break
-                end
-            end
-            if existing then
-                if not SameAssignment(existing, assignment) then
-                    for field, value in pairs(assignment) do existing[field] = value end
-                    changed[context.key] = true
-                end
-            else
-                bag.rules[#bag.rules + 1] = {
-                    name = assignment.name,
-                    runpriority = assignment.runpriority,
-                    showpriority = assignment.showpriority,
-                    isHidden = assignment.isHidden,
-                    icOwned = true,
-                }
-                changed[context.key] = true
-            end
-        end
-    end
-    return changed
-end
-
 local function RefreshContexts(ac, changed, rebuildCache)
     for _, context in ipairs(contexts) do
         if changed[context.key] then
@@ -1128,45 +289,6 @@ local function RefreshContexts(ac, changed, rebuildCache)
             ac.RefreshList(context.inventoryType(), context.key ~= "crafting_station")
         end
     end
-end
-
-function integration.ProjectAutoCategory()
-    local ac = AutoCategory
-    CheckExternalShape(ac)
-    assert(ac.Inited == true, "AutoCategory must finish initialization before projection")
-    CheckActiveAssignments(ac)
-    assert(this.GetAutoCategoryState().enabled, "Cannot project while AutoCategory integration is disabled")
-    local definitions = BuildDefinitions()
-    local collisionFree, collision = CheckDefinitionCollision(ac, definitions)
-    assert(collisionFree, collision)
-    local plans = {}
-    for _, context in ipairs(contexts) do
-        local plan, failure = GetContextProjection(context)
-        if plan == nil then
-            -- External AutoCategory layouts we cannot represent are reported without writing anything.
-            if status.state ~= "unsupported" or status.message ~= failure then
-                d("[InventoryCompanion] AutoCategory integration paused: " .. failure)
-            end
-            SetStatus("unsupported", "AutoCategory integration is paused: " .. failure
-                .. ". Change the AutoCategory priorities or this group's placement to resume.")
-            return {}
-        end
-        plans[context.key] = plan
-    end
-    SyncDefinitions(ac, definitions)
-    reconciling = true
-    local ok, changed = xpcall(function()
-        local changedContexts = WriteProjection(ac, plans)
-        RefreshContexts(ac, changedContexts, true)
-        return changedContexts
-    end, function(failure)
-        reconciling = false
-        return failure
-    end)
-    reconciling = false
-    if not ok then error(changed) end
-    SetStatus("available", "AutoCategory integration is active for the selected Inventory Companion profile.")
-    return changed
 end
 
 local function RemoveOwnedAssignments(refresh)
@@ -1183,14 +305,96 @@ local function RemoveOwnedAssignments(refresh)
             end
         end
     end
-    if refresh then RefreshContexts(ac, changed) end
+    if refresh then RefreshContexts(ac, changed, true) end
+end
+
+function integration.Fail(failure)
+    if integration.IsFaulted() then return end
+    this.autoCategoryFailure = tostring(failure)
+    pendingGeneration = pendingGeneration + 1
+    reconciling = false
+    status = {
+        state = "error",
+        message = "AutoCategory integration disabled for this session: " .. this.autoCategoryFailure
+            .. " Other Inventory Companion features remain available. Correct the problem and /reloadui.",
+    }
+    d("[InventoryCompanion] WARNING: " .. status.message)
+    if AutoCategory ~= nil then
+        local ok, cleanupFailure = pcall(RemoveOwnedAssignments, AutoCategory.Inited == true)
+        if not ok then
+            d("[InventoryCompanion] WARNING: AutoCategory assignment cleanup also failed: " .. tostring(cleanupFailure))
+        end
+    end
+    if this.state ~= nil and this.state.isLoaded then
+        local ok, refreshFailure = pcall(this.RefreshAutoCategoryUI)
+        if not ok then
+            d("[InventoryCompanion] WARNING: AutoCategory UI refresh also failed: " .. tostring(refreshFailure))
+        end
+    end
+end
+
+function integration.PreflightSavedDataCleanup()
+    if AutoCategory == nil then return nil end
+    CheckExternalShape(AutoCategory)
+    local removals = {}
+    for _, profileName in ipairs({ "acctSaved", "charSaved" }) do
+        local profile = AutoCategory[profileName]
+        assert(type(profile.bags) == "table",
+            "AutoCategory " .. profileName .. " bag assignments are unavailable; no cleanup was performed")
+        for _, context in ipairs(contexts) do
+            local bag = profile.bags[context.bagType()]
+            assert(type(bag) == "table" and type(bag.rules) == "table",
+                "AutoCategory " .. profileName .. " assignments are unavailable for " .. context.title
+                    .. "; no cleanup was performed")
+            for index, assignment in ipairs(bag.rules) do
+                assert(type(assignment) == "table", "AutoCategory assignment is malformed; no cleanup was performed")
+                if assignment.icOwned == true then
+                    removals[#removals + 1] = {
+                        profile = profile,
+                        rules = bag.rules,
+                        index = index,
+                        assignment = assignment,
+                        context = context,
+                    }
+                end
+            end
+        end
+    end
+    return removals
+end
+
+function integration.ApplySavedDataCleanup(removals)
+    assert(type(removals) == "table", "AutoCategory cleanup preflight is required")
+    local byRules, changedActive, count = {}, {}, 0
+    for _, removal in ipairs(removals) do
+        local current = removal.rules[removal.index]
+        assert(current == removal.assignment,
+            "AutoCategory assignments changed after cleanup preflight; no cleanup was applied")
+        byRules[removal.rules] = byRules[removal.rules] or {}
+        byRules[removal.rules][#byRules[removal.rules] + 1] = removal
+    end
+    for rules, entries in pairs(byRules) do
+        table.sort(entries, function(left, right) return left.index > right.index end)
+        for _, removal in ipairs(entries) do
+            assert(rules[removal.index] == removal.assignment,
+                "AutoCategory assignments changed during cleanup")
+            table.remove(rules, removal.index)
+            count = count + 1
+            if removal.profile.bags == AutoCategory.saved.bags then
+                changedActive[removal.context.key] = true
+            end
+        end
+    end
+    if AutoCategory.Inited == true then RefreshContexts(AutoCategory, changedActive, true) end
+    SetStatus("disabled", "AutoCategory integration data was cleared for the selected Inventory Companion account.")
+    return count
 end
 
 local function ScheduleReconcile(reason, refreshOnly)
     if AutoCategory == nil or status.state == "absent" or not this.GetAutoCategoryState().enabled then return end
     pendingGeneration = pendingGeneration + 1
     local generation = pendingGeneration
-    zo_callLater(function()
+    zo_callLater(function() integration.Run(function()
         if generation ~= pendingGeneration or not this.GetAutoCategoryState().enabled then return end
         if AutoCategory.Inited ~= true then return end
         if refreshOnly then
@@ -1200,7 +404,7 @@ local function ScheduleReconcile(reason, refreshOnly)
         else
             integration.ProjectAutoCategory()
         end
-    end, 100)
+    end) end, 100)
 end
 
 function integration.OnRuleMutation(kind, ruleKey)
@@ -1211,6 +415,10 @@ function integration.OnRuleMutation(kind, ruleKey)
         assert(rule ~= nil, "Pattern mutation references an unknown Inventory Companion group: "
             .. tostring(ruleKey))
         if not rule.autoCategoryEnabled then return end
+    end
+    if kind == "participation" then
+        integration.ProjectAutoCategory()
+        return
     end
     ScheduleReconcile(kind, kind == "patterns")
 end
@@ -1249,15 +457,15 @@ InstallExternalHooks = function()
         and type(ac.cacheInitBag) == "function" and type(ac.cacheInitialize) == "function",
         "AutoCategory lifecycle hook targets are unavailable")
     assert(type(ZO_PostHook) == "function", "ESO post-hook API is unavailable")
-    ZO_PostHook(ac, "UpdateCurrentSavedVars", function()
+    ZO_PostHook(ac, "UpdateCurrentSavedVars", function() integration.Run(function()
         if not reconciling then integration.OnProfileChanged() end
-    end)
-    ZO_PostHook(ac, "cacheInitBag", function()
+    end) end)
+    ZO_PostHook(ac, "cacheInitBag", function() integration.Run(function()
         if not reconciling and this.GetAutoCategoryState().enabled then ScheduleReconcile("external-heading-edit", false) end
-    end)
-    ZO_PostHook(ac, "cacheInitialize", function()
+    end) end)
+    ZO_PostHook(ac, "cacheInitialize", function() integration.Run(function()
         if not reconciling and this.GetAutoCategoryState().enabled then ScheduleReconcile("external-heading-edit", false) end
-    end)
+    end) end)
     hooksInstalled = true
 end
 
@@ -1269,29 +477,25 @@ local function RegisterPlugin()
     end
     local ok, failure = pcall(CheckExternalShape, ac)
     if not ok then
-        SetStatus("incompatible", tostring(failure))
-        d("[InventoryCompanion] AutoCategory integration unavailable: " .. tostring(failure))
+        integration.Fail(failure)
         return false
     end
     if ac.Inited == true then
-        SetStatus("incompatible", "AutoCategory initialized before Inventory Companion could register its plugin.")
-        d("[InventoryCompanion] AutoCategory integration unavailable: " .. status.message)
+        integration.Fail("AutoCategory initialized before Inventory Companion could register its plugin.")
         return false
     end
     local definitions = BuildDefinitions()
     local collisionFree, collision = CheckDefinitionCollision(ac, definitions)
     if not collisionFree then
-        SetStatus("collision", collision)
-        d("[InventoryCompanion] AutoCategory integration refused: " .. collision)
+        integration.Fail(collision)
         return false
     end
     if ac.Plugins[pluginName] ~= nil then
-        SetStatus("collision", "AutoCategory plugin name is already registered.")
-        d("[InventoryCompanion] AutoCategory integration refused: " .. status.message)
+        integration.Fail("AutoCategory plugin name is already registered.")
         return false
     end
-    ac.RegisterPlugin(pluginName, function()
-        ac.AddRuleFunc(predicateName, function(ruleKey)
+    ac.RegisterPlugin(pluginName, function() integration.Run(function()
+        local function MatchesRule(ruleKey)
             local rules = GetRuntimeRules()
             local rule = rules[ruleKey]
             assert(rule ~= nil, "Registered AutoCategory expression references unknown Inventory Companion group: "
@@ -1299,6 +503,9 @@ local function RegisterPlugin()
             if not this.GetAutoCategoryState().enabled or not rule.autoCategoryEnabled then return false end
             assert(type(ac.checkingItemLink) == "string", "AutoCategory checkingItemLink must be a string")
             return this.ItemMatchesRuntimeRule(ac.checkingItemLink, rule)
+        end
+        ac.AddRuleFunc(predicateName, function(ruleKey)
+            return integration.Run(MatchesRule, ruleKey) == true
         end)
         if this.GetAutoCategoryState().enabled then
             -- AutoCategory sets Inited synchronously after plugin initializers, before this deferred call runs.
@@ -1306,7 +513,7 @@ local function RegisterPlugin()
         else
             RemoveOwnedAssignments(false)
         end
-    end, definitions)
+    end) end, definitions)
     registeredPlugin = ac.Plugins[pluginName]
     assert(registeredPlugin and registeredPlugin.predef == definitions,
         "AutoCategory did not retain Inventory Companion's plugin definitions")
@@ -1323,43 +530,525 @@ function integration.Initialize()
         SetStatus("absent", "AutoCategory is not loaded; saved integration choices are preserved.")
         return
     end
-    -- Keyboard ZO_Dialog has only two button controls, so the arrangement is a radio choice.
-    ZO_Dialogs_RegisterCustomDialog("INVENTORYCOMPANION_AUTOCATEGORY_PRESET", {
-        title = { text = "AutoCategory Starting Arrangement" },
-        mainText = {
-            text = function(dialog)
-                if dialog.data and dialog.data.reset then
-                    return "Replace the shared Master placement defaults with a starting arrangement? Context-specific overrides and participation choices will be retained."
-                end
-                return "Choose how Inventory Companion groups should be arranged relative to AutoCategory headings. The arrangement can be changed later."
-            end,
-        },
-        radioButtons = {
-            { text = "Prefer IC groups", data = "prefer_ic_groups" },
-            { text = "Prefer AutoCategory groups", data = "prefer_autocategory_groups" },
-        },
-        buttons = {
-            {
-                text = SI_DIALOG_CONFIRM,
-                callback = function(dialog)
-                    local selected = dialog.radioButtonGroup:GetClickedButton()
-                    assert(selected ~= nil, "AutoCategory preset dialog has no selected arrangement")
-                    local enabled
-                    if not (dialog.data and dialog.data.reset) then enabled = true end
-                    this.ApplyAutoCategoryPreset(selected.data, enabled)
-                    if this.RefreshAutoCategoryUI then this.RefreshAutoCategoryUI() end
-                end,
-            },
-            {
-                text = SI_DIALOG_CANCEL,
-                callback = function()
-                    if this.RefreshAutoCategoryUI then this.RefreshAutoCategoryUI() end
-                end,
-            },
-        },
-        noChoiceCallback = function()
-            if this.RefreshAutoCategoryUI then this.RefreshAutoCategoryUI() end
-        end,
-    })
     RegisterPlugin()
+end
+
+local projectedOrders = setmetatable({}, { __mode = "k" })
+local renameHookInstalled = false
+
+local function CopySequence(sequence)
+    local copy = {}
+    for index, value in ipairs(sequence) do copy[index] = value end
+    return copy
+end
+
+local function SameSequence(left, right)
+    if #left ~= #right then return false end
+    for index = 1, #left do
+        if left[index] ~= right[index] then return false end
+    end
+    return true
+end
+
+local function GetManagedRuleKey(assignment, definitionsByName)
+    if assignment.icOwned ~= true then return nil end
+    if assignment.icRuleKey ~= nil then
+        assert(type(assignment.icRuleKey) == "string" and assignment.icRuleKey ~= "",
+            "AutoCategory managed assignment has an invalid IC rule identity")
+        return assignment.icRuleKey
+    end
+    local definition = definitionsByName[assignment.name]
+    assert(definition and definition.icRuleKey,
+        "AutoCategory managed assignment cannot be mapped to an IC group: " .. tostring(assignment.name))
+    return definition.icRuleKey
+end
+
+local function SortAssignments(entries, mode)
+    table.sort(entries, function(left, right)
+        if mode == "display" then
+            local leftKey = string.format("%04d%s", 1000 - left.assignment.showpriority, left.assignment.name)
+            local rightKey = string.format("%04d%s", 1000 - right.assignment.showpriority, right.assignment.name)
+            return leftKey < rightKey
+        end
+        local leftPriority, rightPriority = left.assignment.runpriority, right.assignment.runpriority
+        if leftPriority ~= rightPriority then return leftPriority > rightPriority end
+        return left.assignment.name < right.assignment.name
+    end)
+end
+
+local function BuildContextModel(context, definitions)
+    local ac = AutoCategory
+    local bag = ac.saved.bags[context.bagType()]
+    local definitionsByName, definitionsByKey = {}, {}
+    for _, definition in ipairs(definitions) do
+        definitionsByName[definition.name] = definition
+        definitionsByKey[definition.icRuleKey] = definition
+    end
+    local entries, members, actualAssignments, nativeNames = {}, {}, {}, {}
+    for _, assignment in ipairs(bag.rules) do
+        assert(type(assignment) == "table" and type(assignment.name) == "string" and assignment.name ~= "",
+            "AutoCategory assignment is malformed in " .. context.title)
+        assert(type(assignment.runpriority) == "number" and assignment.runpriority == assignment.runpriority
+            and math.abs(assignment.runpriority) < math.huge,
+            "AutoCategory run priority is invalid in " .. context.title .. ": " .. assignment.name)
+        assert(type(assignment.showpriority) == "number" and assignment.showpriority == assignment.showpriority
+            and math.abs(assignment.showpriority) < math.huge,
+            "AutoCategory display priority is invalid in " .. context.title .. ": " .. assignment.name)
+        local ruleKey = GetManagedRuleKey(assignment, definitionsByName)
+        local reference
+        if ruleKey then
+            assert(definitionsByKey[ruleKey] ~= nil,
+                "AutoCategory assignment references an unavailable IC group: " .. ruleKey)
+            reference = "ic:" .. ruleKey
+            assert(actualAssignments[reference] == nil,
+                "AutoCategory has duplicate managed assignments for " .. reference .. " in " .. context.title)
+            actualAssignments[reference] = assignment
+            local rule = GetRuntimeRules()[ruleKey]
+            assert(rule ~= nil, "AutoCategory assignment references an unknown IC group: " .. ruleKey)
+            if rule.autoCategoryEnabled then
+                members[reference] = { reference = reference, ruleKey = ruleKey, assignment = assignment }
+            end
+        else
+            assert(nativeNames[assignment.name] == nil,
+                "AutoCategory has duplicate native assignments named '" .. assignment.name .. "' in " .. context.title)
+            nativeNames[assignment.name] = assignment
+            reference = "ac:" .. assignment.name
+            members[reference] = { reference = reference, name = assignment.name, assignment = assignment }
+        end
+        entries[#entries + 1] = {
+            reference = reference,
+            assignment = assignment,
+        }
+    end
+    for ruleKey, rule in pairs(GetRuntimeRules()) do
+        if IsOrdinaryRule(ruleKey, rule) and rule.autoCategoryEnabled then
+            local reference = "ic:" .. ruleKey
+            if members[reference] == nil then
+                members[reference] = {
+                    reference = reference,
+                    ruleKey = ruleKey,
+                    assignment = { name = definitionsByKey[ruleKey].name, runpriority = 0, showpriority = 0 },
+                }
+            end
+        end
+    end
+    for _, mode in ipairs({ "display", "matching" }) do
+        local sorted = {}
+        for _, entry in ipairs(entries) do
+            if members[entry.reference] then sorted[#sorted + 1] = entry end
+        end
+        SortAssignments(sorted, mode)
+        local sequence = {}
+        for index, entry in ipairs(sorted) do sequence[index] = entry.reference end
+        entries[mode] = sequence
+    end
+    return { entries = entries, members = members, definitions = definitionsByKey }
+end
+
+local function FilterToMembers(sequence, members)
+    local result, seen = {}, {}
+    for _, reference in ipairs(sequence) do
+        if members[reference] and not seen[reference] then
+            result[#result + 1] = reference
+            seen[reference] = true
+        end
+    end
+    return result, seen
+end
+
+local function MergeObservedReferences(saved, observed, members)
+    local result, present = FilterToMembers(saved, members)
+    for index, reference in ipairs(observed) do
+        if members[reference] and not present[reference] then
+            local insertion
+            for nextIndex = index + 1, #observed do
+                for resultIndex, existing in ipairs(result) do
+                    if existing == observed[nextIndex] then insertion = resultIndex; break end
+                end
+                if insertion then break end
+            end
+            if insertion then
+                table.insert(result, insertion, reference)
+            else
+                local previous
+                for previousIndex = index - 1, 1, -1 do
+                    for resultIndex, existing in ipairs(result) do
+                        if existing == observed[previousIndex] then previous = resultIndex; break end
+                    end
+                    if previous then break end
+                end
+                table.insert(result, previous and previous + 1 or #result + 1, reference)
+            end
+            present[reference] = true
+        end
+    end
+    for reference in pairs(members) do
+        if not present[reference] then result[#result + 1] = reference end
+    end
+    return result
+end
+
+local function SnapshotMatches(snapshot, observed, members)
+    if snapshot == nil then return false end
+    local observedSet = {}
+    for _, reference in ipairs(observed) do observedSet[reference] = true end
+    local expected = {}
+    for _, reference in ipairs(snapshot) do
+        if members[reference] and observedSet[reference] then expected[#expected + 1] = reference end
+    end
+    return SameSequence(expected, observed)
+end
+
+local function ValidateCompleteSequence(sequence, members, context, mode)
+    assert(type(sequence) == "table", context .. " " .. mode .. " order must be a list")
+    local seen = {}
+    for index, reference in ipairs(sequence) do
+        assert(type(reference) == "string" and members[reference],
+            context .. " " .. mode .. " order has an unavailable reference at position " .. tostring(index))
+        assert(not seen[reference], context .. " " .. mode .. " order repeats " .. reference)
+        seen[reference] = true
+    end
+    local memberCount = 0
+    for reference in pairs(members) do
+        memberCount = memberCount + 1
+        assert(seen[reference], context .. " " .. mode .. " order is missing " .. reference)
+    end
+    assert(#sequence == memberCount, context .. " " .. mode .. " order is not a complete permutation")
+    assert(memberCount <= 999,
+        context .. " has " .. tostring(memberCount) .. " assignments; AutoCategory supports at most 999 per order")
+end
+
+local function GetCurrentOrderData()
+    local profile = this.GetAutoCategoryProfile()
+    local order = profile.autoCategoryOrder
+    assert(type(order) == "table" and type(order.contexts) == "table",
+        "Schema-5 AutoCategory context orders are unavailable")
+    return profile, order
+end
+
+local function BuildPlans(orderOverride)
+    local ac = AutoCategory
+    CheckExternalShape(ac)
+    assert(ac.Inited == true, "AutoCategory must finish initialization before projection")
+    CheckActiveAssignments(ac)
+    assert(this.GetAutoCategoryState().enabled, "Cannot project while AutoCategory integration is disabled")
+    local definitions = BuildDefinitions()
+    local collisionFree, collision = CheckDefinitionCollision(ac, definitions)
+    assert(collisionFree, collision)
+    local profile, storedOrder = GetCurrentOrderData()
+    local snapshotByContext = projectedOrders[ac.saved]
+    local plans, reconciled = {}, { contexts = {} }
+    for _, context in ipairs(contexts) do
+        local model = BuildContextModel(context, definitions)
+        local savedContext = storedOrder.contexts[context.key]
+        assert(type(savedContext) == "table", "Missing saved AutoCategory context: " .. context.key)
+        local override = orderOverride and orderOverride[context.key]
+        local priorSnapshot = snapshotByContext and snapshotByContext[context.key]
+        local resolved = {}
+        for _, mode in ipairs({ "display", "matching" }) do
+            local observed = model.entries[mode]
+            local savedSequence = savedContext[mode]
+            assert(type(savedSequence) == "table", "Missing saved AutoCategory " .. mode .. " order: " .. context.key)
+            local sequence
+            if override and override[mode] ~= nil then
+                sequence = CopySequence(override[mode])
+            elseif priorSnapshot and SnapshotMatches(priorSnapshot[mode], observed, model.members) then
+                sequence = MergeObservedReferences(savedSequence, observed, model.members)
+            else
+                sequence = MergeObservedReferences(observed, observed, model.members)
+            end
+            ValidateCompleteSequence(sequence, model.members, context.title, mode)
+            resolved[mode] = sequence
+        end
+        local planned = {}
+        for _, mode in ipairs({ "display", "matching" }) do
+            local field = mode == "display" and "showpriority" or "runpriority"
+            for index, reference in ipairs(resolved[mode]) do
+                local entry = model.members[reference]
+                local target = planned[reference]
+                if target == nil then
+                    target = {
+                        reference = reference, ruleKey = entry.ruleKey, name = entry.name,
+                        assignment = entry.assignment, isManaged = reference:sub(1, 3) == "ic:",
+                    }
+                    if target.isManaged then target.name = model.definitions[entry.ruleKey].name end
+                    planned[reference] = target
+                end
+                target[field] = 1001 - index
+            end
+        end
+        plans[context.key] = { assignments = planned, orders = resolved }
+        reconciled.contexts[context.key] = resolved
+    end
+    return plans, reconciled, profile
+end
+
+local function ProjectPlans(plans)
+    local ac = AutoCategory
+    SyncDefinitions(ac, BuildDefinitions())
+    local changed = {}
+    reconciling = true
+    local ok, failure = xpcall(function()
+        for _, context in ipairs(contexts) do
+            local bag = ac.saved.bags[context.bagType()]
+            local plan = plans[context.key]
+            local managedByKey, wantedManaged = {}, {}
+            for _, assignment in ipairs(bag.rules) do
+                if assignment.icOwned == true then
+                    local key = GetManagedRuleKey(assignment, {})
+                    managedByKey[key] = assignment
+                end
+            end
+            for _, target in pairs(plan.assignments) do
+                if target.isManaged then wantedManaged[target.ruleKey] = true end
+            end
+            for index = #bag.rules, 1, -1 do
+                local assignment = bag.rules[index]
+                if assignment.icOwned == true then
+                    local key = GetManagedRuleKey(assignment, {})
+                    if not wantedManaged[key] then
+                        table.remove(bag.rules, index)
+                        changed[context.key] = true
+                    end
+                end
+            end
+            local nativeByName = {}
+            for _, assignment in ipairs(bag.rules) do
+                if assignment.icOwned ~= true then nativeByName[assignment.name] = assignment end
+            end
+            for _, target in pairs(plan.assignments) do
+                local assignment
+                if target.isManaged then
+                    assignment = managedByKey[target.ruleKey]
+                    if assignment == nil then
+                        assignment = { name = target.name, icOwned = true, icRuleKey = target.ruleKey }
+                        bag.rules[#bag.rules + 1] = assignment
+                        managedByKey[target.ruleKey] = assignment
+                        changed[context.key] = true
+                    end
+                    if assignment.name ~= target.name then
+                        assignment.name = target.name
+                        changed[context.key] = true
+                    end
+                    if assignment.icRuleKey ~= target.ruleKey then
+                        assignment.icRuleKey = target.ruleKey
+                        changed[context.key] = true
+                    end
+                else
+                    assignment = nativeByName[target.name]
+                    assert(assignment ~= nil, "AutoCategory native assignment disappeared after preflight: " .. target.name)
+                end
+                if assignment.runpriority ~= target.runpriority then
+                    assignment.runpriority = target.runpriority
+                    changed[context.key] = true
+                end
+                if assignment.showpriority ~= target.showpriority then
+                    assignment.showpriority = target.showpriority
+                    changed[context.key] = true
+                end
+            end
+        end
+        RefreshContexts(ac, changed, true)
+    end, function(errorValue)
+        reconciling = false
+        return errorValue
+    end)
+    reconciling = false
+    if not ok then error(failure) end
+    local snapshots = {}
+    for _, context in ipairs(contexts) do
+        snapshots[context.key] = {
+            display = CopySequence(plans[context.key].orders.display),
+            matching = CopySequence(plans[context.key].orders.matching),
+        }
+    end
+    projectedOrders[ac.saved] = snapshots
+    return changed
+end
+
+local function ReportProjectionFailure(failure)
+    integration.Fail(failure)
+    return false
+end
+
+function integration.PreflightAutoCategory(orderOverride)
+    if integration.IsFaulted() then return nil, this.autoCategoryFailure end
+    local ok, plans, reconciled, profile = pcall(BuildPlans, orderOverride)
+    if not ok then
+        integration.Fail(plans)
+        return nil, tostring(plans)
+    end
+    return { plans = plans, order = reconciled, profile = profile }
+end
+
+function integration.ProjectAutoCategory(preflight)
+    local prepared = preflight
+    if prepared == nil then
+        local failure
+        prepared, failure = integration.PreflightAutoCategory()
+        if prepared == nil then return ReportProjectionFailure(failure) end
+    end
+    local changed = ProjectPlans(prepared.plans)
+    prepared.profile.autoCategoryOrder = prepared.order
+    SetStatus("available", "AutoCategory display and matching orders are synchronized for the selected context.")
+    return changed
+end
+
+function integration.ResolveAutoCategoryOrder(contextKey, options)
+    assert(contextByKey[contextKey], "Unknown AutoCategory context: " .. tostring(contextKey))
+    local mode = options and options.mode or "display"
+    assert(mode == "display" or mode == "matching", "Unknown AutoCategory ordering mode: " .. tostring(mode))
+    local _, order = GetCurrentOrderData()
+    local sequence = order.contexts[contextKey][mode]
+    local rules = GetRuntimeRules()
+    local rows = {}
+    for index, reference in ipairs(sequence) do
+        if reference:sub(1, 3) == "ic:" then
+            local ruleKey = reference:sub(4)
+            local rule = rules[ruleKey]
+            assert(rule and IsOrdinaryRule(ruleKey, rule) and rule.autoCategoryEnabled,
+                "Saved AutoCategory order references a nonparticipating IC group: " .. ruleKey)
+            rows[#rows + 1] = {
+                kind = "group", reference = reference, ruleKey = ruleKey,
+                name = rule.displayName, participating = true, index = index,
+            }
+        else
+            rows[#rows + 1] = {
+                kind = "heading", reference = reference, name = reference:sub(4),
+                index = index, hidden = false, scopeLabel = contextByKey[contextKey].title,
+            }
+        end
+    end
+    local nonparticipants = {}
+    for ruleKey, rule in pairs(rules) do
+        if IsOrdinaryRule(ruleKey, rule) and not rule.autoCategoryEnabled then
+            nonparticipants[#nonparticipants + 1] = { ruleKey = ruleKey, rule = rule }
+        end
+    end
+    table.sort(nonparticipants, function(left, right) return left.ruleKey < right.ruleKey end)
+    for _, entry in ipairs(nonparticipants) do
+        rows[#rows + 1] = {
+            kind = "group", reference = "ic:" .. entry.ruleKey, ruleKey = entry.ruleKey,
+            name = entry.rule.displayName, participating = false, index = #rows + 1,
+            orderCount = #sequence,
+        }
+    end
+    for _, row in ipairs(rows) do row.orderCount = row.orderCount or #sequence end
+    return rows
+end
+
+local function ApplyOrderOverride(orderOverride)
+    local prepared, failure = integration.PreflightAutoCategory(orderOverride)
+    if prepared == nil then return ReportProjectionFailure(failure) end
+    return integration.ProjectAutoCategory(prepared) ~= false
+end
+
+function integration.MoveEntry(reference, contextKey, mode, direction)
+    assert(contextByKey[contextKey], "Unknown AutoCategory context: " .. tostring(contextKey))
+    assert(mode == "display" or mode == "matching", "Unknown AutoCategory ordering mode: " .. tostring(mode))
+    assert(direction == -1 or direction == 1, "AutoCategory move direction must be -1 or 1")
+    local prepared, failure = integration.PreflightAutoCategory()
+    if prepared == nil then return ReportProjectionFailure(failure) end
+    local sequence = CopySequence(prepared.order.contexts[contextKey][mode])
+    local index
+    for position, candidate in ipairs(sequence) do
+        if candidate == reference then index = position; break end
+    end
+    assert(index ~= nil, "AutoCategory move target disappeared during reconciliation: " .. tostring(reference))
+    local target = index + direction
+    if target < 1 or target > #sequence then return false end
+    sequence[index], sequence[target] = sequence[target], sequence[index]
+    return ApplyOrderOverride({ [contextKey] = { [mode] = sequence } })
+end
+
+function integration.UseOtherOrder(contextKey, activeMode)
+    assert(contextByKey[contextKey], "Unknown AutoCategory context: " .. tostring(contextKey))
+    assert(activeMode == "display" or activeMode == "matching", "Unknown AutoCategory ordering mode")
+    local prepared, failure = integration.PreflightAutoCategory()
+    if prepared == nil then return ReportProjectionFailure(failure) end
+    local sourceMode = activeMode == "display" and "matching" or "display"
+    return ApplyOrderOverride({
+        [contextKey] = { [activeMode] = CopySequence(prepared.order.contexts[contextKey][sourceMode]) },
+    })
+end
+
+local function MergeDestinationSlots(source, destination)
+    local destinationSet, sourceSet, shared, result = {}, {}, {}, {}
+    for _, reference in ipairs(destination) do destinationSet[reference] = true end
+    for _, reference in ipairs(source) do
+        sourceSet[reference] = true
+        if destinationSet[reference] then shared[#shared + 1] = reference end
+    end
+    local sharedIndex = 1
+    for index, reference in ipairs(destination) do
+        if not sourceSet[reference] then
+            result[index] = reference
+        else
+            result[index] = shared[sharedIndex]
+            sharedIndex = sharedIndex + 1
+        end
+    end
+    assert(sharedIndex == #shared + 1, "Cross-context copy lost a shared AutoCategory reference")
+    return result
+end
+
+function integration.CopyBothOrders(sourceContext, destinationContext)
+    assert(contextByKey[sourceContext] and contextByKey[destinationContext],
+        "Unknown AutoCategory copy context")
+    if sourceContext == destinationContext then return false end
+    local prepared, failure = integration.PreflightAutoCategory()
+    if prepared == nil then return ReportProjectionFailure(failure) end
+    local source, destination = prepared.order.contexts[sourceContext], prepared.order.contexts[destinationContext]
+    local override = { [destinationContext] = {} }
+    for _, mode in ipairs({ "display", "matching" }) do
+        override[destinationContext][mode] = MergeDestinationSlots(source[mode], destination[mode])
+    end
+    return ApplyOrderOverride(override)
+end
+
+local originalInstallExternalHooks = InstallExternalHooks
+InstallExternalHooks = function()
+    originalInstallExternalHooks()
+    if renameHookInstalled then return end
+    local ac = AutoCategory
+    assert(type(ac.renameBagRule) == "function", "AutoCategory renameBagRule hook target is unavailable")
+    ZO_PostHook(ac, "renameBagRule", function(oldName, newName) integration.Run(function()
+        if reconciling or ac.Inited ~= true then return end
+        assert(type(oldName) == "string" and oldName ~= "" and type(newName) == "string" and newName ~= "",
+            "AutoCategory rename hook supplied invalid names")
+        local profile = this.GetAutoCategoryProfile()
+        local oldReference, newReference = "ac:" .. oldName, "ac:" .. newName
+        for _, context in ipairs(contexts) do
+            local lists = profile.autoCategoryOrder.contexts[context.key]
+            for _, mode in ipairs({ "display", "matching" }) do
+                local seen = {}
+                for index, reference in ipairs(lists[mode]) do
+                    if reference == oldReference then lists[mode][index] = newReference end
+                    assert(not seen[lists[mode][index]],
+                        "AutoCategory rename creates duplicate order reference: " .. newReference)
+                    seen[lists[mode][index]] = true
+                end
+            end
+        end
+        local snapshots = projectedOrders[ac.saved]
+        if snapshots then
+            for _, context in ipairs(contexts) do
+                for _, mode in ipairs({ "display", "matching" }) do
+                    for index, reference in ipairs(snapshots[context.key][mode]) do
+                        if reference == oldReference then snapshots[context.key][mode][index] = newReference end
+                    end
+                end
+            end
+        end
+        ScheduleReconcile("native-category-renamed", false)
+    end) end)
+    renameHookInstalled = true
+end
+
+for _, name in ipairs({
+    "Initialize", "OnRuleMutation", "OnProfileChanged", "OnEnablementChanged",
+    "ProjectAutoCategory", "MoveEntry", "UseOtherOrder", "CopyBothOrders", "GetHeadingDetails",
+}) do
+    local operation = integration[name]
+    integration[name] = function(...) return integration.Run(operation, ...) end
 end

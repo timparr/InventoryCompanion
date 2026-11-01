@@ -1,14 +1,12 @@
 local this = InventoryCompanion
 
 local rows = {}
-local selectedGroup
-local selectedHeading
-local movedGroup
-local context = "master"
-local showNonparticipatingGroups = true
-local showAllHeadings = false
+local selectedReference
+local context = "backpack"
+local mode = "display"
 local searchQuery = ""
 local contextCombo
+local copyContextCombo
 
 local ROW_HEIGHT = 32
 
@@ -24,14 +22,9 @@ local function IsActive()
     return this.AutoCategoryIntegration.IsEditorActive()
 end
 
-local function AssertCurrentView(contextAtRender)
-    assert(IsActive() and context == contextAtRender, "AutoCategory editor action targets a stale view")
-end
-
-local function MovesAllowed()
-    return searchQuery == ""
-        and not showAllHeadings
-        and (context ~= "master" or not showNonparticipatingGroups)
+local function AssertCurrentView(contextAtRender, modeAtRender)
+    assert(IsActive() and context == contextAtRender and mode == modeAtRender,
+        "AutoCategory editor action targets a stale view")
 end
 
 local function ShowTooltip(control, text)
@@ -43,288 +36,229 @@ local function HideTooltip()
     ClearTooltip(InformationTooltip)
 end
 
-local function BindCheckLabel(label, check)
-    label:SetHandler("OnMouseDown", function(_, button)
-        if button == MOUSE_BUTTON_INDEX_LEFT then ZO_CheckButton_OnClicked(check) end
-    end)
-end
-
-------------------------------------------------------------------
--- Toolbar
-------------------------------------------------------------------
-local function ConfigureContextCombo()
-    contextCombo = contextCombo or ZO_ComboBox_ObjectFromContainer(GetControl(Window("TopActionBar"), "ContextMode"))
-    assert(contextCombo, "AutoCategory editor is missing its context selector")
-    contextCombo:SetSortsItems(false)
-    contextCombo:ClearItems()
+local function ConfigureCombo(containerName, selected, select)
+    local combo = ZO_ComboBox_ObjectFromContainer(GetControl(Window("TopActionBar"), containerName))
+    assert(combo, "AutoCategory editor is missing its " .. containerName .. " selector")
+    combo:SetSortsItems(false)
+    combo:ClearItems()
     for _, entryContext in ipairs(this.AutoCategoryIntegration.GetContexts()) do
-        local entry = contextCombo:CreateItemEntry(entryContext.title,
+        local entry = combo:CreateItemEntry(entryContext.title,
             function(_, _, itemData, selectionChanged)
-                if selectionChanged and itemData then
-                    context = itemData.key
-                    selectedHeading = nil
-                    this.RefreshAutoCategoryEditor()
-                end
+                if selectionChanged and itemData then select(itemData.key) end
             end)
         entry.key = entryContext.key
-        contextCombo:AddItem(entry)
-        if entryContext.key == context then
-            contextCombo:SetSelectedItem(entryContext.title)
-        end
+        combo:AddItem(entry)
+        if entryContext.key == selected then combo:SetSelectedItem(entryContext.title) end
     end
+    return combo
 end
 
 local function ConfigureToolbar()
     local topBar = Window("TopActionBar")
-    local optionsBar = Window("OptionsBar")
-    local master = context == "master"
-
-    local findBox = GetControl(topBar, "FindBox")
-    findBox:SetHandler("OnTextChanged", function(control)
+    GetControl(topBar, "FindBox"):SetHandler("OnTextChanged", function(control)
         searchQuery = control:GetText():lower():match("^%s*(.-)%s*$")
         this.RefreshAutoCategoryEditor()
     end)
 
-    ConfigureContextCombo()
-
-    local reset = GetControl(topBar, "BtnReset")
-    reset:SetText(master and "Reset" or "Reset to Master")
-    reset:SetHandler("OnClicked", function()
-        assert(IsActive(), "AutoCategory reset action targets an inactive integration")
-        if context == "master" then
-            this.AutoCategoryIntegration.ChoosePreset(true)
-        else
-            this.ResetAutoCategoryContext(context)
-            this.RefreshAutoCategoryEditor()
-        end
-    end)
-
-    local showNon = GetControl(optionsBar, "ChkShowNonparticipating")
-    local showNonLabel = GetControl(optionsBar, "LblShowNonparticipating")
-    showNon:SetHidden(not master)
-    showNonLabel:SetHidden(not master)
-    ZO_CheckButton_SetCheckState(showNon, showNonparticipatingGroups)
-    ZO_CheckButton_SetToggleFunction(showNon, function(_, checked)
-        assert(context == "master", "Nonparticipating filter targets a non-Master view")
-        showNonparticipatingGroups = checked
+    contextCombo = ConfigureCombo("ContextMode", context, function(value)
+        context = value
+        selectedReference = nil
         this.RefreshAutoCategoryEditor()
     end)
-    BindCheckLabel(showNonLabel, showNon)
 
-    local showAll = GetControl(optionsBar, "ChkShowAllHeadings")
-    ZO_CheckButton_SetCheckState(showAll, showAllHeadings)
-    ZO_CheckButton_SetToggleFunction(showAll, function(_, checked)
-        showAllHeadings = checked
+    local source = copyContextCombo and copyContextCombo.selectedKey or nil
+    if source == nil or source == context then
+        source = this.AutoCategoryIntegration.GetContexts()[1].key
+        if source == context then source = this.AutoCategoryIntegration.GetContexts()[2].key end
+    end
+    copyContextCombo = ConfigureCombo("CopyContext", source, function(value)
+        copyContextCombo.selectedKey = value
+        GetControl(Window("TopActionBar"), "BtnCopyBoth"):SetEnabled(value ~= context)
+    end)
+    copyContextCombo.selectedKey = source
+
+    local copy = GetControl(topBar, "BtnCopyBoth")
+    copy:SetText("Copy both orders")
+    copy:SetEnabled(source ~= context)
+    copy:SetHandler("OnClicked", function() this.AutoCategoryIntegration.Run(function()
+        local currentSource = copyContextCombo.selectedKey
+        assert(IsActive() and currentSource ~= context, "AutoCategory copy targets an invalid context")
+        this.AutoCategoryIntegration.CopyBothOrders(currentSource, context)
+        selectedReference = nil
+        this.RefreshAutoCategoryEditor()
+    end) end)
+    copy:SetHandler("OnMouseEnter", function(control)
+        ShowTooltip(control, "Copy both orders from the selected context. Only references present in this context are reordered.")
+    end)
+    copy:SetHandler("OnMouseExit", HideTooltip)
+
+    local options = Window("OptionsBar")
+    local display = GetControl(options, "BtnDisplayOrder")
+    local priority = GetControl(options, "BtnPriorityOrder")
+    display:SetEnabled(mode ~= "display")
+    priority:SetEnabled(mode ~= "matching")
+    display:SetHandler("OnClicked", function()
+        mode = "display"
         this.RefreshAutoCategoryEditor()
     end)
-    BindCheckLabel(GetControl(optionsBar, "LblShowAllHeadings"), showAll)
+    priority:SetHandler("OnClicked", function()
+        mode = "matching"
+        this.RefreshAutoCategoryEditor()
+    end)
+    local useOther = GetControl(options, "BtnUseOtherOrder")
+    useOther:SetText(mode == "display" and "Use priority list" or "Use display list")
+    useOther:SetHandler("OnClicked", function() this.AutoCategoryIntegration.Run(function()
+        AssertCurrentView(context, mode)
+        this.AutoCategoryIntegration.UseOtherOrder(context, mode)
+        this.RefreshAutoCategoryEditor()
+    end) end)
 
     local info = Window("Info")
-    if searchQuery ~= "" then
-        info:SetText("Clear search to move groups.")
-    elseif (master and showNonparticipatingGroups) or showAllHeadings then
-        info:SetText("Hide nonparticipating groups and hidden headings to move groups.")
-    elseif master then
-        info:SetText("Set shared group placements here. Heading labels show where each row applies; elsewhere, groups fall back to the nearest applicable heading.")
+    if mode == "display" then
+        info:SetText("Display order — Where assignment headings appear in inventory. Set's generated set-name headings stay together under Set. Use Priority order to change which matching rule wins.")
     else
-        info:SetText("This shows the effective order for this context. Group matching uses the same IC filters; Master changes flow through unless you override a group here.")
+        info:SetText("Priority order — First matching assignment wins. A catch-all group before Set shadows Set; moving Set changes classification, not its inventory heading position. Display order is independent.")
     end
 end
 
-------------------------------------------------------------------
--- Rows
-------------------------------------------------------------------
 local function GetOrCreateRow(scrollChild, index)
     local row = rows[index]
-    if not row then
-        row = CreateControlFromVirtual("InventoryCompanion_AutoCategoryRow_", scrollChild, "InventoryCompanion_AutoCategoryRow_Template", index)
+    if row == nil then
+        row = CreateControlFromVirtual("InventoryCompanion_AutoCategoryRow_", scrollChild,
+            "InventoryCompanion_AutoCategoryRow_Template", index)
         rows[index] = row
     end
     return row
 end
 
 local function IsSelected(entry)
-    if entry.kind == "group" then return entry.ruleKey == selectedGroup end
-    return selectedHeading ~= nil and entry.occurrenceId == selectedHeading.occurrenceId
+    return selectedReference == entry.reference
 end
 
 local function RowAlpha(entry)
-    if IsSelected(entry) then return 0.4 end
-    if entry.kind == "group" and entry.ruleKey == movedGroup then return 0.45 end
-    return 0
+    return IsSelected(entry) and 0.4 or 0
 end
 
-local function ConfigureParticipation(row, entry, contextAtRender)
+local function ConfigureParticipation(row, entry, contextAtRender, modeAtRender)
     local participation = GetControl(row, "Participation")
-    participation:SetHidden(not (contextAtRender == "master" and entry.kind == "group"))
-    if contextAtRender ~= "master" or entry.kind ~= "group" then return end
+    participation:SetHidden(entry.kind ~= "group")
+    if entry.kind ~= "group" then return end
     ZO_CheckButton_SetCheckState(participation, entry.participating)
-    ZO_CheckButton_SetToggleFunction(participation, function(_, enabled)
+    ZO_CheckButton_SetToggleFunction(participation, function(_, enabled) this.AutoCategoryIntegration.Run(function()
         assert(row.autoCategoryEntry == entry, "AutoCategory participation action targets a stale row")
-        AssertCurrentView(contextAtRender)
+        AssertCurrentView(contextAtRender, modeAtRender)
         this.SetAutoCategoryParticipation(entry.ruleKey, enabled)
         this.RefreshAutoCategoryEditor()
         this.RefreshTrackedItemsEditor()
-    end)
+    end) end)
     participation:SetHandler("OnMouseEnter", function(control)
-        ShowTooltip(control, "Include this group in AutoCategory. Participation applies across all AutoCategory contexts.")
+        ShowTooltip(control, "Include this group in AutoCategory across all seven contexts.")
     end)
     participation:SetHandler("OnMouseExit", HideTooltip)
 end
 
-local function ConfigureVisibility(row, entry, contextAtRender)
-    local visibility = GetControl(row, "Visibility")
-    visibility:SetHidden(entry.kind ~= "heading")
-    if entry.kind ~= "heading" then return end
-    local isVisible
-    if contextAtRender == "master" then
-        local headingVisibility = this.GetAutoCategoryState().order.headingVisibility
-        isVisible = not (headingVisibility and headingVisibility[entry.occurrenceId] == false)
-    else
-        isVisible = not entry.hidden
-    end
-    ZO_CheckButton_SetCheckState(visibility, isVisible)
-    ZO_CheckButton_SetToggleFunction(visibility, function(_, visible)
-        assert(row.autoCategoryEntry == entry, "AutoCategory heading action targets a stale row")
-        AssertCurrentView(contextAtRender)
-        this.SetAutoCategoryHeadingVisibility(contextAtRender, entry.occurrenceId, visible)
-        this.RefreshAutoCategoryEditor()
-    end)
-    visibility:SetHandler("OnMouseEnter", function(control)
-        ShowTooltip(control, "Show this AutoCategory heading in this list.")
-    end)
-    visibility:SetHandler("OnMouseExit", HideTooltip)
-end
-
-local function ConfigureMoves(row, entry, index, count, contextAtRender)
+local function ConfigureMoves(row, entry, orderIndex, count, contextAtRender, modeAtRender)
     local moveUp, moveDown = GetControl(row, "MoveUp"), GetControl(row, "MoveDown")
-    local canMove = MovesAllowed() and entry.kind == "group" and entry.participating
+    local canMove = entry.kind == "heading" or entry.participating
     moveUp:SetHidden(not canMove)
     moveDown:SetHidden(not canMove)
     if not canMove then return end
-
-    local canMoveUp, canMoveDown = index > 1, index < count
-    moveUp:SetEnabled(canMoveUp)
-    moveDown:SetEnabled(canMoveDown)
+    moveUp:SetEnabled(orderIndex > 1)
+    moveDown:SetEnabled(orderIndex < count)
     local function Move(direction)
-        assert(row.autoCategoryEntry == entry and MovesAllowed(),
-            "AutoCategory move action targets a stale or expanded view")
-        AssertCurrentView(contextAtRender)
-        if direction < 0 and not canMoveUp or direction > 0 and not canMoveDown then return end
-        this.AutoCategoryIntegration.MoveGroup(entry.ruleKey, contextAtRender, direction)
-        movedGroup = entry.ruleKey
+        assert(row.autoCategoryEntry == entry, "AutoCategory move action targets a stale row")
+        AssertCurrentView(contextAtRender, modeAtRender)
+        if direction < 0 and orderIndex == 1 or direction > 0 and orderIndex == count then return end
+        local applied = this.AutoCategoryIntegration.MoveEntry(entry.reference, contextAtRender, modeAtRender, direction)
+        if not applied then return end
+        selectedReference = entry.reference
         PlaySound(SOUNDS.MENU_BAR_CLICK)
         this.RefreshAutoCategoryEditor()
     end
-    moveUp:SetHandler("OnClicked", function() Move(-1) end)
-    moveDown:SetHandler("OnClicked", function() Move(1) end)
-    moveUp:SetHandler("OnMouseEnter", function(control) ShowTooltip(control, "Move this group up.") end)
-    moveDown:SetHandler("OnMouseEnter", function(control) ShowTooltip(control, "Move this group down.") end)
+    moveUp:SetHandler("OnClicked", function() this.AutoCategoryIntegration.Run(Move, -1) end)
+    moveDown:SetHandler("OnClicked", function() this.AutoCategoryIntegration.Run(Move, 1) end)
+    moveUp:SetHandler("OnMouseEnter", function(control) ShowTooltip(control, "Move this assignment up one position.") end)
+    moveDown:SetHandler("OnMouseEnter", function(control) ShowTooltip(control, "Move this assignment down one position.") end)
     moveUp:SetHandler("OnMouseExit", HideTooltip)
     moveDown:SetHandler("OnMouseExit", HideTooltip)
 end
 
-local function PopulateRow(row, entry, index, count, scrollChild)
+local function PopulateRow(row, entry, displayIndex, scrollChild, contextAtRender, modeAtRender)
     row:ClearAnchors()
-    row:SetAnchor(TOPLEFT, scrollChild, TOPLEFT, 0, (index - 1) * ROW_HEIGHT)
+    row:SetAnchor(TOPLEFT, scrollChild, TOPLEFT, 0, (displayIndex - 1) * ROW_HEIGHT)
     row:SetHidden(false)
     row.autoCategoryEntry = entry
 
-    local selected = IsSelected(entry)
     local label = GetControl(row, "Name")
     local bg = GetControl(row, "BG")
     bg:SetAlpha(RowAlpha(entry))
     if entry.kind == "heading" then
-        label:SetText("|cFFD27FAutoCategory|r " .. EscapeEsoMarkup(entry.name)
-            .. "  |cAAAAAA[" .. EscapeEsoMarkup(entry.scopeLabel) .. "]|r")
+        label:SetText(EscapeEsoMarkup(entry.name))
         label:SetColor(0.9, 0.82, 0.65, 1)
     else
         label:SetText(entry.name)
-        local shade = not entry.participating and 0.48 or (selected and 0.95 or 0.7)
-        label:SetColor(shade, shade, shade, 1)
+        if modeAtRender == "display" then label:SetColor(0.72, 0.88, 0.74, 1)
+        else label:SetColor(0.76, 0.78, 0.98, 1) end
     end
 
     row:SetHandler("OnMouseEnter", function()
-        if not selected then bg:SetAlpha(0.2) end
+        if not IsSelected(entry) then bg:SetAlpha(0.2) end
     end)
-    row:SetHandler("OnMouseExit", function()
-        bg:SetAlpha(RowAlpha(entry))
-    end)
-    row:SetHandler("OnMouseDown", function()
+    row:SetHandler("OnMouseExit", function() bg:SetAlpha(RowAlpha(entry)) end)
+    row:SetHandler("OnMouseDown", function() this.AutoCategoryIntegration.Run(function()
         assert(row.autoCategoryEntry == entry and IsActive(), "AutoCategory row selection targets stale data")
-        if entry.kind == "group" then
-            selectedGroup = entry.ruleKey
-            selectedHeading = nil
-        else
-            selectedHeading = entry
-        end
+        selectedReference = entry.reference
         this.RefreshAutoCategoryEditor()
-    end)
+    end) end)
 
-    local contextAtRender = context
-    ConfigureParticipation(row, entry, contextAtRender)
-    ConfigureVisibility(row, entry, contextAtRender)
-    ConfigureMoves(row, entry, index, count, contextAtRender)
+    ConfigureParticipation(row, entry, contextAtRender, modeAtRender)
+    ConfigureMoves(row, entry, entry.index, entry.orderCount, contextAtRender, modeAtRender)
 end
 
-local function GetFilteredEntries()
-    local resolved = this.AutoCategoryIntegration.ResolveAutoCategoryOrder(context, {
-        showNonparticipants = showNonparticipatingGroups,
-        showAllHeadings = showAllHeadings,
-    })
-    local filtered = {}
-    local selectedHeadingVisible = false
-    for _, entry in ipairs(resolved) do
-        local include = entry.kind == "heading"
-            or context == "master" and showNonparticipatingGroups
-            or entry.participating
-        if include and (searchQuery == "" or entry.name:lower():find(searchQuery, 1, true)) then
-            filtered[#filtered + 1] = entry
-            if selectedHeading and entry.kind == "heading" and entry.occurrenceId == selectedHeading.occurrenceId then
-                selectedHeadingVisible = true
-                selectedHeading = entry
-            end
-        end
-    end
-    if not selectedHeadingVisible then selectedHeading = nil end
-    return filtered
-end
-
-local function PopulateList()
+local function PopulateList(contextAtRender, modeAtRender)
     for _, row in ipairs(rows) do row:SetHidden(true) end
     local scrollChild = GetControl(Window("List"), "ScrollChild")
     assert(scrollChild, "AutoCategory editor is missing its list ScrollChild")
-    local entries = GetFilteredEntries()
-    for index, entry in ipairs(entries) do
-        PopulateRow(GetOrCreateRow(scrollChild, index), entry, index, #entries, scrollChild)
+    local entries = this.AutoCategoryIntegration.ResolveAutoCategoryOrder(contextAtRender, { mode = modeAtRender })
+    local displayed = {}
+    local selectedFound = false
+    for _, entry in ipairs(entries) do
+        if searchQuery == "" or entry.name:lower():find(searchQuery, 1, true) then
+            displayed[#displayed + 1] = entry
+            if entry.reference == selectedReference then selectedFound = true end
+        end
+    end
+    if not selectedFound then selectedReference = nil end
+    for index, entry in ipairs(displayed) do
+        PopulateRow(GetOrCreateRow(scrollChild, index), entry, index, scrollChild, contextAtRender, modeAtRender)
     end
 end
 
-local function PopulateHeadingDetails()
+local function PopulateDetails()
     local details = Window("HeadingDetails")
-    if not selectedHeading then
-        details:SetText("|cAAAAAASelect an AutoCategory heading to see its filter.|r")
+    if selectedReference == nil or selectedReference:sub(1, 3) ~= "ac:" then
+        details:SetText("Native assignments retain their AutoCategory filters. IC group patterns remain editable in Edit Groups.")
         return
     end
-    local definition = this.AutoCategoryIntegration.GetHeadingDetails(selectedHeading.name)
+    local name = selectedReference:sub(4)
+    local definition = this.AutoCategoryIntegration.GetHeadingDetails(name)
     details:SetText(definition
-        and ("|cFFD27F" .. EscapeEsoMarkup(selectedHeading.name) .. "|r filter: " .. EscapeEsoMarkup(definition.rule))
-        or "This AutoCategory heading is no longer available.")
+        and ("|cFFD27F" .. EscapeEsoMarkup(name) .. "|r filter: " .. EscapeEsoMarkup(definition.rule))
+        or ("Native AutoCategory assignment: " .. EscapeEsoMarkup(name)))
 end
 
-------------------------------------------------------------------
--- Refresh & Scene
-------------------------------------------------------------------
 function this.RefreshAutoCategoryEditor()
     if InventoryCompanion_AutoCategoryWindow:IsHidden() then return end
     if not IsActive() then
-        -- Integration was disabled or AutoCategory became unavailable while this editor was open.
         this.OpenEditGroupsPanel()
         return
     end
-    ConfigureToolbar()
-    PopulateList()
-    PopulateHeadingDetails()
+    this.AutoCategoryIntegration.Run(function()
+        ConfigureToolbar()
+        local contextAtRender, modeAtRender = context, mode
+        PopulateList(contextAtRender, modeAtRender)
+        PopulateDetails()
+    end)
 end
 
 local autoCategoryScene = ZO_Scene:New("InventoryCompanion_AutoCategoryScene", SCENE_MANAGER)

@@ -754,14 +754,14 @@ local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
         refreshCallback()
         this.RefreshAutoCategoryEditor()
     end
-    ZO_CheckButton_SetToggleFunction(check, function(_, enabled) Apply(enabled) end)
-    label:SetHandler("OnMouseDown", function(_, button)
+    ZO_CheckButton_SetToggleFunction(check, function(_, enabled) this.AutoCategoryIntegration.Run(Apply, enabled) end)
+    label:SetHandler("OnMouseDown", function(_, button) this.AutoCategoryIntegration.Run(function()
         if button == MOUSE_BUTTON_INDEX_LEFT then
             local current = this.GetRuntimeRules()[entry.key]
             assert(current ~= nil, "AutoCategory label targets a missing group")
             Apply(current.autoCategoryEnabled ~= true)
         end
-    end)
+    end) end)
     local function ShowTooltip(control)
         InitializeTooltip(InformationTooltip, control, RIGHT, -4, 0)
         InformationTooltip:AddLine("Participation applies across all AutoCategory contexts.")

@@ -2,12 +2,65 @@
 
 ## Status
 
-Implemented on `feature/autocategory-integration`. Focused automated tests pass,
-but post-implementation ESO acceptance and compatibility certification remain
-incomplete. The integration is opt-in and disabled by default. No normal saved
-variables or live inventory were used.
+The ordering fix is implemented on `feature/autocategory-integration`. The
+integration remains opt-in and disabled by default. The current regression
+runner passes **117/117 isolated addon tests**, including schema-4 downgrade
+protection, and checks Lua syntax with Lua 5.1. Tests use synthetic data only;
+normal saved variables and live inventory were not used. ESO in-game acceptance,
+compatibility certification, and release readiness remain incomplete.
 
-## Delivered
+### Current ordering implementation
+
+- Saved-variable schema is version 5. Each account-wide and character profile
+  stores independent Display and Priority lists for seven contexts, using
+  stable `ic:<rule key>` and `ac:<category name>` references. Lists are
+  validated before ZOS constructors. Invalid or legacy AutoCategory setup is
+  preserved but excluded from use, with a warning and session-only integration
+  disable. Core profiles upgrade non-destructively even when integration data
+  cannot be used. The downgrade test pins the actual schema-4
+  build at `9d2531ef621725351039ad7d3044b4a55d426b75`.
+- The editor has independent Display and Priority modes, native assignment
+  rows, participation controls, full-list moves, one-time cross-context
+  copying, and one-time same-context order copying. There are no presets,
+  Master sequence, heading visibility controls, rank prefixes, or per-group
+  rank/anchor fields.
+- Projection preflights every context, assigns integer priorities from 1000
+  down to 2, and rejects lists over 999 assignments before writing. It changes
+  only native run/show priorities, preserving native names, membership,
+  visibility and other assignment fields. Rename reconciliation, disable
+  cleanup, round-trip idempotence, independent move modes, and copy behavior
+  have focused regression coverage.
+- User documentation and the Unreleased changelog describe the new behavior.
+- AutoCategory-only failures no longer prevent the rest of IC from loading.
+  Saved-data validation, plugin registration/initialization, deferred work,
+  classification, hooks, projection and editor actions report errors and stop
+  integration for the session. Pending work is invalidated and managed
+  assignments are removed where the external APIs remain usable; cleanup
+  failures are also reported. Saved enablement choices are retained, but
+  effective enablement and the editor remain off until reload. Higher saved
+  versions and core-data errors retain the hard startup stop. Tests cover
+  legacy and malformed AC data with successful core startup, repeated startup,
+  incompatible dependencies, registration/classifier/deferred cache failures,
+  warning delivery and prevention of further scheduling after failure.
+- Added `/iccleanautocategory` as an owner-only cleanup command. It proceeds
+  only when ESO's current account is `@Tim-P`, targets only that account's IC
+  profile buckets, clears IC integration/legacy ordering fields, and removes
+  only assignments explicitly marked `icOwned` from AutoCategory's account
+  and character saved profiles. It preserves unrelated IC settings, other
+  account buckets, native AC assignments and definitions, and instructs the
+  owner to run `/reloadui`. Synthetic tests cover account rejection and schema-4
+  cleanup before constructors; no live saved variables were touched.
+- Remaining acceptance follows the ordering-fix plan: verify classification
+  and rendered order in ESO, including all seven contexts, reload/profile
+  behavior, external edits, and the user's Set/Test-group case. Do not treat
+  offline tests as compatibility certification.
+
+The following sections preserve historical evidence from the earlier
+schema-4 Master/preset implementation. Where they conflict with the current
+ordering contract above, the ordering-fix plan and current summary take
+precedence.
+
+## Historical delivery notes (before ordering redesign)
 
 - Added schema-v4 saved-state validation and migration for integration
   enablement, participation, heading visibility and sparse placement overrides.
@@ -118,7 +171,7 @@ variables or live inventory were used.
   spike-status record and historical review with the current D4 and
   implementation status.
 
-## Verification
+## Historical verification (before ordering redesign)
 
 | Check | Result |
 | --- | --- |
@@ -138,7 +191,7 @@ variables or live inventory were used.
 | ESO in-game acceptance | Partial: Debug Key startup checks passed with integration disabled and enabled, as described above. Projection with participating groups and the remaining acceptance matrix are not yet verified. In-game order verification is deferred by the user until the ordering UI is reworked, because the current editors make order hard to inspect. |
 | Standalone spike testing | Not reopened or repeated. |
 
-## Differences from the implementation plan
+## Historical differences from the earlier implementation plan
 
 - Context moves persist only the moved group's context placement override;
   they do not swap a neighboring group's order. This avoids introducing an
@@ -154,7 +207,7 @@ variables or live inventory were used.
   is outside this repository and was not modified; confirm its scope and update
   it before a release package can load the integration.
 
-## Decisions and remaining acceptance
+## Historical decisions and remaining acceptance
 
 - **D4 is approved.** Production rank-bearing empty colour prefixes are
   authorized, including the accepted renamed-heading expansion behavior and

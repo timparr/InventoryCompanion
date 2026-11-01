@@ -1,6 +1,6 @@
 # AutoCategory ordering fix: implementation plan
 
-Updated 2026-11-01. **Planning only; not implemented.**
+Updated 2026-11-01. **Implementation is present; in-game acceptance remains pending.**
 
 This is the current ordering-fix plan, incorporating the subsequent saved-data
 discussion. It supersedes the proposed ordering replacement section in the
@@ -8,9 +8,25 @@ discussion. It supersedes the proposed ordering replacement section in the
 not the integration's unrelated requirements or release gates.
 Read the [spec](todo_plan_autocategoryIntegration.md),
 [dependency evidence](AutoCategorySpikeResults.md) and
-[implementation report](AutoCategoryImplementationReport.md) for existing
-contracts and evidence limits. Update those documents to the approved ordering
-contract before changing runtime behavior.
+[implementation report](AutoCategoryImplementationReport.md) for the current
+contract and evidence limits. The spec, report, user manual and working
+changelog now reflect this ordering design. The regression runner passes
+117/117 isolated addon tests, including synthetic schema-4 downgrade
+protection. Normal saved variables and live inventory were not used. ESO
+acceptance, compatibility certification and release readiness remain pending.
+The owner-only `/iccleanautocategory` command runs only for ESO account
+`@Tim-P`; it clears that account's integration data and explicitly IC-owned
+AutoCategory assignments while preserving unrelated settings, then asks for
+`/reloadui`. Its account-isolation and cleanup behavior is covered by synthetic
+tests.
+
+AutoCategory errors now warn and disable integration for the session, without
+preventing core addon startup or operation. Invalid integration-only saved data
+is preserved, excluded from runtime use, and not normalized. Core profiles still
+upgrade to schema 5 before ZOS constructors, preserving downgrade protection.
+This supersedes the earlier requirement to abort all startup on legacy AC
+ordering. Newer unsupported schemas and unrelated core data errors still stop
+loading; they are not integration-only failures.
 
 ## Problem and required outcome
 
@@ -56,7 +72,7 @@ classification precedence.
   author rebuild integration configuration. This does not authorize silent
   resets, loss of unrelated data or unsafe downgrades.
 
-## Proposed saved-variable shape
+## Saved-variable shape
 
 Within each IC account-wide or character profile:
 
