@@ -85,7 +85,7 @@ details remain subject to the [spec refinement](todo_plan_autocategoryIntegratio
 - Retain placements for nonparticipants; first participation appends a never-
   ordered group to the master top slot. Missing/hidden headings resolve to a
   preceding usable heading/top without read-time writes. Do not invent the
-  unresolved fallback or General heading-order rules.
+  unresolved fallback or Master heading-order rules.
 - Never persist compiled patterns/computed priorities or a registry of old
   category names.
 
@@ -123,7 +123,7 @@ details remain subject to the [spec refinement](todo_plan_autocategoryIntegratio
 - Proposed narrow mutations: `SetAutoCategoryParticipation`,
   `MoveAutoCategoryGroup(view, ruleKey, direction)`,
   `SetAutoCategoryHeadingHidden(name, hidden)`, plus profile-scoped enablement.
-  General moves update the master; context moves update the moved group's
+  Master moves update shared defaults; context moves update the moved group's
   differing anchor/rank fields. Cleanup may remap all saved ranks but must not
   change any effective order. Override-reset UI/mutations remain undecided.
 - `DeleteCustomRule` removes master placement, overrides and participation;
@@ -227,7 +227,7 @@ create/delete/Reset, profile copy/switch, participation/placements/heading visib
   only active owned entries. Disable removes active owned entries; inactive
   residue is reconciled on activation.
 - Coalesce bursts to at most one projection and refresh per affected context.
-  Bank-only moves do not refresh Backpack. General edits affect contexts whose
+  Bank-only moves do not refresh Backpack. Master edits affect contexts whose
   inherited order changes; rank cleanup preserving effective orders does not
   itself require projection/refresh. Stale pending callbacks cannot publish
   after disable/profile switch; Show/Notify-only edits do no integration work.
@@ -253,10 +253,19 @@ Count registrations/writes/cache rebuilds/refreshes; inject failures visibly.
   Show/Notify popups, name readability, selection and recycled-row/profile checks.
 - [EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua) /
   [XML](../../../Tracking/EditPanelGroupsTab.xml): toolbar view toggle,
-  General/seven-context selector and native ordered rows.
+  eight-choice selector (Master (all contexts) first, then the seven contexts)
+  and native ordered rows.
   Normal `GetSortedGroupNames` unchanged; AutoCategory uses master/resolved order,
   heading badges/read-only filter details, group arrows/participation/conflict
   warnings and never-ordered tail. No Miscellaneous or drag/drop.
+- Add a selection-dependent info label below the dropdown using the spec's
+  Master/context wording. Explain both matching and heading order, inherited
+  changes and retained context overrides; do not imply every resolved context
+  order stays unchanged after a Master edit.
+- Distinguish external heading rows with an AutoCategory icon/badge or explicit
+  label, optionally colour/background stripes, never colour alone. Keep the
+  distinction readable during selection, moved-row highlights and revealed
+  hidden states. Exact visual treatment awaits UI refinement.
 - External heading rows use normal hide/unhide controls. Add
   **Show all AutoCategory groups** to reveal hidden rows for unhiding; turning
   it off omits them. Revealing a hidden row does not make it an anchor.
@@ -279,7 +288,9 @@ Count registrations/writes/cache rebuilds/refreshes; inject failures visibly.
 
 Extend [GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) and
 [ItemEditorTests.lua](../../Tests/ItemEditorTests.lua): zero writes on view/context
-selection, Show-all zero writes/projections/refreshes, hide/unhide reference
+selection, all eight choices and corresponding explanation text, external-row
+visual distinction in selected/revealed-hidden states,
+Show-all zero writes/projections/refreshes, hide/unhide reference
 behavior, row ordering/selection/endpoints/search, external-heading restrictions,
 rename/delete/recycled callbacks, profile isolation, width and inactive layout,
 Show/Notify unchanged, and XML assertions. Verify toolbar fit, native dropdown/
@@ -329,7 +340,7 @@ results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
   Record version, supported contracts, precise context/platform limits, workload/
   timings and dated offline/ESO results in the spike/results record.
 - Update [UserManual.bbcode](../../../UserManual.bbcode): participation,
-  General/context inheritance, ranks/cleanup, view/arrows/heading hide/unhide
+  Master/context inheritance, ranks/cleanup, view/arrows/heading hide/unhide
   and Show-all controls, overlap examples, owned settings moves overwritten,
   collapse residue, uninstall `(!)` rows, active-profile scope, compatibility,
   performance and saved-data/downgrade behavior.
