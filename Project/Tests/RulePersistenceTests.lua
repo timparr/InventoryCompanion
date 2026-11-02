@@ -88,11 +88,27 @@ function this.GetRulePersistenceTests()
                     trackedItems = { [10] = { link = "item", icon = "icon",
                         display = { show = true, notify = true, showBackpack = false, showBank = true,
                             notifyChat = false, notifyHud = true } } },
-                    trackedRules = { custom = { addedPatterns = { "*" },
+                    trackedRules = { custom = { addedPatterns = { "*" }, autoCategoryEnabled = true,
                         display = { showBackpack = false, showBank = true, notifyChat = false, notifyHud = true } } },
+                    autoCategoryIntegrationEnabled = true,
+                    autoCategorySetupComplete = true,
+                    autoCategoryOrder = { contexts = { backpack = {
+                        display = { "ic:custom", "ac:New" }, matching = { "ac:New", "ic:custom" },
+                    } } },
                 }
                 _G[this.SettingsName] = { Default = { account = { source = source } } }
                 assert(this.CopyProfile("source"), "Profile copy should succeed")
+                assert(this.accountWide.autoCategorySetupComplete == true
+                    and this.accountWide.autoCategoryIntegrationEnabled == true,
+                    "Profile import must copy the AutoCategory setup marker and enablement")
+                assert(this.GetRuntimeRules().custom.autoCategoryEnabled,
+                    "Profile import must copy AutoCategory participation")
+                local importedOrder = this.accountWide.autoCategoryOrder.contexts.backpack
+                assert(importedOrder.display[1] == "ic:custom" and importedOrder.matching[2] == "ic:custom",
+                    "Profile import must copy saved AutoCategory orders")
+                importedOrder.display[1] = "ac:Changed"
+                assert(source.autoCategoryOrder.contexts.backpack.display[1] == "ic:custom",
+                    "Imported AutoCategory orders must not alias the source profile")
                 local item = this.ResolveItemDisplay(this.accountWide.trackedItems[10].display)
                 local rule = this.GetRuntimeRules().custom.display
                 assert(not item.showBackpack and item.showBank and not item.notifyChat and item.notifyHud,

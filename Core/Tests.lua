@@ -821,6 +821,46 @@ local function RunTests(arguments)
         table.insert(results, "FAIL Live read-only scan: " .. tostring(scanError))
     end
 
+    -- AutoCategory live performance: read-only reorder preflights plus AutoCategory's own registry rebuild
+    -- and compile, the operations a group create or rename triggers. Writes no assignments or saved data.
+    local autoCategoryPreflightIterations = 5
+    local autoCategoryPreflightLimitMs = 250
+    local autoCategoryCompileLimitMs = 250
+    local autoCategoryPreflightMs, autoCategoryCompileMs
+    if AutoCategory == nil or AutoCategory.Inited ~= true
+        or not this.AutoCategoryIntegration.IsAvailable() or not this.GetAutoCategoryState().enabled then
+        table.insert(results,
+            "WARN AutoCategory live performance skipped: integration is not active; enable it and rerun for timing coverage.")
+    else
+        local perfOk, perfError = pcall(function()
+            local startedAt = GetGameTimeMilliseconds()
+            for _ = 1, autoCategoryPreflightIterations do
+                local prepared, failure = this.AutoCategoryIntegration.PreflightAutoCategory()
+                Check(prepared ~= nil, "AutoCategory preflight failed: " .. tostring(failure))
+            end
+            autoCategoryPreflightMs = GetGameTimeMilliseconds() - startedAt
+            startedAt = GetGameTimeMilliseconds()
+            AutoCategory.cacheRuleInitialize()
+            AutoCategory.RulesW.CompileAll(AutoCategory.RulesW)
+            autoCategoryCompileMs = GetGameTimeMilliseconds() - startedAt
+        end)
+        if perfOk then
+            local result = string.format(
+                "PASS AutoCategory live performance: %d reorder preflights %d/%d ms; rule registry rebuild and compile %d/%d ms",
+                autoCategoryPreflightIterations, autoCategoryPreflightMs, autoCategoryPreflightLimitMs,
+                autoCategoryCompileMs, autoCategoryCompileLimitMs)
+            if autoCategoryPreflightMs > autoCategoryPreflightLimitMs
+                or autoCategoryCompileMs > autoCategoryCompileLimitMs then
+                result = "FAIL " .. result:sub(6)
+            else
+                passed = passed + 1
+            end
+            table.insert(results, result)
+        else
+            table.insert(results, "FAIL AutoCategory live performance: " .. tostring(perfError))
+        end
+    end
+
     local syntheticOriginal = {
         accountWide = this.accountWide,
         character = this.character,
@@ -863,9 +903,11 @@ local function RunTests(arguments)
     local performanceMs
     local slotMatchMs
     local slotUpdateMs
+    local classificationMs
     local performanceLimitMs = 500
     local slotMatchLimitMs = 100
     local slotUpdateLimitMs = 200
+    local classificationLimitMs = 100
     local environmentOk, environmentError = pcall(function()
         this.accountWide = { trackedRules = {} }
         this.character = { useCharacterItemList = false }
@@ -1625,6 +1667,42 @@ local function RunTests(arguments)
                 end,
             },
             {
+                name = "AutoCategory classification: 100 items across 20 participating groups",
+                run = function()
+                    this.accountWide.trackedRules = {}
+                    this.preLoadedRulesets = {}
+                    for index = 1, 20 do
+                        this.accountWide.trackedRules["synthetic-" .. index] = {
+                            displayName = string.format("Synthetic Group %02d", index),
+                            addedPatterns = { string.format("Synthetic Item %03d", index), "Synthetic Miss *" },
+                            autoCategoryEnabled = true,
+                        }
+                    end
+                    this.InvalidateRuleCache()
+                    local rules = this.GetRuntimeRules()
+                    local matched = 0
+                    local startedAt = GetGameTimeMilliseconds()
+                    for index = 1, 100 do
+                        local link = "synthetic-item-" .. index
+                        for _, rule in pairs(rules) do
+                            if rule.autoCategoryEnabled and this.ItemMatchesRuntimeRule(link, rule) then
+                                matched = matched + 1
+                            end
+                        end
+                    end
+                    classificationMs = GetGameTimeMilliseconds() - startedAt
+                    CheckEqual(matched, 20, "Each synthetic group should match exactly its own item")
+                    Check(
+                        classificationMs <= classificationLimitMs,
+                        string.format(
+                            "2000 AutoCategory classifications took %d ms (limit %d ms)",
+                            classificationMs,
+                            classificationLimitMs
+                        )
+                    )
+                end,
+            },
+            {
                 name = "100 synthetic tracked-item slot updates",
                 run = function()
                     local warningCount = 0
@@ -2248,6 +2326,16 @@ local function RunTests(arguments)
         )
     else
         summary = string.format("[InventoryCompanion tests] %d/%d passed.", passed, total)
+    end
+    if classificationMs then
+        summary = summary .. string.format(
+            "; 2000 AutoCategory classifications: %d/%d ms", classificationMs, classificationLimitMs)
+    end
+    if autoCategoryPreflightMs then
+        summary = summary .. string.format(
+            "; %d AutoCategory preflights: %d/%d ms; AC rule rebuild+compile: %d/%d ms",
+            autoCategoryPreflightIterations, autoCategoryPreflightMs, autoCategoryPreflightLimitMs,
+            autoCategoryCompileMs, autoCategoryCompileLimitMs)
     end
 
     local reportLines = { summary }

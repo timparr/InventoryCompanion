@@ -470,6 +470,10 @@ in the implementation plan, not assumed existing APIs.
   built-in plus texture passed the spike. Text fallback if a future asset/name
   constraint requires it: `<name> · Inventory Companion`. Do not fall back
   silently. Explain the decoration in the manual and editor.
+- **Temporary implementation approved 2026-11-02:** use a white no-op suffix
+  (`<name>|cFFFFFF|r`) to distinguish IC category identities while the custom
+  texture is unavailable. It preserves the heading's normal rendered color and
+  is not the final icon design.
 - Chosen IC source artwork is the white wide-flap satchel with luggage tag,
   [CategoryIcon/v5](../../Art/CategoryIcon/v5/); v1-v4 are earlier references.
   Plain `CategoryIcon.svg` is the heading icon, tinted gold. A whole-group

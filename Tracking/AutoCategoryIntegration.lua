@@ -5,7 +5,7 @@ this.AutoCategoryIntegration = integration
 local pluginName = "Inventory Companion"
 local ruleTag = "Inventory Companion"
 local predicateName = "ic_group"
-local iconMarkup = "|t18:18:EsoUI/Art/Buttons/plus_up.dds|t "
+local categoryNameMarkupSuffix = "|cFFFFFF|r"
 
 local contexts = {
     { key = "backpack", title = "Backpack", bagType = function() return AC_BAG_TYPE_BACKPACK end,
@@ -244,7 +244,7 @@ local function GetOrderedRuleKeys(rules)
 end
 
 local function GetCategoryName(rule)
-    return iconMarkup .. rule.displayName
+    return rule.displayName .. categoryNameMarkupSuffix
 end
 
 local function QuoteLuaString(value)
@@ -1194,6 +1194,13 @@ function integration.ResolveAutoCategoryOrder(contextKey, options)
     local _, order = GetCurrentOrderData()
     local sequence = order.contexts[contextKey][mode]
     local rules = GetRuntimeRules()
+    -- The two mode lists only share membership after reconciliation, so the other list may lack a reference.
+    local positions = { display = {}, matching = {} }
+    for _, modeName in ipairs({ "display", "matching" }) do
+        for index, reference in ipairs(order.contexts[contextKey][modeName]) do
+            positions[modeName][reference] = index
+        end
+    end
     local rows = {}
     for index, reference in ipairs(sequence) do
         if reference:sub(1, 3) == "ic:" then
@@ -1204,11 +1211,13 @@ function integration.ResolveAutoCategoryOrder(contextKey, options)
             rows[#rows + 1] = {
                 kind = "group", reference = reference, ruleKey = ruleKey,
                 name = rule.displayName, participating = true, index = index,
+                displayPosition = positions.display[reference], matchingPosition = positions.matching[reference],
             }
         else
             rows[#rows + 1] = {
                 kind = "heading", reference = reference, name = reference:sub(4),
                 index = index, hidden = false, scopeLabel = contextByKey[contextKey].title,
+                displayPosition = positions.display[reference], matchingPosition = positions.matching[reference],
             }
         end
     end

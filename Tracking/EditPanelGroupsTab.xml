@@ -76,7 +76,7 @@
                 <!-- Edit Items Switch Button -->
                 <Button name="$(parent)BtnEditItems" inherits="ZO_DefaultButton" text="Edit Items">
                     <Dimensions x="100" y="26" />
-                    <Anchor point="TOPRIGHT" relativeTo="$(parent)Close" relativePoint="TOPRIGHT" offsetX="-50" offsetY="18" />
+                    <Anchor point="TOPRIGHT" relativeTo="$(parent)Close" relativePoint="TOPRIGHT" offsetX="-50" offsetY="5" />
                 </Button>
                 <Button name="$(parent)BtnAutoCategory" inherits="ZO_DefaultButton" text="AutoCategory" hidden="true">
                     <Dimensions x="120" y="26" />

@@ -6,7 +6,6 @@ local selectionProfile
 local scrollAfterMove
 local context = "backpack"
 local mode = "display"
-local searchQuery = ""
 local contextCombo
 local copyContextCombo
 
@@ -62,7 +61,6 @@ local function EditorSnapshot(entry)
         end
         snapshot.context = context
         snapshot.mode = mode
-        snapshot.search = searchQuery
         snapshot.row = DescribeEntry(entry)
         snapshot.selected = selected
         snapshot.createdRows = #rows
@@ -101,12 +99,6 @@ end
 
 local function ConfigureToolbar()
     local topBar = Window("TopActionBar")
-    GetControl(topBar, "FindBox"):SetHandler("OnTextChanged", function(control) Timed("search text changed", nil, function()
-        searchQuery = control:GetText():lower():match("^%s*(.-)%s*$")
-        selectedReferences = {}
-        this.RefreshAutoCategoryEditor()
-    end) end)
-
     contextCombo = ConfigureCombo("ContextMode", context, function(value)
         context = value
         selectedReferences = {}
@@ -120,12 +112,12 @@ local function ConfigureToolbar()
     end
     copyContextCombo = ConfigureCombo("CopyContext", source, function(value)
         copyContextCombo.selectedKey = value
-        GetControl(Window("TopActionBar"), "BtnCopyBoth"):SetEnabled(value ~= context)
+        GetControl(Window("TopActionBar"), "BtnCopy"):SetEnabled(value ~= context)
     end)
     copyContextCombo.selectedKey = source
 
-    local copy = GetControl(topBar, "BtnCopyBoth")
-    copy:SetText("Copy both orders")
+    local copy = GetControl(topBar, "BtnCopy")
+    copy:SetText("Copy")
     copy:SetEnabled(source ~= context)
     copy:SetHandler("OnClicked", function() Timed("copy both orders", nil, this.AutoCategoryIntegration.Run, function()
         local currentSource = copyContextCombo.selectedKey
@@ -135,7 +127,7 @@ local function ConfigureToolbar()
         this.RefreshAutoCategoryEditor()
     end) end)
     copy:SetHandler("OnMouseEnter", function(control)
-        ShowTooltip(control, "Copy both orders from the selected context. Only references present in this context are reordered.")
+        ShowTooltip(control, "Copy both the priority and display orders from the selected context. Only references present in this context are reordered.")
     end)
     copy:SetHandler("OnMouseExit", HideTooltip)
 
@@ -163,10 +155,15 @@ local function ConfigureToolbar()
     end) end)
 
     local info = Window("Info")
+    local trailer = "\n\nYou can move several groups at once. Click a group to select it."
+        .. " Hold shift and click to add or remove a group from the current selection,"
+        .. " then use the buttons at the bottom to move them all together."
     if mode == "display" then
-        info:SetText("Display order — Where assignment headings appear in inventory. Set's generated set-name headings stay together under Set. Use Priority order to change which matching rule wins.")
+        info:SetText("Display order — Choose the order the categories appear in your inventory."
+            .. " Untick an Inventory Companion group to have it ignored by AutoCategory completely." .. trailer)
     else
-        info:SetText("Priority order — First matching assignment wins. A catch-all group before Set shadows Set; moving Set changes classification, not its inventory heading position. Display order is independent.")
+        info:SetText("Priority order — Choose the order that AutoCategory applies the rules to decide"
+            .. " which group an item is in. Only applies when an item might be in more than one group." .. trailer)
     end
 end
 
@@ -182,12 +179,6 @@ end
 
 local function CanOrder(entry)
     return entry.kind == "heading" or entry.participating
-end
-
-local function SelectionCount()
-    local count = 0
-    for _ in pairs(selectedReferences) do count = count + 1 end
-    return count
 end
 
 local function SetRowBackground(row, entry, hovered)
@@ -264,9 +255,18 @@ local function PopulateRow(row, entry, displayIndex, scrollChild, contextAtRende
 
     local label = GetControl(row, "Name")
     SetRowBackground(row, entry, false)
+    local orders = GetControl(row, "Orders")
+    if CanOrder(entry) then
+        -- The other list's position can be missing until reconciliation realigns both lists.
+        orders:SetText(string.format("P%s  D%s",
+            tostring(entry.matchingPosition or "–"), tostring(entry.displayPosition or "–")))
+    else
+        orders:SetText("–")
+    end
     if entry.kind == "heading" then
         label:SetText(EscapeEsoMarkup(entry.name))
-        label:SetColor(0.9, 0.82, 0.65, 1)
+        if modeAtRender == "display" then label:SetColor(0.60, 0.90, 0.65, 1)
+        else label:SetColor(0.65, 0.68, 1, 1) end
     else
         label:SetText(entry.name)
         if modeAtRender == "display" then label:SetColor(0.72, 0.88, 0.74, 1)
@@ -277,27 +277,17 @@ local function PopulateRow(row, entry, displayIndex, scrollChild, contextAtRende
         SetRowBackground(row, entry, true)
     end)
     row:SetHandler("OnMouseExit", function() SetRowBackground(row, entry, false) end)
-    local function Select(enabled)
-        assert(row.autoCategoryEntry == entry, "AutoCategory row selection targets stale data")
-        AssertCurrentView(contextAtRender, modeAtRender)
-        assert(CanOrder(entry), "Cannot select a nonparticipating AutoCategory group")
-        selectedReferences[entry.reference] = enabled and true or nil
-        this.RefreshAutoCategoryEditor()
-    end
-    local selection = GetControl(row, "Selection")
-    selection:SetHidden(not CanOrder(entry))
-    ZO_CheckButton_SetCheckState(selection, IsSelected(entry))
-    ZO_CheckButton_SetToggleFunction(selection, function(_, enabled)
-        Timed("selection checkbox " .. tostring(enabled), entry, this.AutoCategoryIntegration.Run, Select, enabled)
-    end)
-    selection:SetHandler("OnMouseEnter", function(control) ShowTooltip(control, "Select this row for ordering moves.") end)
-    selection:SetHandler("OnMouseExit", HideTooltip)
     row:SetHandler("OnMouseDown", function(_, button)
         Timed("row click " .. tostring(button), entry, this.AutoCategoryIntegration.Run, function()
             if button ~= MOUSE_BUTTON_INDEX_LEFT or not CanOrder(entry) then return end
-            local enabled = not IsSelected(entry)
-            if enabled and SelectionCount() == 1 then selectedReferences = {} end
-            Select(enabled)
+            assert(row.autoCategoryEntry == entry, "AutoCategory row selection targets stale data")
+            AssertCurrentView(contextAtRender, modeAtRender)
+            if IsShiftKeyDown() then
+                selectedReferences[entry.reference] = not IsSelected(entry) and true or nil
+            else
+                selectedReferences = { [entry.reference] = true }
+            end
+            this.RefreshAutoCategoryEditor()
         end)
     end)
 
@@ -318,13 +308,13 @@ local function ConfigureMovementToolbar(entries, sequence, contextAtRender, mode
         button:SetHandler("OnMouseExit", HideTooltip)
     end
     for _, action in ipairs({
+        { "BtnUp1", -1 }, { "BtnDown1", 1 }, { "BtnUp5", -5 }, { "BtnDown5", 5 },
         { "BtnTop", "top" }, { "BtnBottom", "bottom" },
-        { "BtnUp5", -5 }, { "BtnDown5", 5 }, { "BtnUp10", -10 }, { "BtnDown10", 10 },
     }) do
         local movement = action[2]
         local _, changed = this.AutoCategoryIntegration.GetMovedSequence(sequence, selectedReferences, movement)
         Configure(action[1], changed, function() MoveSelection(movement) end,
-            "Move the whole selection. Five/ten steps behave like repeated one-step moves.")
+            "Move the whole selection. Five steps behave like repeated one-step moves.")
     end
     local selectedKind, mixed = nil, false
     for _, entry in ipairs(entries) do
@@ -333,8 +323,8 @@ local function ConfigureMovementToolbar(entries, sequence, contextAtRender, mode
             selectedKind = entry.kind
         end
     end
-    Configure("BtnSelectBlock", selectedKind ~= nil and not mixed and searchQuery == "", function()
-        assert(searchQuery == "" and not mixed, "Cannot expand mixed or filtered AutoCategory selections")
+    Configure("BtnSelectBlock", selectedKind ~= nil and not mixed, function()
+        assert(not mixed, "Cannot expand mixed AutoCategory selections")
         local runStart = 1
         while runStart <= #sequence do
             local runEnd, seeded = runStart, false
@@ -349,7 +339,7 @@ local function ConfigureMovementToolbar(entries, sequence, contextAtRender, mode
             runStart = runEnd
         end
         this.RefreshAutoCategoryEditor()
-    end, "Add touching rows of the same type around every selected row. Unavailable for mixed selections or while searching.")
+    end, "Add touching rows of the same type around every selected row. Unavailable for mixed AC/IC selections.")
     Configure("BtnClear", next(selectedReferences) ~= nil, function()
         selectedReferences = {}
         this.RefreshAutoCategoryEditor()
@@ -362,22 +352,21 @@ local function PopulateList(contextAtRender, modeAtRender)
     assert(scrollChild, "AutoCategory editor is missing its list ScrollChild")
     local entries = Phase("ResolveAutoCategoryOrder", this.AutoCategoryIntegration.ResolveAutoCategoryOrder,
         contextAtRender, { mode = modeAtRender })
-    local displayed, sequence, visibleOrderable = {}, {}, {}
+    local sequence, orderable = {}, {}
     for _, entry in ipairs(entries) do
-        if searchQuery == "" or entry.name:lower():find(searchQuery, 1, true) then
-            displayed[#displayed + 1] = entry
-            if CanOrder(entry) then visibleOrderable[entry.reference] = true end
+        if CanOrder(entry) then
+            sequence[#sequence + 1] = entry.reference
+            orderable[entry.reference] = true
         end
-        if CanOrder(entry) then sequence[#sequence + 1] = entry.reference end
     end
     for reference in pairs(selectedReferences) do
-        if not visibleOrderable[reference] then selectedReferences[reference] = nil end
+        if not orderable[reference] then selectedReferences[reference] = nil end
     end
     local _, canMoveUp = this.AutoCategoryIntegration.GetMovedSequence(sequence, selectedReferences, -1)
     local _, canMoveDown = this.AutoCategoryIntegration.GetMovedSequence(sequence, selectedReferences, 1)
     local firstSelected, lastSelected
-    Phase("populate " .. #displayed .. " rows", function()
-        for index, entry in ipairs(displayed) do
+    Phase("populate " .. #entries .. " rows", function()
+        for index, entry in ipairs(entries) do
             local row = GetOrCreateRow(scrollChild, index)
             PopulateRow(row, entry, index, scrollChild, contextAtRender, modeAtRender, canMoveUp, canMoveDown)
             if IsSelected(entry) then
@@ -386,7 +375,7 @@ local function PopulateList(contextAtRender, modeAtRender)
             end
         end
     end)
-    scrollChild:SetHeight(#displayed * ROW_HEIGHT)
+    scrollChild:SetHeight(#entries * ROW_HEIGHT)
     ZO_Scroll_UpdateScrollBar(Window("List"))
     Phase("ConfigureMovementToolbar", ConfigureMovementToolbar, entries, sequence, contextAtRender, modeAtRender)
     if scrollAfterMove and firstSelected then

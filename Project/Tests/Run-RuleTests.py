@@ -24,14 +24,15 @@ assert auto_toggle.find("Label[@name='$(parent)Title']") is not None, "Item row 
 assert auto_toggle.find("Label[@name='$(parent)Detail']") is not None, "Item row AutoCategory toggle needs a Detail child"
 autocategory_xml = ET.parse(root / "Tracking" / "EditPanelAutoCategoryTab.xml")
 autocategory_row = autocategory_xml.find(".//Control[@name='InventoryCompanion_AutoCategoryRow_Template']/Controls")
-for child in ("BG", "Name", "MoveUp", "MoveDown", "Participation", "Selection"):
+for child in ("BG", "Orders", "Name", "MoveUp", "MoveDown", "Participation"):
     assert autocategory_row.find(f"*[@name='$(parent){child}']") is not None, f"AutoCategory row needs {child}"
+assert autocategory_row.find("*[@name='$(parent)Selection']") is None, "Selection checkboxes are obsolete"
 autocategory_window = autocategory_xml.find(".//TopLevelControl[@name='InventoryCompanion_AutoCategoryWindow']/Controls")
 for path in (
-    "TopActionBar/Controls/*[@name='$(parent)FindBox']",
     "TopActionBar/Controls/*[@name='$(parent)ContextMode']",
+    "TopActionBar/Controls/*[@name='$(parent)CopyFromLabel']",
     "TopActionBar/Controls/*[@name='$(parent)CopyContext']",
-    "TopActionBar/Controls/*[@name='$(parent)BtnCopyBoth']",
+    "TopActionBar/Controls/*[@name='$(parent)BtnCopy']",
     "OptionsBar/Controls/*[@name='$(parent)BtnDisplayOrder']",
     "OptionsBar/Controls/*[@name='$(parent)BtnPriorityOrder']",
     "OptionsBar/Controls/*[@name='$(parent)BtnUseOtherOrder']",
@@ -40,11 +41,14 @@ for path in (
     parent, _, rest = path.partition("/")
     node = autocategory_window.find(f"*[@name='$(parent){parent}']")
     assert node is not None and (not rest or node.find(rest) is not None), f"AutoCategory window needs {path}"
+assert autocategory_window.find("*[@name='$(parent)TopActionBar']/Controls/*[@name='$(parent)FindBox']") is None, \
+    "The AutoCategory order filter is obsolete: filtering an ordering list hides what rows move against"
 assert autocategory_row.find("*[@name='$(parent)Visibility']") is None, "Heading visibility controls are obsolete"
 assert autocategory_window.find("*[@name='$(parent)HeadingDetails']") is None, "Movement toolbar replaces heading details"
 movement_bar = autocategory_window.find("*[@name='$(parent)MovementBar']/Controls")
-for child in ("BtnTop", "BtnBottom", "BtnUp5", "BtnDown5", "BtnUp10", "BtnDown10", "BtnSelectBlock", "BtnClear"):
+for child in ("BtnSelectBlock", "BtnClear", "BtnUp1", "BtnDown1", "BtnUp5", "BtnDown5", "BtnTop", "BtnBottom"):
     assert movement_bar.find(f"Button[@name='$(parent){child}']") is not None, f"Movement toolbar needs {child}"
+assert movement_bar.find("Button[@name='$(parent)BtnUp10']") is None, "Ten-step movement buttons are obsolete"
 for xml_name, window_name in (
     ("EditPanelItemsTab.xml", "InventoryCompanion_TrackedItemsWindow"),
     ("EditPanelGroupsTab.xml", "InventoryCompanion_GroupsWindow"),

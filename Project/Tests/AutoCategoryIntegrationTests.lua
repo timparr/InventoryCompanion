@@ -10,6 +10,7 @@ local contexts = {
     { key = "craft_bag", bag = 6 },
     { key = "furniture_vault", bag = 7 },
 }
+local icCategoryNameMarkupSuffix = "|cFFFFFF|r"
 local originalOnRuleMutation = integration.OnRuleMutation
 local originalOnEnablementChanged = integration.OnEnablementChanged
 
@@ -18,8 +19,13 @@ AC_BAG_TYPE_HOUSEBANK, AC_BAG_TYPE_CRAFTSTATION, AC_BAG_TYPE_CRAFTBAG = 4, 5, 6
 AC_BAG_TYPE_FURNVAULT = 7
 INVENTORY_BACKPACK, INVENTORY_BANK, INVENTORY_GUILD_BANK = 11, 12, 13
 INVENTORY_HOUSE_BANK, INVENTORY_CRAFT_BAG, INVENTORY_FURNITURE_VAULT = 14, 15, 16
+-- Distinct IDs and strings: insertion must resolve AutoCategory's localized New heading, never ESO's filter label.
 SI_ITEMFILTERTYPE_NEW = 999
-function GetString() return "New" end
+SI_AC_DEFAULT_CATEGORY_NEW = 998
+local localizedStrings = { [SI_ITEMFILTERTYPE_NEW] = "Filter New", [SI_AC_DEFAULT_CATEGORY_NEW] = "New" }
+function GetString(stringId)
+    return assert(localizedStrings[stringId], "GetString mock received an unexpected string ID")
+end
 
 local fakeClock = 0
 function GetGameTimeMilliseconds() return fakeClock end
@@ -185,10 +191,35 @@ end
 
 local setupDialogs, shownSetup = {}, nil
 GAMEPAD_DIALOGS = { BASIC = 1 }
+SI_DIALOG_CONFIRM = "Confirm"
 SI_DIALOG_CANCEL = "Cancel"
 function ZO_Dialogs_RegisterCustomDialog(name, definition) setupDialogs[name] = definition end
 function ZO_Dialogs_ShowDialog(name, data)
-    shownSetup = { definition = assert(setupDialogs[name]), data = data }
+    local definition = assert(setupDialogs[name])
+    assert(type(definition.radioButtons) == "table" and #definition.radioButtons == 2,
+        "Setup must offer exactly two radio arrangement choices")
+    assert(#definition.buttons == 2 and definition.buttons[1].text == SI_DIALOG_CONFIRM
+        and definition.buttons[2].text == SI_DIALOG_CANCEL,
+        "Setup must use exactly Confirm and Cancel action buttons")
+    -- ESO's radio dialog preselects the first choice; GetClickedButton returns the clicked button control.
+    local clicked = { data = definition.radioButtons[1].data }
+    shownSetup = {
+        definition = definition, data = data,
+        radioButtonGroup = { GetClickedButton = function() return clicked end },
+        SelectRadio = function(index) clicked = { data = assert(definition.radioButtons[index]).data } end,
+        ClearRadio = function() clicked = nil end,
+    }
+end
+
+local function ConfirmSetup(radioIndex)
+    assert(shownSetup, "AutoCategory setup dialog was not shown")
+    if radioIndex then shownSetup.SelectRadio(radioIndex) end
+    shownSetup.definition.buttons[1].callback(shownSetup)
+end
+
+local function CancelSetup()
+    assert(shownSetup, "AutoCategory setup dialog was not shown")
+    shownSetup.definition.buttons[2].callback(shownSetup)
 end
 
 local function PrepareInitialSetup()
@@ -372,10 +403,18 @@ function this.GetAutoCategoryIntegrationTests()
                 local rules, order = profile.trackedRules, profile.autoCategoryOrder
                 assert(this.SetAutoCategoryIntegrationEnabled(true) == false)
                 assert(not integration.IsFaulted(), this.autoCategoryFailure)
-                assert(shownSetup and shownSetup.definition.buttons[1].text == "Prefer IC groups"
-                    and shownSetup.definition.buttons[2].text == "Prefer AutoCategory groups")
-                shownSetup.definition.buttons[3].callback(shownSetup)
+                assert(shownSetup, "Enabling must open the setup dialog instead of publishing enablement")
+                local radios = shownSetup.definition.radioButtons
+                assert(radios[1].text == "Near the top (default)" and radios[1].data == "ic")
+                assert(radios[2].text == "At the bottom" and radios[2].data == "ac")
+                assert(shownSetup.radioButtonGroup:GetClickedButton().data == "ic",
+                    "Near the top must be the preselected default")
+                CancelSetup()
                 shownSetup.definition.noChoiceCallback(shownSetup)
+                shownSetup.ClearRadio()
+                local ok, failure = pcall(shownSetup.definition.buttons[1].callback, shownSetup)
+                assert(not ok and tostring(failure):find("no selected arrangement", 1, true),
+                    "Confirm without a selected radio choice must fail explicitly")
                 assert(profile.autoCategoryIntegrationEnabled == nil and profile.autoCategorySetupComplete == nil)
                 assert(profile.trackedRules == rules and next(rules) == nil and profile.autoCategoryOrder == order)
                 assert(#AutoCategory.saved.bags[1].rules == 3)
@@ -394,9 +433,11 @@ function this.GetAutoCategoryIntegrationTests()
                     backpack = { displayName = "Backpack", display = { showBackpack = true } },
                     miscellaneous = {},
                 }
+                -- Individually tracked items must never be exported as definitions or order entries.
+                this.accountWide.trackedItems = { [10] = { link = "item", icon = "icon" } }
                 this.InvalidateRuleCache()
                 assert(this.SetAutoCategoryIntegrationEnabled(true) == false)
-                shownSetup.definition.buttons[1].callback(shownSetup)
+                ConfirmSetup()
                 assert(not integration.IsFaulted(), this.autoCategoryFailure)
                 local profile = this.accountWide
                 assert(profile.autoCategoryIntegrationEnabled and profile.autoCategorySetupComplete)
@@ -430,7 +471,7 @@ function this.GetAutoCategoryIntegrationTests()
                 PrepareInitialSetup()
                 AutoCategory.saved.bags[1].rules[1].showpriority = 0
                 this.SetAutoCategoryIntegrationEnabled(true)
-                shownSetup.definition.buttons[2].callback(shownSetup)
+                ConfirmSetup(2)
                 assert(not integration.IsFaulted(), this.autoCategoryFailure)
                 local order = this.accountWide.autoCategoryOrder.contexts.backpack
                 assert(Names(order.matching) == "New,Selling,Low level,alpha,beta,gamma")
@@ -487,6 +528,8 @@ function this.GetAutoCategoryIntegrationTests()
                 d = function() end
                 assert(integration.CompleteInitialSetup("ic", profile) == false)
                 assert(integration.IsFaulted())
+                assert(this.autoCategoryFailure:find("at most 999", 1, true),
+                    "Expected the capacity preflight error, got: " .. tostring(this.autoCategoryFailure))
                 assert(profile.autoCategoryIntegrationEnabled == nil and profile.autoCategorySetupComplete == nil)
                 assert(profile.trackedRules == rules and next(rules) == nil and profile.autoCategoryOrder == order)
                 assert(#AutoCategory.saved.bags[1].rules == 3)
@@ -500,11 +543,77 @@ function this.GetAutoCategoryIntegrationTests()
                 this.character.useCharacterItemList = true
                 local warning
                 d = function(message) warning = message end
-                shownSetup.definition.buttons[1].callback(shownSetup)
+                ConfirmSetup()
                 assert(warning:find("profile changed", 1, true))
                 assert(not this.accountWide.autoCategorySetupComplete and not this.character.autoCategorySetupComplete)
                 assert(not this.accountWide.autoCategoryIntegrationEnabled and not this.character.autoCategoryIntegrationEnabled)
                 assert(not integration.IsFaulted())
+            end,
+        },
+        {
+            name = "Legacy Show and Notify flags seed participation during setup",
+            run = function()
+                PrepareInitialSetup()
+                this.accountWide.trackedRules = {
+                    alpha = { display = { show = false, notify = true } },
+                    beta = { display = { show = true, bank = true, showBackpack = false } },
+                    gamma = { display = { show = false, notify = false } },
+                }
+                this.InvalidateRuleCache()
+                assert(integration.CompleteInitialSetup("ic", this.accountWide), this.autoCategoryFailure)
+                local rules = this.GetRuntimeRules()
+                assert(rules.alpha.autoCategoryEnabled, "Legacy notify must resolve to chat and HUD participation")
+                assert(rules.beta.autoCategoryEnabled, "Legacy bank flag must resolve to Show Bank participation")
+                assert(not rules.gamma.autoCategoryEnabled, "Groups with no effective destination must not participate")
+            end,
+        },
+        {
+            name = "Missing or empty AutoCategory New string fails setup without publishing anything",
+            run = function()
+                PrepareInitialSetup()
+                local profile = this.accountWide
+                local savedId = SI_AC_DEFAULT_CATEGORY_NEW
+                SI_AC_DEFAULT_CATEGORY_NEW = nil
+                local completed = integration.CompleteInitialSetup("ic", profile)
+                SI_AC_DEFAULT_CATEGORY_NEW = savedId
+                assert(completed == false and integration.IsFaulted())
+                assert(this.autoCategoryFailure:find("default New category string is unavailable", 1, true),
+                    this.autoCategoryFailure)
+                assert(profile.autoCategoryIntegrationEnabled == nil and profile.autoCategorySetupComplete == nil)
+                assert(next(profile.trackedRules) == nil, "A failed preflight must not publish participation")
+                PrepareInitialSetup()
+                profile = this.accountWide
+                localizedStrings[SI_AC_DEFAULT_CATEGORY_NEW] = ""
+                completed = integration.CompleteInitialSetup("ic", profile)
+                localizedStrings[SI_AC_DEFAULT_CATEGORY_NEW] = "New"
+                assert(completed == false and integration.IsFaulted())
+                assert(this.autoCategoryFailure:find("default New category name is unavailable", 1, true),
+                    this.autoCategoryFailure)
+                assert(profile.autoCategorySetupComplete == nil and next(profile.trackedRules) == nil)
+            end,
+        },
+        {
+            name = "Setup contract violations and projection failures fail explicitly without completing setup",
+            run = function()
+                PrepareInitialSetup()
+                assert(integration.CompleteInitialSetup("sideways", this.accountWide) == false)
+                assert(integration.IsFaulted()
+                    and this.autoCategoryFailure:find("Unknown AutoCategory starting preset", 1, true))
+                PrepareInitialSetup()
+                assert(integration.CompleteInitialSetup("ic", this.character) == false)
+                assert(integration.IsFaulted()
+                    and this.autoCategoryFailure:find("setup profile changed", 1, true))
+                assert(this.accountWide.autoCategorySetupComplete == nil
+                    and this.character.autoCategorySetupComplete == nil)
+                PrepareInitialSetup()
+                local profile = this.accountWide
+                AutoCategory.cacheRuleInitialize = function() error("synthetic projection failure") end
+                assert(integration.CompleteInitialSetup("ic", profile) == false)
+                assert(integration.IsFaulted()
+                    and this.autoCategoryFailure:find("synthetic projection failure", 1, true),
+                    this.autoCategoryFailure)
+                assert(profile.autoCategorySetupComplete == nil, "A projection failure must not mark setup complete")
+                assert(not this.GetAutoCategoryState().enabled, "A faulted integration must not remain enabled")
             end,
         },
         {
@@ -563,6 +672,55 @@ function this.GetAutoCategoryIntegrationTests()
             end,
         },
         {
+            name = "Synchronized moves skip registry rebuilds and refresh only the changed bag",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
+                assert(integration.ProjectAutoCategory())
+                local ac = AutoCategory
+                local registryRebuilds, compiles, cacheInits, refreshes, uiRefreshes = 0, 0, {}, {}, 0
+                local originalCacheRuleInitialize = ac.cacheRuleInitialize
+                ac.cacheRuleInitialize = function(...)
+                    registryRebuilds = registryRebuilds + 1
+                    return originalCacheRuleInitialize(...)
+                end
+                ac.RulesW.CompileAll = function() compiles = compiles + 1 end
+                ac.cacheInitBag = function(bagType) cacheInits[#cacheInits + 1] = bagType end
+                ac.RefreshList = function(inventoryType) refreshes[#refreshes + 1] = inventoryType end
+                this.RefreshAutoCategoryUI = function() uiRefreshes = uiRefreshes + 1 end
+                assert(integration.MoveEntries({ ["ic:alpha"] = true }, "backpack", "display", "top"))
+                assert(table.concat(cacheInits, ",") == "1" and table.concat(refreshes, ",") == "11",
+                    "A backpack display move must rebuild and refresh only the backpack")
+                assert(integration.MoveEntry("ic:alpha", "backpack", "matching", -1))
+                assert(integration.CopyBothOrders("backpack", "bank"))
+                assert(table.concat(cacheInits, ",") == "1,1,2" and table.concat(refreshes, ",") == "11,11,12",
+                    "Each move must refresh exactly its own changed bag: "
+                        .. table.concat(cacheInits, ",") .. " / " .. table.concat(refreshes, ","))
+                assert(registryRebuilds == 0 and compiles == 0,
+                    "Moves with synchronized definitions must not rebuild or recompile the rule registry")
+                local priorities = {}
+                for index, assignment in ipairs(ac.saved.bags[1].rules) do
+                    priorities[index] = assignment.showpriority .. ":" .. assignment.runpriority
+                end
+                assert(integration.MoveEntries({ ["ic:alpha"] = true }, "backpack", "display", "top") == false)
+                for index, assignment in ipairs(ac.saved.bags[1].rules) do
+                    assert(priorities[index] == assignment.showpriority .. ":" .. assignment.runpriority,
+                        "A boundary move must not rewrite native priorities")
+                end
+                assert(#cacheInits == 3 and #refreshes == 3, "A no-op move must not refresh any bag")
+                -- Externally deleted owned definitions must resynchronize on the next projection.
+                ac.RuleList.removeRuleByName(ac.RulesW, "Alpha" .. icCategoryNameMarkupSuffix)
+                assert(integration.MoveEntries({ ["ic:beta"] = true }, "backpack", "display", "top"))
+                assert(registryRebuilds > 0 and compiles > 0,
+                    "An externally removed owned definition must trigger resynchronization")
+                assert(not integration.IsFaulted(), this.autoCategoryFailure)
+                assert(uiRefreshes == 0,
+                    "Moves with unchanged status must not rebuild hidden editors or refresh the settings panel")
+                this.accountWide.autoCategoryIntegrationEnabled = nil
+                integration.OnProfileChanged()
+                assert(uiRefreshes == 1, "A real status transition must refresh the UI immediately")
+            end,
+        },
+        {
             name = "Cross-context copy preserves destination-only slots and never changes participation",
             run = function()
                 PrepareActive({ alpha = { autoCategoryEnabled = true } })
@@ -595,7 +753,7 @@ function this.GetAutoCategoryIntegrationTests()
                     assert(order.display[#order.display] == reference)
                     assert(order.matching[#order.matching] == reference)
                 end
-                local managed = FindAssignment("backpack", "|t18:18:EsoUI/Art/Buttons/plus_up.dds|t Alpha")
+                local managed = FindAssignment("backpack", "Alpha" .. icCategoryNameMarkupSuffix)
                 assert(managed and managed.icRuleKey == "alpha")
                 this.SetAutoCategoryParticipation("alpha", false)
                 local savedAlpha = this.accountWide.trackedRules.alpha or {}
@@ -788,13 +946,27 @@ function this.GetAutoCategoryIntegrationTests()
                 d = function(message) warnings[#warnings + 1] = message end
                 hooks.cacheInitBag()
                 assert(#scheduled == 3)
+                local rebuilds = 0
+                local originalCacheRuleInitialize = AutoCategory.cacheRuleInitialize
+                AutoCategory.cacheRuleInitialize = function(...)
+                    rebuilds = rebuilds + 1
+                    return originalCacheRuleInitialize(...)
+                end
+                scheduled[3]()
+                assert(rebuilds == 0 and not integration.IsFaulted(),
+                    "Reconciling unchanged definitions must not rebuild the rule registry")
+                -- Renaming a group changes its exported definition; participation alone does not.
+                this.accountWide.trackedRules.alpha = { displayName = "Alpha Prime" }
+                this.InvalidateRuleCache()
+                hooks.cacheInitBag()
+                assert(#scheduled == 4)
                 AutoCategory.cacheRuleInitialize = function() error("synthetic cache failure") end
-                assert(pcall(scheduled[3]), "Deferred integration errors must not escape")
+                assert(pcall(scheduled[4]), "Deferred integration errors must not escape")
                 assert(integration.IsFaulted() and not this.GetAutoCategoryState().enabled)
                 assert(warnings[1]:find("synthetic cache failure", 1, true))
                 local warningCount = #warnings
                 hooks.cacheInitBag()
-                assert(#scheduled == 3 and #warnings == warningCount,
+                assert(#scheduled == 4 and #warnings == warningCount,
                     "A failed session must stop scheduling and avoid repeated warnings")
             end,
         },

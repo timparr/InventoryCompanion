@@ -53,6 +53,8 @@ InformationTooltip = { AddLine = function() end }
 function InitializeTooltip() end
 function ClearTooltip() end
 function PlaySound() end
+local shiftHeld = false
+function IsShiftKeyDown() return shiftHeld end
 local scrolledRow
 function ZO_Scroll_ScrollControlIntoView(_, row) scrolledRow = row end
 function ZO_Scroll_UpdateScrollBar() end
@@ -91,14 +93,22 @@ local function ClickRow(text)
     row.handlers.OnMouseDown(row, MOUSE_BUTTON_INDEX_LEFT)
 end
 
-local function CheckRow(text, checked)
-    GetControl(RowByText(text), "Selection"):toggleFunction(checked)
+local function ShiftClickRow(text)
+    shiftHeld = true
+    local ok, err = pcall(ClickRow, text)
+    shiftHeld = false
+    assert(ok, err)
+end
+
+local function RowSelected(row)
+    local background = GetControl(row, "BG")
+    return (background.alpha or 0) > 0.5
 end
 
 local function SelectedTexts()
     local texts = {}
     for _, row in ipairs(VisibleRows()) do
-        if GetControl(row, "Selection").checked then texts[#texts + 1] = GetControl(row, "Name").text end
+        if RowSelected(row) then texts[#texts + 1] = GetControl(row, "Name").text end
     end
     return table.concat(texts, ",")
 end
@@ -156,9 +166,6 @@ local function Setup(rules)
     GetControl(GetControl(window, "OptionsBar"), "BtnDisplayOrder").handlers.OnClicked()
     local contextCombo = combos[window.name .. "TopActionBarContextMode"]
     contextCombo.items[1].callback(nil, nil, contextCombo.items[1], true)
-    local find = GetControl(GetControl(window, "TopActionBar"), "FindBox")
-    find.text = ""
-    find.handlers.OnTextChanged(find)
     integration.lastMove = nil
     scrolledRow = nil
 end
@@ -176,24 +183,25 @@ function this.GetAutoCategoryEditorTests()
 
     return {
         {
-            name = "AutoCategory editor row clicks replace a singleton and toggle only that row in a multi-selection",
+            name = "AutoCategory editor clicks start a new selection and shift-clicks toggle membership",
             run = WithActiveIntegration(function()
                 Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true }, gamma = {} })
                 ClickRow("Alpha")
                 assert(SelectedTexts() == "Alpha")
                 ClickRow("Beta")
-                assert(SelectedTexts() == "Beta")
-                CheckRow("Alpha", true)
+                assert(SelectedTexts() == "Beta", "A plain click must replace the selection")
+                ShiftClickRow("Alpha")
                 assert(SelectedTexts() == "Alpha,Beta")
-                ClickRow("Selling")
+                ShiftClickRow("Selling")
                 assert(SelectedTexts() == "Alpha,Beta,Selling")
                 ClickRow("Alpha")
-                assert(SelectedTexts() == "Beta,Selling")
-                CheckRow("Selling", false)
-                ClickRow("Beta")
-                assert(SelectedTexts() == "")
+                assert(SelectedTexts() == "Alpha", "A plain click must start a new selection")
+                ClickRow("Alpha")
+                assert(SelectedTexts() == "Alpha", "Clicking the only selected row must keep it selected")
+                ShiftClickRow("Alpha")
+                assert(SelectedTexts() == "", "Shift-clicking a selected row must remove it")
                 ClickRow("Gamma")
-                assert(SelectedTexts() == "" and GetControl(RowByText("Gamma"), "Selection").hidden)
+                assert(SelectedTexts() == "")
                 assert(GetControl(RowByText("Gamma"), "MoveUp").hidden)
                 assert(not this.GetRuntimeRules().gamma.autoCategoryEnabled)
             end),
@@ -202,8 +210,8 @@ function this.GetAutoCategoryEditorTests()
             name = "AutoCategory editor highlights and moves the whole block from every selected row",
             run = WithActiveIntegration(function()
                 Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
-                CheckRow("Alpha", true)
-                CheckRow("Beta", true)
+                ShiftClickRow("Alpha")
+                ShiftClickRow("Beta")
                 local alpha = RowByText("Alpha")
                 local background = GetControl(alpha, "BG")
                 assert(background.alpha > 0.5)
@@ -228,30 +236,22 @@ function this.GetAutoCategoryEditorTests()
             name = "AutoCategory editor Select block expands every same-type seed and disables mixed selections",
             run = WithActiveIntegration(function()
                 Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
-                CheckRow("New", true)
-                CheckRow("Low level", true)
+                ShiftClickRow("New")
+                ShiftClickRow("Low level")
                 ClickToolbar("BtnSelectBlock")
                 assert(SelectedTexts() == "New,Selling,Low level", SelectedTexts())
-                CheckRow("Alpha", true)
+                ShiftClickRow("Alpha")
                 assert(not GetControl(GetControl(window, "MovementBar"), "BtnSelectBlock").enabled)
                 ClickToolbar("BtnClear")
                 ClickRow("Alpha")
                 ClickToolbar("BtnSelectBlock")
                 assert(SelectedTexts() == "Alpha,Beta")
-                local find = GetControl(GetControl(window, "TopActionBar"), "FindBox")
-                find.text = "Alpha"
-                find.handlers.OnTextChanged(find)
-                assert(SelectedTexts() == "")
-                ClickRow("Alpha")
-                assert(not GetControl(GetControl(window, "MovementBar"), "BtnSelectBlock").enabled)
                 GetControl(GetControl(window, "OptionsBar"), "BtnPriorityOrder").handlers.OnClicked()
-                assert(SelectedTexts() == "")
-                find.text = ""
-                find.handlers.OnTextChanged(find)
-                CheckRow("Alpha", true)
+                assert(SelectedTexts() == "", "Mode switches must clear the selection")
+                ShiftClickRow("Alpha")
                 local combo = combos[window.name .. "TopActionBarContextMode"]
                 combo.items[2].callback(nil, nil, combo.items[2], true)
-                assert(SelectedTexts() == "")
+                assert(SelectedTexts() == "", "Context switches must clear the selection")
             end),
         },
         {
@@ -266,19 +266,18 @@ function this.GetAutoCategoryEditorTests()
                     "ac:New", "ic:alpha", "ac:Selling", "ic:beta", "ic:gamma", "ac:Low level",
                 }
                 this.RefreshAutoCategoryEditor()
-                CheckRow("Alpha", true)
-                CheckRow("Gamma", true)
+                ShiftClickRow("Alpha")
+                ShiftClickRow("Gamma")
                 ClickToolbar("BtnSelectBlock")
                 assert(SelectedTexts() == "Alpha,Beta,Gamma", SelectedTexts())
-                assert(not GetControl(RowByText("Selling"), "Selection").checked)
             end),
         },
         {
             name = "AutoCategory editor clears selection on profile switches even when references are shared",
             run = WithActiveIntegration(function()
                 Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
-                CheckRow("Alpha", true)
-                CheckRow("Beta", true)
+                ShiftClickRow("Alpha")
+                ShiftClickRow("Beta")
                 this.character.trackedRules = { alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } }
                 this.character.autoCategoryOrder = this.accountWide.autoCategoryOrder
                 this.character.autoCategoryIntegrationEnabled = true
@@ -294,8 +293,8 @@ function this.GetAutoCategoryEditorTests()
             name = "AutoCategory editor toolbar handles separated selections, boundaries and stable top-bottom gathering",
             run = WithActiveIntegration(function()
                 Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
-                CheckRow("Alpha", true)
-                CheckRow("Selling", true)
+                ShiftClickRow("Alpha")
+                ShiftClickRow("Selling")
                 GetControl(RowByText("Selling"), "MoveUp").handlers.OnClicked()
                 assert(RowTexts() == "Alpha,New,Selling,Beta,Low level,Gamma", RowTexts())
                 ClickToolbar("BtnBottom")
@@ -306,10 +305,11 @@ function this.GetAutoCategoryEditorTests()
                 assert(RowTexts() == "Alpha,Selling,New,Beta,Low level,Gamma")
                 ClickToolbar("BtnDown5")
                 assert(RowTexts() == "New,Beta,Low level,Alpha,Selling,Gamma")
-                ClickToolbar("BtnUp10")
-                assert(RowTexts() == "Alpha,Selling,New,Beta,Low level,Gamma")
-                ClickToolbar("BtnDown10")
                 ClickToolbar("BtnUp5")
+                assert(RowTexts() == "Alpha,Selling,New,Beta,Low level,Gamma")
+                ClickToolbar("BtnDown1")
+                assert(RowTexts() == "New,Alpha,Selling,Beta,Low level,Gamma")
+                ClickToolbar("BtnUp1")
                 assert(RowTexts() == "Alpha,Selling,New,Beta,Low level,Gamma")
                 GetControl(RowByText("New"), "MoveDown").handlers.OnClicked()
                 assert(SelectedTexts() == "New", "Moving an unselected row must select only that row")
@@ -331,26 +331,28 @@ function this.GetAutoCategoryEditorTests()
                 assert(GetControl(RowByText("Gamma"), "Participation").checked == false)
                 assert(GetControl(RowByText("New"), "Participation").hidden)
                 assert(GetControl(RowByText("Alpha"), "MoveDown").hidden == false)
+                assert(GetControl(RowByText("Alpha"), "Orders").text == "P2  D2",
+                    GetControl(RowByText("Alpha"), "Orders").text)
+                assert(GetControl(RowByText("Gamma"), "Orders").text == "–",
+                    "Nonparticipating groups have no order positions")
 
-                local find = GetControl(GetControl(window, "TopActionBar"), "FindBox")
-                find.text = "Alpha"
-                find.handlers.OnTextChanged(find)
-                assert(RowTexts() == "Alpha")
                 GetControl(RowByText("Alpha"), "MoveDown").handlers.OnClicked()
                 local move = integration.lastMove
                 assert(move[1]["ic:alpha"] and move[2] == "backpack" and move[3] == "display" and move[4] == 1)
+                assert(GetControl(RowByText("Alpha"), "Orders").text == "P2  D3",
+                    "Order labels must show both the priority and display positions: "
+                        .. GetControl(RowByText("Alpha"), "Orders").text)
 
                 local options = GetControl(window, "OptionsBar")
                 GetControl(options, "BtnPriorityOrder").handlers.OnClicked()
-                assert(GetControl(window, "Info").text:find("First matching assignment wins", 1, true))
+                assert(GetControl(window, "Info").text:find("more than one group", 1, true))
+                assert(GetControl(window, "Info").text:find("Hold shift", 1, true))
                 assert(GetControl(options, "BtnUseOtherOrder").text == "Use display list")
                 GetControl(options, "BtnUseOtherOrder").handlers.OnClicked()
                 assert(integration.lastCopyMode[1] == "backpack" and integration.lastCopyMode[2] == "matching")
                 GetControl(options, "BtnDisplayOrder").handlers.OnClicked()
                 assert(GetControl(options, "BtnUseOtherOrder").text == "Use priority list")
 
-                find.text = ""
-                find.handlers.OnTextChanged(find)
                 local participation = GetControl(RowByText("Gamma"), "Participation")
                 participation:toggleFunction(true)
                 assert(this.GetRuntimeRules().gamma.autoCategoryEnabled)
