@@ -903,10 +903,12 @@ local function RunTests(arguments)
     local performanceMs
     local slotMatchMs
     local slotUpdateMs
+    local ruleCreationMs
     local classificationMs
     local performanceLimitMs = 500
     local slotMatchLimitMs = 100
     local slotUpdateLimitMs = 200
+    local ruleCreationLimitMs = 250
     local classificationLimitMs = 100
     local environmentOk, environmentError = pcall(function()
         this.accountWide = { trackedRules = {} }
@@ -1667,6 +1669,37 @@ local function RunTests(arguments)
                 end,
             },
             {
+                name = "Synthetic Inventory Companion rule creation and pattern editing",
+                run = function()
+                    this.accountWide.trackedRules = {}
+                    this.preLoadedRulesets = {}
+                    local startedAt = GetGameTimeMilliseconds()
+                    for index = 1, 20 do
+                        local ruleKey = string.format("synthetic-created-%02d", index)
+                        this.CreateCustomRule(ruleKey, string.format("Synthetic Created %02d", index))
+                        this.UpdateRulePatterns(ruleKey, {
+                            string.format("Synthetic Item %03d", index),
+                            "Synthetic Miss *",
+                        })
+                    end
+                    ruleCreationMs = GetGameTimeMilliseconds() - startedAt
+                    local rules = this.GetRuntimeRules()
+                    local created = 0
+                    for ruleKey in pairs(rules) do
+                        if ruleKey:match("^synthetic%-created%-%d%d$") then created = created + 1 end
+                    end
+                    CheckEqual(created, 20, "Every synthetic rule should be created and loadable")
+                    Check(
+                        ruleCreationMs <= ruleCreationLimitMs,
+                        string.format(
+                            "Creating 20 synthetic rules and editing their patterns took %d ms (limit %d ms)",
+                            ruleCreationMs,
+                            ruleCreationLimitMs
+                        )
+                    )
+                end,
+            },
+            {
                 name = "AutoCategory classification: 100 items across 20 participating groups",
                 run = function()
                     this.accountWide.trackedRules = {}
@@ -2330,6 +2363,10 @@ local function RunTests(arguments)
     if classificationMs then
         summary = summary .. string.format(
             "; 2000 AutoCategory classifications: %d/%d ms", classificationMs, classificationLimitMs)
+    end
+    if ruleCreationMs then
+        summary = summary .. string.format(
+            "; 20 synthetic rule creations + pattern edits: %d/%d ms", ruleCreationMs, ruleCreationLimitMs)
     end
     if autoCategoryPreflightMs then
         summary = summary .. string.format(

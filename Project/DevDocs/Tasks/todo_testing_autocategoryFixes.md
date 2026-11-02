@@ -180,8 +180,9 @@ reports.
   slow-action limit produced no reports across rapid repeated clicks, both
   ordering modes, native and IC rows, external edits between clicks, and
   profile switches.
-- [ ] Ongoing: `/ictest` now includes AutoCategory performance checks — five
-  read-only reorder preflights (limit 250 ms total), one real
+- [ ] Ongoing: `/ictest` now includes performance checks — creating 20
+  synthetic IC rules and editing their patterns (limit 250 ms), five
+  read-only AutoCategory reorder preflights (limit 250 ms total), one real
   `cacheRuleInitialize` + `CompileAll` pass (limit 250 ms), and 2000 synthetic
   classifications across 20 participating groups (limit 100 ms). Run
   `/ictest verbose copy` in ESO to record the first measured baseline and
