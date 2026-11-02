@@ -4,7 +4,15 @@ local this = InventoryCompanion
 local itemCountsCache = {}
 local cacheInvalid = true
 local runtimeRules, cachedSavedRules, cachedBaseline
+local runtimeRuleDiagnostics = {}
 local CompilePatterns
+
+local function CountEntries(values)
+    if type(values) ~= "table" then return 0 end
+    local count = 0
+    for _ in pairs(values) do count = count + 1 end
+    return count
+end
 local function SplitStoredPatterns(patterns)
     local includes, excludes = {}, {}
     local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
@@ -440,15 +448,134 @@ local function NormalizeRule(savedRules, ruleName)
     PruneRule(savedRules, ruleName)
 end
 
+local trackerContextRevision = 0
+
 local function CopyValues(values)
     local copy = {}
     for key, value in pairs(values) do copy[key] = value end
     return copy
 end
 
+local function CopySavedValue(value, activeTables)
+    local valueType = type(value)
+    assert(valueType == "table" or valueType == "nil" or valueType == "boolean"
+        or valueType == "number" or valueType == "string",
+        "Saved list contains an unsupported value")
+    if valueType ~= "table" then return value end
+    activeTables = activeTables or {}
+    assert(not activeTables[value], "Saved list contains a circular table")
+    activeTables[value] = true
+    local copy = {}
+    for key, nestedValue in pairs(value) do
+        assert(type(key) == "string" or type(key) == "number", "Saved list contains an unsupported key")
+        copy[key] = CopySavedValue(nestedValue, activeTables)
+    end
+    activeTables[value] = nil
+    return copy
+end
+
+local function ValidateAutoCategoryDebug(debugData, context)
+    assert(type(debugData) == "table", context .. " must be a table")
+    for key in pairs(debugData) do
+        assert(key == "autoCategoryRemovedLines", context .. " has an unknown field: " .. tostring(key))
+    end
+    local lines = debugData.autoCategoryRemovedLines
+    if lines == nil then return end
+    assert(type(lines) == "table", context .. ".autoCategoryRemovedLines must be an array")
+    local count = 0
+    for index, record in pairs(lines) do
+        assert(type(index) == "number" and index >= 1 and index % 1 == 0,
+            context .. ".autoCategoryRemovedLines must contain only positive integer indices")
+        count = count + 1
+        local recordContext = context .. ".autoCategoryRemovedLines[" .. tostring(index) .. "]"
+        assert(type(record) == "table", recordContext .. " must be a table")
+        for key in pairs(record) do
+            assert(key == "timestamp" or key == "dateTime" or key == "context" or key == "bagType"
+                or key == "index" or key == "line" or key == "restored",
+                recordContext .. " has an unknown field: " .. tostring(key))
+        end
+        assert(record.restored == nil or type(record.restored) == "boolean",
+            recordContext .. ".restored must be boolean when present")
+        assert(type(record.timestamp) == "number" and record.timestamp > 0
+            and record.timestamp < math.huge and record.timestamp % 1 == 0,
+            recordContext .. ".timestamp must be a positive integer")
+        assert(type(record.dateTime) == "string" and record.dateTime ~= "",
+            recordContext .. ".dateTime must be a non-empty string")
+        assert(type(record.context) == "string" and record.context ~= "",
+            recordContext .. ".context must be a non-empty string")
+        assert(type(record.bagType) == "number" and record.bagType > 0
+            and record.bagType < math.huge and record.bagType % 1 == 0,
+            recordContext .. ".bagType must be a positive integer")
+        assert(type(record.index) == "number" and record.index > 0
+            and record.index < math.huge and record.index % 1 == 0,
+            recordContext .. ".index must be a positive integer")
+        assert(type(record.line) == "table" and record.line.icOwned == true
+            and type(record.line.icRuleKey) == "string" and record.line.icRuleKey ~= ""
+            and type(record.line.name) == "string" and record.line.name ~= "",
+            recordContext .. ".line must be an IC-owned assignment")
+        CopySavedValue(record.line)
+    end
+    for index = 1, count do
+        assert(rawget(lines, index) ~= nil, context .. ".autoCategoryRemovedLines must not contain holes")
+    end
+end
+
 local function CopyOptionalValues(values)
     if values == nil then return nil end
     return CopyValues(values)
+end
+
+local function ValidateAccountWideListBackup(backup, context)
+    assert(type(backup) == "table", context .. " must be a table")
+    for key in pairs(backup) do
+        assert(key == "formatVersion" or key == "trackedRules" or key == "trackedItems"
+            or key == "autoCategoryIntegrationEnabled" or key == "autoCategorySetupComplete"
+            or key == "autoCategoryOrder", context .. " has an unknown field: " .. tostring(key))
+    end
+    assert(backup.formatVersion == 1, context .. " has an unsupported format version")
+    ValidateSavedRules(backup.trackedRules, context .. ".trackedRules")
+    CheckTrackedItems(backup.trackedItems, context .. ".trackedItems")
+    assert(type(backup.autoCategoryOrder) == "table", context .. ".autoCategoryOrder must be a table")
+    ValidateAutoCategoryProfile({
+        version = this.SettingsVersion,
+        trackedRules = backup.trackedRules,
+        autoCategoryIntegrationEnabled = backup.autoCategoryIntegrationEnabled,
+        autoCategorySetupComplete = backup.autoCategorySetupComplete,
+        autoCategoryOrder = backup.autoCategoryOrder,
+    }, context)
+end
+
+local function BuildAccountWideListBackup(profile)
+    local backup = {
+        formatVersion = 1,
+        trackedRules = CopySavedValue(profile.trackedRules),
+        trackedItems = CopySavedValue(profile.trackedItems),
+        autoCategoryIntegrationEnabled = profile.autoCategoryIntegrationEnabled,
+        autoCategorySetupComplete = profile.autoCategorySetupComplete,
+        autoCategoryOrder = CopySavedValue(profile.autoCategoryOrder),
+    }
+    ValidateAccountWideListBackup(backup, "Account-wide list backup")
+    return backup
+end
+
+function this.SaveAccountWideListBackup()
+    assert(type(this.accountWide) == "table", "Account-wide saved profile is unavailable")
+    local backup = BuildAccountWideListBackup(this.accountWide)
+    this.accountWide.accountWideListBackup = backup
+end
+
+function this.RestoreAccountWideListBackup()
+    assert(type(this.accountWide) == "table", "Account-wide saved profile is unavailable")
+    local backup = this.accountWide.accountWideListBackup
+    ValidateAccountWideListBackup(backup, "Account-wide list backup")
+    local restored = BuildAccountWideListBackup(backup)
+    this.accountWide.trackedRules = restored.trackedRules
+    this.accountWide.trackedItems = restored.trackedItems
+    this.accountWide.autoCategoryIntegrationEnabled = restored.autoCategoryIntegrationEnabled
+    this.accountWide.autoCategorySetupComplete = restored.autoCategorySetupComplete
+    this.accountWide.autoCategoryOrder = restored.autoCategoryOrder
+    this.InvalidateRuleCache()
+    trackerContextRevision = trackerContextRevision + 1
 end
 
 function this.PrepareSavedVariables()
@@ -474,12 +601,15 @@ function this.PrepareSavedVariables()
                     context, tostring(version), tostring(this.SettingsVersion)))
             assert(version == this.SettingsVersion
                     or (version == 1 and (this.SettingsVersion == 2 or this.SettingsVersion == 3 or this.SettingsVersion == 4
-                        or this.SettingsVersion == 5 or this.SettingsVersion == 6))
+                        or this.SettingsVersion == 5 or this.SettingsVersion == 6 or this.SettingsVersion == 7))
                     or (version == 2 and (this.SettingsVersion == 3 or this.SettingsVersion == 4
-                        or this.SettingsVersion == 5 or this.SettingsVersion == 6))
-                    or (version == 3 and (this.SettingsVersion == 4 or this.SettingsVersion == 5 or this.SettingsVersion == 6))
-                    or (version == 4 and (this.SettingsVersion == 5 or this.SettingsVersion == 6))
-                    or (version == 5 and this.SettingsVersion == 6),
+                        or this.SettingsVersion == 5 or this.SettingsVersion == 6 or this.SettingsVersion == 7))
+                    or (version == 3 and (this.SettingsVersion == 4 or this.SettingsVersion == 5
+                        or this.SettingsVersion == 6 or this.SettingsVersion == 7))
+                    or (version == 4 and (this.SettingsVersion == 5 or this.SettingsVersion == 6
+                        or this.SettingsVersion == 7))
+                    or (version == 5 and (this.SettingsVersion == 6 or this.SettingsVersion == 7))
+                    or (version == 6 and this.SettingsVersion == 7),
                 context .. " has no supported migration from version " .. tostring(version)
                     .. " to version " .. tostring(this.SettingsVersion))
             table.insert(profiles, { data = profile, context = context })
@@ -494,6 +624,7 @@ function this.PrepareSavedVariables()
             ValidateSavedRules(profile.trackedRules, context .. ".trackedRules")
         end
         ValidateAutoCategoryBoundary(profile, context)
+        if profile.debug ~= nil then ValidateAutoCategoryDebug(profile.debug, context .. ".debug") end
         if profile.trackedItems ~= nil then
             CheckTrackedItems(profile.trackedItems, context .. ".trackedItems")
         end
@@ -545,7 +676,33 @@ end
 
 function this.GetRuntimeRules()
     local savedRules = GetRawSavedRules()
+    local firstAccess
+    if this.IsDevelopment == true and runtimeRuleDiagnostics.firstAccess == nil then
+        local caller = "unavailable"
+        if type(debug) == "table" and type(debug.getinfo) == "function" then
+            local callerInfo = debug.getinfo(2, "Sl")
+            if callerInfo then
+                caller = tostring(callerInfo.short_src) .. ":" .. tostring(callerInfo.currentline)
+            end
+        end
+        firstAccess = {
+            caller = caller,
+            selectedProfile = this.character.useCharacterItemList and "character-specific" or "account-wide",
+            cacheInvalid = cacheInvalid,
+            cacheBuilt = runtimeRules ~= nil,
+            cacheMatchesSavedRules = cachedSavedRules == savedRules,
+            cacheMatchesBaselines = cachedBaseline == this.preLoadedRulesets,
+            baselineRuleCount = CountEntries(this.preLoadedRulesets),
+            savedRuleCount = CountEntries(savedRules),
+            cachedRuleCount = CountEntries(runtimeRules),
+        }
+        runtimeRuleDiagnostics.firstAccess = firstAccess
+    end
     if not cacheInvalid and cachedSavedRules == savedRules and cachedBaseline == this.preLoadedRulesets then
+        if firstAccess then
+            firstAccess.cachePath = "reused"
+            firstAccess.returnedRuleCount = CountEntries(runtimeRules)
+        end
         return runtimeRules
     end
     cacheInvalid = true
@@ -583,7 +740,54 @@ function this.GetRuntimeRules()
     runtimeRules = resolvedRules
     cachedSavedRules, cachedBaseline = savedRules, this.preLoadedRulesets
     cacheInvalid = false
+    if firstAccess then
+        firstAccess.cachePath = "built"
+        firstAccess.returnedRuleCount = CountEntries(runtimeRules)
+    end
     return runtimeRules
+end
+
+function this.GetRuntimeRuleDiagnostics(ruleKey)
+    assert(type(ruleKey) == "string" and ruleKey ~= "", "Runtime rule diagnostic requires a rule key")
+    assert(type(this.accountWide) == "table" and type(this.character) == "table",
+        "Saved profiles are required for runtime rule diagnostics")
+    assert(type(this.character.useCharacterItemList) == "boolean",
+        "Character list preference must be validated before runtime rule diagnostics")
+    local accountRules = this.accountWide.trackedRules
+    local characterRules = this.character.trackedRules
+    local activeRules = this.character.useCharacterItemList and characterRules or accountRules
+    local firstAccess = runtimeRuleDiagnostics.firstAccess
+    return {
+        selectedProfile = this.character.useCharacterItemList and "character-specific" or "account-wide",
+        accountSavedRuleCount = CountEntries(accountRules),
+        characterSavedRuleCount = CountEntries(characterRules),
+        activeSavedRuleCount = CountEntries(activeRules),
+        accountHasRule = type(accountRules) == "table" and rawget(accountRules, ruleKey) ~= nil,
+        characterHasRule = type(characterRules) == "table" and rawget(characterRules, ruleKey) ~= nil,
+        activeHasRule = type(activeRules) == "table" and rawget(activeRules, ruleKey) ~= nil,
+        baselineRuleCount = CountEntries(this.preLoadedRulesets),
+        baselineHasRule = type(this.preLoadedRulesets) == "table"
+            and rawget(this.preLoadedRulesets, ruleKey) ~= nil,
+        cacheBuilt = runtimeRules ~= nil,
+        cacheInvalid = cacheInvalid,
+        cacheMatchesActiveRules = cachedSavedRules == activeRules,
+        cacheMatchesBaselines = cachedBaseline == this.preLoadedRulesets,
+        runtimeRuleCount = CountEntries(runtimeRules),
+        runtimeHasRule = type(runtimeRules) == "table" and rawget(runtimeRules, ruleKey) ~= nil,
+        firstAccess = firstAccess and {
+            caller = firstAccess.caller,
+            selectedProfile = firstAccess.selectedProfile,
+            cacheInvalid = firstAccess.cacheInvalid,
+            cacheBuilt = firstAccess.cacheBuilt,
+            cacheMatchesSavedRules = firstAccess.cacheMatchesSavedRules,
+            cacheMatchesBaselines = firstAccess.cacheMatchesBaselines,
+            baselineRuleCount = firstAccess.baselineRuleCount,
+            savedRuleCount = firstAccess.savedRuleCount,
+            cachedRuleCount = firstAccess.cachedRuleCount,
+            cachePath = firstAccess.cachePath,
+            returnedRuleCount = firstAccess.returnedRuleCount,
+        } or nil,
+    }
 end
 
 function this.GetActiveTrackedRules(includeHidden)
@@ -604,8 +808,6 @@ function this.GetActiveTrackedRules(includeHidden)
     end
     return rules
 end
-
-local trackerContextRevision = 0
 
 function this.GetTrackerContext()
     return GetRawSavedRules(), trackerContextRevision

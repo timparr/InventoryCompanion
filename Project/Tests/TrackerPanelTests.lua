@@ -861,7 +861,7 @@ function this.GetTrackerPanelTests()
         this.UpdateEventRegistry = registry
     end)
 
-    Add("Main addon settings open the item editor directly even when tracker is disabled", function()
+    Add("Main addon settings expose AutoCategory error details and open the item editor", function()
         Setup({ 2 }, 20, false)
         this.accountWide.showTrackedItemsPanel = false
         this.defaultsCharacter = {}
@@ -878,9 +878,11 @@ function this.GetTrackerPanelTests()
         }
         CALLBACK_MANAGER = { RegisterCallback = function() end }
         this.CreateSettingsPanel()
-        local button, visibility
+        local button, visibility, errorButton, statusDescription
         for _, option in ipairs(options) do
             if option.name == "Open Item Tracking Editor" then button = option end
+            if option.name == "See Error" then errorButton = option end
+            if option.type == "description" and statusDescription == nil then statusDescription = option end
             if option.name == "Item Tracker Panel" then
                 for _, control in ipairs(option.controls) do
                     if control.name == "Show Tracked Items Panel" then visibility = control end
@@ -888,6 +890,28 @@ function this.GetTrackerPanelTests()
             end
         end
         assert(button and button.type == "button", "Editor shortcut must be on the main settings page, not inside a submenu")
+        assert(errorButton and errorButton.type == "button" and errorButton.hidden and not errorButton.tooltip,
+            "AutoCategory error details must have a conditional, tooltip-free See Error button")
+        assert(statusDescription and type(statusDescription.text) == "function")
+        local integration = this.AutoCategoryIntegration
+        local originalGetStatus, originalIsFaulted, originalShowLastError =
+            integration.GetStatus, integration.IsFaulted, integration.ShowLastError
+        local showErrorCalls = 0
+        integration.GetStatus = function() return "error", "synthetic raw traceback" end
+        integration.IsFaulted = function() return true end
+        integration.ShowLastError = function() showErrorCalls = showErrorCalls + 1 end
+        local statusText = statusDescription.text()
+        assert(statusText:find("disabled after an error", 1, true)
+            and statusText:find("settings were preserved", 1, true)
+            and statusText:find("WARNING", 1, true)
+            and statusText:find("large_yellow_warning.dds", 1, true)
+            and not statusText:find("synthetic raw traceback", 1, true),
+            "Settings must show a visible warning instead of the raw traceback")
+        assert(not errorButton.hidden(), "Show Error must be visible while the integration is faulted")
+        errorButton.func()
+        Equal(showErrorCalls, 1)
+        integration.GetStatus, integration.IsFaulted, integration.ShowLastError =
+            originalGetStatus, originalIsFaulted, originalShowLastError
         assert(visibility.setFunc == this.SetItemTrackerPanelVisible, "Checkbox and keybinding must share visibility handling")
         local current = "gameMenuInGame"
         SCENE_MANAGER = {

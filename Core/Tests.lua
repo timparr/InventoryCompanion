@@ -742,8 +742,8 @@ local function RunTests(arguments)
 
     local options = {}
     for option in tostring(arguments or ""):lower():gmatch("%S+") do
-        if option ~= "verbose" and option ~= "copy" then
-            d("[InventoryCompanion tests] Usage: /ictest [verbose] [copy]")
+        if option ~= "verbose" and option ~= "veryverbose" and option ~= "copy" then
+            d("[InventoryCompanion tests] Usage: /ictest [verbose] [veryverbose] [copy]")
             return
         end
         options[option] = true
@@ -776,6 +776,9 @@ local function RunTests(arguments)
         table.insert(results, autoCategoryResult)
     else
         table.insert(results, "FAIL AutoCategory runtime startup: " .. tostring(autoCategoryResult))
+    end
+    for _, line in ipairs(this.AutoCategoryIntegration.GetOrphanedAssignmentReport(options.veryverbose == true)) do
+        table.insert(discovery, line)
     end
 
     local liveBagIds = { BAG_BACKPACK, BAG_BANK, BAG_SUBSCRIBER_BANK }
@@ -2386,7 +2389,7 @@ local function RunTests(arguments)
     local hasFailures = passed < total
     if options.copy or hasFailures then
         error(table.concat(reportLines, "\n"), 0)
-    elseif options.verbose then
+    elseif options.verbose or options.veryverbose then
         for _, reportLine in ipairs(reportLines) do
             d(reportLine)
         end

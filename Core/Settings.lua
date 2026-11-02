@@ -176,9 +176,20 @@ function this.CreateSettingsPanel()
         {
             type = "description",
             text = function()
-                local _, message = this.AutoCategoryIntegration.GetStatus()
+                local state, message = this.AutoCategoryIntegration.GetStatus()
+                if state == "error" then
+                    return "|cFF4444|t24:24:EsoUI/Art/Miscellaneous/large_yellow_warning.dds|t WARNING: AutoCategory was disabled after an error.|r\n"
+                        .. "Saved settings were preserved. Click See Error for details."
+                end
                 return message
             end,
+        },
+        {
+            type = "button",
+            name = "See Error",
+            func = function() this.AutoCategoryIntegration.ShowLastError() end,
+            hidden = function() return not this.AutoCategoryIntegration.IsFaulted() end,
+            width = "full",
         },
         {
             type = "checkbox",

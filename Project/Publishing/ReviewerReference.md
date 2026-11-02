@@ -18,11 +18,13 @@ Follow the [preparation and review sequence](ReleaseChecklist.md#preparation-and
 |---|---|
 | `/ictest verbose copy` | Preferred complete report. Intentionally raises a copyable Lua error even if all cases pass; inspect PASS/FAIL/WARN content, not the mere existence of the window. Retain the whole report and disclose truncation. |
 | `/ictest verbose` | Prints cases/report in chat on success; failures still raise the report. Useful if copying the full error output is awkward. |
+| `/ictest veryverbose [copy]` | Includes archived AutoCategory assignment lines and any currently ignored profile mismatches; `copy` raises the full report in a copyable error window. |
 | `/ictest` | Summary, discovery where implemented, and failures/warnings; insufficient by itself to establish named-case coverage. |
 | Debug Key | Runs the same suite as `/ictest verbose copy` through [the debug endpoint](../../Core/Init.lua). |
 | `/icbankitems [1-20]` | Optional read-only samples of standard/subscriber bank contents; requires an open bank/chest. Not a transfer test. |
 | `/icclean` | **Not a review prerequisite.** Intentionally prunes diagnostic saved data and updates currency-name history. |
 | `/icclearoverrides` | **Do not use as a diagnostic test.** Clears rule overrides for the active account/character mode. |
+| `/iclistbackup save` / `/iclistbackup recover` | Saves or restores account-wide tracked rules/items and IC AutoCategory choices/order. Does not change the character profile or unrelated settings. Run `/reloadui` after recovery. |
 
 The suite combines read-only real inventory/API queries with synthetic matching, messaging, preference, and event tests. Synthetic tests temporarily substitute runtime tables/helpers; the listener case also changes real event registrations before restoring them. It is not a wholly mocked/offline suite and must run in ESO, not during active transfers or a dual-loaded session. It does not intentionally transfer items or write persistent preferences. Back up saved variables before state-changing human tests; inspect restoration paths and report unexpected errors rather than assuming cleanup succeeded.
 

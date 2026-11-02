@@ -5,7 +5,7 @@ InventoryCompanion = {
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
     Version = "1.6.2",
-    SettingsVersion = 6,
+    SettingsVersion = 7,
     SettingsName = "InventoryCompanion_SavedVariables",
 }
 local this = InventoryCompanion
@@ -40,6 +40,16 @@ function this.ValidateDebugSettings()
     assert(type(threshold) == "number" and threshold == threshold and threshold >= 50 and threshold <= 5000
         and threshold == math.floor(threshold), "Saved autoCategoryTimingThresholdMs must be an integer from 50 to 5000")
     this.accountWide.autoCategoryTimingThresholdMs = threshold
+    if this.accountWide.debug == nil then this.accountWide.debug = {} end
+    assert(type(this.accountWide.debug) == "table", "Saved debug data must be a table")
+    for key in pairs(this.accountWide.debug) do
+        assert(key == "autoCategoryRemovedLines", "Saved debug data has an unknown field: " .. tostring(key))
+    end
+    if this.accountWide.debug.autoCategoryRemovedLines == nil then
+        this.accountWide.debug.autoCategoryRemovedLines = {}
+    end
+    assert(type(this.accountWide.debug.autoCategoryRemovedLines) == "table",
+        "Saved AutoCategory removed-line log must be a table")
 end
 
 local function Initialize()
@@ -137,6 +147,19 @@ SLASH_COMMANDS["/iccleanautocategory"] = function()
 
     local profiles, assignments = this.CleanAutoCategorySavedData(accountName)
     d(string.format("[InventoryCompanion] Cleared AutoCategory integration data from %d @Tim-P IC profile(s) and removed %d IC-owned AutoCategory assignment(s). Other accounts and unrelated settings were preserved. Run /reloadui to finish.", profiles, assignments))
+end
+
+SLASH_COMMANDS["/iclistbackup"] = function(arguments)
+    local action = type(arguments) == "string" and arguments:lower():match("^%s*(.-)%s*$") or ""
+    if action == "save" then
+        this.SaveAccountWideListBackup()
+        d("[InventoryCompanion] Saved the account-wide tracked lists and AutoCategory choices. Character-specific lists and other settings were not changed.")
+    elseif action == "recover" then
+        this.RestoreAccountWideListBackup()
+        d("[InventoryCompanion] Restored the account-wide tracked lists and AutoCategory choices. Run /reloadui to resynchronize AutoCategory.")
+    else
+        d("Usage: /iclistbackup save | /iclistbackup recover")
+    end
 end
 
 ------------------------------------------------------------------

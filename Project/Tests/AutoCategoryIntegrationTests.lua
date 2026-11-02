@@ -29,6 +29,12 @@ end
 
 local fakeClock = 0
 function GetGameTimeMilliseconds() return fakeClock end
+function GetTimeStamp() return 1793641920 end
+function GetDateStringFromTimestamp(timestamp)
+    assert(timestamp == 1793641920)
+    return "2026-11-02"
+end
+function GetTimeString() return "17:52:00" end
 local frameUpdates = {}
 EVENT_MANAGER = EVENT_MANAGER or {}
 function EVENT_MANAGER:RegisterForUpdate(name, _, callback) frameUpdates[name] = callback end
@@ -68,6 +74,8 @@ end
 
 local function NewFixture(headingLists)
     this.autoCategoryFailure = nil
+    this.autoCategoryFailureTraceback = nil
+    integration.failureDiagnostics = nil
     local function Display()
         return { show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false }
     end
@@ -77,7 +85,10 @@ local function NewFixture(headingLists)
         gamma = { displayName = "Gamma", patterns = { "gamma" }, display = Display() },
         miscellaneous = { displayName = "Miscellaneous", patterns = {}, display = Display() },
     }
-    this.accountWide = { trackedRules = {}, trackedItems = {}, autoCategoryOrder = NewOrder() }
+    this.accountWide = {
+        trackedRules = {}, trackedItems = {}, debug = { autoCategoryRemovedLines = {} },
+        autoCategoryOrder = NewOrder(),
+    }
     this.character = { trackedRules = {}, trackedItems = {}, useCharacterItemList = false, autoCategoryOrder = NewOrder() }
     this.InvalidateRuleCache()
     this.ValidateSavedRuleProfiles()
@@ -503,6 +514,27 @@ function this.GetAutoCategoryIntegrationTests()
             end,
         },
         {
+            name = "Fresh AutoCategory projection preserves the saved order without a runtime snapshot",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                local savedOrder = { "ic:alpha", "ac:New", "ac:Selling", "ac:Low level" }
+                for _, context in ipairs(contexts) do
+                    for _, orderMode in ipairs({ "display", "matching" }) do
+                        this.accountWide.autoCategoryOrder.contexts[context.key][orderMode] =
+                            { unpack(savedOrder) }
+                    end
+                end
+                assert(integration.ProjectAutoCategory(), this.autoCategoryFailure)
+                for _, context in ipairs(contexts) do
+                    for _, orderMode in ipairs({ "display", "matching" }) do
+                        assert(Names(this.accountWide.autoCategoryOrder.contexts[context.key][orderMode])
+                            == "alpha,New,Selling,Low level")
+                    end
+                end
+                assert(FindAssignment("backpack", "Alpha" .. icCategoryNameMarkupSuffix).showpriority == 1000)
+            end,
+        },
+        {
             name = "Prefer IC uses the top when New is hidden or missing",
             run = function()
                 PrepareInitialSetup()
@@ -762,7 +794,7 @@ function this.GetAutoCategoryIntegrationTests()
             end,
         },
         {
-            name = "Participation adds and removes stable IC references without rank-based fields",
+            name = "Participation changes preserve existing assignments when profiles do not align",
             run = function()
                 PrepareActive({})
                 integration.OnRuleMutation = originalOnRuleMutation
@@ -778,7 +810,11 @@ function this.GetAutoCategoryIntegrationTests()
                 this.SetAutoCategoryParticipation("alpha", false)
                 local savedAlpha = this.accountWide.trackedRules.alpha or {}
                 assert(savedAlpha.autoCategoryAnchor == nil and savedAlpha.autoCategoryRank == nil)
-                assert(FindAssignment("backpack", managed.name) == nil)
+                assert(FindAssignment("backpack", managed.name) == managed
+                    and managed.runpriority ~= nil and managed.showpriority ~= nil,
+                    "Changing participation must not delete an existing AC assignment")
+                assert(select(1, integration.GetStatus()) == "unsupported" and not integration.IsFaulted(),
+                    "Integration should pause without error when saved profiles no longer align")
             end,
         },
         {
@@ -918,6 +954,186 @@ function this.GetAutoCategoryIntegrationTests()
                 assert(warnings[1]:find("synthetic registration failure", 1, true))
                 assert(this.accountWide.autoCategoryIntegrationEnabled,
                     "Session disable must preserve the saved enablement choice")
+            end,
+        },
+        {
+            name = "Mismatched profile assignments pause integration without changing saved data",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                local profile = this.accountWide
+                this.character.trackedRules.custom_missing = {
+                    displayName = "Saved only in character list",
+                    addedPatterns = { "synthetic missing group" },
+                }
+                this.ValidateSavedRuleProfiles()
+                local savedOrder = profile.autoCategoryOrder
+                local savedRules = profile.trackedRules
+                local previousDevelopment = this.IsDevelopment
+                local previousState = this.state
+                this.IsDevelopment = true
+                this.state = { isLoaded = false }
+                local passiveSnapshot = this.GetRuntimeRuleDiagnostics("custom_missing")
+                assert(passiveSnapshot.cacheInvalid and passiveSnapshot.firstAccess == nil,
+                    "Passive diagnostics must not build the lazy runtime-rule cache")
+                local orphan = Assignment("Orphan", 42, 43, { icOwned = true, icRuleKey = "custom_missing" })
+                local backpack = AutoCategory.saved.bags[1].rules
+                backpack[#backpack + 1] = orphan
+                this.accountWide.debugEnabled = false
+
+                local prepared = integration.PreflightAutoCategory()
+                assert(prepared == nil and not integration.IsFaulted())
+                assert(select(1, integration.GetStatus()) == "unsupported",
+                    "A missing active-profile group should pause integration without reporting an error")
+                assert(integration.ProjectAutoCategory() == false and not integration.IsFaulted(),
+                    "Projection should remain paused without escalating the mismatch to an error")
+                assert(backpack[#backpack] == orphan and orphan.runpriority == 42 and orphan.showpriority == 43,
+                    "A profile mismatch must preserve AutoCategory assignments and priorities")
+                assert(profile.trackedRules == savedRules and profile.autoCategoryOrder == savedOrder
+                    and profile.autoCategoryIntegrationEnabled,
+                    "A profile mismatch must preserve IC saved rules, order, and enablement")
+                assert(#profile.debug.autoCategoryRemovedLines == 0,
+                    "Do not archive or remove a mismatch that can be ignored without changing saved data")
+                local runtime = this.GetRuntimeRuleDiagnostics("custom_missing")
+                assert(runtime.firstAccess ~= nil and runtime.firstAccess.cachePath == "built",
+                    "The natural rule-cache access should still be observable after preflight")
+                assert(#integration.unavailableAssignments == 1
+                    and integration.unavailableAssignments[1].ruleKey == "custom_missing",
+                    "The ignored mismatch should remain available to diagnostics")
+                this.IsDevelopment = previousDevelopment
+                this.state = previousState
+            end,
+        },
+        {
+            name = "Account-wide assignments are retained when a character disables group participation",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                local previousState = this.state
+                this.state = { isLoaded = true }
+                this.accountWide.trackedRules.custom_missing = {
+                    displayName = "Character-specific group",
+                    addedPatterns = { "synthetic character-specific group" },
+                    autoCategoryEnabled = false,
+                }
+                this.character.trackedRules.custom_missing = {
+                    displayName = "Character-specific group",
+                    addedPatterns = { "synthetic character-specific group" },
+                    autoCategoryEnabled = true,
+                }
+                this.ValidateSavedRuleProfiles()
+                local assignment = Assignment("Character-specific group", 42, 43,
+                    { icOwned = true, icRuleKey = "custom_missing" })
+                local backpack = AutoCategory.saved.bags[1].rules
+                backpack[#backpack + 1] = assignment
+
+                local prepared = integration.PreflightAutoCategory()
+                assert(prepared == nil and not integration.IsFaulted()
+                    and select(1, integration.GetStatus()) == "unsupported",
+                    "A participation mismatch must pause integration without faulting")
+                assert(backpack[#backpack] == assignment and assignment.runpriority == 42
+                    and assignment.showpriority == 43,
+                    "The account-wide assignment and its priorities must remain untouched")
+                assert(#integration.unavailableAssignments == 1
+                    and integration.unavailableAssignments[1].ruleKey == "custom_missing",
+                    "The non-participating active-profile group must be reported as a mismatch")
+                this.state = previousState
+            end,
+        },
+        {
+            name = "Archived AutoCategory assignments are restored and mismatches are ignored",
+            run = function()
+                PrepareActive({})
+                local previousState = this.state
+                this.state = { isLoaded = true }
+                local originalIndices = {}
+                for _, context in ipairs(contexts) do
+                    local bag = AutoCategory.saved.bags[context.bag]
+                    local orphan = Assignment("Orphan", 42, 43,
+                        { icOwned = true, icRuleKey = "custom_missing" })
+                    originalIndices[context.key] = #bag.rules + 1
+                    this.accountWide.debug.autoCategoryRemovedLines[#this.accountWide.debug.autoCategoryRemovedLines + 1] = {
+                        timestamp = 1793641920,
+                        dateTime = "2026-11-02 17:52:00",
+                        context = context.key,
+                        bagType = context.bag,
+                        index = originalIndices[context.key],
+                        line = orphan,
+                    }
+                end
+
+                local prepared, failure = integration.PreflightAutoCategory()
+                assert(prepared == nil and tostring(failure):find("paused", 1, true),
+                    "Recovery should restore the archive and pause on the active-profile mismatch")
+                assert(not integration.IsFaulted(), "An ignored mismatch must not fault integration")
+                local archived = this.accountWide.debug.autoCategoryRemovedLines
+                assert(#archived == #contexts, "Keep every historical archive row")
+                for index, context in ipairs(contexts) do
+                    local record = archived[index]
+                    assert(record.dateTime == "2026-11-02 17:52:00"
+                        and record.context == context.key and record.bagType == context.bag
+                        and record.index == originalIndices[context.key]
+                        and record.line.name == "Orphan" and record.line.icRuleKey == "custom_missing"
+                        and record.line.runpriority == 42 and record.line.showpriority == 43
+                        and record.restored == true,
+                        "Recovery must preserve the archive row and mark it restored")
+                    local restored = AutoCategory.saved.bags[context.bag].rules[originalIndices[context.key]]
+                    assert(restored.name == "Orphan" and restored.icRuleKey == "custom_missing"
+                        and restored.runpriority == 42 and restored.showpriority == 43,
+                        "Recovery must put the original assignment back at its saved position")
+                end
+                local summary = integration.GetOrphanedAssignmentReport(false)
+                assert(#summary == 2 and summary[1]:find("7", 1, true)
+                    and summary[1]:find("restored: 7", 1, true)
+                    and summary[2]:find("Current active-profile mismatches ignored: 7", 1, true),
+                    "Normal debug report should summarize archived, restored, and ignored rows")
+                local detailed = integration.GetOrphanedAssignmentReport(true)
+                assert(#detailed == #contexts * 2 + 2
+                    and detailed[3]:find("context=backpack", 1, true)
+                    and detailed[3]:find("restored=true", 1, true)
+                    and detailed[3]:find("custom_missing", 1, true)
+                    and detailed[#detailed]:find("ignored #7", 1, true),
+                    "Very verbose report should list archived and currently ignored assignment rows")
+                assert(integration.ProjectAutoCategory() == false and not integration.IsFaulted(),
+                    "A restored mismatch must remain safely ignored rather than projected")
+                for _, context in ipairs(contexts) do
+                    local rules = AutoCategory.saved.bags[context.bag].rules
+                    local matches = 0
+                    for _, assignment in ipairs(rules) do
+                        if assignment.icRuleKey == "custom_missing" then matches = matches + 1 end
+                    end
+                    assert(matches == 1, "Repeated preflight must not duplicate a restored assignment")
+                end
+                this.state = previousState
+            end,
+        },
+        {
+            name = "Failed AutoCategory projection rolls assignment lists and priorities back",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                assert(integration.ProjectAutoCategory())
+                local backpack = AutoCategory.saved.bags[1].rules
+                local original = {}
+                for index, assignment in ipairs(backpack) do
+                    original[index] = {
+                        assignment = assignment, name = assignment.name, icOwned = assignment.icOwned,
+                        icRuleKey = assignment.icRuleKey, runpriority = assignment.runpriority,
+                        showpriority = assignment.showpriority,
+                    }
+                end
+                local savedOrder = table.concat(this.accountWide.autoCategoryOrder.contexts.backpack.display, ",")
+                AutoCategory.cacheInitBag = function() error("synthetic refresh failure") end
+
+                assert(integration.MoveEntry("ic:alpha", "backpack", "display", "top") == false)
+                assert(integration.IsFaulted())
+                assert(#backpack == #original, "A failed projection must not add or delete saved assignments")
+                for index, entry in ipairs(original) do
+                    local assignment = backpack[index]
+                    assert(assignment == entry.assignment and assignment.name == entry.name
+                        and assignment.icOwned == entry.icOwned and assignment.icRuleKey == entry.icRuleKey
+                        and assignment.runpriority == entry.runpriority and assignment.showpriority == entry.showpriority,
+                        "A failed projection must restore assignment values and ordering")
+                end
+                assert(table.concat(this.accountWide.autoCategoryOrder.contexts.backpack.display, ",") == savedOrder,
+                    "A failed projection must not save its proposed order")
             end,
         },
         {

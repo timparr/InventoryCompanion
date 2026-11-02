@@ -20,7 +20,7 @@ local function LoadAddon(saved)
             display = { show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false },
         },
     }
-    addon.defaultsAccount = { trackedRules = {}, bankItemDelay = 100, trackerMaxRows = 20, trackerTitleSize = 20,
+    addon.defaultsAccount = { trackedRules = {}, debug = {}, bankItemDelay = 100, trackerMaxRows = 20, trackerTitleSize = 20,
         autoCategoryTimingThresholdMs = 500 }
     addon.defaultsCharacter = { trackedRules = {}, useCharacterItemList = false }
     for _, method in ipairs({
@@ -31,7 +31,7 @@ local function LoadAddon(saved)
     end
     local function NewProfile(_, name, version, namespace, defaults, key)
         calls.constructors = calls.constructors + 1
-        assert(namespace == nil and version == 6, "Constructors must request schema version 6 without a namespace")
+        assert(namespace == nil and version == 7, "Constructors must request schema version 7 without a namespace")
         local root = _G[name]
         if root == nil then root = {}; _G[name] = root end
         root.Default = root.Default or {}
@@ -88,11 +88,65 @@ function GetSavedVariablesTests()
                 }, other = { character = ordered } } })
                 local rules = configured.trackedRules
                 addon.PrepareSavedVariables()
-                assert(configured.version == 6 and configured.autoCategorySetupComplete == true)
-                assert(ordered.version == 6 and ordered.autoCategorySetupComplete == true)
+                assert(configured.version == 7 and configured.autoCategorySetupComplete == true)
+                assert(ordered.version == 7 and ordered.autoCategorySetupComplete == true)
                 assert(configured.trackedRules == rules and configured.unrelated.keep)
-                assert(unused.version == 6 and unused.autoCategorySetupComplete == nil
+                assert(unused.version == 7 and unused.autoCategorySetupComplete == nil
                     and unused.autoCategoryOrder.contexts.backpack.display[1] == "ac:New")
+            end,
+        },
+        {
+            name = "Malformed AutoCategory recovery log is rejected before SavedVariables constructors",
+            run = function()
+                local log = {
+                    {
+                        timestamp = 1793641920,
+                        dateTime = "2026-11-02 17:52:00",
+                        context = "backpack",
+                        bagType = 1,
+                        index = 4,
+                        restored = true,
+                        line = { icOwned = true, icRuleKey = "custom_missing" },
+                    },
+                }
+                local profile = { version = 7, debug = { autoCategoryRemovedLines = log } }
+                local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
+                local ok, message = pcall(calls.initialize)
+                assert(not ok and tostring(message):find(".line must be an IC-owned assignment", 1, true))
+                assert(calls.constructors == 0 and profile.version == 7
+                    and profile.debug.autoCategoryRemovedLines == log,
+                    "Malformed recovery data must stop before constructors and remain unchanged")
+            end,
+        },
+        {
+            name = "Actual schema-6 build rejects schema-7 list backups without mutation",
+            run = function()
+                for _, location in ipairs({ "$AccountWide", "inactive", "otherAccount" }) do
+                    local backup = {
+                        formatVersion = 1, trackedRules = { custom = {} }, trackedItems = {},
+                        autoCategoryOrder = { contexts = {} },
+                    }
+                    local profile = { version = 7, trackedRules = { keep = {} },
+                        accountWideListBackup = backup, unrelated = { keep = true } }
+                    local saved = { Default = { account = {} } }
+                    if location == "otherAccount" then
+                        saved.Default.other = { character = profile }
+                    else
+                        saved.Default.account[location] = profile
+                    end
+                    local _, calls = LoadAddon(saved)
+                    assert(loadstring(Schema6InitSource))()
+                    local old = InventoryCompanion
+                    _G[old.SettingsName] = saved
+                    assert(loadstring(Schema6ConstantsSource))()
+                    assert(loadstring(Schema6DatabaseSource))()
+                    assert(old.SettingsVersion == 6)
+                    local ok, message = pcall(old.PrepareSavedVariables)
+                    assert(not ok and tostring(message):find("supports version 6", 1, true))
+                    assert(calls.constructors == 0 and profile.version == 7
+                        and profile.accountWideListBackup == backup and profile.unrelated.keep,
+                        "Schema-6 build must leave schema-7 saved data unchanged")
+                end
             end,
         },
         {
@@ -140,7 +194,7 @@ function GetSavedVariablesTests()
                 addon.PrepareSavedVariables()
                 assert(calls.constructors == 0, "Preparation must precede ZOS loading")
                 for _, profile in ipairs({ account, inactive, other }) do
-                    assert(profile.version == 6, "Inactive profiles and accounts must upgrade")
+                    assert(profile.version == 7, "Inactive profiles and accounts must upgrade")
                 end
                 assert(account.trackedRules == rules and account.trackedItems == items,
                     "Version-only migration must preserve saved tables")
@@ -203,7 +257,7 @@ function GetSavedVariablesTests()
                 local profile = { version = 3, trackedRules = rules, keep = { value = 7 } }
                 local addon = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
                 addon.PrepareSavedVariables()
-                assert(profile.version == 6 and profile.trackedRules == rules and profile.keep.value == 7)
+                assert(profile.version == 7 and profile.trackedRules == rules and profile.keep.value == 7)
                 assert(profile.autoCategorySetupComplete == nil)
                 assert(profile.autoCategoryIntegrationEnabled == nil and profile.autoCategoryOrder.contexts.backpack,
                     "Migration must initialize context order without enabling the integration")
@@ -226,7 +280,7 @@ function GetSavedVariablesTests()
                 assert(addon.AutoCategoryIntegration.IsFaulted() and not addon.GetAutoCategoryState().enabled)
                 assert(calls.warnings[1]:find("WARNING", 1, true)
                     and calls.warnings[1]:find("cannot migrate safely", 1, true))
-                assert(profile.version == 6 and profile.trackedRules == rules
+                assert(profile.version == 7 and profile.trackedRules == rules
                     and profile.autoCategoryOrder == order and profile.unrelated.keep,
                     "Invalid integration settings must be preserved while core schema upgrades safely")
                 assert(addon.GetRuntimeRules().custom, "Core rules must remain usable")
@@ -294,7 +348,7 @@ function GetSavedVariablesTests()
                         "Other saved-variable account buckets must be preserved")
 
                     addon.PrepareSavedVariables()
-                    assert(accountProfile.version == 6 and inactiveProfile.version == 6,
+                    assert(accountProfile.version == 7 and inactiveProfile.version == 7,
                         "Cleaned schema-4 profiles should migrate normally on restart")
                     assert(accountProfile.autoCategoryOrder.contexts.backpack
                         and not accountProfile.trackedRules.custom.autoCategoryEnabled)
@@ -325,7 +379,7 @@ function GetSavedVariablesTests()
                     calls.initialize()
                     assert(addon.state.isLoaded and calls.constructors == 2)
                     assert(addon.AutoCategoryIntegration.IsFaulted())
-                    assert(broken.version == 6 and untouched.version == 6
+                    assert(broken.version == 7 and untouched.version == 7
                         and untouched.trackedRules.keep.addedPatterns[1] == "Keep*",
                         "Integration errors must not erase unrelated profile data")
                 end
@@ -347,19 +401,82 @@ function GetSavedVariablesTests()
             end,
         },
         {
-            name = "Fresh installations initialize schema version 6",
+            name = "Fresh installations initialize schema version 7",
             run = function()
                 for _, fixture in ipairs({ {}, { Default = {} }, { Default = { account = {} } } }) do
                     local addon, calls = LoadAddon(fixture)
                     calls.initialize()
-                    assert(addon.SettingsVersion == 6 and addon.accountWide.version == 6 and addon.character.version == 6)
+                    assert(addon.SettingsVersion == 7 and addon.accountWide.version == 7 and addon.character.version == 7)
                     assert(addon.accountWide.autoCategoryOrder.contexts.backpack
                         and addon.character.autoCategoryOrder.contexts.furniture_vault)
                     assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
                 end
                 local addon, calls = LoadAddon(nil)
                 calls.initialize()
-                assert(addon.state.isLoaded and addon.accountWide.version == 6 and addon.character.version == 6)
+                assert(addon.state.isLoaded and addon.accountWide.version == 7 and addon.character.version == 7)
+            end,
+        },
+        {
+            name = "Account-wide list backup survives reload and restores only account-wide list settings",
+            run = function()
+                local account = {
+                    version = 6,
+                    trackedRules = { custom = { displayName = "Saved group", autoCategoryEnabled = true } },
+                    trackedItems = { [123] = { link = "item", display = { show = true } } },
+                    autoCategoryIntegrationEnabled = true,
+                    autoCategorySetupComplete = true,
+                    autoCategoryOrder = { contexts = {
+                        backpack = { display = { "ic:custom" }, matching = { "ic:custom" } },
+                    } },
+                    trackerMaxRows = 24,
+                }
+                local character = {
+                    version = 6, trackedRules = { characterOnly = { displayName = "Keep" } },
+                    trackedItems = { [456] = { link = "character item" } },
+                    useCharacterItemList = true,
+                }
+                local saved = { Default = { account = { ["$AccountWide"] = account, character = character } } }
+                local addon, calls = LoadAddon(saved)
+                calls.initialize()
+                SLASH_COMMANDS["/iclistbackup"]("save")
+                local backup = account.accountWideListBackup
+                assert(backup and backup.trackedRules ~= account.trackedRules
+                    and backup.trackedRules.custom ~= account.trackedRules.custom
+                    and backup.trackedItems[123] ~= account.trackedItems[123])
+
+                account.trackedRules.custom.displayName = "Changed after backup"
+                account.trackedRules.custom.autoCategoryEnabled = nil
+                account.trackedItems[123] = nil
+                account.autoCategoryIntegrationEnabled = nil
+                account.autoCategoryOrder.contexts.backpack.display[1] = "ac:New"
+                local reloaded, reloadCalls = LoadAddon(saved)
+                reloadCalls.initialize()
+                assert(reloaded.character.useCharacterItemList)
+                SLASH_COMMANDS["/iclistbackup"]("recover")
+                assert(account.trackedRules.custom.displayName == "Saved group"
+                    and account.trackedRules.custom.autoCategoryEnabled)
+                assert(account.trackedItems[123].link == "item")
+                assert(account.autoCategoryIntegrationEnabled and account.autoCategorySetupComplete)
+                assert(account.autoCategoryOrder.contexts.backpack.display[1] == "ic:custom")
+                assert(account.trackerMaxRows == 24 and character.trackedRules.characterOnly.displayName == "Keep"
+                    and character.trackedItems[456].link == "character item"
+                    and character.useCharacterItemList)
+                assert(account.accountWideListBackup == backup,
+                    "Recovery must preserve the backup for repeated use")
+            end,
+        },
+        {
+            name = "Invalid account-wide list backup refuses recovery without changing live lists",
+            run = function()
+                local profile = { version = 6, trackedRules = { live = {} }, trackedItems = {} }
+                local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
+                calls.initialize()
+                profile.accountWideListBackup = {
+                    formatVersion = 2, trackedRules = {}, trackedItems = {}, autoCategoryOrder = { contexts = {} },
+                }
+                local ok = pcall(SLASH_COMMANDS["/iclistbackup"], "recover")
+                assert(not ok and profile.trackedRules.live and next(profile.trackedItems) == nil,
+                    "Invalid backup must be reported before replacing live account-wide lists")
             end,
         },
         {
@@ -380,7 +497,7 @@ function GetSavedVariablesTests()
                 calls.initialize()
                 assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
                 for _, profile in ipairs({ bank, character, inactive, otherAccount }) do
-                    assert(profile.version == 6, "Every account/character profile must be upgraded")
+                    assert(profile.version == 7, "Every account/character profile must be upgraded")
                 end
                 local rule = bank.trackedRules.builtin
                 assert(rule.patterns == nil and table.concat(rule.addedPatterns, ",") == "c" and table.concat(rule.removedPatterns, ",") == "a")
@@ -408,7 +525,7 @@ function GetSavedVariablesTests()
                 } }
                 local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
                 calls.initialize()
-                assert(profile.version == 6 and profile.trackedRules.empty and profile.trackedRules.builtin.display.isHidden)
+                assert(profile.version == 7 and profile.trackedRules.empty and profile.trackedRules.builtin.display.isHidden)
                 assert(table.concat(addon.GetRuntimeRules().builtin.patterns, ",") == "b,c")
                 assert(#addon.GetRuntimeRules().empty.patterns == 0)
             end,
@@ -419,7 +536,7 @@ function GetSavedVariablesTests()
                 for _, location in ipairs({ "$AccountWide", "character", "inactive", "otherAccount" }) do
                     local originalRules = { builtin = { patterns = { "b", "c" }, display = { show = true } } }
                     local legacy = { version = 1, trackedRules = originalRules }
-                    local future = { version = 7, trackedRules = { unknownFutureSchema = true }, keep = true }
+                    local future = { version = 8, trackedRules = { unknownFutureSchema = true }, keep = true }
                     local saved = { Default = { account = { legacy = legacy } } }
                     if location == "otherAccount" then
                         saved.Default.otherAccount = { ["$AccountWide"] = future }
@@ -427,8 +544,8 @@ function GetSavedVariablesTests()
                         saved.Default.account[location] = future
                     end
                     local addon, calls = LoadAddon(saved)
-                    AssertStopped(addon, calls, "supports version 6")
-                    assert(future.version == 7 and future.keep and future.trackedRules.unknownFutureSchema)
+                    AssertStopped(addon, calls, "supports version 7")
+                    assert(future.version == 8 and future.keep and future.trackedRules.unknownFutureSchema)
                     assert(legacy.version == 1 and legacy.trackedRules == originalRules and originalRules.builtin.patterns[1] == "b")
                     assert(originalRules.builtin.display.show, "Downgrade refusal must not partially normalize old data")
                 end
@@ -449,8 +566,8 @@ function GetSavedVariablesTests()
             run = function()
                 local profile = { version = 1, trackedRules = { custom = { patterns = { "Keep*" } } } }
                 local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
-                addon.SettingsVersion = 7
-                AssertStopped(addon, calls, "no supported migration from version 1 to version 7")
+                addon.SettingsVersion = 8
+                AssertStopped(addon, calls, "no supported migration from version 1 to version 8")
                 assert(profile.version == 1 and profile.trackedRules.custom.patterns[1] == "Keep*")
             end,
         },
@@ -505,7 +622,7 @@ function GetSavedVariablesTests()
                 local profile = { version = 1, bankItemDelay = 432, keep = true }
                 local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
                 calls.initialize()
-                assert(addon.state.isLoaded and profile.version == 6 and next(profile.trackedRules) == nil)
+                assert(addon.state.isLoaded and profile.version == 7 and next(profile.trackedRules) == nil)
                 assert(profile.bankItemDelay == 432 and profile.keep)
             end,
         },

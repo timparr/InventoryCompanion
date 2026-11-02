@@ -136,6 +136,15 @@ for field, relative in (
     saved_variables_lua.globals()[field] = subprocess.check_output(
         ["git", "--no-pager", "show", f"3e1afd6faf202769229add36dc148ade5b6a6912:{relative}"], cwd=root
     ).decode("utf-8-sig")
+schema6_saved_variables_commit = "485333a904864bb3f064ca43fb26a30f60dce8ac"
+for field, relative in (
+    ("Schema6InitSource", "Core/Init.lua"),
+    ("Schema6ConstantsSource", "Core/Constants.lua"),
+    ("Schema6DatabaseSource", "Tracking/ItemDatabase.lua"),
+):
+    saved_variables_lua.globals()[field] = subprocess.check_output(
+        ["git", "--no-pager", "show", f"{schema6_saved_variables_commit}:{relative}"], cwd=root
+    ).decode("utf-8-sig")
 tracker_lua = LuaRuntime(unpack_returned_tuples=True)
 tracker_lua.execute("SLASH_COMMANDS = {}; EVENT_MANAGER = { RegisterForEvent = function() end }")
 tracker_lua.globals().GetGameTimeMilliseconds = lambda: int(perf_counter() * 1000)
@@ -166,6 +175,8 @@ autocategory_lua = LuaRuntime(unpack_returned_tuples=True)
 autocategory_lua.execute(
     'InventoryCompanion = { SettingsName = "InventoryCompanion_AutoCategoryTests" }'
 )
+# ESO does not expose debug.getinfo; keep the diagnostic tests representative of that runtime.
+autocategory_lua.execute("debug.getinfo = nil")
 for relative in (
     "Core\\Constants.lua",
     "Tracking\\ItemDatabase.lua",

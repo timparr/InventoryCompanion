@@ -1,6 +1,6 @@
 # ESOUI Release Standards Review
 
-Use this template for any ESO add-on, regardless of its features, test framework, or release tooling. Complete the compact report below for an identified, frozen release candidate, not a changing development checkout. Stop copying at "Review method and evidence": the rest of this document is a standing criteria reference, not a per-release report to fill out. The timestamp is an audit record, not a freshness gate.
+Use this template for any ESO add-on, regardless of its features, test framework, or release tooling. Start the working `ReleaseReview.md` during DEV source review and record proposed document wording there before discussing it with the author. Complete candidate identity, test evidence, and decision fields for the frozen release candidate. Stop copying at "Review method and evidence": the rest of this document is a standing criteria reference, not a per-release report to fill out. The timestamp is an audit record, not a freshness gate.
 
 Reviewed (UTC): <YYYY-MM-DDTHH:mm:ssZ>
 Reviewer: <AI assistant and model name, if available; do not guess>
@@ -24,6 +24,20 @@ Testing scope: Live by default. Record PTS as untested unless the tester reports
 ## Changes reviewed
 
 - [ ] Complete the actual source-to-baseline review in the development/test installation before staging. Inspect changed code plus affected callers/data flows, and record findings with source-relative locations. After staging, verify candidate identity and that the reviewed source is what was frozen; account for version metadata and other staging-only differences. Carry forward unchanged source-review evidence by baseline reference and explain its applicability. For FULL, inspect the complete runtime source, XML, manifest and relevant configuration. Record the scope and any material gaps; do not imply uninspected code was freshly reviewed.
+
+## Proposed changes to documents
+
+- Feature documentation: <exact proposed wording, or N/A with a reason>
+- Changelog: <proposed release text, user-facing impact first, followed by supporting technical detail>
+- Proposed version: <version/type and rationale, or PENDING>
+- Discussion status: <PENDING or AGREED>
+
+### Agreed wording and version
+
+- Feature documentation: <exact agreed wording, or N/A with a reason>
+- Changelog: <exact agreed release text>
+- Agreed version: <version/type and rationale>
+- Agreement date: <YYYY-MM-DD or PENDING>
 
 ## Release checks
 
