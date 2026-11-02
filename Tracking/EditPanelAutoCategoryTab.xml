@@ -6,13 +6,9 @@
                 <Texture name="$(parent)BG" color="FFFFFF" alpha="0">
                     <AnchorFill />
                 </Texture>
-                <Label name="$(parent)Orders" font="ZoFontGameSmall" color="E6B35C" verticalAlignment="CENTER" horizontalAlignment="LEFT">
-                    <Dimensions x="86" y="32" />
-                    <Anchor point="LEFT" relativeTo="$(parent)" relativePoint="LEFT" offsetX="8" />
-                </Label>
                 <Label name="$(parent)Name" font="ZoFontGame" color="FFFFFF" verticalAlignment="CENTER" wrapMode="ELLIPSE">
-                    <Dimensions x="600" y="32" />
-                    <Anchor point="LEFT" relativeTo="$(parent)Orders" relativePoint="RIGHT" offsetX="6" />
+                    <Dimensions x="540" y="32" />
+                    <Anchor point="LEFT" relativeTo="$(parent)" relativePoint="LEFT" offsetX="8" />
                 </Label>
                 <Button name="$(parent)MoveDown" inherits="ZO_DefaultButton" text="v" hidden="true">
                     <Dimensions x="28" y="24" />
@@ -25,6 +21,10 @@
                 <Button name="$(parent)Participation" inherits="ZO_CheckButton" hidden="true">
                     <Anchor point="RIGHT" relativeTo="$(parent)MoveUp" relativePoint="LEFT" offsetX="-8" />
                 </Button>
+                <Label name="$(parent)Orders" font="ZoFontGameSmall" color="E6B35C" verticalAlignment="CENTER" horizontalAlignment="RIGHT">
+                    <Dimensions x="100" y="32" />
+                    <Anchor point="RIGHT" relativeTo="$(parent)Participation" relativePoint="LEFT" offsetX="-8" />
+                </Label>
             </Controls>
         </Control>
 

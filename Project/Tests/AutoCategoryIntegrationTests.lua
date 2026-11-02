@@ -320,6 +320,26 @@ function this.GetAutoCategoryIntegrationTests()
             end,
         },
         {
+            name = "Renaming a participating group updates its AutoCategory heading",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                local _, scheduled = InstallHooks()
+                integration.OnRuleMutation = originalOnRuleMutation
+                assert(integration.ProjectAutoCategory(), this.autoCategoryFailure)
+                local oldName = "Alpha" .. icCategoryNameMarkupSuffix
+                assert(FindAssignment("backpack", oldName), "Initial AutoCategory heading is missing")
+
+                this.UpdateRuleProperty("alpha", "displayName", "Alpha Prime")
+                assert(#scheduled == 1, "Group rename must schedule AutoCategory reconciliation")
+                scheduled[1]()
+
+                assert(not integration.IsFaulted(), this.autoCategoryFailure)
+                assert(FindAssignment("backpack", "Alpha Prime" .. icCategoryNameMarkupSuffix),
+                    "Renamed group must update its AutoCategory heading")
+                assert(not FindAssignment("backpack", oldName), "Old AutoCategory heading must be removed")
+            end,
+        },
+        {
             name = "AutoCategory timing reports a slow move with phases without disabling integration",
             run = function()
                 PrepareActive({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })

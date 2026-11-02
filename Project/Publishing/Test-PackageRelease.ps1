@@ -121,6 +121,10 @@ try {
     Assert (($stageOutput -join "`n") -match 'ESO may remain open during finalization') "Staging gives incorrect finalization instructions."
     Assert (($stageOutput -join "`n") -match 'then reload the UI') "Staging did not require a reload after selecting the release."
     Assert (($stageOutput -join "`n") -match "runtime version=$([regex]::Escape($version)), DEV=false") "Staging did not identify the expected loaded release."
+    Assert (($stageOutput -join "`n") -match 'worktree must be clean and intended changes committed before review') "Staging did not require a clean committed worktree before review."
+    Assert (($stageOutput -join "`n") -match 'ESOUI criteria review and full DEV tests must be complete before staging') "Staging did not require pre-stage ESOUI review and DEV tests."
+    Assert (($stageOutput -join "`n") -match 'brief load/function smoke') "Staging did not limit candidate testing to a smoke check."
+    Assert (($stageOutput -join "`n") -match 'DEV test evidence and candidate smoke results') "Staging did not request both DEV test evidence and candidate smoke results."
     Assert (($stageOutput -join "`n") -match 'last-on-disk snapshot') "Staging did not explain backup freshness."
     $backupDirectory = Join-Path $devRoot "SavedVariables"
     $savedVariablesBackups = @(Get-ChildItem -LiteralPath $backupDirectory -Filter "InventoryCompanion-*.lua" -File)

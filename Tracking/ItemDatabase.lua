@@ -776,6 +776,7 @@ function this.UpdateRuleProperty(ruleName, propertyKey, value)
     savedRules[ruleName][propertyKey] = value
     PruneRule(savedRules, ruleName)
     this.InvalidateRuleCache()
+    this.AutoCategoryIntegration.OnRuleMutation("rename", ruleName)
 end
 
 function this.UpdateRulePatterns(ruleName, uiPatterns)

@@ -10,7 +10,7 @@ instructions and remaining-gate assumptions are superseded.
 
 Read [AGENTS.md](../../../AGENTS.md), the
 [AutoCategory integration gate plan](../Tasks/todo_implementation_autocategoryIntegration.md),
-and the existing [DEV slash-command probe](../../../Core/AutoCategorySpike.lua).
+and the existing [DEV slash-command probe](../../Tests/AutoCategorySpikeRuntime.lua).
 Reuse that probe where possible. Add only the minimal DEV-only slash commands
 needed to answer these remaining in-game questions:
 

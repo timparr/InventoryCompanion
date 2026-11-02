@@ -78,7 +78,7 @@ IDs match the [spec's open-question register](todo_plan_autocategoryIntegration.
 
 - Installed dependency inspected: AutoCategory **4.5.2**, AddOnVersion **134**.
   Recheck contracts if its version/source changes.
-- DEV probe: [AutoCategorySpike.lua](../../../Core/AutoCategorySpike.lua).
+- Offline probe module: [AutoCategorySpikeRuntime.lua](../../Tests/AutoCategorySpikeRuntime.lua).
   Offline fixture: [AutoCategorySpikeTests.lua](../../Tests/AutoCategorySpikeTests.lua).
   Run `python Project\Tests\Run-AutoCategorySpike.py` using the existing
   [runner](../../Tests/Run-AutoCategorySpike.py).

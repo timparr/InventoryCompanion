@@ -81,10 +81,14 @@ local function RowByText(text)
     error("No visible AutoCategory editor row contains: " .. text)
 end
 
+local function LogicalRowName(row)
+    return (GetControl(row, "Name").text:gsub("^AutoCategory: ", ""))
+end
+
 local function RowTexts()
     local texts = {}
     for _, row in ipairs(VisibleRows()) do
-        texts[#texts + 1] = GetControl(row, "Name").text
+        texts[#texts + 1] = LogicalRowName(row)
     end
     return table.concat(texts, ",")
 end
@@ -109,7 +113,7 @@ end
 local function SelectedTexts()
     local texts = {}
     for _, row in ipairs(VisibleRows()) do
-        if RowSelected(row) then texts[#texts + 1] = GetControl(row, "Name").text end
+        if RowSelected(row) then texts[#texts + 1] = LogicalRowName(row) end
     end
     return table.concat(texts, ",")
 end
@@ -328,6 +332,13 @@ function this.GetAutoCategoryEditorTests()
                 assert(RowTexts() == "New,Alpha,Beta,Selling,Low level,Gamma", RowTexts())
                 local contextCombo = combos[window.name .. "TopActionBarContextMode"]
                 assert(contextCombo.selected == "Backpack" and #contextCombo.items == 7)
+                local alphaLabel = GetControl(RowByText("Alpha"), "Name")
+                assert(alphaLabel.color[1] == 0.2 and alphaLabel.color[2] == 0.8 and alphaLabel.color[3] == 0.4,
+                    "Display groups use the darker shared green")
+                local sellingLabel = GetControl(RowByText("Selling"), "Name")
+                assert(sellingLabel.text == "AutoCategory: Selling")
+                assert(sellingLabel.color[1] == 0.65 and sellingLabel.color[2] == 0.68
+                    and sellingLabel.color[3] == 1, "Native categories use a non-green tint")
                 assert(not GetControl(RowByText("Gamma"), "Participation").hidden)
                 assert(GetControl(RowByText("Gamma"), "Participation").checked == false)
                 assert(GetControl(RowByText("New"), "Participation").hidden)
@@ -349,6 +360,9 @@ function this.GetAutoCategoryEditorTests()
 
                 local options = GetControl(window, "OptionsBar")
                 GetControl(options, "BtnPriorityOrder").handlers.OnClicked()
+                alphaLabel = GetControl(RowByText("Alpha"), "Name")
+                assert(alphaLabel.color[1] == 0.60 and alphaLabel.color[2] == 0.90
+                    and alphaLabel.color[3] == 0.65, "Priority groups use pale green")
                 assert(GetControl(window, "Info").text:find("more than one group", 1, true))
                 assert(GetControl(window, "Info").text:find("Hold shift", 1, true))
                 assert(GetControl(options, "BtnUseOtherOrder").text == "Use display list")

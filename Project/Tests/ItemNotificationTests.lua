@@ -45,5 +45,23 @@ function this.GetItemNotificationTests()
                 assert(messages[6].hud == "...check chat for more!", "Existing currency/capacity limiter remains unchanged")
             end,
         },
+        {
+            name = "Shared warning burst window includes messages two seconds apart",
+            run = function()
+                local clock = 1000
+                utils.BeginMessageCapture(function() return clock end)
+                for index = 1, 6 do
+                    utils.UserWarning("burst " .. index, "burst HUD " .. index)
+                    clock = clock + 2000
+                end
+                clock = clock + 1001
+                utils.UserWarning("after burst", "after burst HUD")
+                local messages = utils.EndMessageCapture()
+                assert(messages[6].hud == "...check chat for more!",
+                    "Messages two seconds apart share the three-second burst window")
+                assert(messages[7].hud == "after burst HUD",
+                    "A message after the burst window starts a new HUD burst")
+            end,
+        },
     }
 end

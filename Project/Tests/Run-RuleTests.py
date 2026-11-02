@@ -27,6 +27,14 @@ autocategory_row = autocategory_xml.find(".//Control[@name='InventoryCompanion_A
 for child in ("BG", "Orders", "Name", "MoveUp", "MoveDown", "Participation"):
     assert autocategory_row.find(f"*[@name='$(parent){child}']") is not None, f"AutoCategory row needs {child}"
 assert autocategory_row.find("*[@name='$(parent)Selection']") is None, "Selection checkboxes are obsolete"
+name_label = autocategory_row.find("Label[@name='$(parent)Name']")
+orders_label = autocategory_row.find("Label[@name='$(parent)Orders']")
+name_anchor = name_label.find("Anchor")
+orders_anchor = orders_label.find("Anchor")
+assert name_anchor.get("relativeTo") == "$(parent)" and name_anchor.get("relativePoint") == "LEFT"
+assert orders_anchor.get("relativeTo") == "$(parent)Participation"
+assert orders_anchor.get("point") == "RIGHT" and orders_anchor.get("relativePoint") == "LEFT"
+assert name_label.get("verticalAlignment") == "CENTER" and orders_label.get("verticalAlignment") == "CENTER"
 autocategory_window = autocategory_xml.find(".//TopLevelControl[@name='InventoryCompanion_AutoCategoryWindow']/Controls")
 for path in (
     "TopActionBar/Controls/*[@name='$(parent)ContextMode']",

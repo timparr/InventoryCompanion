@@ -650,11 +650,10 @@ results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
   and Show-all controls, overlap examples, owned settings moves overwritten,
   collapse residue, uninstall `(!)` rows, active-profile scope, compatibility,
   performance and saved-data/downgrade behavior.
-- **Before shipping, tear down the DEV spike runtime:** remove
-  `Core/AutoCategorySpike.lua` from the DEV manifest and relocate the probe
-  source to a clearly non-loaded development/test location for possible reuse.
-  Keep its offline fixtures/runner usable, updating paths and validating them
-  after relocation. No spike slash commands, event handlers, gate plugin or
+- **Before shipping, tear down the DEV spike runtime:** the probe source is now
+  in `Project/Tests/AutoCategorySpikeRuntime.lua` and removed from the DEV
+  manifest. Keep its offline fixtures/runner usable and validate after
+  relocation. No spike slash commands, event handlers, gate plugin or
   Debug override may remain registered by the shipped runtime; normal
   `Tests.RunTests("verbose copy")` Debug behavior must be restored. Do not remove the
   production integration module or its required optional AutoCategory

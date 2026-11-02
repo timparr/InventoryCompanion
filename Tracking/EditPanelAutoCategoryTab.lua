@@ -264,13 +264,12 @@ local function PopulateRow(row, entry, displayIndex, scrollChild, contextAtRende
         orders:SetText("")
     end
     if entry.kind == "heading" then
-        label:SetText(EscapeEsoMarkup(entry.name))
-        if modeAtRender == "display" then label:SetColor(0.60, 0.90, 0.65, 1)
-        else label:SetColor(0.65, 0.68, 1, 1) end
+        label:SetText("AutoCategory: " .. EscapeEsoMarkup(entry.name))
+        label:SetColor(0.65, 0.68, 1, 1)
     else
         label:SetText(entry.name)
-        if modeAtRender == "display" then label:SetColor(0.72, 0.88, 0.74, 1)
-        else label:SetColor(0.76, 0.78, 0.98, 1) end
+        if modeAtRender == "display" then label:SetColor(0.2, 0.8, 0.4, 1)
+        else label:SetColor(0.60, 0.90, 0.65, 1) end
     end
 
     row:SetHandler("OnMouseEnter", function()

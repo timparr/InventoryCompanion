@@ -68,7 +68,7 @@ end
 ------------------------------------------------------------
 local lastMessageTime = 0
 local spamCount = 0
-local SPAM_WINDOW_SECONDS = 1
+local SPAM_WINDOW_SECONDS = 3
 
 -- Track the last sent message text to prevent exact duplicate spam
 local lastSentText = ""

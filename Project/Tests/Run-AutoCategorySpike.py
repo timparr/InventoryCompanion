@@ -46,7 +46,12 @@ lua.execute(
 settings = external / "settings" / "BagSet.lua"
 fingerprints[settings] = hashlib.sha256(settings.read_bytes()).hexdigest()
 lua.execute(settings.read_text(encoding="utf-8-sig"), name=str(settings))
-for relative in ("Core\\Constants.lua", "Tracking\\ItemDatabase.lua", "Core\\AutoCategorySpike.lua"):
+for relative in (
+    "Core\\Constants.lua",
+    "Tracking\\ItemDatabase.lua",
+    "Tracking\\AutoCategoryIntegration.lua",
+    "Project\\Tests\\AutoCategorySpikeRuntime.lua",
+):
     path = root / relative
     lua.execute(path.read_text(encoding="utf-8-sig"), name=relative)
 

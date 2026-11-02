@@ -1,3 +1,4 @@
+-- Offline test module; never list this file in an ESO addon manifest.
 local this = InventoryCompanion
 
 local function Copy(value, seen)

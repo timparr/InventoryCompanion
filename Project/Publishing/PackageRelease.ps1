@@ -290,10 +290,11 @@ $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
         throw
     }
     Write-Output "Staged release $version at $candidateRoot"
-    Write-Output "Staging finished. Select only InventoryCompanion in your release-test add-on profile, then reload the UI."
-    Write-Output "Run /ictest verbose copy after reloading. Verify Installation=InventoryCompanion, runtime version=$version, DEV=false, AddOnVersion=$integerVersion, and no enabled DEV copy."
+    Write-Output "Staging finished. The worktree must be clean and intended changes committed before review; ESOUI criteria review and full DEV tests must be complete before staging. If runtime source changed after them, cancel and complete the affected checks before staging a replacement."
+    Write-Output "Select only InventoryCompanion in your release-test add-on profile, then reload the UI. Verify Installation=InventoryCompanion, runtime version=$version, DEV=false, AddOnVersion=$integerVersion, and no enabled DEV copy."
+    Write-Output "Verify the candidate identity and staged files against the reviewed/tested DEV source, accounting for staging-only version metadata changes, then perform a brief load/function smoke. Do not repeat the full suite unless a mismatch or specific finding warrants it."
     Write-Output "Both versions share saved variables. Any automatic backup is only the last-on-disk snapshot."
-    Write-Output "After review and testing, complete ReleaseReview.md, then run -Action Finalize -TestResults '<actual results>'. ESO may remain open during finalization."
+    Write-Output "After DEV review/testing and the candidate smoke, complete ReleaseReview.md, then run -Action Finalize -TestResults '<DEV test evidence and candidate smoke results>'. ESO may remain open during finalization."
     Write-Output "To remove this installation, run -Action Cancel without reloading during removal; then select DEV only and reload."
     return
 }

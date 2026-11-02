@@ -2,8 +2,8 @@
 ## Title: InventoryCompanion [DEV] - Auto Bank, Item Tracker & Set Manager
 ## Description: All-in-one inventory automation, item tracking, stack restocking, and gear set management.
 ## Author: @Tim-P
-## Version: 1.5.1
-## AddOnVersion: 10501
+## Version: 1.6.2
+## AddOnVersion: 10602
 ## SavedVariables: InventoryCompanion_SavedVariables
 ## DependsOn: LibAddonMenu-2.0>=43
 ## OptionalDependsOn: AutoCategory
@@ -51,4 +51,3 @@ Tracking/ItemTrackerPanel.lua
 Core/Events.lua
 Core/RuleTests.lua
 Core/Tests.lua
-Core/AutoCategorySpike.lua
