@@ -256,12 +256,12 @@ local function PopulateRow(row, entry, displayIndex, scrollChild, contextAtRende
     local label = GetControl(row, "Name")
     SetRowBackground(row, entry, false)
     local orders = GetControl(row, "Orders")
-    if CanOrder(entry) then
-        -- The other list's position can be missing until reconciliation realigns both lists.
-        orders:SetText(string.format("P%s  D%s",
-            tostring(entry.matchingPosition or "–"), tostring(entry.displayPosition or "–")))
+    -- Flag divergence between the two lists; the other position can be missing until reconciliation realigns them.
+    local otherPosition = modeAtRender == "display" and entry.matchingPosition or entry.displayPosition
+    if CanOrder(entry) and otherPosition ~= nil and otherPosition ~= entry.index then
+        orders:SetText((modeAtRender == "display" and "Priority " or "Display ") .. otherPosition)
     else
-        orders:SetText("–")
+        orders:SetText("")
     end
     if entry.kind == "heading" then
         label:SetText(EscapeEsoMarkup(entry.name))

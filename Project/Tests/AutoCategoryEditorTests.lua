@@ -53,6 +53,7 @@ InformationTooltip = { AddLine = function() end }
 function InitializeTooltip() end
 function ClearTooltip() end
 function PlaySound() end
+function d() end
 local shiftHeld = false
 function IsShiftKeyDown() return shiftHeld end
 local scrolledRow
@@ -331,17 +332,20 @@ function this.GetAutoCategoryEditorTests()
                 assert(GetControl(RowByText("Gamma"), "Participation").checked == false)
                 assert(GetControl(RowByText("New"), "Participation").hidden)
                 assert(GetControl(RowByText("Alpha"), "MoveDown").hidden == false)
-                assert(GetControl(RowByText("Alpha"), "Orders").text == "P2  D2",
-                    GetControl(RowByText("Alpha"), "Orders").text)
-                assert(GetControl(RowByText("Gamma"), "Orders").text == "–",
+                assert(GetControl(RowByText("Alpha"), "Orders").text == "",
+                    "Rows at the same position in both lists must show no divergence marker: "
+                        .. GetControl(RowByText("Alpha"), "Orders").text)
+                assert(GetControl(RowByText("Gamma"), "Orders").text == "",
                     "Nonparticipating groups have no order positions")
 
                 GetControl(RowByText("Alpha"), "MoveDown").handlers.OnClicked()
                 local move = integration.lastMove
                 assert(move[1]["ic:alpha"] and move[2] == "backpack" and move[3] == "display" and move[4] == 1)
-                assert(GetControl(RowByText("Alpha"), "Orders").text == "P2  D3",
-                    "Order labels must show both the priority and display positions: "
+                assert(GetControl(RowByText("Alpha"), "Orders").text == "Priority 2",
+                    "Diverging rows must show their position in the other list: "
                         .. GetControl(RowByText("Alpha"), "Orders").text)
+                assert(GetControl(RowByText("Beta"), "Orders").text == "Priority 3",
+                    GetControl(RowByText("Beta"), "Orders").text)
 
                 local options = GetControl(window, "OptionsBar")
                 GetControl(options, "BtnPriorityOrder").handlers.OnClicked()

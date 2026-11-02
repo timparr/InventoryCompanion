@@ -6,8 +6,8 @@
                 <Texture name="$(parent)BG" color="FFFFFF" alpha="0">
                     <AnchorFill />
                 </Texture>
-                <Label name="$(parent)Orders" font="ZoFontGameSmall" color="999999" verticalAlignment="CENTER" horizontalAlignment="LEFT">
-                    <Dimensions x="78" y="32" />
+                <Label name="$(parent)Orders" font="ZoFontGameSmall" color="E6B35C" verticalAlignment="CENTER" horizontalAlignment="LEFT">
+                    <Dimensions x="86" y="32" />
                     <Anchor point="LEFT" relativeTo="$(parent)" relativePoint="LEFT" offsetX="8" />
                 </Label>
                 <Label name="$(parent)Name" font="ZoFontGame" color="FFFFFF" verticalAlignment="CENTER" wrapMode="ELLIPSE">

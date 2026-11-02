@@ -25,8 +25,8 @@ Selection checkboxes removed. Single click starts a new selection (re-clicking t
 ## 7. Info label text — DONE
 Per-mode Display/Priority descriptions with the shared multi-select trailer; Info label grew 52 → 78px.
 
-## 8. Read-only order labels per row — DONE
-Each orderable row shows `P<n>  D<n>` (priority and display positions) in a dim label before the name; `–` when a position is unavailable (nonparticipants, or pre-reconcile divergence). `ResolveAutoCategoryOrder` now exposes `matchingPosition`/`displayPosition` per entry.
+## 8. Read-only order labels per row — DONE (revised)
+The raw `P<n>  D<n>` labels were too obscure. Each orderable row now shows a divergence marker instead: blank when the entry is at the same position in both lists; an amber `Priority <n>` (in Display view) or `Display <n>` (in Priority view) when the two lists disagree, so differences are visible at a glance. `ResolveAutoCategoryOrder` exposes `matchingPosition`/`displayPosition` per entry.
 
 ## 9. Distinguish IC group names from native AC categories — DONE (temporary)
 Generated IC category names use the white no-op suffix `|cFFFFFF|r` for now; the heading keeps its normal color while the underlying name differs from a native AC category with the same label. The custom v5 SVG remains the planned icon once a game-ready DDS texture is available.
