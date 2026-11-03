@@ -10,10 +10,10 @@ documents, distinguishing implemented behavior from agreed work not yet done.
 
 - **Implemented baseline:** opt-in integration, independent context orders,
   initial setup, active-profile synchronization, native exclusions and recovery.
-  The latest recorded saved-variable schema is **8**.
-- **Agreed next change, not implemented:** context-specific IC group exclusion,
-  a Display-only Other row and the items-editor area selector, with proposed
-  schema **9**. The [current implementation document](Tasks/AutocategoryTweaks_hideICNotDelete.md)
+  The current saved-variable schema is **9**.
+- **Implemented, pending in-game acceptance:** context-specific IC group exclusion,
+  a Display-only Other row and the items-editor area selector.
+  The [current implementation document](AutocategoryTweaks_hideICNotDelete.md)
   owns detailed work sequencing, migration examples and acceptance for this work.
 - **Verification:** historical offline results and limited ESO confirmations
   exist; full compatibility certification and release readiness remain pending.
@@ -89,14 +89,14 @@ Renaming an IC group does not change its stable identity.
 
 ## Inclusion and Other
 
-### Implemented schema-8 baseline
+### Historical schema-8 baseline
 
-IC group inclusion currently toggles the global `autoCategoryEnabled` flag.
+IC group inclusion previously toggled the global `autoCategoryEnabled` flag.
 Native category exclusions are per-context. Both editors use Included/Excluded
 sections, but excluding an IC group currently removes its participation across
 all contexts. Other is automatic and absent from both IC ordering lists.
 
-### Agreed target behavior
+### Implemented schema-9 behavior
 
 The current implementation document supersedes that global IC-group behavior:
 
@@ -144,7 +144,7 @@ and copy actions, green Included/red Excluded labels, red excluded names and a
 single Excluded divider. State and action must be understandable without colour.
 Excluded rows have no move controls. Special Other has ordering controls only.
 
-The target items-editor AutoCategory column opens a seven-checkbox area selector,
+The items-editor AutoCategory column opens a seven-checkbox area selector,
 using the same inclusion operation as the ordering editor. Individual items and
 Miscellaneous have no selector. Preserve column alignment and failure access.
 
@@ -233,12 +233,16 @@ Schema 8 stores per-profile integration enablement/setup, global group
 participation, independent context `display`/`matching` lists, native `hidden`
 flags, `displayPositions` and an `itemListInitialized` marker.
 
-Proposed schema 9 extends `hidden` to IC references, retains excluded group
+Schema 9 extends `hidden` to IC references, retains excluded group
 references in context sequences and stores `ic:__ic_other` in Display only.
 The global flag no longer controls context inclusion. Migrate enabled groups
 as included everywhere; existing nonparticipants become excluded tails in every
 context, not newly included groups. Initialize Other last in the included
 Display section. The implementation document contains illustrative SV excerpts.
+Stored account-wide list backups migrate with their owning profile. Schema-4
+through schema-8 builds are exercised directly for non-mutating downgrade
+rejection. Reset preserves per-context IC inclusion, clearing native exclusions
+and restoration positions as before.
 
 Validate every profile and import before ZOS constructors, preserving unrelated
 data, options, markers and inactive profiles. Do not persist derived priorities

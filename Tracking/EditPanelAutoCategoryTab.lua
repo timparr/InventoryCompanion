@@ -206,7 +206,8 @@ end
 
 local function ConfigureParticipation(row, entry, contextAtRender, modeAtRender)
     local participation = GetControl(row, "Participation")
-    participation:SetHidden(false)
+    participation:SetHidden(entry.kind == "other")
+    if entry.kind == "other" then return end
     local stateLabel = GetControl(participation, "State")
     stateLabel:SetText(entry.included and "Included" or "Excluded")
     if entry.included then stateLabel:SetColor(0.2, 0.8, 0.4, 1)
@@ -222,7 +223,7 @@ local function ConfigureParticipation(row, entry, contextAtRender, modeAtRender)
         end)
     end)
     participation:SetHandler("OnMouseEnter", function(control)
-        local scope = entry.kind == "group" and " across all seven contexts" or " in this context"
+        local scope = " in this context"
         ShowTooltip(control, entry.included
             and "Included" .. scope .. ". Click to exclude it and move it below the Excluded divider in both lists."
             or "Excluded" .. scope .. ". Click to include it again in both lists."
@@ -293,8 +294,15 @@ local function PopulateRow(row, entry, displayIndex, scrollChild, contextAtRende
 
     row:SetHandler("OnMouseEnter", function()
         SetRowBackground(row, entry, true)
+        if entry.kind == "other" then
+            ShowTooltip(row, "Other always matches after included categories and before excluded categories."
+                .. " Moving it changes display order only, not matching precedence.")
+        end
     end)
-    row:SetHandler("OnMouseExit", function() SetRowBackground(row, entry, false) end)
+    row:SetHandler("OnMouseExit", function()
+        SetRowBackground(row, entry, false)
+        HideTooltip()
+    end)
     row:SetHandler("OnMouseDown", function(_, button)
         Timed("row click " .. tostring(button), entry, this.AutoCategoryIntegration.Run, function()
             if button ~= MOUSE_BUTTON_INDEX_LEFT or not CanOrder(entry) then return end

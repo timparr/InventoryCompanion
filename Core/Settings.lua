@@ -193,7 +193,7 @@ function this.CreateSettingsPanel()
         {
             type = "checkbox",
             name = "Enable AutoCategory Integration",
-            tooltip = "Use participating Inventory Companion groups as native AutoCategory categories. This setting follows the selected account-wide or character-specific item list.",
+            tooltip = "Use Inventory Companion groups as native AutoCategory categories, with independent inclusion in each inventory area. This setting follows the selected account-wide or character-specific item list.",
             getFunc = function() return this.GetAutoCategoryState().configuredEnabled end,
             setFunc = function(enabled)
                 this.SetAutoCategoryIntegrationEnabled(enabled)
@@ -204,7 +204,7 @@ function this.CreateSettingsPanel()
         {
             type = "button",
             name = "Open AutoCategory Editor",
-            tooltip = "Manage category order and choose which IC groups to include in AutoCategory.",
+            tooltip = "Manage category order and choose which groups and native categories to include in each inventory area.",
             func = function()
                 this.OpenAutoCategoryPanel()
             end,

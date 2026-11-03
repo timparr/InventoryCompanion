@@ -38,6 +38,7 @@ local registeredPlugin
 local hooksInstalled = false
 local reconciling = false
 local pendingGeneration = 0
+local pendingFullReconcile = false
 local nextErrorWindow = 0
 local resetProfile
 local InstallExternalHooks
@@ -705,6 +706,7 @@ end
 
 local function ScheduleReconcile(reason, refreshOnly)
     if AutoCategory == nil or status.state == "absent" or not this.GetAutoCategoryState().enabled then return end
+    pendingFullReconcile = pendingFullReconcile or not refreshOnly
     pendingGeneration = pendingGeneration + 1
     local generation = pendingGeneration
     zo_callLater(function()
@@ -713,7 +715,9 @@ local function ScheduleReconcile(reason, refreshOnly)
         integration.Run(function()
             if generation ~= pendingGeneration or not this.GetAutoCategoryState().enabled then return end
             if AutoCategory.Inited ~= true then return end
-            if refreshOnly then
+            local project = pendingFullReconcile
+            pendingFullReconcile = false
+            if not project then
                 local changed = {}
                 for _, context in ipairs(contexts) do changed[context.key] = true end
                 RefreshContexts(AutoCategory, changed, false)
@@ -732,7 +736,6 @@ function integration.OnRuleMutation(kind, ruleKey)
         local rule = GetRuntimeRules()[ruleKey]
         assert(rule ~= nil, "Pattern mutation references an unknown Inventory Companion group: "
             .. tostring(ruleKey))
-        if not rule.autoCategoryEnabled then return end
     end
     if kind == "participation" then
         integration.ProjectAutoCategory()
@@ -832,7 +835,6 @@ local function RegisterPlugin()
             local rule = rules[ruleKey]
             assert(rule ~= nil, "Registered AutoCategory expression references unknown Inventory Companion group: "
                 .. tostring(ruleKey))
-            if not rule.autoCategoryEnabled then return false end
             assert(type(ac.checkingItemLink) == "string", "AutoCategory checkingItemLink must be a string")
             return this.ItemMatchesRuntimeRule(ac.checkingItemLink, rule)
         end
@@ -976,7 +978,7 @@ local function FindUnavailableAssignments(ac, definitions, rules)
             local ruleKey = GetManagedRuleKey(assignment, definitionsByName)
             local rule = ruleKey and rules[ruleKey]
             if ruleKey ~= nil and ruleKey ~= otherRuleKey and (definitionsByKey[ruleKey] ~= true
-                or rule == nil or not rule.autoCategoryEnabled) then
+                or rule == nil) then
                 unavailable[#unavailable + 1] = {
                     context = context.key,
                     bagType = context.bagType(),
@@ -1186,7 +1188,7 @@ local function BuildContextModel(context, definitions, rules, repairAssignments)
             template.icRuleKey = ruleKey
             templates[ruleKey] = template
             local rule = rules[ruleKey]
-            if rule and rule.autoCategoryEnabled then
+            if rule and IsOrdinaryRule(ruleKey, rule) then
                 members[reference] = { reference = reference, ruleKey = ruleKey, assignment = assignment }
             end
         else
@@ -1202,7 +1204,7 @@ local function BuildContextModel(context, definitions, rules, repairAssignments)
         }
     end
     for ruleKey, rule in pairs(rules) do
-        if IsOrdinaryRule(ruleKey, rule) and rule.autoCategoryEnabled then
+        if IsOrdinaryRule(ruleKey, rule) then
             local reference = "ic:" .. ruleKey
             if members[reference] == nil then
                 members[reference] = {
@@ -1217,7 +1219,9 @@ local function BuildContextModel(context, definitions, rules, repairAssignments)
     for _, mode in ipairs({ "display", "matching" }) do
         local sorted = {}
         for _, entry in ipairs(entries) do
-            if members[entry.reference] then sorted[#sorted + 1] = entry end
+            if members[entry.reference] or mode == "display" and entry.reference == "ic:" .. otherRuleKey then
+                sorted[#sorted + 1] = entry
+            end
         end
         SortAssignments(sorted, mode)
         local sequence = {}
@@ -1265,8 +1269,19 @@ local function MergeObservedReferences(saved, observed, members)
             present[reference] = true
         end
     end
+    local missing = {}
     for reference in pairs(members) do
-        if not present[reference] then result[#result + 1] = reference end
+        if not present[reference] then missing[#missing + 1] = reference end
+    end
+    table.sort(missing)
+    for _, reference in ipairs(missing) do
+        local insertion = #result + 1
+        if reference ~= "ic:" .. otherRuleKey then
+            for index, value in ipairs(result) do
+                if value == "ic:" .. otherRuleKey then insertion = index; break end
+            end
+        end
+        table.insert(result, insertion, reference)
     end
     return result
 end
@@ -1366,13 +1381,13 @@ local function GetCurrentOrderData()
     return profile, order
 end
 
-local function BuildStartingSequence(model, mode, rules, preset)
+local function BuildStartingSequence(model, mode, rules, preset, hidden)
     local sequence, groups = {}, {}
     for _, reference in ipairs(model.entries[mode]) do
         if reference:sub(1, 3) == "ac:" then sequence[#sequence + 1] = reference end
     end
     for _, ruleKey in ipairs(GetOrderedRuleKeys(rules)) do
-        if rules[ruleKey].autoCategoryEnabled then groups[#groups + 1] = "ic:" .. ruleKey end
+        if not hidden["ic:" .. ruleKey] then groups[#groups + 1] = "ic:" .. ruleKey end
     end
     local insertion = #sequence + 1
     if preset == "ic" then
@@ -1420,28 +1435,55 @@ local function BuildPlans(orderOverride, setupRules, preset, repairAssignments)
             hidden = CopySavedValue(override and override.hidden or savedContext.hidden),
             displayPositions = CopySavedValue(override and override.displayPositions or savedContext.displayPositions),
         }
+        if preset and not repairAssignments then
+            for key, rule in pairs(rules) do
+                if IsOrdinaryRule(key, rule) then
+                    resolved.hidden["ic:" .. key] = not rule.autoCategoryEnabled and true or nil
+                end
+            end
+        end
         for _, mode in ipairs({ "display", "matching" }) do
+            local members = {}
+            for reference, entry in pairs(model.members) do members[reference] = entry end
+            if mode == "display" then
+                members["ic:" .. otherRuleKey] = {
+                    ruleKey = otherRuleKey, assignment = model.templates[otherRuleKey] or {},
+                }
+            end
             local observed = model.entries[mode]
             local savedSequence = savedContext[mode]
             assert(type(savedSequence) == "table", "Missing saved AutoCategory " .. mode .. " order: " .. context.key)
+            if mode == "display" then
+                local savedOther = false
+                for _, reference in ipairs(savedSequence) do
+                    if reference == "ic:" .. otherRuleKey then savedOther = true; break end
+                end
+                if not savedOther then
+                    observed = {}
+                    for _, reference in ipairs(model.entries[mode]) do
+                        if reference ~= "ic:" .. otherRuleKey then observed[#observed + 1] = reference end
+                    end
+                end
+            end
             local sequence
             if preset then
-                sequence = BuildStartingSequence(model, mode, rules, preset)
+                sequence = BuildStartingSequence(model, mode, rules, preset, resolved.hidden)
+                sequence = MergeObservedReferences(sequence, {}, members)
             elseif override and override[mode] ~= nil then
                 local seen = {}
                 for _, reference in ipairs(override[mode]) do
                     assert(type(reference) == "string" and not seen[reference],
                         "AutoCategory order override contains an invalid or duplicate reference")
                     seen[reference] = true
-                    local known = model.members[reference] ~= nil
+                    local known = members[reference] ~= nil
                     for _, savedReference in ipairs(savedSequence) do
                         if reference == savedReference and reference:sub(1, 3) == "ac:" then known = true; break end
                     end
                     assert(known, "AutoCategory order override has an unavailable reference: " .. tostring(reference))
                 end
-                sequence = FilterToMembers(override[mode], model.members)
+                sequence = FilterToMembers(override[mode], members)
                 for _, reference in ipairs(savedSequence) do
-                    if resolved.hidden[reference] and model.members[reference] then
+                    if resolved.hidden[reference] and members[reference] then
                         local present = false
                         for _, existing in ipairs(sequence) do
                             if reference == existing then present = true; break end
@@ -1450,9 +1492,9 @@ local function BuildPlans(orderOverride, setupRules, preset, repairAssignments)
                     end
                 end
             elseif priorSnapshot and SnapshotMatches(priorSnapshot[mode], observed, model.members) then
-                sequence = MergeObservedReferences(savedSequence, observed, model.members)
+                sequence = MergeObservedReferences(savedSequence, observed, members)
             else
-                sequence = MergeObservedReferences(savedSequence, observed, model.members)
+                sequence = MergeObservedReferences(savedSequence, observed, members)
             end
             local included, hidden = {}, {}
             for _, reference in ipairs(sequence) do
@@ -1460,8 +1502,9 @@ local function BuildPlans(orderOverride, setupRules, preset, repairAssignments)
                 destination[#destination + 1] = reference
             end
             for _, reference in ipairs(hidden) do included[#included + 1] = reference end
-            ValidateCompleteSequence(included, model.members, context.title, mode)
-            assert(#included <= 998, context.title .. " supports at most 998 assignments plus the IC Other helper")
+            ValidateCompleteSequence(included, members, context.title, mode)
+            assert(#included <= (mode == "display" and 999 or 998),
+                context.title .. " supports at most 998 assignments plus the IC Other helper")
             resolved[mode] = included
         end
         local planned = {}
@@ -1469,6 +1512,9 @@ local function BuildPlans(orderOverride, setupRules, preset, repairAssignments)
             local field = mode == "display" and "showpriority" or "runpriority"
             for index, reference in ipairs(resolved[mode]) do
                 local entry = model.members[reference]
+                if reference == "ic:" .. otherRuleKey then
+                    entry = { ruleKey = otherRuleKey, assignment = model.templates[otherRuleKey] or {} }
+                end
                 local target = planned[reference]
                 if target == nil then
                     target = {
@@ -1479,23 +1525,14 @@ local function BuildPlans(orderOverride, setupRules, preset, repairAssignments)
                     planned[reference] = target
                 end
                 local hidden = resolved.hidden[reference] == true
-                target[field] = 1001 - index - (hidden and 1 or 0)
+                target[field] = 1001 - index - (mode == "matching" and hidden and 1 or 0)
             end
         end
         local includedCount = 0
         for _, reference in ipairs(resolved.matching) do
             if not resolved.hidden[reference] then includedCount = includedCount + 1 end
         end
-        local includedDisplayCount = 0
-        for _, reference in ipairs(resolved.display) do
-            if not resolved.hidden[reference] then includedDisplayCount = includedDisplayCount + 1 end
-        end
-        planned["ic:" .. otherRuleKey] = {
-            reference = "ic:" .. otherRuleKey, ruleKey = otherRuleKey,
-            name = GetCategoryName(otherRule), isManaged = true,
-            assignment = model.templates[otherRuleKey] or {},
-            runpriority = 1000 - includedCount, showpriority = 1000 - includedDisplayCount,
-        }
+        planned["ic:" .. otherRuleKey].runpriority = 1000 - includedCount
         plans[context.key] = {
             assignments = planned,
             orders = resolved,
@@ -1663,6 +1700,7 @@ end
 function integration.SetEntryIncluded(reference, contextKey, included)
     assert(type(included) == "boolean" and type(reference) == "string", "Invalid AutoCategory inclusion change")
     assert(this.GetAutoCategoryState().enabled, "Cannot change inclusion while integration is disabled")
+    assert(contextByKey[contextKey], "Inclusion requires an AutoCategory context")
     local profile = this.GetAutoCategoryProfile()
     local _, order = BuildPlans()
     local rules = GetRuntimeRules()
@@ -1670,7 +1708,6 @@ function integration.SetEntryIncluded(reference, contextKey, included)
     if ruleKey then
         assert(IsOrdinaryRule(ruleKey, assert(rules[ruleKey], "Unknown IC inclusion group")),
             "Only ordinary IC groups can participate")
-        if rules[ruleKey].autoCategoryEnabled == included then return true end
     else
         assert(reference:sub(1, 3) == "ac:" and contextByKey[contextKey], "Invalid native AC inclusion reference")
         local contextOrder = order.contexts[contextKey]
@@ -1679,11 +1716,11 @@ function integration.SetEntryIncluded(reference, contextKey, included)
             if assignment.icOwned ~= true and "ac:" .. assignment.name == reference then present = true; break end
         end
         assert(present, "Native AC inclusion references an unavailable category")
-        if (contextOrder.hidden[reference] ~= true) == included then return true end
     end
+    if (order.contexts[contextKey].hidden[reference] ~= true) == included then return true end
     local overrides = {}
     for _, context in ipairs(contexts) do
-        if ruleKey or context.key == contextKey then
+        if context.key == contextKey then
             local saved = order.contexts[context.key]
             local hidden, positions = CopySavedValue(saved.hidden), CopySavedValue(saved.displayPositions)
             local available = {}
@@ -1691,9 +1728,10 @@ function integration.SetEntryIncluded(reference, contextKey, included)
                 if row.icOwned ~= true then available["ac:" .. row.name] = true end
             end
             for key, rule in pairs(rules) do
-                if IsOrdinaryRule(key, rule) and rule.autoCategoryEnabled then available["ic:" .. key] = true end
+                if IsOrdinaryRule(key, rule) then available["ic:" .. key] = true end
             end
-            if not ruleKey then hidden[reference] = not included and true or nil end
+            available["ic:" .. otherRuleKey] = true
+            hidden[reference] = not included and true or nil
             local currentDisplay, displayIndex = nil, 0
             for _, value in ipairs(saved.display) do
                 if available[value] and not saved.hidden[value] then
@@ -1717,7 +1755,7 @@ function integration.SetEntryIncluded(reference, contextKey, included)
                     local insertion = insertionReference and math.min(insertionReference + 1, #sequence + 1) or #sequence + 1
                     table.insert(sequence, insertion, reference)
                     if mode == "display" then restoredDisplay = insertion end
-                elseif not ruleKey then
+                else
                     excluded[#excluded + 1] = reference
                 end
                 for _, value in ipairs(excluded) do sequence[#sequence + 1] = value end
@@ -1726,25 +1764,37 @@ function integration.SetEntryIncluded(reference, contextKey, included)
             overrides[context.key] = replacement
         end
     end
-    local desiredRules = {}
-    for key, rule in pairs(rules) do desiredRules[key] = rule end
-    if ruleKey then
-        local copy = {}
-        for key, value in pairs(rules[ruleKey]) do copy[key] = value end
-        copy.autoCategoryEnabled = included
-        desiredRules[ruleKey] = copy
-    end
-    local plans, reconciled = BuildPlans(overrides, desiredRules)
+    local plans, reconciled = BuildPlans(overrides)
     if integration.ProjectAutoCategory({
         plans = plans, order = reconciled, profile = profile, bags = AutoCategory.saved.bags,
     }) == false then return false end
-    if ruleKey then
-        local saved = profile.trackedRules[ruleKey]
-        if saved == nil then saved = {}; profile.trackedRules[ruleKey] = saved end
-        saved.autoCategoryEnabled = included and true or nil
-        this.InvalidateRuleCache()
-    end
     return true
+end
+
+function integration.IsEntryIncluded(reference, contextKey)
+    assert(contextByKey[contextKey], "Unknown AutoCategory context")
+    assert(reference:sub(1, 3) == "ic:" and reference ~= "ic:" .. otherRuleKey
+        and IsOrdinaryRule(reference:sub(4), assert(GetRuntimeRules()[reference:sub(4)], "Unknown IC group")),
+        "Area selection requires an ordinary IC group")
+    local _, order = GetCurrentOrderData()
+    return order.contexts[contextKey].hidden[reference] ~= true
+end
+
+function integration.GetAreaSummary(reference, fits)
+    local enabled, disabled = {}, {}
+    for _, context in ipairs(contexts) do
+        local names = integration.IsEntryIncluded(reference, context.key) and enabled or disabled
+        names[#names + 1] = context.title
+    end
+    if #enabled == 7 then return "All" end
+    if #enabled == 0 then return "None" end
+    if #enabled == 1 then return enabled[1] end
+    if #disabled == 1 then return "Not: " .. disabled[1] end
+    local text = table.concat(enabled, ", ")
+    if fits(text) then return text end
+    text = "Not: " .. table.concat(disabled, ", ")
+    if fits(text) then return text end
+    return ({ [2] = "Two Areas", [3] = "Three Areas", [4] = "Four Areas", [5] = "Five Areas" })[#enabled]
 end
 
 function integration.RetrySynchronization()
@@ -1942,8 +1992,18 @@ function integration.ResetIntegration(expected, preset)
     pendingGeneration = pendingGeneration + 1
     local ok, failure = xpcall(function()
         local order = { contexts = {} }
+        assert(type(prior.autoCategoryOrder) == "table" and type(prior.autoCategoryOrder.contexts) == "table",
+            "Reset cannot preserve inclusion: saved context data is malformed")
         for _, context in ipairs(contexts) do
             order.contexts[context.key] = { display = {}, matching = {}, hidden = {}, displayPositions = {} }
+            local previous = prior.autoCategoryOrder.contexts[context.key]
+            assert(type(previous) == "table" and type(previous.hidden) == "table",
+                "Reset cannot preserve inclusion: saved exclusions are malformed in " .. context.title)
+            for reference, hidden in pairs(previous.hidden) do
+                assert(type(reference) == "string" and type(hidden) == "boolean",
+                    "Reset cannot preserve malformed inclusion data in " .. context.title)
+                if reference:sub(1, 3) == "ic:" then order.contexts[context.key].hidden[reference] = hidden end
+            end
         end
         profile.autoCategoryInitialized = nil
         profile.autoCategoryOrder = order
@@ -1978,7 +2038,7 @@ function integration.ResetIntegration(expected, preset)
         return false
     end
     d("[InventoryCompanion] Reset complete: the previous arrangement and native AC exclusions were replaced."
-        .. " IC groups, item assignments, participation choices, native AC categories and inactive profiles were preserved.")
+        .. " IC groups, item assignments, per-area IC inclusion, native AC categories and inactive profiles were preserved.")
     this.RefreshAutoCategoryUI()
     return true
 end
@@ -2013,7 +2073,7 @@ function integration.ShowIntegrationReset()
         .. " AC profile (all seven inventory contexts)."
         .. "\n\nThe previous arrangement and native AC exclusions will be replaced."
         .. " Next, choose IC categories near the top or at the bottom. Cancelling leaves the existing configuration unchanged."
-        .. "\n\nIC groups, participation choices, matching rules, tracked items, native AC categories and inactive profiles"
+        .. "\n\nIC groups, per-area IC inclusion, matching rules, tracked items, native AC categories and inactive profiles"
         .. " are preserved. Removed rows and cleared settings are copied for this session only."
         .. "\n\nCustom integration ordering WILL BE LOST. Back up saved variables before continuing."
     ZO_Dialogs_ShowDialog("InventoryCompanion_AUTOCATEGORY_RESET", prepared)
@@ -2145,9 +2205,6 @@ function integration.VerifyTestAssignment()
                     reason = "missing or invalid IC group key"
                 elseif key ~= otherRuleKey and this.preLoadedRulesets[key] == nil and profile.trackedRules[key] == nil then
                     reason = "group missing from selected IC profile"
-                elseif key ~= otherRuleKey
-                    and (profile.trackedRules[key] == nil or profile.trackedRules[key].autoCategoryEnabled ~= true) then
-                    reason = "group not enabled for integration in selected IC profile"
                 end
                 if reason then
                     contextCounts.unavailable = contextCounts.unavailable + 1
@@ -2299,14 +2356,20 @@ function integration.ResolveAutoCategoryOrder(contextKey, options)
     for index, reference in ipairs(sequence) do
         local hidden = order.contexts[contextKey].hidden[reference] == true
         local destination = hidden and excluded or rows
-        if reference:sub(1, 3) == "ic:" then
+        if reference == "ic:" .. otherRuleKey then
+            assert(mode == "display" and not hidden, "Other must be included in Display only")
+            rows[#rows + 1] = {
+                kind = "other", reference = reference, name = "Other", included = true, index = #rows + 1,
+                displayPosition = positions.display[reference],
+            }
+        elseif reference:sub(1, 3) == "ic:" then
             local ruleKey = reference:sub(4)
             local rule = rules[ruleKey]
-            assert(rule and IsOrdinaryRule(ruleKey, rule) and rule.autoCategoryEnabled,
-                "Saved AutoCategory order references a nonparticipating IC group: " .. ruleKey)
+            assert(rule and IsOrdinaryRule(ruleKey, rule),
+                "Saved AutoCategory order references an unknown IC group: " .. ruleKey)
             destination[#destination + 1] = {
                 kind = "group", reference = reference, ruleKey = ruleKey,
-                name = rule.displayName, participating = true, included = true, index = #rows + 1,
+                name = rule.displayName, participating = not hidden, included = not hidden, index = #rows + 1,
                 displayPosition = positions.display[reference], matchingPosition = positions.matching[reference],
             }
         else
@@ -2318,25 +2381,7 @@ function integration.ResolveAutoCategoryOrder(contextKey, options)
             }
         end
     end
-    local nonparticipants = {}
-    for ruleKey, rule in pairs(rules) do
-        if IsOrdinaryRule(ruleKey, rule) and not rule.autoCategoryEnabled then
-            nonparticipants[#nonparticipants + 1] = { ruleKey = ruleKey, rule = rule }
-        end
-    end
-    table.sort(nonparticipants, function(left, right) return left.ruleKey < right.ruleKey end)
-    for _, entry in ipairs(nonparticipants) do
-        excluded[#excluded + 1] = {
-            kind = "group", reference = "ic:" .. entry.ruleKey, ruleKey = entry.ruleKey,
-            name = entry.rule.displayName, participating = false, included = false,
-        }
-    end
     local includedCount = #rows
-    table.sort(excluded, function(left, right)
-        if left.kind ~= right.kind then return left.kind == "group" end
-        if left.name:lower() ~= right.name:lower() then return left.name:lower() < right.name:lower() end
-        return left.reference < right.reference
-    end)
     if #excluded > 0 then
         rows[#rows + 1] = { kind = "divider", reference = "__excluded", name = "Excluded", included = false }
         for _, entry in ipairs(excluded) do rows[#rows + 1] = entry end
@@ -2414,8 +2459,19 @@ function integration.UseOtherOrder(contextKey, activeMode)
     assert(activeMode == "display" or activeMode == "matching", "Unknown AutoCategory ordering mode")
     local _, order = GetCurrentOrderData()
     local sourceMode = activeMode == "display" and "matching" or "display"
+    local sequence, otherPosition = {}, nil
+    for index, reference in ipairs(order.contexts[contextKey].display) do
+        if reference == "ic:" .. otherRuleKey then otherPosition = index; break end
+    end
+    for _, reference in ipairs(order.contexts[contextKey][sourceMode]) do
+        if reference ~= "ic:" .. otherRuleKey then sequence[#sequence + 1] = reference end
+    end
+    if activeMode == "display" then
+        assert(otherPosition, "Other is missing from Display")
+        table.insert(sequence, math.min(otherPosition, #sequence + 1), "ic:" .. otherRuleKey)
+    end
     return ApplyOrderOverride({
-        [contextKey] = { [activeMode] = CopySequence(order.contexts[contextKey][sourceMode]) },
+        [contextKey] = { [activeMode] = sequence },
     })
 end
 

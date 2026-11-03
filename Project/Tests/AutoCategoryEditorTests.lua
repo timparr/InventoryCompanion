@@ -89,7 +89,9 @@ end
 local function RowTexts()
     local texts = {}
     for _, row in ipairs(VisibleRows()) do
-        if row.autoCategoryEntry.kind ~= "divider" then texts[#texts + 1] = LogicalRowName(row) end
+        if row.autoCategoryEntry.kind ~= "divider" and row.autoCategoryEntry.kind ~= "other" then
+            texts[#texts + 1] = LogicalRowName(row)
+        end
     end
     return table.concat(texts, ",")
 end
@@ -131,7 +133,13 @@ local function Setup(rules)
     local order = { contexts = {} }
     for _, entry in ipairs(contexts) do
         local native = { "ac:New", "ac:Selling", "ac:Low level" }
-        order.contexts[entry.key] = { display = native, matching = { "ac:New", "ac:Selling", "ac:Low level" } }
+        order.contexts[entry.key] = {
+            display = native, matching = { "ac:New", "ac:Selling", "ac:Low level" }, hidden = {},
+        }
+        for _, key in ipairs({ "alpha", "beta", "gamma" }) do
+            order.contexts[entry.key].hidden["ic:" .. key] =
+                not (rules[key] and rules[key].autoCategoryEnabled) and true or nil
+        end
     end
     for _, mode in ipairs({ "display", "matching" }) do
         local sequence = { "ac:New" }
@@ -221,13 +229,14 @@ function this.GetAutoCategoryEditorTests()
                         assert(GetControl(row, "Name").text == "Excluded")
                         assert(GetControl(row, "Participation").hidden)
                     end
-                    assert(row.autoCategoryEntry.reference ~= "ic:__ic_other")
+                    if row.autoCategoryEntry.kind == "other" then
+                        assert(GetControl(row, "Participation").hidden)
+                    end
                 end
                 assert(divider)
                 local visible = VisibleRows()
-                assert(visible[divider + 1].autoCategoryEntry.reference == "ic:alpha"
-                    and visible[#visible].autoCategoryEntry.reference == "ac:Selling",
-                    "Excluded IC groups sort alphabetically before native AC categories")
+                assert(visible[#visible].autoCategoryEntry.reference == "ac:Selling",
+                    "New exclusions append to the saved excluded tail")
                 GetControl(GetControl(window, "OptionsBar"), "BtnPriorityOrder").handlers.OnClicked()
                 State("Alpha", "Excluded")
                 State("Selling", "Excluded").handlers.OnClicked()
@@ -491,7 +500,7 @@ function this.GetAutoCategoryEditorTests()
 
                 local participation = GetControl(RowByText("Gamma"), "Participation")
                 participation.handlers.OnClicked()
-                assert(this.GetRuntimeRules().gamma.autoCategoryEnabled)
+                assert(integration.IsEntryIncluded("ic:gamma", "backpack"))
                 assert(integration.lastCrossCopy == nil)
             end),
         },

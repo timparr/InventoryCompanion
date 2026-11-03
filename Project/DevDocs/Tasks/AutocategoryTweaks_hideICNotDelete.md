@@ -4,10 +4,10 @@ None. The decisions below are confirmed.
 
 ---
 
-# Draft spec: context-specific exclusion and movable Other
+# Context-specific exclusion and movable Other
 
 This is the current implementation document for the agreed changes below.
-The [master feature document](../AutoCategoryIntegration.md) owns the overall
+The [master feature document](AutoCategoryIntegration.md) owns the overall
 integration contract, implemented baseline, dependency guidance and evidence
 status. Earlier plans and investigations are retained in its archive index.
 
@@ -15,7 +15,7 @@ status. Earlier plans and investigations are retained in its archive index.
 
 Yes—this is a coherent improvement. **Excluding a group from Bank should not remove it from Craft Bag.** Keeping the AutoCategory column as an area selector makes that distinction accessible without introducing another global toggle.
 
-The current implementation confirms your diagnosis:
+The schema-8 implementation confirmed the original diagnosis:
 
 - `SetEntryIncluded` changes IC group participation across every context, whereas native AC exclusions are context-specific.
 - `Other’s projection` currently places it immediately after included categories in **both** orders, before excluded categories.
@@ -230,4 +230,18 @@ groups migrate with their references in each context's excluded tail and
 - Migration preserves unrelated data; older supported builds reject the new schema without modifying it.
 - In-game checks do not transfer items or mutate live inventory.
 
-*Draft specification; all current decisions are confirmed. No implementation changes made.*
+Implemented in DEV with schema 9. Offline coverage includes migration of every
+profile and stored list backup, actual schema-4 through schema-8 downgrade
+rejection, context-isolated matching barriers, all-area exclusion/re-inclusion,
+Other moves/copy/list conversion/new-group insertion, all 128 area-summary
+combinations and both editor control paths. Controlled in-game acceptance,
+including actual font sizing and the seven-context lifecycle matrix, remains
+pending. Offline tests do not transfer items or load normal game saved variables.
+
+Verification: `python Project\Tests\Run-RuleTests.py` passes **198/198**
+isolated tests, including Lua 5.1 syntax and XML structure checks.
+
+Area-summary sizing uses an unconstrained hidden label with the visible label's
+font and `GetTextWidth()`, matching the existing currency settings measurement
+pattern. Regression coverage excludes two areas with no global `GetStringWidth`
+available and checks exact-width fits and one-pixel overflow.

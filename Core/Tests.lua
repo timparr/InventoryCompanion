@@ -716,21 +716,21 @@ local function CheckAutoCategoryRuntime()
     Check(enabled and status == "available" or not enabled and status == "disabled",
         "AutoCategory integration state mismatch (" .. tostring(status) .. "): " .. tostring(message))
 
-    local participating = 0
+    local groups = 0
     for ruleKey, rule in pairs(this.GetRuntimeRules()) do
-        if ruleKey ~= "miscellaneous" and rule.isPreloaded ~= nil and rule.autoCategoryEnabled then
-            participating = participating + 1
+        if ruleKey ~= "miscellaneous" and rule.isPreloaded ~= nil then
+            groups = groups + 1
         end
     end
     for _, context in ipairs(contexts) do
-        local expected = enabled and participating or 0
+        local expected = enabled and groups + 1 or 0
         Check(ownedByContext[context.title] == expected,
             string.format("AutoCategory %s has %d Inventory Companion assignments; expected %d",
                 context.title, ownedByContext[context.title], expected))
     end
     return string.format(
-        "PASS AutoCategory runtime startup: plugin registered; AutoCategory initialized; integration %s; %d participating groups; %d managed assignments across seven contexts.",
-        enabled and "active" or "disabled", participating, ownedTotal
+        "PASS AutoCategory runtime startup: plugin registered; AutoCategory initialized; integration %s; %d ordinary groups plus Other; %d managed assignments across seven contexts.",
+        enabled and "active" or "disabled", groups, ownedTotal
     )
 end
 
@@ -1721,7 +1721,7 @@ local function RunTests(arguments)
                     for index = 1, 100 do
                         local link = "synthetic-item-" .. index
                         for _, rule in pairs(rules) do
-                            if rule.autoCategoryEnabled and this.ItemMatchesRuntimeRule(link, rule) then
+                            if this.ItemMatchesRuntimeRule(link, rule) then
                                 matched = matched + 1
                             end
                         end

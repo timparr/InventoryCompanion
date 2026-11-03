@@ -156,8 +156,11 @@ local function CheckAutoCategoryOrder(order, context, trackedRules)
                 local namespace, identity = reference:match("^([^:]+):(.*)$")
                 assert(autoCategoryReferenceNamespaces[namespace], path .. "." .. field .. " has an unsupported reference")
                 if field == "hidden" then
-                    assert(namespace == "ac" and type(value) == "boolean",
-                        path .. ".hidden must map native AC references to booleans")
+                    assert(type(value) == "boolean" and not (namespace == "ic" and identity == "__ic_other"),
+                        path .. ".hidden must map ordinary references to booleans")
+                    assert(namespace ~= "ic" or identity ~= "miscellaneous"
+                        and (this.preLoadedRulesets[identity] ~= nil or trackedRules ~= nil and trackedRules[identity] ~= nil),
+                        path .. ".hidden references an unknown IC group: " .. identity)
                 else
                     assert(type(value) == "number" and value >= 1 and value < math.huge and value % 1 == 0,
                         path .. ".displayPositions must contain positive integer positions")
@@ -179,7 +182,8 @@ local function CheckAutoCategoryOrder(order, context, trackedRules)
                 assert(namespace and autoCategoryReferenceNamespaces[namespace] and identity ~= "",
                     path .. "." .. mode .. "[" .. tostring(index) .. "] has an unsupported reference")
                 if namespace == "ic" then
-                    assert(identity ~= "miscellaneous"
+                    assert(identity == "__ic_other" and mode == "display"
+                        or identity ~= "miscellaneous" and identity ~= "__ic_other"
                         and (this.preLoadedRulesets[identity] ~= nil
                             or trackedRules ~= nil and trackedRules[identity] ~= nil),
                         path .. "." .. mode .. "[" .. tostring(index) .. "] references an unknown IC group: " .. identity)
@@ -193,6 +197,44 @@ local function CheckAutoCategoryOrder(order, context, trackedRules)
             end
         end
     end
+end
+
+local function MigrateContextInclusion(profile, order)
+    local keys = {}
+    for key in pairs(this.preLoadedRulesets) do
+        if key ~= "miscellaneous" then keys[key] = true end
+    end
+    for key in pairs(profile.trackedRules or {}) do
+        if key ~= "miscellaneous" then keys[key] = true end
+    end
+    local sorted = {}
+    for key in pairs(keys) do sorted[#sorted + 1] = key end
+    table.sort(sorted)
+    for _, contextOrder in pairs(order.contexts) do
+        for _, key in ipairs(sorted) do
+            local saved = profile.trackedRules and profile.trackedRules[key]
+            local reference = "ic:" .. key
+            contextOrder.hidden[reference] = not (saved and saved.autoCategoryEnabled == true) and true or nil
+        end
+        for _, mode in ipairs({ "display", "matching" }) do
+            local included, excluded, seen = {}, {}, {}
+            for _, reference in ipairs(contextOrder[mode]) do
+                local list = contextOrder.hidden[reference] and excluded or included
+                list[#list + 1], seen[reference] = reference, true
+            end
+            for _, key in ipairs(sorted) do
+                local reference = "ic:" .. key
+                if not seen[reference] then
+                    local list = contextOrder.hidden[reference] and excluded or included
+                    list[#list + 1] = reference
+                end
+            end
+            if mode == "display" then included[#included + 1] = "ic:__ic_other" end
+            for _, reference in ipairs(excluded) do included[#included + 1] = reference end
+            contextOrder[mode] = included
+        end
+    end
+    return order
 end
 
 local function HasLegacyAutoCategoryOrdering(profile)
@@ -630,7 +672,7 @@ function this.PrepareSavedVariables()
                 string.format("[InventoryCompanion] %s uses saved-variable version %s, but this addon supports version %s. "
                     .. "Initialization stopped without changing saved data. Install a compatible newer addon or restore a compatible backup.",
                     context, tostring(version), tostring(this.SettingsVersion)))
-            assert(this.SettingsVersion <= 8 and (version == this.SettingsVersion
+            assert(this.SettingsVersion <= 9 and (version == this.SettingsVersion
                     or (version == 1 and (this.SettingsVersion == 2 or this.SettingsVersion == 3 or this.SettingsVersion == 4
                         or this.SettingsVersion == 5 or this.SettingsVersion == 6 or this.SettingsVersion == 7))
                     or (version == 2 and (this.SettingsVersion == 3 or this.SettingsVersion == 4
@@ -641,7 +683,8 @@ function this.PrepareSavedVariables()
                         or this.SettingsVersion == 7))
                     or (version == 5 and (this.SettingsVersion == 6 or this.SettingsVersion == 7))
                     or (version == 6 and this.SettingsVersion == 7)
-                    or (version <= 7 and this.SettingsVersion == 8)),
+                    or (version <= 7 and this.SettingsVersion == 8)
+                    or (version <= 8 and this.SettingsVersion == 9)),
                 context .. " has no supported migration from version " .. tostring(version)
                     .. " to version " .. tostring(this.SettingsVersion))
             local initialized = profile.itemListInitialized
@@ -689,31 +732,43 @@ function this.PrepareSavedVariables()
         else
             table.insert(migrations, { profile = profile, initialized = entry.initialized })
         end
+        local migration = migrations[#migrations]
+        if not invalidAutoCategoryProfiles[profile] then
+            migration.order = NormalizeAutoCategoryOrder(profile.autoCategoryOrder)
+            if profile.version == 5 and profile.autoCategorySetupComplete == nil then
+                for _, rule in pairs(profile.trackedRules or {}) do
+                    if rule.autoCategoryEnabled ~= nil then migration.setupComplete = true end
+                end
+                for _, orders in pairs(migration.order.contexts) do
+                    for _, mode in ipairs({ "display", "matching" }) do
+                        for _, reference in ipairs(orders[mode]) do
+                            if reference:sub(1, 3) == "ic:" then migration.setupComplete = true end
+                        end
+                    end
+                end
+            end
+            if profile.version < 9 and this.SettingsVersion == 9 then
+                migration.order = MigrateContextInclusion(profile, migration.order)
+            end
+        end
+        if profile.accountWideListBackup ~= nil then
+            ValidateAccountWideListBackup(profile.accountWideListBackup, context .. ".accountWideListBackup")
+            if profile.version < 9 and this.SettingsVersion == 9 then
+                migration.backup = CopySavedValue(profile.accountWideListBackup)
+                migration.backup.autoCategoryOrder = MigrateContextInclusion(migration.backup,
+                    NormalizeAutoCategoryOrder(migration.backup.autoCategoryOrder))
+            end
+        end
     end
 
     -- Publish only after every profile has passed validation and conversion.
     for _, migration in ipairs(migrations) do
         if migration.rules ~= nil then migration.profile.trackedRules = migration.rules end
         if not invalidAutoCategoryProfiles[migration.profile] then
-            migration.profile.autoCategoryOrder = NormalizeAutoCategoryOrder(migration.profile.autoCategoryOrder)
-            if migration.profile.version == 5 and migration.profile.autoCategorySetupComplete == nil then
-                for _, rule in pairs(migration.profile.trackedRules or {}) do
-                    if rule.autoCategoryEnabled ~= nil then
-                        migration.profile.autoCategorySetupComplete = true
-                        break
-                    end
-                end
-                for _, orders in pairs(migration.profile.autoCategoryOrder.contexts) do
-                    for _, mode in ipairs({ "display", "matching" }) do
-                        for _, reference in ipairs(orders[mode]) do
-                            if reference:sub(1, 3) == "ic:" then
-                                migration.profile.autoCategorySetupComplete = true
-                            end
-                        end
-                    end
-                end
-            end
+            migration.profile.autoCategoryOrder = migration.order
+            if migration.setupComplete then migration.profile.autoCategorySetupComplete = true end
         end
+        if migration.backup then migration.profile.accountWideListBackup = migration.backup end
         migration.profile.version = this.SettingsVersion
         migration.profile.itemListInitialized = migration.initialized
     end
@@ -898,12 +953,18 @@ function this.SetAutoCategoryParticipation(ruleKey, enabled)
     assert(runtimeRule ~= nil and ruleKey ~= "miscellaneous",
         "AutoCategory participation requires an ordinary group: " .. tostring(ruleKey))
     if this.AutoCategoryIntegration.IsEditorActive() then
-        return this.AutoCategoryIntegration.SetEntryIncluded("ic:" .. ruleKey, nil, enabled)
+        for contextKey in pairs(autoCategoryContexts) do
+            if not this.AutoCategoryIntegration.SetEntryIncluded("ic:" .. ruleKey, contextKey, enabled) then return false end
+        end
+        return true
     end
     local savedRules = GetRawSavedRules()
     local saved = savedRules[ruleKey] or {}
     savedRules[ruleKey] = saved
     saved.autoCategoryEnabled = enabled and true or nil
+    for _, orders in pairs(this.GetAutoCategoryProfile().autoCategoryOrder.contexts) do
+        orders.hidden["ic:" .. ruleKey] = not enabled and true or nil
+    end
     ValidateSavedRules(savedRules, "AutoCategory participation")
     PruneRule(savedRules, ruleKey)
     this.InvalidateRuleCache()
@@ -1120,6 +1181,7 @@ function this.DeleteCustomRule(ruleName)
             end
         end
         orders.displayPositions["ic:" .. ruleName] = nil
+        orders.hidden["ic:" .. ruleName] = nil
     end
     this.InvalidateRuleCache()
     this.AutoCategoryIntegration.OnRuleMutation("delete", ruleName)

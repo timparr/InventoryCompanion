@@ -20,11 +20,11 @@
                     <Anchor point="RIGHT" relativeTo="$(parent)BtnRemove" relativePoint="LEFT" offsetX="-8" />
                     <Controls>
                         <Label name="$(parent)Title" font="ZoFontGame" horizontalAlignment="CENTER" text="AutoCategory">
-                            <Dimensions x="130" y="24" />
+                            <Dimensions x="170" y="24" />
                             <Anchor point="TOP" />
                         </Label>
                         <Label name="$(parent)Detail" font="ZoFontGameSmall" horizontalAlignment="CENTER">
-                            <Dimensions x="130" y="22" />
+                            <Dimensions x="170" y="22" />
                             <Anchor point="TOP" relativeTo="$(parent)Title" relativePoint="BOTTOM" />
                         </Label>
                     </Controls>
@@ -87,6 +87,18 @@
                 </Control>
                 <Control name="$(parent)Option3" inherits="InventoryCompanion_ItemOption_Template">
                     <Anchor point="TOPLEFT" relativeTo="$(parent)Option2" relativePoint="BOTTOMLEFT" />
+                </Control>
+                <Control name="$(parent)Option4" inherits="InventoryCompanion_ItemOption_Template" hidden="true">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Option3" relativePoint="BOTTOMLEFT" />
+                </Control>
+                <Control name="$(parent)Option5" inherits="InventoryCompanion_ItemOption_Template" hidden="true">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Option4" relativePoint="BOTTOMLEFT" />
+                </Control>
+                <Control name="$(parent)Option6" inherits="InventoryCompanion_ItemOption_Template" hidden="true">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Option5" relativePoint="BOTTOMLEFT" />
+                </Control>
+                <Control name="$(parent)Option7" inherits="InventoryCompanion_ItemOption_Template" hidden="true">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Option6" relativePoint="BOTTOMLEFT" />
                 </Control>
             </Controls>
         </TopLevelControl>

@@ -11,7 +11,14 @@ local function Control(name)
     function control:SetHandler(event, handler) self.handlers[event] = handler end
     function control:SetText(text) self.text = text end
     function control:GetText() return self.text end
-    function control:SetFont() end
+    function control:GetFont() return self.font or "ZoFontGameSmall" end
+    function control:GetWidth() return self.width or 170 end
+    function control:SetFont(font) self.font = font end
+    function control:GetTextWidth()
+        assert(self.width == nil, "Text measurement must use an unconstrained label")
+        assert(self.font == "ZoFontGameSmall", "Measure using the summary label's font")
+        return #self.text * 7
+    end
     function control:SetColor(r, g, b, a) self.color = { r, g, b, a } end
     function control:SetDimensions(w, h) self.width, self.height = w, h end
     function control:SetWidth(width) self.width = width end
@@ -44,6 +51,7 @@ function SetGameCameraUIMode() end
 function GetUnitName() return "Test character" end
 function GetItemLinkName(link) return link end
 function GetItemLinkIcon() return "icon" end
+GetStringWidth = nil
 function IsESOPlusSubscriber() return false end
 TOPLEFT, SCENE_SHOWING, SCENE_HIDDEN = "TOPLEFT", "showing", "hidden"
 TOPRIGHT, BOTTOMRIGHT, RIGHT, DT_HIGH, KEY_ESCAPE = "TOPRIGHT", "BOTTOMRIGHT", "RIGHT", 1, 27
@@ -65,6 +73,11 @@ EVENT_MANAGER = {
     UnregisterForEvent = function(_, name) events[name] = nil end,
 }
 WINDOW_MANAGER = { GetMouseOverControl = function() return mouseOver end }
+CT_LABEL = 1
+function WINDOW_MANAGER:CreateControl(name, parent, controlType)
+    assert(name == nil and parent == GuiRoot and controlType == CT_LABEL)
+    return Control("measure")
+end
 function ZO_PreHookHandler(control, event, callback)
     local original = control.handlers[event]
     control.handlers[event] = function(...)
@@ -128,6 +141,7 @@ function this.GetItemEditorTests()
             inventory = {}
             editorRefreshes, trackerRefreshes, ruleWrites, registryUpdates = 0, 0, 0, 0
             this.InvalidateRuleCache()
+            this.ValidateSavedRuleProfiles()
             run()
         end })
     end
@@ -145,12 +159,12 @@ function this.GetItemEditorTests()
         this.RefreshTrackedItemsEditor()
         local toggle = GetControl(Row(1), "AutoCategory")
         local healthyClick = toggle.handlers.OnClicked
-        assert(not toggle.hidden and toggle.width == 130 and Detail(1, "AutoCategory").text == "Shown as category")
+        assert(not toggle.hidden and toggle.width == 170 and Detail(1, "AutoCategory").text == "All")
         this.autoCategoryFailure = "synthetic failure"
         healthyClick()
         assert(opened == 1, "A click rendered before failure must navigate, not write")
         this.RefreshTrackedItemsEditor()
-        assert(not toggle.hidden and toggle.width == 130
+        assert(not toggle.hidden and toggle.width == 170
             and GetControl(toggle, "Title").color[2] == 0.27
             and Detail(1, "AutoCategory").text == "! Needs attention")
         assert(not GetControl(InventoryCompanion_TrackedItemsWindow, "BtnAutoCategory").hidden)
@@ -159,7 +173,7 @@ function this.GetItemEditorTests()
             and ruleWrites == 0 and trackerRefreshes == 0)
         this.autoCategoryFailure = nil
         this.RefreshTrackedItemsEditor()
-        assert(not toggle.hidden and Detail(1, "AutoCategory").text == "Shown as category")
+        assert(not toggle.hidden and Detail(1, "AutoCategory").text == "All")
         this.accountWide.autoCategoryIntegrationEnabled = nil
         this.RefreshTrackedItemsEditor()
         assert(toggle.hidden and toggle.width == 0 and GetControl(Row(1), "ItemLabel").width == 432)
@@ -171,6 +185,56 @@ function this.GetItemEditorTests()
             "Awaiting setup must keep navigation available without enabling the item column")
         integration.IsAwaitingSetup = previousAwaiting
         integration.IsAvailable, this.OpenAutoCategoryPanel = previousAvailable, previousPanel
+    end)
+
+    Add("Item editor area dropdown shares context state and refreshes both editors without a global toggle", function()
+        local integration = this.AutoCategoryIntegration
+        local previousAvailable, previousSet, previousRefresh = integration.IsAvailable,
+            integration.SetEntryIncluded, this.RefreshAutoCategoryEditor
+        integration.IsAvailable = function() return true end
+        this.autoCategoryFailure = nil
+        this.accountWide.autoCategoryIntegrationEnabled = true
+        local writes, refreshes = {}, 0
+        integration.SetEntryIncluded = function(reference, context, included)
+            assert(reference == "ic:default")
+            writes[#writes + 1] = { context, included }
+            this.accountWide.autoCategoryOrder.contexts[context].hidden[reference] = not included or nil
+            return true
+        end
+        this.RefreshAutoCategoryEditor = function() refreshes = refreshes + 1 end
+        local ok, failure = pcall(function()
+            this.RefreshTrackedItemsEditor()
+            Handler(1, "AutoCategory")()
+            assert(not InventoryCompanion_ItemRowOptions.hidden)
+            for index, context in ipairs(integration.GetContexts()) do
+                assert(not Option(index).hidden and GetControl(Option(index), "Label").text == context.title)
+                assert(GetControl(Option(index), "Check").checked)
+            end
+            SetOption(2, false)
+            assert(writes[1][1] == "bank" and writes[1][2] == false and refreshes == 1)
+            assert(Detail(1, "AutoCategory").text == "Not: Bank")
+            assert(not GetControl(Option(2), "Check").checked and GetControl(Option(6), "Check").checked)
+            SetOption(6, false)
+            assert(not integration.IsEntryIncluded("ic:default", "bank")
+                and not integration.IsEntryIncluded("ic:default", "craft_bag")
+                and integration.IsEntryIncluded("ic:default", "backpack"))
+            assert(not integration.NeedsRecovery() and Detail(1, "AutoCategory").text == "Not: Bank, Craft Bag")
+            local exactWidth = #"Not: Bank, Craft Bag" * 7
+            Detail(1, "AutoCategory"):SetWidth(exactWidth)
+            this.RefreshTrackedItemsEditor()
+            assert(Detail(1, "AutoCategory").text == "Not: Bank, Craft Bag")
+            Detail(1, "AutoCategory"):SetWidth(exactWidth - 1)
+            this.RefreshTrackedItemsEditor()
+            assert(Detail(1, "AutoCategory").text == "Five Areas")
+            Detail(1, "AutoCategory"):SetWidth(170)
+            Handler(1, "AutoCategory")()
+            SetOption(2, true)
+            assert(Detail(1, "AutoCategory").text == "Not: Craft Bag" and refreshes == 3)
+            assert(this.accountWide.trackedRules.default == nil, "Area changes must not save a global participation flag")
+        end)
+        integration.IsAvailable, integration.SetEntryIncluded, this.RefreshAutoCategoryEditor =
+            previousAvailable, previousSet, previousRefresh
+        assert(ok, failure)
     end)
 
     Add("Item editor toggles absent Show from its effective true default", function()

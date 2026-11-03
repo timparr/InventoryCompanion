@@ -172,6 +172,14 @@ local function PrepareActive(rules)
     this.accountWide.trackedRules = rules or {}
     this.accountWide.autoCategoryIntegrationEnabled = true
     this.ValidateSavedRuleProfiles()
+    for _, context in ipairs(contexts) do
+        local order = this.accountWide.autoCategoryOrder.contexts[context.key]
+        for key in pairs(this.preLoadedRulesets) do
+            if key ~= "miscellaneous" then
+                order.hidden["ic:" .. key] = not (rules and rules[key] and rules[key].autoCategoryEnabled) and true or nil
+            end
+        end
+    end
     this.InvalidateRuleCache()
     d = function() end
 end
@@ -179,7 +187,9 @@ this.NewActiveAutoCategoryTestFixture = PrepareActive
 
 local function Names(sequence)
     local names = {}
-    for _, reference in ipairs(sequence) do names[#names + 1] = reference:sub(4) end
+    for _, reference in ipairs(sequence) do
+        if reference ~= "ic:__ic_other" then names[#names + 1] = reference:sub(4) end
+    end
     return table.concat(names, ",")
 end
 
@@ -293,6 +303,9 @@ end
 local function AssertManagedKeys(expected)
     expected = CopyFixtureValue(expected)
     expected.__ic_other = true
+    for key in pairs(this.preLoadedRulesets) do
+        if key ~= "miscellaneous" then expected[key] = true end
+    end
     for _, context in ipairs(contexts) do
         local seen = {}
         for _, row in ipairs(AutoCategory.saved.bags[context.bag].rules) do
@@ -309,6 +322,156 @@ end
 
 function this.GetAutoCategoryIntegrationTests()
     return {
+        {
+            name = "Reset preserves per-area IC inclusion while replacing native exclusions and saved positions",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                assert(integration.ProjectAutoCategory())
+                assert(integration.SetEntryIncluded("ic:alpha", "bank", false))
+                assert(integration.SetEntryIncluded("ic:beta", "craft_bag", true))
+                assert(integration.SetEntryIncluded("ac:Selling", "bank", false))
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ShowIntegrationReset())
+                ConfirmSetup()
+                ConfirmSetup()
+                assert(not integration.NeedsRecovery())
+                assert(not integration.IsEntryIncluded("ic:alpha", "bank")
+                    and integration.IsEntryIncluded("ic:alpha", "craft_bag")
+                    and integration.IsEntryIncluded("ic:beta", "craft_bag")
+                    and not integration.IsEntryIncluded("ic:beta", "bank"))
+                local bank = this.accountWide.autoCategoryOrder.contexts.bank
+                assert(not bank.hidden["ac:Selling"] and next(bank.displayPositions) == nil)
+            end,
+        },
+        {
+            name = "Context inclusion retains assignments and classifies Rare Mats in Craft Bag but not Bank after reload",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                assert(integration.ProjectAutoCategory())
+                local rule = this.accountWide.trackedRules.alpha
+                local bankAssignment = FindAssignment("bank", "Alpha" .. icCategoryNameMarkupSuffix)
+                bankAssignment.custom = { keep = true }
+                assert(integration.SetEntryIncluded("ic:alpha", "bank", false))
+                assert(not integration.IsEntryIncluded("ic:alpha", "bank")
+                    and integration.IsEntryIncluded("ic:alpha", "craft_bag"))
+                assert(this.accountWide.trackedRules.alpha == rule and rule.autoCategoryEnabled == true)
+                assert(FindAssignment("bank", bankAssignment.name) == bankAssignment and bankAssignment.custom.keep)
+                local function Classify(context)
+                    local candidates = {}
+                    for _, assignment in ipairs(AutoCategory.saved.bags[context].rules) do
+                        candidates[#candidates + 1] = assignment
+                    end
+                    table.sort(candidates, function(a, b) return a.runpriority > b.runpriority end)
+                    for _, assignment in ipairs(candidates) do
+                        if assignment.icRuleKey == "__ic_other" then
+                            return assignment.icRuleKey
+                        end
+                        if assignment.icRuleKey == "alpha" then
+                            local previous = GetItemLinkName
+                            GetItemLinkName = function(link) return link end
+                            local matches = this.ItemMatchesRuntimeRule("alpha", this.GetRuntimeRules().alpha)
+                            GetItemLinkName = previous
+                            if matches then return assignment.icRuleKey end
+                        end
+                    end
+                end
+                assert(Classify(2) == "__ic_other" and Classify(6) == "alpha")
+                this.InvalidateRuleCache()
+                this.ValidateSavedRuleProfiles()
+                assert(integration.ProjectAutoCategory())
+                assert(Classify(2) == "__ic_other" and Classify(6) == "alpha")
+                for _, context in ipairs(contexts) do
+                    assert(integration.SetEntryIncluded("ic:alpha", context.key, false))
+                    assert(FindAssignment(context.key, bankAssignment.name))
+                end
+                assert(this.accountWide.trackedRules.alpha == rule)
+                assert(integration.SetEntryIncluded("ic:alpha", "craft_bag", true))
+                assert(Classify(6) == "alpha" and Classify(2) == "__ic_other")
+            end,
+        },
+        {
+            name = "Other moves independently survives reload and copy and brackets new groups in every context",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
+                assert(integration.ProjectAutoCategory())
+                local reference = "ic:__ic_other"
+                for _, context in ipairs(contexts) do
+                    local included = integration.GetIncludedSequence(context.key, "display")
+                    assert(included[#included] == reference)
+                    assert(integration.MoveEntries({ [reference] = true }, context.key, "display", "top"))
+                end
+                local other = FindAssignment("bank", "Other" .. icCategoryNameMarkupSuffix)
+                local matching = other.runpriority
+                assert(FindAssignment("bank", "Alpha" .. icCategoryNameMarkupSuffix).runpriority > matching)
+                assert(FindAssignment("bank", "Gamma" .. icCategoryNameMarkupSuffix).runpriority < matching)
+                this.ValidateSavedRuleProfiles()
+                assert(integration.ProjectAutoCategory())
+                assert(this.accountWide.autoCategoryOrder.contexts.bank.display[1] == reference)
+                this.CreateCustomRule("new_group", "New Group")
+                assert(integration.ProjectAutoCategory())
+                for _, context in ipairs(contexts) do
+                    local order = this.accountWide.autoCategoryOrder.contexts[context.key]
+                    assert(order.display[1] == "ic:new_group" and order.display[2] == reference)
+                    local priority = integration.GetIncludedSequence(context.key, "matching")
+                    assert(priority[#priority] == "ic:new_group")
+                end
+                assert(integration.UseOtherOrder("bank", "matching"))
+                for _, value in ipairs(this.accountWide.autoCategoryOrder.contexts.bank.matching) do
+                    assert(value ~= reference)
+                end
+                assert(integration.UseOtherOrder("bank", "display"))
+                assert(this.accountWide.autoCategoryOrder.contexts.bank.display[2] == reference)
+                assert(integration.MoveEntries({ [reference] = true, ["ic:new_group"] = true },
+                    "bank", "display", "bottom"))
+                assert(integration.CopyBothOrders("bank", "craft_bag"))
+                local source = integration.GetIncludedSequence("bank", "display")
+                local destination = integration.GetIncludedSequence("craft_bag", "display")
+                assert(table.concat(source, ",") == table.concat(destination, ","))
+                local prepared = integration.PreflightAutoCategory({ bank = { matching = { reference } } })
+                assert(prepared == nil and integration.NeedsRecovery())
+            end,
+        },
+        {
+            name = "Area summaries honor precedence exact rendered width prefix and word fallback for every inclusion mask",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                local reference = "ic:alpha"
+                local titles = integration.GetContexts()
+                for mask = 0, 127 do
+                    local enabled, disabled = {}, {}
+                    for index, context in ipairs(titles) do
+                        local included = math.floor(mask / 2 ^ (index - 1)) % 2 == 1
+                        this.accountWide.autoCategoryOrder.contexts[context.key].hidden[reference] = not included or nil
+                        local names = included and enabled or disabled
+                        names[#names + 1] = context.title
+                    end
+                    local expected = #enabled == 7 and "All" or #enabled == 0 and "None"
+                        or #enabled == 1 and enabled[1] or #disabled == 1 and "Not: " .. disabled[1]
+                    local enabledText, disabledText = table.concat(enabled, ", "), "Not: " .. table.concat(disabled, ", ")
+                    if expected then
+                        assert(integration.GetAreaSummary(reference, function() error("Single-area precedence must not measure") end)
+                            == expected)
+                    else
+                        local calls = {}
+                        local function Fits(width)
+                            return function(text)
+                                calls[#calls + 1] = text
+                                return #text * 7 <= width
+                            end
+                        end
+                        assert(integration.GetAreaSummary(reference, Fits(#enabledText * 7)) == enabledText)
+                        assert(calls[1] == enabledText and #calls == 1)
+                        local fallback = ({ [2] = "Two Areas", [3] = "Three Areas",
+                            [4] = "Four Areas", [5] = "Five Areas" })[#enabled]
+                        assert(integration.GetAreaSummary(reference, Fits(0)) == fallback)
+                        if #disabledText < #enabledText then
+                            assert(integration.GetAreaSummary(reference, Fits(#disabledText * 7)) == disabledText)
+                            assert(integration.GetAreaSummary(reference, Fits(#disabledText * 7 - 1)) == fallback)
+                        end
+                    end
+                end
+            end,
+        },
         {
             name = "AutoCategory numbered injections replace prior scenarios and exercise few repeated many and cutoff rows",
             run = function()
@@ -534,7 +697,9 @@ function this.GetAutoCategoryIntegrationTests()
                     and this.character.autoCategoryOrder == characterOrder
                     and AutoCategory.charSaved == inactive and #inactive.bags[1].rules == 1)
                 for _, context in ipairs(contexts) do
-                    assert(next(profile.autoCategoryOrder.contexts[context.key].hidden) == nil
+                    assert(not profile.autoCategoryOrder.contexts[context.key].hidden["ic:alpha"]
+                        and profile.autoCategoryOrder.contexts[context.key].hidden["ic:beta"]
+                        and profile.autoCategoryOrder.contexts[context.key].hidden["ic:gamma"]
                         and next(profile.autoCategoryOrder.contexts[context.key].displayPositions) == nil)
                     for index, previous in ipairs(nativeRows[context.key]) do
                         local row = AutoCategory.saved.bags[context.bag].rules[index]
@@ -944,7 +1109,7 @@ function this.GetAutoCategoryIntegrationTests()
                 assert(integration.MoveEntries(selection, "backpack", "display", -10), this.autoCategoryFailure)
                 assert(#scheduled == callbacks, "Bulk movement must apply without scheduling a deferred apply")
                 local orders = this.accountWide.autoCategoryOrder.contexts
-                assert(Names(orders.backpack.display) == "alpha,beta,New,Selling,Low level")
+                assert(Names(orders.backpack.display) == "alpha,beta,New,Selling,Low level,gamma")
                 assert(Names(orders.backpack.matching) == oldMatching and Names(orders.bank.display) == oldBank)
                 local bag
                 for _, context in ipairs(contexts) do
@@ -1107,7 +1272,7 @@ function this.GetAutoCategoryIntegrationTests()
                 for _, context in ipairs(contexts) do
                     for _, mode in ipairs({ "display", "matching" }) do
                         assert(Names(profile.autoCategoryOrder.contexts[context.key][mode])
-                            == "New,alpha,backpack,beta,gamma,Selling,Low level")
+                            == "New,alpha,backpack,beta,gamma,Selling,Low level,dormant")
                     end
                 end
                 this.SetAutoCategoryParticipation("alpha", false)
@@ -1116,7 +1281,7 @@ function this.GetAutoCategoryIntegrationTests()
                 shownSetup = nil
                 this.SetAutoCategoryIntegrationEnabled(true)
                 assert(shownSetup == nil and profile.autoCategoryOrder == order
-                    and not this.GetRuntimeRules().alpha.autoCategoryEnabled,
+                    and profile.autoCategoryOrder.contexts.backpack.hidden["ic:alpha"],
                     "Re-enable must preserve orders and manual participation, not reseed from Show")
                 this.character.useCharacterItemList = true
                 this.SetAutoCategoryIntegrationEnabled(true)
@@ -1156,7 +1321,7 @@ function this.GetAutoCategoryIntegrationTests()
                 for _, context in ipairs(contexts) do
                     for _, orderMode in ipairs({ "display", "matching" }) do
                         assert(Names(this.accountWide.autoCategoryOrder.contexts[context.key][orderMode])
-                            == "alpha,New,Selling,Low level")
+                            == "alpha,New,Selling,Low level,beta,gamma")
                     end
                 end
                 assert(FindAssignment("backpack", "Alpha" .. icCategoryNameMarkupSuffix).showpriority == 1000)
@@ -1190,7 +1355,7 @@ function this.GetAutoCategoryIntegrationTests()
                 this.InvalidateRuleCache()
                 assert(integration.CompleteInitialSetup("ic", this.accountWide))
                 assert(this.accountWide.autoCategorySetupComplete)
-                assert(Names(this.accountWide.autoCategoryOrder.contexts.backpack.display) == "New,Selling,Low level")
+                assert(Names(this.accountWide.autoCategoryOrder.contexts.backpack.display) == "New,Selling,Low level,alpha,beta,gamma")
                 this.SetAutoCategoryIntegrationEnabled(false)
                 shownSetup = nil
                 this.SetAutoCategoryIntegrationEnabled(true)
@@ -1311,8 +1476,8 @@ function this.GetAutoCategoryIntegrationTests()
                 }
                 assert(integration.ProjectAutoCategory())
                 local orders = this.accountWide.autoCategoryOrder.contexts.backpack
-                assert(Names(orders.display) == "New,Set,Test group,alpha", Names(orders.display))
-                assert(Names(orders.matching) == "New,Set,alpha,Test group", Names(orders.matching))
+                assert(Names(orders.display) == "New,Set,Test group,alpha,beta,gamma", Names(orders.display))
+                assert(Names(orders.matching) == "New,Set,alpha,Test group,beta,gamma", Names(orders.matching))
                 local unique = {}
                 for _, assignment in ipairs(AutoCategory.saved.bags[1].rules) do
                     assert(assignment.showpriority >= 2 and assignment.showpriority <= 1000
@@ -1321,7 +1486,7 @@ function this.GetAutoCategoryIntegrationTests()
                         and assignment.runpriority == math.floor(assignment.runpriority))
                     unique[assignment.showpriority] = true
                 end
-                assert(#AutoCategory.saved.bags[1].rules == 5)
+                assert(#AutoCategory.saved.bags[1].rules == 7)
                 assert(FindAssignment("backpack", "Set").isHidden == true)
                 assert(FindAssignment("backpack", "Set").externalMetadata == "preserved")
             end,
@@ -1412,7 +1577,7 @@ function this.GetAutoCategoryIntegrationTests()
                 local alphaParticipation = this.accountWide.trackedRules.alpha.autoCategoryEnabled
                 assert(integration.CopyBothOrders("backpack", "bank"))
                 local bankOrder = this.accountWide.autoCategoryOrder.contexts.bank
-                assert(Names(bankOrder.display) == "Selling,New,Low level,Bank only,alpha", Names(bankOrder.display))
+                assert(Names(bankOrder.display) == "Selling,New,Low level,Bank only,alpha,beta,gamma", Names(bankOrder.display))
                 assert(this.accountWide.trackedRules.alpha.autoCategoryEnabled == alphaParticipation)
                 assert(Names(this.accountWide.autoCategoryOrder.contexts.backpack.display) == sourceBefore)
                 local matching = Names(bankOrder.matching)
@@ -1422,7 +1587,7 @@ function this.GetAutoCategoryIntegrationTests()
             end,
         },
         {
-            name = "Participation changes reconcile generated assignments without pausing",
+            name = "Legacy all-area inclusion changes retain excluded assignments behind Other",
             run = function()
                 PrepareActive({})
                 integration.OnRuleMutation = originalOnRuleMutation
@@ -1430,16 +1595,17 @@ function this.GetAutoCategoryIntegrationTests()
                 local reference = "ic:alpha"
                 for _, context in ipairs(contexts) do
                     local order = this.accountWide.autoCategoryOrder.contexts[context.key]
-                    assert(order.display[#order.display] == reference)
-                    assert(order.matching[#order.matching] == reference)
+                    assert(not order.hidden[reference])
+                    assert(FindAssignment(context.key, "Alpha" .. icCategoryNameMarkupSuffix))
                 end
                 local managed = FindAssignment("backpack", "Alpha" .. icCategoryNameMarkupSuffix)
                 assert(managed and managed.icRuleKey == "alpha")
                 this.SetAutoCategoryParticipation("alpha", false)
                 local savedAlpha = this.accountWide.trackedRules.alpha or {}
                 assert(savedAlpha.autoCategoryAnchor == nil and savedAlpha.autoCategoryRank == nil)
-                assert(FindAssignment("backpack", managed.name) == nil,
-                    "Excluded IC assignments are replaceable output")
+                assert(FindAssignment("backpack", managed.name) == managed
+                    and managed.runpriority < FindAssignment("backpack", "Other" .. icCategoryNameMarkupSuffix).runpriority,
+                    "Excluded IC assignments must remain behind the matching barrier")
                 assert(select(1, integration.GetStatus()) == "available" and not integration.IsFaulted())
             end,
         },
@@ -1520,7 +1686,7 @@ function this.GetAutoCategoryIntegrationTests()
                 local order = this.accountWide.autoCategoryOrder.contexts.bank
                 assert(not table.concat(order.display, ","):find("ac:Selling", 1, true))
                 assert(table.concat(order.display, ","):find("ac:New native", 1, true))
-                assert(#order.display == 3 and #order.matching == 3)
+                assert(#order.display == 7 and #order.matching == 6)
             end,
         },
         {
@@ -1529,7 +1695,7 @@ function this.GetAutoCategoryIntegrationTests()
                 PrepareActive({})
                 local backpack = AutoCategory.saved.bags[1]
                 backpack.rules = {}
-                for index = 1, 998 do
+                for index = 1, 995 do
                     backpack.rules[index] = Assignment(string.format("Native %03d", index), 1000 - index, 1000 - index,
                         { filter = "preserved" })
                 end
@@ -1537,7 +1703,7 @@ function this.GetAutoCategoryIntegrationTests()
                 assert(#backpack.rules == 999)
                 for index, assignment in ipairs(backpack.rules) do
                     assert(assignment.showpriority >= 2 and assignment.runpriority >= 2)
-                    assert(assignment.filter == "preserved" or assignment.icRuleKey == "__ic_other")
+                    assert(assignment.filter == "preserved" or assignment.icOwned)
                 end
                 local beforeOrder = table.concat(this.accountWide.autoCategoryOrder.contexts.backpack.display, ",")
                 backpack.rules[1000] = Assignment("Native 1000", 1, 1)
@@ -1643,7 +1809,7 @@ function this.GetAutoCategoryIntegrationTests()
             end,
         },
         {
-            name = "Account-wide assignments are replaced when the active IC profile excludes their group",
+            name = "Legacy global flags no longer remove account-wide assignments",
             run = function()
                 PrepareActive({ alpha = { autoCategoryEnabled = true } })
                 local previousState = this.state
@@ -1670,7 +1836,7 @@ function this.GetAutoCategoryIntegrationTests()
                     and assignment.showpriority == 43,
                     "The account-wide assignment and its priorities must remain untouched")
                 assert(integration.ProjectAutoCategory(prepared))
-                for _, row in ipairs(backpack) do assert(row ~= assignment) end
+                assert(FindAssignment("backpack", "Character-specific group" .. icCategoryNameMarkupSuffix) == assignment)
                 assert(this.character.trackedRules.custom_missing.autoCategoryEnabled == true)
                 assert(not integration.NeedsRecovery())
                 this.state = previousState
@@ -1901,7 +2067,8 @@ function this.GetAutoCategoryIntegrationTests()
                         local restored = FindAssignment("backpack", (characterIC and "a_treasure" or "shared_maps")
                             .. icCategoryNameMarkupSuffix)
                         assert(restored.custom.value == "AC-side setting" and restored.isHidden == true)
-                        assert(desired.autoCategoryOrder.contexts.backpack.display[characterIC and 4 or 1] == "ac:Maps")
+                        local display = desired.autoCategoryOrder.contexts.backpack.display
+                        assert(display[characterIC and #display or 1] == "ac:Maps")
                         assert(sharedAC.unrelated.keep and aAC.unrelated.keep and bAC.unrelated.keep)
                     end
                 end
@@ -1932,7 +2099,8 @@ function this.GetAutoCategoryIntegrationTests()
                 end
                 this.SetUseCharacterItemList(true)
                 Drain()
-                assert(this.character.autoCategoryOrder.contexts.backpack.display[3] == "ac:Maps")
+                assert(this.character.autoCategoryOrder.contexts.backpack.display[6] == "ac:Maps",
+                    table.concat(this.character.autoCategoryOrder.contexts.backpack.display, ","))
                 assert(FindAssignment("backpack", "Maps").showpriority < FindAssignment("backpack", "New").showpriority)
                 this.SetUseCharacterItemList(false)
                 Drain()
@@ -1985,7 +2153,7 @@ function this.GetAutoCategoryIntegrationTests()
                 GetItemLinkName = function(link) return link end
                 ac.checkingItemLink = "uncategorized synthetic item"
                 assert(ac.RulesW.predicate("__ic_other") == true)
-                for _, row in ipairs(integration.ResolveAutoCategoryOrder("backpack")) do
+                for _, row in ipairs(integration.ResolveAutoCategoryOrder("backpack", { mode = "matching" })) do
                     assert(row.reference ~= "ic:__ic_other")
                 end
                 assert(this.GetRuntimeRules().__ic_other == nil)
@@ -2012,6 +2180,7 @@ function this.GetAutoCategoryIntegrationTests()
                         reference == "ic:alpha" and "ac:Selling" or "ic:alpha" }
                     local display = CopyFixtureValue(remaining)
                     table.insert(display, 4, reference)
+                    display[#display + 1] = "ic:__ic_other"
                     local matching = CopyFixtureValue(remaining)
                     table.insert(matching, 1, reference)
                     assert(this.SetAutoCategoryContextOrder("backpack", "display", display))
@@ -2023,7 +2192,7 @@ function this.GetAutoCategoryIntegrationTests()
                     local restored = this.accountWide.autoCategoryOrder.contexts.backpack
                     assert(restored.display[5] == reference and restored.matching[6] == reference,
                         "Matching must use restored display number 5, not old matching number 1")
-                    assert(#restored.display == 6 and #restored.matching == 6)
+                    assert(#restored.display == 7 and #restored.matching == 6)
                     this.ValidateAutoCategoryRecoveryData()
                 end
             end,
@@ -2046,7 +2215,7 @@ function this.GetAutoCategoryIntegrationTests()
                         assert(row.name == rows[index].name and row.runpriority == rows[index].runpriority
                             and row.showpriority == rows[index].showpriority)
                     end
-                    assert(next(order.contexts.backpack.hidden) == nil
+                    assert(not order.contexts.backpack.hidden[reference]
                         and next(order.contexts.backpack.displayPositions) == nil)
                 end
             end,
@@ -2183,7 +2352,7 @@ function this.GetAutoCategoryIntegrationTests()
                 assert(refreshes == 7 and caches == 0 and not integration.NeedsRecovery())
                 assert(this.accountWide.autoCategoryOrder == order and this.accountWide.trackedRules == sourceRules)
                 for _, context in ipairs(contexts) do
-                    assert(#AutoCategory.saved.bags[context.bag].rules == 132)
+                    assert(#AutoCategory.saved.bags[context.bag].rules == 135)
                 end
                 return string.format("Synthetic only: 100 updates, 128 groups, seven contexts; %.2f ms CPU; seven refreshes, zero cache rebuilds.",
                     (os.clock() - started) * 1000)
@@ -2200,7 +2369,7 @@ function this.GetAutoCategoryIntegrationTests()
                 AutoCategory.charSaved = inactive
                 this.CreateCustomRule("lifecycle", "Original")
                 this.UpdateRulePatterns("lifecycle", { "synthetic*" })
-                assert(this.SetAutoCategoryParticipation("lifecycle", true))
+                scheduled[#scheduled]()
                 assert(FindAssignment("backpack", "Original" .. icCategoryNameMarkupSuffix))
                 this.UpdateRuleProperty("lifecycle", "displayName", "Renamed")
                 scheduled[#scheduled]()

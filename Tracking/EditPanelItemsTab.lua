@@ -5,6 +5,7 @@ local searchQuery = ""
 local editorRevision = 0
 local optionsTarget
 local optionsEventName = this.Name .. "_ItemRowOptions"
+local areaSummaryMeasureLabel
 
 function this.CloseItemRowOptions()
     optionsTarget = nil
@@ -633,10 +634,15 @@ OpenRowOptions = function(row, entry, kind, refreshCallback)
         if entry.isRule then fields[#fields + 1] = { "group", "Display items together" } end
         fields[#fields + 1] = { "showBackpack", "Show backpack" }
         fields[#fields + 1] = { "showBank", "Show bank" }
+    elseif kind == "AutoCategory" then
+        fields = {}
+        for _, context in ipairs(this.AutoCategoryIntegration.GetContexts()) do
+            fields[#fields + 1] = { context.key, context.title }
+        end
     else
         fields = { { "notifyChat", "Notify Chat" }, { "notifyHud", "Notify HUD" } }
     end
-    for index = 1, 3 do
+    for index = 1, 7 do
         local option = GetControl(panel, "Option" .. index)
         local field = fields[index]
         option:SetHidden(field == nil)
@@ -644,10 +650,16 @@ OpenRowOptions = function(row, entry, kind, refreshCallback)
             local check, label = GetControl(option, "Check"), GetControl(option, "Label")
             label:SetText(field[2])
             label:SetColor(1.0, 0.94, 0.76, 1.0)
-            ZO_CheckButton_SetCheckState(check, display[field[1]] == true)
+            local function IsChecked()
+                if kind == "AutoCategory" then
+                    return this.AutoCategoryIntegration.IsEntryIncluded("ic:" .. entry.key, field[1])
+                end
+                return this.ResolveItemDisplay(ResolveEntryData(entry).display)[field[1]] == true
+            end
+            ZO_CheckButton_SetCheckState(check, IsChecked())
             local function Apply(checked)
                 assert(optionsTarget == target, "Item row options action targets an obsolete popup")
-                SetEntryFlag(entry, field[1], checked, function()
+                local function Refresh()
                     refreshCallback()
                     for _, currentRow in ipairs(editorRows) do
                         local current = currentRow.entry
@@ -657,13 +669,24 @@ OpenRowOptions = function(row, entry, kind, refreshCallback)
                             break
                         end
                     end
-                end)
+                end
+                if kind == "AutoCategory" then
+                    this.AutoCategoryIntegration.Run(function()
+                        ResolveEntryData(entry)
+                        assert(this.AutoCategoryIntegration.IsEditorActive(), "Area selection targets an inactive integration")
+                        if this.AutoCategoryIntegration.SetEntryIncluded("ic:" .. entry.key, field[1], checked) then
+                            Refresh()
+                        end
+                        this.RefreshAutoCategoryEditor()
+                    end)
+                else
+                    SetEntryFlag(entry, field[1], checked, Refresh)
+                end
             end
             ZO_CheckButton_SetToggleFunction(check, function(_, checked) Apply(checked) end)
             label:SetHandler("OnMouseDown", function(_, button)
                 if button == MOUSE_BUTTON_INDEX_LEFT then
-                    local current = this.ResolveItemDisplay(ResolveEntryData(entry).display)
-                    Apply(not current[field[1]])
+                    Apply(not IsChecked())
                 end
             end)
         end
@@ -740,8 +763,8 @@ local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
     local rowActive = columnActive and entry.isRule and entry.key ~= "miscellaneous"
     -- Reserve the column width on every row while the integration is active so
     -- the Notify/Show columns stay aligned; hidden controls still anchor.
-    toggle:SetWidth(columnActive and 130 or 0)
-    GetControl(row, "ItemLabel"):SetWidth(columnActive and 302 or 432)
+    toggle:SetWidth(columnActive and 170 or 0)
+    GetControl(row, "ItemLabel"):SetWidth(columnActive and 262 or 432)
     toggle:SetHidden(not rowActive)
     if not rowActive then return end
 
@@ -764,11 +787,23 @@ local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
 
     local rule = this.GetRuntimeRules()[entry.key]
     assert(rule ~= nil, "AutoCategory toggle targets a missing group")
-    local enabled = rule.autoCategoryEnabled == true
+    local reference = "ic:" .. entry.key
+    local enabled = false
+    for _, context in ipairs(this.AutoCategoryIntegration.GetContexts()) do
+        enabled = this.AutoCategoryIntegration.IsEntryIncluded(reference, context.key) or enabled
+    end
     GetControl(toggle, "Title"):SetColor(1.0, 0.94, 0.76, enabled and 1.0 or 0.5)
     local detail = GetControl(toggle, "Detail")
     detail:SetColor(1.0, 0.94, 0.76, enabled and 1.0 or 0.5)
-    detail:SetText(enabled and "Shown as category" or "Ignored")
+    detail:SetText(this.AutoCategoryIntegration.GetAreaSummary(reference, function(text)
+        if areaSummaryMeasureLabel == nil then
+            areaSummaryMeasureLabel = WINDOW_MANAGER:CreateControl(nil, GuiRoot, CT_LABEL)
+            areaSummaryMeasureLabel:SetHidden(true)
+        end
+        areaSummaryMeasureLabel:SetFont(detail:GetFont())
+        areaSummaryMeasureLabel:SetText(text)
+        return areaSummaryMeasureLabel:GetTextWidth() <= detail:GetWidth()
+    end))
 
     toggle:SetHandler("OnClicked", function()
         if this.AutoCategoryIntegration.NeedsRecovery() then return OpenRecovery() end
@@ -776,15 +811,15 @@ local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
         ResolveEntryData(entry)
         assert(this.AutoCategoryIntegration.IsAvailable() and this.GetAutoCategoryState().enabled,
             "AutoCategory toggle targets an inactive integration")
-        local current = this.GetRuntimeRules()[entry.key]
-        assert(current ~= nil, "AutoCategory toggle targets a missing group")
-        this.SetAutoCategoryParticipation(entry.key, current.autoCategoryEnabled ~= true)
-        refreshCallback()
-        this.RefreshAutoCategoryEditor()
+        OpenRowOptions(row, entry, "AutoCategory", refreshCallback)
     end) end)
     toggle:SetHandler("OnMouseEnter", function(control)
         InitializeTooltip(InformationTooltip, control, RIGHT, -4, 0)
-        InformationTooltip:AddLine("Participation applies across all AutoCategory contexts.")
+        InformationTooltip:AddLine("Choose the areas where this group is included. Each area is independent.")
+        for _, context in ipairs(this.AutoCategoryIntegration.GetContexts()) do
+            InformationTooltip:AddLine(context.title .. ": "
+                .. (this.AutoCategoryIntegration.IsEntryIncluded(reference, context.key) and "Included" or "Excluded"))
+        end
     end)
     toggle:SetHandler("OnMouseExit", function()
         ClearTooltip(InformationTooltip)

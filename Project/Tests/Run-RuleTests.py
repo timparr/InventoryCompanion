@@ -22,6 +22,11 @@ auto_toggle = editor_row.find("Button[@name='$(parent)AutoCategory']/Controls")
 assert auto_toggle is not None, "Item row AutoCategory toggle must be a button with child controls"
 assert auto_toggle.find("Label[@name='$(parent)Title']") is not None, "Item row AutoCategory toggle needs a Title child"
 assert auto_toggle.find("Label[@name='$(parent)Detail']") is not None, "Item row AutoCategory toggle needs a Detail child"
+area_popup = editor_xml.find(".//TopLevelControl[@name='InventoryCompanion_ItemRowOptions']/Controls")
+for index in range(1, 8):
+    option = area_popup.find(f"Control[@name='$(parent)Option{index}']")
+    assert option is not None and option.get("inherits") == "InventoryCompanion_ItemOption_Template", \
+        f"Area selector needs checkbox option {index}"
 autocategory_xml = ET.parse(root / "Tracking" / "EditPanelAutoCategoryTab.xml")
 autocategory_row = autocategory_xml.find(".//Control[@name='InventoryCompanion_AutoCategoryRow_Template']/Controls")
 for child in ("BG", "Orders", "Name", "MoveUp", "MoveDown", "Participation"):
@@ -166,6 +171,14 @@ for field, relative in (
 ):
     saved_variables_lua.globals()[field] = subprocess.check_output(
         ["git", "--no-pager", "show", f"88f5807a6c5cf5b7a1e2866e29e8fc841138cabf:{relative}"], cwd=root
+    ).decode("utf-8-sig")
+for field, relative in (
+    ("Schema8InitSource", "Core/Init.lua"),
+    ("Schema8ConstantsSource", "Core/Constants.lua"),
+    ("Schema8DatabaseSource", "Tracking/ItemDatabase.lua"),
+):
+    saved_variables_lua.globals()[field] = subprocess.check_output(
+        ["git", "--no-pager", "show", f"dd05da8489602874e1fdc12bb516f83b7364d877:{relative}"], cwd=root
     ).decode("utf-8-sig")
 tracker_lua = LuaRuntime(unpack_returned_tuples=True)
 tracker_lua.execute("SLASH_COMMANDS = {}; EVENT_MANAGER = { RegisterForEvent = function() end }")
