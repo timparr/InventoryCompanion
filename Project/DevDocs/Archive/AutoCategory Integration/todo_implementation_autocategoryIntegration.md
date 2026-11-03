@@ -1,5 +1,9 @@
 # AutoCategory integration: IMPLEMENTATION PLAN
 
+**ARCHIVED 2026-11-03.** Historical plan, not current work instructions;
+use the [master feature document](../../AutoCategoryIntegration.md) and its
+linked current implementation document.
+
 Updated 2026-11-01. **Implemented; automated tests pass, but post-implementation
 compatibility acceptance is incomplete.** See the
 [implementation report](AutoCategoryImplementationReport.md) for delivered
@@ -54,7 +58,7 @@ silently weaken the spec or take over AutoCategory behavior.
 Method references use `FileName.MethodName` to identify their source file,
 not to prescribe Lua namespaces. Proposed methods name their intended file.
 
-Extend [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua), using
+Extend [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua), using
 stable rule keys and the existing `useCharacterItemList` selection:
 the example's `trackedRules` is `character.trackedRules` when that flag is true,
 otherwise `accountWide.trackedRules`. Profile-level integration state uses the
@@ -335,8 +339,8 @@ Overridden numerical importance is not a group-following relationship.
   `ItemDatabase.CopyProfile` copies all integration choices without aliasing.
   `ItemDatabase.SetUseCharacterItemList` selects them consistently.
 
-Extend [SavedVariablesTests.lua](../../Tests/SavedVariablesTests.lua) and
-[RulePersistenceTests.lua](../../Tests/RulePersistenceTests.lua):
+Extend [SavedVariablesTests.lua](../../../Tests/SavedVariablesTests.lua) and
+[RulePersistenceTests.lua](../../../Tests/RulePersistenceTests.lua):
 all-profile migration/import, malformed input/no partial writes, defaults vs
 explicit false/empty, proxy-shaped ZO_SavedVars isolation, round-trip/copy,
 per-rule Master anchor/rank and context override preservation through normalization
@@ -463,7 +467,7 @@ unsupported bounds; do not create an alternate pre-implementation spike.
 ### Required synchronization
 
 Trace every `ItemDatabase.InvalidateRuleCache` caller in
-[ItemDatabase.lua](../../../Tracking/ItemDatabase.lua): pattern/property updates,
+[ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua): pattern/property updates,
 create/delete/Reset, profile copy/switch, participation/placements/heading visibility/enablement.
 
 - Pattern-only changes need native classification cache invalidation/refresh,
@@ -500,15 +504,15 @@ and unchanged integration lifecycle when tracker visibility/Show/Notify changes.
 
 ## 4. Add settings and editor after the adapter works
 
-- [Core/Settings.lua](../../../Core/Settings.lua): opt-in/status tied to IC
+- [Core/Settings.lua](../../../../Core/Settings.lua): opt-in/status tied to IC
   profile selection and first-enable preset chooser, no new Notify controls or
   inactive preview.
-- [EditPanelItemsTab.lua](../../../Tracking/EditPanelItemsTab.lua) /
-  [XML](../../../Tracking/EditPanelItemsTab.xml): ordinary-group AutoCategory
+- [EditPanelItemsTab.lua](../../../../Tracking/EditPanelItemsTab.lua) /
+  [XML](../../../../Tracking/EditPanelItemsTab.xml): ordinary-group AutoCategory
   toggle after Notify, aligned active width/zero inactive width; preserve existing
   Show/Notify popups, name readability, selection and recycled-row/profile checks.
-- [EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua) /
-  [XML](../../../Tracking/EditPanelGroupsTab.xml): toolbar view toggle,
+- [EditPanelGroupsTab.lua](../../../../Tracking/EditPanelGroupsTab.lua) /
+  [XML](../../../../Tracking/EditPanelGroupsTab.xml): toolbar view toggle,
   eight-choice selector (Master (all contexts) first, then the seven contexts)
   and native ordered rows.
   Normal `EditPanelGroupsTab.GetSortedGroupNames` unchanged; AutoCategory uses master/resolved order,
@@ -560,7 +564,7 @@ and unchanged integration lifecycle when tracker visibility/Show/Notify changes.
   to occurrence visibility and context edits to heading visibility overrides.
   Refresh derived Master labels after context edits; omit rows with no visible
   contexts and reveal their original scope/hidden contexts under Show-all.
-- Follow [CurrencyPanel.lua](../../../Tracking/CurrencyPanel.lua)
+- Follow [CurrencyPanel.lua](../../../../Tracking/CurrencyPanel.lua)
   `CurrencyPanel.GetCurrencyPanelSettingsControls` /
   `CurrencyPanel.CreateResourceSettingsList` /
   `CurrencyPanel.CreateResourceSettingsRow`: 28-by-26 `ZO_DefaultButton` arrows,
@@ -576,8 +580,8 @@ and unchanged integration lifecycle when tracker visibility/Show/Notify changes.
   DXT5 DDS/alpha and verify asset path. New asset needs game restart. Do not add
   badge UI/colour settings from D3 without separate author decision.
 
-Extend [GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) and
-[ItemEditorTests.lua](../../Tests/ItemEditorTests.lua): zero writes on view/context
+Extend [GroupEditorTests.lua](../../../Tests/GroupEditorTests.lua) and
+[ItemEditorTests.lua](../../../Tests/ItemEditorTests.lua): zero writes on view/context
 selection, all eight choices and corresponding explanation text, external-row
 visual distinction in selected/revealed-hidden states,
 combined Master occurrence scopes/native subsequences, single IC group rows
@@ -630,10 +634,10 @@ results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
   prevents the spec behavior, stop and discuss scope/design rather than count it
   as passed. Do not claim gamepad, untested crafting tabs, or merchant modes.
 
-- Wire focused suites into [Run-RuleTests.py](../../Tests/Run-RuleTests.py) and
+- Wire focused suites into [Run-RuleTests.py](../../../Tests/Run-RuleTests.py) and
   use the existing Lua setup. Run smallest relevant suite first; full related
   runner for completed cross-surface integration.
-- Preserve [ItemNotificationTests.lua](../../Tests/ItemNotificationTests.lua)
+- Preserve [ItemNotificationTests.lua](../../../Tests/ItemNotificationTests.lua)
   destination/hidden-rule/listener/duplicate coverage. Extend existing in-game
   rule tests only for safe matching/synthetic workload.
 - Execute every [spec acceptance criterion](todo_plan_autocategoryIntegration.md#acceptance-criteria):
@@ -642,10 +646,10 @@ results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
   character groups, automatic switching, resets, reload/disable/uninstall,
   edit-while-absent, immutable external entries, new-schema downgrade safety.
 - Check Lua/XML, paths/whitespace, new textures against
-  [ESO-Game-Textures.md](../../Resources/ESO-Game-Textures.md), and documentation links.
+  [ESO-Game-Textures.md](../../../Resources/ESO-Game-Textures.md), and documentation links.
   Record version, supported contracts, precise context/platform limits, workload/
   timings and dated offline/ESO results in the spike/results record.
-- Update [UserManual.bbcode](../../../UserManual.bbcode): participation,
+- Update [UserManual.bbcode](../../../../UserManual.bbcode): participation,
   Master/context inheritance, ranks/cleanup, view/arrows/heading hide/unhide
   and Show-all controls, overlap examples, owned settings moves overwritten,
   collapse residue, uninstall `(!)` rows, active-profile scope, compatibility,
@@ -662,7 +666,7 @@ results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
   and commands are absent and production integration still works. Record this
   teardown evidence in SPIKE RESULTS.
 - Update authoritative working changelog from actual implementation first;
-  follow [ReleaseChecklist.md](../../Publishing/ReleaseChecklist.md) for numbering,
+  follow [ReleaseChecklist.md](../../../Publishing/ReleaseChecklist.md) for numbering,
   approval and publication. Archive only after automated and user-reported
   acceptance. Do not call planned APIs implemented or untested behavior supported.
 

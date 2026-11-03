@@ -1,5 +1,8 @@
 # AutoCategory ordering fix: implementation plan
 
+**ARCHIVED 2026-11-03.** Historical redesign; current requirements are in
+the [master feature document](../../AutoCategoryIntegration.md).
+
 Updated 2026-11-01. **Implementation is present; in-game acceptance remains pending.**
 
 This is the current ordering-fix plan, incorporating the subsequent saved-data

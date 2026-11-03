@@ -1,11 +1,14 @@
 # AutoCategory integration: SPEC
 
+**ARCHIVED 2026-11-03.** Historical specification; current requirements are
+in the [master feature document](../../AutoCategoryIntegration.md).
+
 Updated 2026-11-01. **Implemented, but not compatibility-certified.**
 This document defines required behavior, accepted author decisions, and open
 decisions. It is not a test log or a claim that all requirements are feasible.
 
 **Profile synchronization supersession (2026-11-03):** the
-[synchronization fix](../../../AutoCategorySynchronizationFix.md) supersedes
+[synchronization fix](AutoCategorySynchronizationFix.md) supersedes
 earlier no-exclusion behavior and profile-mismatch pauses. It defines
 independent IC/AC scopes, active-only automatic replacement of generated
 assignments, preserved AC-side options, Included/Excluded sections with an
@@ -52,7 +55,7 @@ for sequencing and the [spike results](AutoCategorySpikeResults.md) for dated
 evidence, failed approaches, dependency contracts and current gate status.
 See the [review](AutoCategoryIntegrationReview.md) for the spec/plan assessment
 and concrete recommendations.
-The [Show/Notify prerequisite](../Completed/ItemTrackerFlags.md) is complete.
+The [Show/Notify prerequisite](../../Completed/ItemTrackerFlags.md) is complete.
 The current implementation and remaining acceptance gates are summarized in
 the [implementation report](AutoCategoryImplementationReport.md).
 
@@ -484,7 +487,7 @@ in the implementation plan, not assumed existing APIs.
   texture is unavailable. It preserves the heading's normal rendered color and
   is not the final icon design.
 - Chosen IC source artwork is the white wide-flap satchel with luggage tag,
-  [CategoryIcon/v5](../../Art/CategoryIcon/v5/); v1-v4 are earlier references.
+  [CategoryIcon/v5](../../../Art/CategoryIcon/v5/); v1-v4 are earlier references.
   Plain `CategoryIcon.svg` is the heading icon, tinted gold. A whole-group
   heading never shows include/exclude badges.
 - Convert final asset to 64x64 DXT5 `.dds`, preserving alpha and white artwork

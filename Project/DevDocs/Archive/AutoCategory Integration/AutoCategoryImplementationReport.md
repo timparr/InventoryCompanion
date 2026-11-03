@@ -1,8 +1,11 @@
 # AutoCategory integration implementation report
 
+**ARCHIVED 2026-11-03.** Historical report; current status and requirements
+are in the [master feature document](../../AutoCategoryIntegration.md).
+
 ## Status
 
-The [profile synchronization fix](../../../AutoCategorySynchronizationFix.md)
+The [profile synchronization fix](AutoCategorySynchronizationFix.md)
 is implemented on main, uncommitted, as of 2026-11-03. Integration remains
 opt-in and disabled by default. Current verification is **192/192 isolated
 addon tests** with Lua 5.1 syntax checks, plus **31/31 installed-dependency

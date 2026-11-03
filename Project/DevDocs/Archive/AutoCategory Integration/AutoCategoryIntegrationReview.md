@@ -1,5 +1,8 @@
 # AutoCategory integration: spec and plan review
 
+**ARCHIVED 2026-11-03.** Historical review; current requirements are in the
+[master feature document](../../AutoCategoryIntegration.md).
+
 Review dated 2026-10-31. This is a reference assessment of the
 [spec](todo_plan_autocategoryIntegration.md),
 [implementation plan](todo_implementation_autocategoryIntegration.md), and
@@ -91,10 +94,10 @@ detection, dynamic edits, cache invalidation, refresh, and disable behavior
 open. The plan appropriately identifies these as required surfaces.
 
 Existing IC mutation points make the proposed placement sensible:
-[profile selection and rule mutations](../../../Tracking/ItemDatabase.lua#L407),
-[name/pattern updates](../../../Tracking/ItemDatabase.lua#L434),
-[profile copy](../../../Tracking/ItemDatabase.lua#L494), and
-[runtime matching](../../../Tracking/ItemDatabase.lua#L611).
+[profile selection and rule mutations](../../../../Tracking/ItemDatabase.lua#L407),
+[name/pattern updates](../../../../Tracking/ItemDatabase.lua#L434),
+[profile copy](../../../../Tracking/ItemDatabase.lua#L494), and
+[runtime matching](../../../../Tracking/ItemDatabase.lua#L611).
 AutoCategory's refresh/cache limitations are in the spike's inspected contracts;
 manual probe behavior does not prove that the production hooks work.
 
@@ -109,8 +112,8 @@ implementation before activation.
 
 The proposed profile-local storage for participation, markers, and context
 order is a good fit. IC already validates and migrates saved profiles in
-[PrepareSavedVariables](../../../Tracking/ItemDatabase.lua#L275), and its
-current schema is version 3 ([Core/Init.lua](../../../Core/Init.lua#L1)).
+[PrepareSavedVariables](../../../../Tracking/ItemDatabase.lua#L275), and its
+current schema is version 3 ([Core/Init.lua](../../../../Core/Init.lua#L1)).
 The plan correctly calls for a schema increment, all-profile/import validation,
 and proof that an older build rejects new data unchanged.
 
@@ -128,7 +131,7 @@ order references do not get lost or aliased.
 ## Feasibility, efficiency, and code placement
 
 - **Persistence and narrow mutations:** Extending
-  [ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) for validation,
+  [ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua) for validation,
   active-profile access, rule mutations, and profile copies follows its current
   responsibility. Keep AutoCategory reconciliation behind a dedicated adapter
   rather than embedding external API calls throughout persistence code.
@@ -140,12 +143,12 @@ order references do not get lost or aliased.
   no-compile constraints are useful, but Q5 still needs a measured workload and
   agreed timing limits after implementation.
 - **Lifecycle placement:** Current IC startup is in
-  [Core/Init.lua](../../../Core/Init.lua). Registration must respect the
+  [Core/Init.lua](../../../../Core/Init.lua). Registration must respect the
   spike's event-order evidence and occur only when both saved profiles and the
   external plugin contracts are ready. The DEV manifest already has an
   optional AutoCategory dependency; the release manifest does not.
 - **Editor placement:** Group ordering/view changes belong in
-  [EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua), while
+  [EditPanelGroupsTab.lua](../../../../Tracking/EditPanelGroupsTab.lua), while
   participation belongs in the existing item/group row flow. The currency
   panel's reorder rows are a reasonable interaction precedent, but its
   resource-specific helpers and hidden-item pruning should not be coupled to

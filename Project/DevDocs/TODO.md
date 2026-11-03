@@ -26,10 +26,11 @@ info panels - how to guide built into the addon - instead of the manual. - (i) b
 
 ## Section D: 🚀 Features Roadmap (Pending)
 
-- **D11. AutoCategory Integration (idea; not implemented):** Optional inventory
-  partitions driven by Inventory Companion groups. See the [spec](Tasks/todo_plan_autocategoryIntegration.md),
-  [implementation plan](Tasks/todo_implementation_autocategoryIntegration.md),
-  and [spike results / open gates](Tasks/AutoCategorySpikeResults.md).
+- **D11. AutoCategory Integration (implemented baseline; acceptance pending):**
+  Optional inventory partitions driven by Inventory Companion groups. See the
+  [master feature document](AutoCategoryIntegration.md) and
+  [current implementation document](Tasks/AutocategoryTweaks_hideICNotDelete.md)
+  for context-specific exclusion and Display-only Other work.
 - **D1. Auto-Restock & Stack Balancer:** Add `targetCount` settings and
   `autoBalance` toggles to tracked items to automatically queue
   deposits/withdrawals upon opening a bank or chest.

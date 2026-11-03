@@ -1,5 +1,8 @@
 # AutoCategory fixes: deferred test work
 
+**ARCHIVED 2026-11-03.** Historical test work and evidence; current gates are
+in the [master feature document](../../AutoCategoryIntegration.md).
+
 Test updates and execution are deferred until the end of the current
 AutoCategory fix batch. This is a work list, not acceptance evidence.
 

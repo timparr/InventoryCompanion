@@ -1,16 +1,19 @@
 # AutoCategory in-game gate tests
 
+**Archive consolidated 2026-11-03.** Current requirements are in the
+[master feature document](../../AutoCategoryIntegration.md).
+
 **ARCHIVED 2026-10-31. Historical request, not current instructions.**
 Current requirements, sequencing and evidence live only in the
-[SPEC](../Tasks/todo_plan_autocategoryIntegration.md),
-[IMPLEMENTATION PLAN](../Tasks/todo_implementation_autocategoryIntegration.md)
-and [SPIKE RESULTS](../Tasks/AutoCategorySpikeResults.md).
+[SPEC](todo_plan_autocategoryIntegration.md),
+[IMPLEMENTATION PLAN](todo_implementation_autocategoryIntegration.md)
+and [SPIKE RESULTS](AutoCategorySpikeResults.md).
 The original request below is retained as history; its duplicated logging
 instructions and remaining-gate assumptions are superseded.
 
-Read [AGENTS.md](../../../AGENTS.md), the
-[AutoCategory integration gate plan](../Tasks/todo_implementation_autocategoryIntegration.md),
-and the existing [DEV slash-command probe](../../Tests/AutoCategorySpikeRuntime.lua).
+Read [AGENTS.md](../../../../AGENTS.md), the
+[AutoCategory integration gate plan](todo_implementation_autocategoryIntegration.md),
+and the existing [DEV slash-command probe](../../../Tests/AutoCategorySpikeRuntime.lua).
 Reuse that probe where possible. Add only the minimal DEV-only slash commands
 needed to answer these remaining in-game questions:
 
@@ -48,8 +51,8 @@ build editor/settings UI, or make unrelated changes. Build the test commands,
 guide the tests, and report the answers. Nothing more.
 
 After each test, update both the
-[implementation plan](../Tasks/todo_implementation_autocategoryIntegration.md) and
-[feature spec](../Tasks/todo_plan_autocategoryIntegration.md) with dated evidence:
+[implementation plan](todo_implementation_autocategoryIntegration.md) and
+[feature spec](todo_plan_autocategoryIntegration.md) with dated evidence:
 the command and result, whether verified offline or in ESO, remaining
 uncertainties, and implications for implementation. Record failed approaches
 and supported alternatives; do not claim untested behavior works. Keep the

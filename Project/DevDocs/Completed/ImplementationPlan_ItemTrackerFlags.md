@@ -221,4 +221,4 @@ Saved flag interpretation precedes count/delivery and editor writes. Presentatio
 and lifecycle ship together. Documentation/tests follow implementation.
 AutoCategory registration, partition ownership, ordering, and optional-addon
 compatibility remain governed by its separate
-[plan](../Tasks/todo_plan_autocategoryIntegration.md).
+[plan](<../Archive/AutoCategory Integration/todo_plan_autocategoryIntegration.md>).

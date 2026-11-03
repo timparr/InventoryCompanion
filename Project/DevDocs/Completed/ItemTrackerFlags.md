@@ -94,7 +94,7 @@ Show box                         Notify box
 
 ### AutoCategory
 
-After the separate [integration](../Tasks/todo_plan_autocategoryIntegration.md) works,
+After the separate [integration](<../Archive/AutoCategory Integration/todo_plan_autocategoryIntegration.md>) works,
 add the full **AutoCategory** label last, after Notify, as a group-only toggle.
 Participation is independent of Show, grouping, and expansion. The column has
 zero width when integration is disabled or unavailable (including now), giving

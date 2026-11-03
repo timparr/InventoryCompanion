@@ -239,7 +239,7 @@ build.
 
 The agreed ownership model, all four profile combinations, worked examples,
 mode-switch behavior and implementation requirements have moved to
-[AutoCategorySynchronizationFix.md](AutoCategorySynchronizationFix.md).
+[the master feature document](Project/DevDocs/AutoCategoryIntegration.md#profile-ownership-and-synchronization).
 This document retains the mismatch investigation and recovery-work evidence.
 
 ## Planned failure recovery and settings UX
@@ -595,4 +595,4 @@ editor; re-enabling must still use the initial setup dialog.
 
 
 Profile setup and copying follow-ups are tracked in
-[the synchronization fix plan](AutoCategorySynchronizationFix.md#profile-setup-and-copying).
+[the master feature document](Project/DevDocs/AutoCategoryIntegration.md#profile-ownership-and-synchronization).

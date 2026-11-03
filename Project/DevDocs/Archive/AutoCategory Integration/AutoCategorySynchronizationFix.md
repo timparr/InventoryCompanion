@@ -1,5 +1,8 @@
 # AutoCategory profile synchronization fix
 
+**ARCHIVED 2026-11-03.** Historical plan and evidence; current requirements
+are in the [master feature document](../../AutoCategoryIntegration.md).
+
 Status: implemented on main, uncommitted. Offline verification passed on
 2026-11-03; in-game acceptance remains pending. See implementation evidence
 and acceptance steps below.
@@ -209,7 +212,7 @@ When IC is absent and its plugin definitions are not registered, AC skips
 saved assignments with missing definitions and continues matching. Its
 settings show those assignments with a red `(!)`. This is established by the
 absent-definition fixture in the
-[dependency investigation](Project/DevDocs/Tasks/AutoCategorySpikeResults.md);
+[dependency investigation](AutoCategorySpikeResults.md);
 the evidence is offline, not in-game uninstall certification. A partial
 startup failure must still follow the existing failure protection contracts.
 
@@ -383,8 +386,8 @@ semantics rather than leaving integration settings behind.
 
 ## Implementation and validation
 
-Read [AGENTS.md](AGENTS.md) and the existing
-[dependency contracts](Project/DevDocs/Tasks/AutoCategorySpikeResults.md),
+Read [AGENTS.md](../../../../AGENTS.md) and the existing
+[dependency contracts](AutoCategorySpikeResults.md),
 including its linked specification and implementation plan. Follow the
 existing integration lifecycle and helpers; no need to replay the separate
 recovery-work history.

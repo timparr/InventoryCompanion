@@ -1,5 +1,8 @@
 # AutoCategory integration: spike results
 
+**ARCHIVED 2026-11-03.** Retained dependency contracts and dated evidence;
+current requirements are in the [master feature document](../../AutoCategoryIntegration.md).
+
 Updated 2026-10-31, incorporating ESO evidence through 23:08 UTC and subsequent
 offline follow-up.
 **Integration is implemented but not compatibility-certified.** This file
@@ -78,10 +81,10 @@ IDs match the [spec's open-question register](todo_plan_autocategoryIntegration.
 
 - Installed dependency inspected: AutoCategory **4.5.2**, AddOnVersion **134**.
   Recheck contracts if its version/source changes.
-- Offline probe module: [AutoCategorySpikeRuntime.lua](../../Tests/AutoCategorySpikeRuntime.lua).
-  Offline fixture: [AutoCategorySpikeTests.lua](../../Tests/AutoCategorySpikeTests.lua).
+- Offline probe module: [AutoCategorySpikeRuntime.lua](../../../Tests/AutoCategorySpikeRuntime.lua).
+  Offline fixture: [AutoCategorySpikeTests.lua](../../../Tests/AutoCategorySpikeTests.lua).
   Run `python Project\Tests\Run-AutoCategorySpike.py` using the existing
-  [runner](../../Tests/Run-AutoCategorySpike.py).
+  [runner](../../../Tests/Run-AutoCategorySpike.py).
 - Latest recorded offline result: **31/31 passed** on 2026-10-31 after the
   22:54 follow-up, including scale/bounds, runtime reorder and persistent prefix
   cycle/check/cleanup preparation. Earlier 28/28 preceded the 22:19 ESO test.
@@ -147,7 +150,7 @@ Context names: `backpack`, `bank`, `subscriber-bank`, `guild-bank`, `house-bank`
 
 **Post-test housekeeping:** the temporary Debug override is removed from the
 workspace after Test 7/7; offline checks verify the spike preserves the normal
-handler from [Core/Init.lua](../../../Core/Init.lua), which calls
+handler from [Core/Init.lua](../../../../Core/Init.lua), which calls
 `this.RunTests("verbose copy")`. ESO must reload to pick up that change; normal
 Debug dispatch is not yet reverified in game. Stale profile report advice was
 replaced by explicit commands. The manifest-loaded probe/slash commands and
@@ -513,15 +516,15 @@ promise of a complete dynamic public API.
   Decorated renames start expanded and leave old flags; document, do not edit.
 
 Read-only installed sources:
-[Plugin_API.lua](../../../../AutoCategory/Plugin_API.lua),
-[AutoCategory.lua](../../../../AutoCategory/AutoCategory.lua),
-[AutoCategory_API.lua](../../../../AutoCategory/AutoCategory_API.lua),
-[AC_Classes.lua](../../../../AutoCategory/AC_Classes.lua),
-[Hooks_Keyboard.lua](../../../../AutoCategory/Hooks_Keyboard.lua),
-[AddonMenu.lua](../../../../AutoCategory/AddonMenu.lua),
-[BagSet.lua](../../../../AutoCategory/settings/BagSet.lua),
-[CategorySettings.lua](../../../../AutoCategory/settings/CategorySettings.lua),
-and [DressingRoom plugin prior art](../../../../AutoCategory/plugins/DressingRoom2018_Plugin.lua).
+[Plugin_API.lua](../../../../../AutoCategory/Plugin_API.lua),
+[AutoCategory.lua](../../../../../AutoCategory/AutoCategory.lua),
+[AutoCategory_API.lua](../../../../../AutoCategory/AutoCategory_API.lua),
+[AC_Classes.lua](../../../../../AutoCategory/AC_Classes.lua),
+[Hooks_Keyboard.lua](../../../../../AutoCategory/Hooks_Keyboard.lua),
+[AddonMenu.lua](../../../../../AutoCategory/AddonMenu.lua),
+[BagSet.lua](../../../../../AutoCategory/settings/BagSet.lua),
+[CategorySettings.lua](../../../../../AutoCategory/settings/CategorySettings.lua),
+and [DressingRoom plugin prior art](../../../../../AutoCategory/plugins/DressingRoom2018_Plugin.lua).
 Bank maps bag 2 and subscriber bag 6 to AC context 2; Guild uses a separate
 assignment list and has a BulkMode bypass. Merchant source inspection found
 shared inventory sorting, not a distinct merchant hook. Neither finding
