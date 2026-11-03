@@ -50,7 +50,7 @@ function ZO_CheckButton_OnClicked(control)
     control.checked = not control.checked
     control:toggleFunction(control.checked)
 end
-InformationTooltip = { AddLine = function() end }
+InformationTooltip = { AddLine = function(self, text) self.text = text end }
 function InitializeTooltip() end
 function ClearTooltip() end
 function PlaySound() end
@@ -89,7 +89,7 @@ end
 local function RowTexts()
     local texts = {}
     for _, row in ipairs(VisibleRows()) do
-        texts[#texts + 1] = LogicalRowName(row)
+        if row.autoCategoryEntry.kind ~= "divider" then texts[#texts + 1] = LogicalRowName(row) end
     end
     return table.concat(texts, ",")
 end
@@ -126,7 +126,7 @@ local function ClickToolbar(name)
 end
 
 local function Setup(rules)
-    this.NewAutoCategoryTestFixture()
+    this.NewActiveAutoCategoryTestFixture(rules)
     local contexts = this.AutoCategoryIntegration.GetContexts()
     local order = { contexts = {} }
     for _, entry in ipairs(contexts) do
@@ -147,6 +147,7 @@ local function Setup(rules)
     this.accountWide.autoCategoryIntegrationEnabled = true
     this.InvalidateRuleCache()
     this.ValidateSavedRuleProfiles()
+    assert(integration.ProjectAutoCategory())
     this.AutoCategoryIntegration.GetHeadingDetails = function(name) return { rule = "filter(" .. name .. ")" } end
     this.AutoCategoryIntegration.MoveEntries = function(selection, context, mode, movement)
         local selected = {}
@@ -188,6 +189,57 @@ function this.GetAutoCategoryEditorTests()
     end
 
     return {
+        {
+            name = "AutoCategory editor shares Included Excluded state across modes with labels colours divider and tooltips",
+            run = WithActiveIntegration(function()
+                Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
+                local function State(name, expected)
+                    local row = RowByText(name)
+                    local toggle = GetControl(row, "Participation")
+                    local label = GetControl(toggle, "State")
+                    assert(label.text == expected and not toggle.hidden)
+                    toggle.handlers.OnMouseEnter(toggle)
+                    assert(InformationTooltip.text:find(expected, 1, true)
+                        and InformationTooltip.text:find("both lists", 1, true))
+                    if expected == "Excluded" then
+                        assert(label.color[1] == 1 and label.color[2] == 0.25)
+                        assert(GetControl(row, "Name").color[1] == 1)
+                        assert(GetControl(row, "MoveUp").hidden and GetControl(row, "MoveDown").hidden)
+                    else
+                        assert(label.color[1] == 0.2 and label.color[2] == 0.8)
+                    end
+                    return toggle
+                end
+                State("Alpha", "Included").handlers.OnClicked()
+                State("Alpha", "Excluded")
+                State("Selling", "Included").handlers.OnClicked()
+                State("Selling", "Excluded")
+                local divider
+                for index, row in ipairs(VisibleRows()) do
+                    if row.autoCategoryEntry.kind == "divider" then
+                        divider = index
+                        assert(GetControl(row, "Name").text == "Excluded")
+                        assert(GetControl(row, "Participation").hidden)
+                    end
+                    assert(row.autoCategoryEntry.reference ~= "ic:__ic_other")
+                end
+                assert(divider)
+                local visible = VisibleRows()
+                assert(visible[divider + 1].autoCategoryEntry.reference == "ic:alpha"
+                    and visible[#visible].autoCategoryEntry.reference == "ac:Selling",
+                    "Excluded IC groups sort alphabetically before native AC categories")
+                GetControl(GetControl(window, "OptionsBar"), "BtnPriorityOrder").handlers.OnClicked()
+                State("Alpha", "Excluded")
+                State("Selling", "Excluded").handlers.OnClicked()
+                State("Selling", "Included")
+                GetControl(GetControl(window, "OptionsBar"), "BtnDisplayOrder").handlers.OnClicked()
+                State("Selling", "Included")
+                State("Alpha", "Excluded").handlers.OnClicked()
+                State("Alpha", "Included")
+                assert(not this.accountWide.autoCategoryOrder.contexts.backpack.hidden["ac:Selling"]
+                    and this.GetRuntimeRules().alpha.autoCategoryEnabled)
+            end),
+        },
         {
             name = "AutoCategory editor failure view avoids rule resolution and keeps recovery controls available",
             run = WithActiveIntegration(function()
@@ -406,8 +458,8 @@ function this.GetAutoCategoryEditorTests()
                 assert(sellingLabel.color[1] == 0.65 and sellingLabel.color[2] == 0.68
                     and sellingLabel.color[3] == 1, "Native categories use a non-green tint")
                 assert(not GetControl(RowByText("Gamma"), "Participation").hidden)
-                assert(GetControl(RowByText("Gamma"), "Participation").checked == false)
-                assert(GetControl(RowByText("New"), "Participation").hidden)
+                assert(GetControl(GetControl(RowByText("Gamma"), "Participation"), "State").text == "Excluded")
+                assert(not GetControl(RowByText("New"), "Participation").hidden)
                 assert(GetControl(RowByText("Alpha"), "MoveDown").hidden == false)
                 assert(GetControl(RowByText("Alpha"), "Orders").text == "",
                     "Rows at the same position in both lists must show no divergence marker: "
@@ -438,7 +490,7 @@ function this.GetAutoCategoryEditorTests()
                 assert(GetControl(options, "BtnUseOtherOrder").text == "Use priority list")
 
                 local participation = GetControl(RowByText("Gamma"), "Participation")
-                participation:toggleFunction(true)
+                participation.handlers.OnClicked()
                 assert(this.GetRuntimeRules().gamma.autoCategoryEnabled)
                 assert(integration.lastCrossCopy == nil)
             end),

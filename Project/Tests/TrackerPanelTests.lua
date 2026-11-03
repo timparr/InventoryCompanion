@@ -677,7 +677,7 @@ function this.GetTrackerPanelTests()
         _G[this.SettingsName] = { Default = { account = { source = { trackedRules = {}, trackedItems = {} } } } }
         assert(this.CopyProfile("source"))
         local importedContext, imported = this.GetTrackerContext()
-        Equal(importedContext, context)
+        assert(importedContext ~= context, "Complete profile copies replace rules by value")
         Equal(imported, reset + 1)
     end)
 

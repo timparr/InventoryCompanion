@@ -39,6 +39,7 @@ function this.GetRuleTests()
                     },
                 }
                 this.InvalidateRuleCache()
+                this.ValidateSavedRuleProfiles()
                 local ok, err = pcall(run)
                 this.accountWide, this.character, this.preLoadedRulesets = accountWide, character, baseline
                 this.Scanning, this.Utils = scanning, utils
@@ -340,6 +341,7 @@ function this.GetRuleTests()
         assert(this.GetActiveTrackedRules().default, "Unhide invalidates")
         this.UpdateRulePatterns("default", { "account" })
         local account = this.GetRuntimeRules()
+        this.character.itemListInitialized = true
         this.SetUseCharacterItemList(true)
         List(this.GetRuntimeRules().default.patterns, { "a", "b", "c" }, "Character inherits baseline")
         this.UpdateRulePatterns("default", { "character" })
@@ -533,6 +535,7 @@ function this.GetRuleTests()
         this.ResetRule("default")
         Equal(this.accountWide.trackedRules.default.display, display, "Repeated reset preserves display")
         this.UpdateRuleProperty("default", "displayName", "Changed again")
+        this.character.itemListInitialized = true
         this.SetUseCharacterItemList(true)
         this.UpdateRuleProperty("default", "displayName", "Character name")
         this.ResetRule("default")

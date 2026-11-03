@@ -175,6 +175,7 @@ local function PrepareActive(rules)
     this.InvalidateRuleCache()
     d = function() end
 end
+this.NewActiveAutoCategoryTestFixture = PrepareActive
 
 local function Names(sequence)
     local names = {}
@@ -252,6 +253,60 @@ local function PrepareInitialSetup()
     shownSetup = nil
 end
 
+local function CopyFixtureValue(value)
+    if type(value) ~= "table" then return value end
+    local copy = {}
+    for key, entry in pairs(value) do copy[key] = CopyFixtureValue(entry) end
+    return copy
+end
+
+local function NativeProfile(names)
+    local profile = { bags = {}, unrelated = { keep = true } }
+    for _, context in ipairs(contexts) do
+        local assignments = {}
+        for index, name in ipairs(names) do
+            assignments[index] = Assignment(name, 1000 - index, 1000 - index, { external = "preserved" })
+        end
+        profile.bags[context.bag] = { rules = assignments }
+    end
+    return profile
+end
+
+local function SourceProfile(keys, mapsFirst)
+    local profile = {
+        trackedRules = {}, trackedItems = {}, itemListInitialized = true,
+        autoCategoryIntegrationEnabled = true, autoCategorySetupComplete = true, autoCategoryOrder = NewOrder(),
+    }
+    for _, key in ipairs(keys) do
+        profile.trackedRules[key] = { displayName = key, addedPatterns = { key }, autoCategoryEnabled = true }
+    end
+    for _, context in ipairs(contexts) do
+        local sequence = { "ac:New" }
+        if mapsFirst then table.insert(sequence, 1, "ac:Maps") end
+        for _, key in ipairs(keys) do sequence[#sequence + 1] = "ic:" .. key end
+        if not mapsFirst then sequence[#sequence + 1] = "ac:Maps" end
+        profile.autoCategoryOrder.contexts[context.key] = { display = sequence, matching = CopyFixtureValue(sequence) }
+    end
+    return profile
+end
+
+local function AssertManagedKeys(expected)
+    expected = CopyFixtureValue(expected)
+    expected.__ic_other = true
+    for _, context in ipairs(contexts) do
+        local seen = {}
+        for _, row in ipairs(AutoCategory.saved.bags[context.bag].rules) do
+            if row.icOwned then
+                assert(expected[row.icRuleKey] and not seen[row.icRuleKey], "Unexpected or duplicate managed identity")
+                seen[row.icRuleKey] = true
+            else
+                assert(row.external == "preserved")
+            end
+        end
+        for key in pairs(expected) do assert(seen[key], "Missing managed identity: " .. key) end
+    end
+end
+
 function this.GetAutoCategoryIntegrationTests()
     return {
         {
@@ -325,7 +380,7 @@ function this.GetAutoCategoryIntegrationTests()
                 this.IsDevelopment = true
                 integration.InjectTestAssignment(3)
                 local bag = AutoCategory.saved.bags[1].rules
-                local real = Assignment("Real orphan", 42, 43,
+                local real = Assignment("Real malformed row", "invalid priority", 43,
                     { icOwned = true, icRuleKey = "real_missing_group" })
                 bag[#bag + 1] = real
                 assert(not pcall(integration.InjectTestAssignment, 1),
@@ -358,7 +413,7 @@ function this.GetAutoCategoryIntegrationTests()
                     and preview:find("[key=missing_21]", 1, true))
                 local bag = AutoCategory.saved.bags[1].rules
                 for index = 1, 21 do
-                    bag[#bag + 1] = Assignment("Category " .. index, 42, 43,
+                    bag[#bag + 1] = Assignment("Category " .. index, "invalid priority", 43,
                         { icOwned = true, icRuleKey = "missing_" .. index })
                 end
                 this.RefreshAutoCategoryUI = function() end
@@ -371,7 +426,7 @@ function this.GetAutoCategoryIntegrationTests()
                     and summary:find("18 more", 1, true)
                     and summary:find("cancel and review", 1, true))
                 local ok, report = pcall(integration.ShowRecoveryDetails)
-                assert(not ok and tostring(report):find("[key=missing_21]", 1, true))
+                assert(not ok and tostring(report):find("run priority is invalid", 1, true))
                 while #bag > 8 do table.remove(bag) end
                 assert(not integration.RetrySynchronization())
                 assert(integration.ShowAssignmentRepair())
@@ -463,30 +518,31 @@ function this.GetAutoCategoryIntegrationTests()
                 assert(profile.autoCategoryOrder == order and profile.autoCategoryIntegrationEnabled == true,
                     "Reset preview must not change saved data")
                 ConfirmSetup()
-                assert(not integration.NeedsRecovery() and integration.IsAwaitingSetup()
-                    and integration.IsPanelAvailable() and integration.IsAvailable()
-                    and not this.GetAutoCategoryState().enabled and not integration.IsEditorActive())
-                local reset = Verify("everything gone - its lonely in here")
-                assert(reset.test == 0 and reset.managed == 0 and reset.native == repaired.native)
+                assert(shownSetup.definition.radioButtons ~= nil, "Reset must ask for the new arrangement before writing")
+                assert(profile.autoCategoryOrder == order and profile.autoCategoryIntegrationEnabled == true)
+                CancelSetup()
+                assert(profile.autoCategoryOrder == order, "Cancelling arrangement must preserve the previous setup")
+                assert(integration.ShowIntegrationReset())
+                ConfirmSetup()
+                ConfirmSetup(2)
+                assert(not integration.NeedsRecovery() and integration.IsEditorActive())
+                local reset = Verify("item gone")
+                assert(reset.test == 0 and reset.managed > 0 and reset.native == repaired.native)
                 assert(profile.trackedRules == groups and profile.trackedItems == items
                     and profile.trackedRules.alpha.autoCategoryEnabled == true
-                    and profile.autoCategoryIntegrationEnabled == nil and profile.autoCategorySetupComplete == nil
+                    and profile.autoCategoryIntegrationEnabled == true and profile.autoCategorySetupComplete == true
                     and this.character.autoCategoryOrder == characterOrder
                     and AutoCategory.charSaved == inactive and #inactive.bags[1].rules == 1)
                 for _, context in ipairs(contexts) do
-                    assert(#profile.autoCategoryOrder.contexts[context.key].display == 0
-                        and #profile.autoCategoryOrder.contexts[context.key].matching == 0)
+                    assert(next(profile.autoCategoryOrder.contexts[context.key].hidden) == nil
+                        and next(profile.autoCategoryOrder.contexts[context.key].displayPositions) == nil)
                     for index, previous in ipairs(nativeRows[context.key]) do
                         local row = AutoCategory.saved.bags[context.bag].rules[index]
-                        assert(row == previous.row and row.name == previous.name and row.runpriority == previous.runpriority
-                            and row.showpriority == previous.showpriority and row.isHidden == previous.isHidden,
-                            "Reset must preserve native assignments and priorities exactly")
+                        assert(row == previous.row and row.name == previous.name and row.isHidden == previous.isHidden,
+                            "Reset must preserve native assignments and unrelated fields")
                     end
                 end
                 assert(integration.lastResetBackup.fields.autoCategoryOrder == order)
-                assert(this.SetAutoCategoryIntegrationEnabled(true) == false)
-                assert(shownSetup.definition.radioButtons ~= nil, "Re-enable must show the original setup dialog")
-                ConfirmSetup()
                 assert(profile.autoCategorySetupComplete and integration.IsEditorActive()
                     and not integration.IsAwaitingSetup())
                 this.IsDevelopment = previousDevelopment
@@ -507,6 +563,7 @@ function this.GetAutoCategoryIntegrationTests()
                 local count, injected = #bag, bag[#bag]
                 assert(integration.ShowIntegrationReset())
                 AutoCategory.cacheInitBag = function() error("synthetic reset cache failure") end
+                ConfirmSetup()
                 ConfirmSetup()
                 assert(integration.NeedsRecovery() and not integration.IsAwaitingSetup()
                     and profile.autoCategoryOrder == order and profile.autoCategoryIntegrationEnabled == true
@@ -539,6 +596,7 @@ function this.GetAutoCategoryIntegrationTests()
                 local bag = AutoCategory.saved.bags[1].rules
                 local count = #bag
                 shownSetup.data.profile = this.character
+                ConfirmSetup()
                 assert(not pcall(ConfirmSetup))
                 assert(#bag == count and this.accountWide.autoCategoryIntegrationEnabled)
             end,
@@ -557,6 +615,8 @@ function this.GetAutoCategoryIntegrationTests()
                 local previousRepairDialog = setupDialogs["InventoryCompanion_AUTOCATEGORY_REPAIR"]
                 assert(loadstring(AutoCategoryIntegrationSource))()
                 local reloaded = this.AutoCategoryIntegration
+                this.autoCategoryFailure = nil
+                this.autoCategoryFailureTraceback = nil
                 AutoCategory.Inited = false
                 AutoCategory.Plugins = {}
                 local _, scheduled = InstallHooks()
@@ -792,7 +852,7 @@ function this.GetAutoCategoryIntegrationTests()
             end,
         },
         {
-            name = "AutoCategory unsupported mismatch exposes recovery and retry without deleting assignments",
+            name = "AutoCategory stale assignments synchronize automatically and restore AC-side settings on return",
             run = function()
                 PrepareActive({})
                 InstallHooks()
@@ -800,21 +860,18 @@ function this.GetAutoCategoryIntegrationTests()
                 local bag = AutoCategory.saved.bags[1].rules
                 local orphan = Assignment("Missing", 42, 43, { icOwned = true, icRuleKey = "custom_missing" })
                 bag[#bag + 1] = orphan
-                assert(integration.ProjectAutoCategory() == false)
-                assert(not integration.IsFaulted() and this.GetAutoCategoryState().failed
-                    and not this.GetAutoCategoryState().enabled and integration.IsPanelAvailable())
-                assert(not integration.RetrySynchronization())
-                assert(bag[#bag] == orphan and orphan.runpriority == 42 and orphan.showpriority == 43)
-                assert(integration.NeedsRecovery() and not integration.IsFaulted())
-                local ok, report = pcall(integration.ShowRecoveryDetails)
-                assert(not ok and tostring(report):find("paused", 1, true))
+                orphan.customSetting = { preserve = "AC-side value" }
+                assert(integration.ProjectAutoCategory())
+                assert(not integration.NeedsRecovery() and integration.IsEditorActive())
+                assert(AutoCategory.saved.bags[1].icAssignmentTemplates.custom_missing.customSetting.preserve == "AC-side value")
+                for _, row in ipairs(bag) do assert(row ~= orphan) end
                 this.accountWide.trackedRules.custom_missing = {
                     displayName = "Missing", addedPatterns = { "missing" }, autoCategoryEnabled = true,
                 }
                 this.InvalidateRuleCache()
-                integration.OnProfileChanged()
-                assert(not integration.NeedsRecovery() and integration.IsEditorActive(),
-                    "A profile change must still retry an unsupported mismatch")
+                assert(integration.ProjectAutoCategory())
+                local restored = FindAssignment("backpack", "Missing" .. icCategoryNameMarkupSuffix)
+                assert(restored and restored.customSetting.preserve == "AC-side value")
             end,
         },
         {
@@ -1264,7 +1321,7 @@ function this.GetAutoCategoryIntegrationTests()
                         and assignment.runpriority == math.floor(assignment.runpriority))
                     unique[assignment.showpriority] = true
                 end
-                assert(#AutoCategory.saved.bags[1].rules == 4)
+                assert(#AutoCategory.saved.bags[1].rules == 5)
                 assert(FindAssignment("backpack", "Set").isHidden == true)
                 assert(FindAssignment("backpack", "Set").externalMetadata == "preserved")
             end,
@@ -1365,7 +1422,7 @@ function this.GetAutoCategoryIntegrationTests()
             end,
         },
         {
-            name = "Participation changes preserve existing assignments when profiles do not align",
+            name = "Participation changes reconcile generated assignments without pausing",
             run = function()
                 PrepareActive({})
                 integration.OnRuleMutation = originalOnRuleMutation
@@ -1381,11 +1438,9 @@ function this.GetAutoCategoryIntegrationTests()
                 this.SetAutoCategoryParticipation("alpha", false)
                 local savedAlpha = this.accountWide.trackedRules.alpha or {}
                 assert(savedAlpha.autoCategoryAnchor == nil and savedAlpha.autoCategoryRank == nil)
-                assert(FindAssignment("backpack", managed.name) == managed
-                    and managed.runpriority ~= nil and managed.showpriority ~= nil,
-                    "Changing participation must not delete an existing AC assignment")
-                assert(select(1, integration.GetStatus()) == "unsupported" and not integration.IsFaulted(),
-                    "Integration should pause without error when saved profiles no longer align")
+                assert(FindAssignment("backpack", managed.name) == nil,
+                    "Excluded IC assignments are replaceable output")
+                assert(select(1, integration.GetStatus()) == "available" and not integration.IsFaulted())
             end,
         },
         {
@@ -1434,6 +1489,10 @@ function this.GetAutoCategoryIntegrationTests()
                             Assignment("IC-owned", 100, 100, { icOwned = true, icRuleKey = "alpha" }),
                             Assignment("Native", 90, 90, { custom = "preserved" }),
                         } }
+                        profile.bags[context.bag].icAssignmentTemplates = {
+                            alpha = { icOwned = true, icRuleKey = "alpha", name = "IC-owned", custom = "saved" },
+                        }
+                        profile.bags[context.bag].unrelatedTemplates = { keep = true }
                     end
                 end
                 local removals = integration.PreflightSavedDataCleanup()
@@ -1443,6 +1502,8 @@ function this.GetAutoCategoryIntegrationTests()
                     for _, context in ipairs(contexts) do
                         local rules = AutoCategory[profileName].bags[context.bag].rules
                         assert(#rules == 1 and rules[1].name == "Native" and rules[1].custom == "preserved")
+                        assert(AutoCategory[profileName].bags[context.bag].icAssignmentTemplates == nil
+                            and AutoCategory[profileName].bags[context.bag].unrelatedTemplates.keep)
                     end
                 end
             end,
@@ -1463,12 +1524,12 @@ function this.GetAutoCategoryIntegrationTests()
             end,
         },
         {
-            name = "Integer projection accepts 999 assignments and rejects 1000 without writes",
+            name = "Integer projection reserves one of 999 assignments for Other and rejects overflow without writes",
             run = function()
                 PrepareActive({})
                 local backpack = AutoCategory.saved.bags[1]
                 backpack.rules = {}
-                for index = 1, 999 do
+                for index = 1, 998 do
                     backpack.rules[index] = Assignment(string.format("Native %03d", index), 1000 - index, 1000 - index,
                         { filter = "preserved" })
                 end
@@ -1476,7 +1537,7 @@ function this.GetAutoCategoryIntegrationTests()
                 assert(#backpack.rules == 999)
                 for index, assignment in ipairs(backpack.rules) do
                     assert(assignment.showpriority >= 2 and assignment.runpriority >= 2)
-                    assert(assignment.filter == "preserved")
+                    assert(assignment.filter == "preserved" or assignment.icRuleKey == "__ic_other")
                 end
                 local beforeOrder = table.concat(this.accountWide.autoCategoryOrder.contexts.backpack.display, ",")
                 backpack.rules[1000] = Assignment("Native 1000", 1, 1)
@@ -1528,7 +1589,7 @@ function this.GetAutoCategoryIntegrationTests()
             end,
         },
         {
-            name = "Mismatched profile assignments pause integration without changing saved data",
+            name = "Mismatched profile assignments are replaced without changing source profiles",
             run = function()
                 PrepareActive({ alpha = { autoCategoryEnabled = true } })
                 local profile = this.accountWide
@@ -1552,11 +1613,7 @@ function this.GetAutoCategoryIntegrationTests()
                 this.accountWide.debugEnabled = false
 
                 local prepared = integration.PreflightAutoCategory()
-                assert(prepared == nil and not integration.IsFaulted())
-                assert(select(1, integration.GetStatus()) == "unsupported",
-                    "A missing active-profile group should pause integration without reporting an error")
-                assert(integration.ProjectAutoCategory() == false and not integration.IsFaulted(),
-                    "Projection should remain paused without escalating the mismatch to an error")
+                assert(prepared ~= nil and not integration.IsFaulted())
                 assert(backpack[#backpack] == orphan and orphan.runpriority == 42 and orphan.showpriority == 43,
                     "A profile mismatch must preserve AutoCategory assignments and priorities")
                 assert(profile.trackedRules == savedRules and profile.autoCategoryOrder == savedOrder
@@ -1576,15 +1633,17 @@ function this.GetAutoCategoryIntegrationTests()
                             "An earlier session-first access must not be overwritten: " .. field)
                     end
                 end
-                assert(#integration.unavailableAssignments == 1
-                    and integration.unavailableAssignments[1].ruleKey == "custom_missing",
-                    "The ignored mismatch should remain available to diagnostics")
+                assert(integration.ProjectAutoCategory(prepared))
+                for _, row in ipairs(backpack) do assert(row ~= orphan) end
+                assert(AutoCategory.saved.bags[1].icAssignmentTemplates.custom_missing.icRuleKey == "custom_missing")
+                assert(this.character.trackedRules.custom_missing.addedPatterns[1] == "synthetic missing group")
+                assert(not integration.NeedsRecovery() and #integration.unavailableAssignments == 0)
                 this.IsDevelopment = previousDevelopment
                 this.state = previousState
             end,
         },
         {
-            name = "Account-wide assignments are retained when a character disables group participation",
+            name = "Account-wide assignments are replaced when the active IC profile excludes their group",
             run = function()
                 PrepareActive({ alpha = { autoCategoryEnabled = true } })
                 local previousState = this.state
@@ -1606,20 +1665,19 @@ function this.GetAutoCategoryIntegrationTests()
                 backpack[#backpack + 1] = assignment
 
                 local prepared = integration.PreflightAutoCategory()
-                assert(prepared == nil and not integration.IsFaulted()
-                    and select(1, integration.GetStatus()) == "unsupported",
-                    "A participation mismatch must pause integration without faulting")
+                assert(prepared ~= nil and not integration.IsFaulted())
                 assert(backpack[#backpack] == assignment and assignment.runpriority == 42
                     and assignment.showpriority == 43,
                     "The account-wide assignment and its priorities must remain untouched")
-                assert(#integration.unavailableAssignments == 1
-                    and integration.unavailableAssignments[1].ruleKey == "custom_missing",
-                    "The non-participating active-profile group must be reported as a mismatch")
+                assert(integration.ProjectAutoCategory(prepared))
+                for _, row in ipairs(backpack) do assert(row ~= assignment) end
+                assert(this.character.trackedRules.custom_missing.autoCategoryEnabled == true)
+                assert(not integration.NeedsRecovery())
                 this.state = previousState
             end,
         },
         {
-            name = "Archived AutoCategory assignments are restored and mismatches are ignored",
+            name = "Historical AutoCategory recovery archives remain intact without being replayed into the active profile",
             run = function()
                 PrepareActive({})
                 local previousState = this.state
@@ -1641,9 +1699,8 @@ function this.GetAutoCategoryIntegrationTests()
                 end
 
                 local prepared, failure = integration.PreflightAutoCategory()
-                assert(prepared == nil and tostring(failure):find("paused", 1, true),
-                    "Recovery should restore the archive and pause on the active-profile mismatch")
-                assert(not integration.IsFaulted(), "An ignored mismatch must not fault integration")
+                assert(prepared ~= nil, tostring(failure))
+                assert(not integration.IsFaulted())
                 local archived = this.accountWide.debug.autoCategoryRemovedLines
                 assert(#archived == #contexts, "Keep every historical archive row")
                 for index, context in ipairs(contexts) do
@@ -1653,34 +1710,26 @@ function this.GetAutoCategoryIntegrationTests()
                         and record.index == originalIndices[context.key]
                         and record.line.name == "Orphan" and record.line.icRuleKey == "custom_missing"
                         and record.line.runpriority == 42 and record.line.showpriority == 43
-                        and record.restored == true,
-                        "Recovery must preserve the archive row and mark it restored")
-                    local restored = AutoCategory.saved.bags[context.bag].rules[originalIndices[context.key]]
-                    assert(restored.name == "Orphan" and restored.icRuleKey == "custom_missing"
-                        and restored.runpriority == 42 and restored.showpriority == 43,
-                        "Recovery must put the original assignment back at its saved position")
+                        and record.restored == nil,
+                        "Historical recovery rows must be preserved without replay or mutation")
                 end
                 local summary = integration.GetOrphanedAssignmentReport(false)
                 assert(#summary == 2 and summary[1]:find("7", 1, true)
-                    and summary[1]:find("restored: 7", 1, true)
-                    and summary[2]:find("Current active-profile mismatches ignored: 7", 1, true),
-                    "Normal debug report should summarize archived, restored, and ignored rows")
+                    and summary[1]:find("restored: 0", 1, true),
+                    "Normal debug report must retain the historical archive summary")
                 local detailed = integration.GetOrphanedAssignmentReport(true)
-                assert(#detailed == #contexts * 2 + 2
+                assert(#detailed == #contexts + 2
                     and detailed[3]:find("context=backpack", 1, true)
-                    and detailed[3]:find("restored=true", 1, true)
-                    and detailed[3]:find("custom_missing", 1, true)
-                    and detailed[#detailed]:find("ignored #7", 1, true),
-                    "Very verbose report should list archived and currently ignored assignment rows")
-                assert(integration.ProjectAutoCategory() == false and not integration.IsFaulted(),
-                    "A restored mismatch must remain safely ignored rather than projected")
+                    and detailed[3]:find("custom_missing", 1, true),
+                    "Very verbose report must retain historical assignment details")
+                assert(integration.ProjectAutoCategory(prepared) and not integration.IsFaulted())
                 for _, context in ipairs(contexts) do
                     local rules = AutoCategory.saved.bags[context.bag].rules
                     local matches = 0
                     for _, assignment in ipairs(rules) do
                         if assignment.icRuleKey == "custom_missing" then matches = matches + 1 end
                     end
-                    assert(matches == 1, "Repeated preflight must not duplicate a restored assignment")
+                    assert(matches == 0, "Historical recovery rows must not create active assignments")
                 end
                 this.state = previousState
             end,
@@ -1784,6 +1833,392 @@ function this.GetAutoCategoryIntegrationTests()
                 hooks.cacheInitBag()
                 assert(#scheduled == 4 and #warnings == warningCount,
                     "A failed session must stop scheduling and avoid repeated warnings")
+            end,
+        },
+        {
+            name = "Synchronization covers all four IC AC scopes and A B A with distinct identities and saved orders",
+            run = function()
+                for _, characterIC in ipairs({ false, true }) do
+                    for _, characterAC in ipairs({ false, true }) do
+                        PrepareActive({})
+                        local sharedIC = SourceProfile({ "shared_maps", "shared_surveys" }, true)
+                        local a = SourceProfile({ "a_maps", "a_treasure" }, false)
+                        local b = SourceProfile({ "b_materials" }, false)
+                        for _, context in ipairs(contexts) do
+                            sharedIC.autoCategoryOrder.contexts[context.key].hidden = { ["ac:New"] = true }
+                            a.autoCategoryOrder.contexts[context.key].hidden = { ["ac:Maps"] = true }
+                        end
+                        a.useCharacterItemList, b.useCharacterItemList = characterIC, characterIC
+                        local sharedAC, aAC, bAC = NativeProfile({ "New", "Maps" }),
+                            NativeProfile({ "New", "Maps" }), NativeProfile({ "New", "Maps" })
+                        this.accountWide, this.character = sharedIC, a
+                        AutoCategory.acctSaved, AutoCategory.charSaved = sharedAC, aAC
+                        AutoCategory.saved = characterAC and aAC or sharedAC
+                        this.ValidateSavedRuleProfiles()
+                        this.InvalidateRuleCache()
+                        assert(integration.ProjectAutoCategory(), this.autoCategoryFailure)
+                        AssertManagedKeys(characterIC and { a_maps = true, a_treasure = true }
+                            or { shared_maps = true, shared_surveys = true })
+                        local helper = FindAssignment("backpack", "Other" .. icCategoryNameMarkupSuffix)
+                        assert(FindAssignment("backpack", characterIC and "Maps" or "New").runpriority < helper.runpriority)
+                        local aOrder = a.autoCategoryOrder
+                        local sharedOrder = sharedIC.autoCategoryOrder
+                        local aOutput = CopyFixtureValue(aAC)
+                        local desired = characterIC and a or sharedIC
+                        local managed = FindAssignment("backpack", (characterIC and "a_treasure" or "shared_maps")
+                            .. icCategoryNameMarkupSuffix)
+                        managed.custom = { value = "AC-side setting" }
+                        managed.isHidden = true
+                        this.character = b
+                        AutoCategory.charSaved = bAC
+                        AutoCategory.saved = characterAC and bAC or sharedAC
+                        this.ValidateSavedRuleProfiles()
+                        this.InvalidateRuleCache()
+                        assert(integration.ProjectAutoCategory(), this.autoCategoryFailure)
+                        AssertManagedKeys(characterIC and { b_materials = true }
+                            or { shared_maps = true, shared_surveys = true })
+                        if characterIC then
+                            assert(FindAssignment("backpack", "Maps").runpriority
+                                > FindAssignment("backpack", "Other" .. icCategoryNameMarkupSuffix).runpriority)
+                        end
+                        assert(a.autoCategoryOrder == aOrder and a.trackedRules.a_treasure.autoCategoryEnabled)
+                        if characterIC then
+                            assert(table.concat(sharedIC.autoCategoryOrder.contexts.backpack.display, ",")
+                                == table.concat(sharedOrder.contexts.backpack.display, ","))
+                        end
+                        if characterAC then
+                            assert(#aAC.bags[1].rules == #aOutput.bags[1].rules
+                                and managed.custom.value == "AC-side setting")
+                        end
+                        this.character = a
+                        AutoCategory.charSaved = aAC
+                        AutoCategory.saved = characterAC and aAC or sharedAC
+                        this.ValidateSavedRuleProfiles()
+                        this.InvalidateRuleCache()
+                        assert(integration.ProjectAutoCategory(), this.autoCategoryFailure)
+                        AssertManagedKeys(characterIC and { a_maps = true, a_treasure = true }
+                            or { shared_maps = true, shared_surveys = true })
+                        local restored = FindAssignment("backpack", (characterIC and "a_treasure" or "shared_maps")
+                            .. icCategoryNameMarkupSuffix)
+                        assert(restored.custom.value == "AC-side setting" and restored.isHidden == true)
+                        assert(desired.autoCategoryOrder.contexts.backpack.display[characterIC and 4 or 1] == "ac:Maps")
+                        assert(sharedAC.unrelated.keep and aAC.unrelated.keep and bAC.unrelated.keep)
+                    end
+                end
+            end,
+        },
+        {
+            name = "Synchronization applies Maps order across both mode switches without losing dormant native references",
+            run = function()
+                PrepareActive({})
+                this.accountWide = SourceProfile({ "shared" }, false)
+                this.character = SourceProfile({ "character" }, false)
+                this.character.useCharacterItemList = false
+                local sharedAC, charAC = NativeProfile({ "New", "Maps" }), NativeProfile({ "New", "Maps" })
+                AutoCategory.saved, AutoCategory.acctSaved, AutoCategory.charSaved = sharedAC, sharedAC, charAC
+                this.ValidateSavedRuleProfiles()
+                this.InvalidateRuleCache()
+                assert(integration.ProjectAutoCategory())
+                assert(integration.MoveEntry("ac:Maps", "backpack", "display", -1))
+                assert(integration.MoveEntry("ac:Maps", "backpack", "display", -1))
+                assert(this.accountWide.autoCategoryOrder.contexts.backpack.display[1] == "ac:Maps")
+                local _, scheduled = InstallHooks()
+                local function Drain()
+                    local pending = {}
+                    for index, callback in ipairs(scheduled) do pending[index] = callback end
+                    for index = #scheduled, 1, -1 do scheduled[index] = nil end
+                    for _, callback in ipairs(pending) do callback() end
+                    assert(not integration.NeedsRecovery(), this.autoCategoryFailure)
+                end
+                this.SetUseCharacterItemList(true)
+                Drain()
+                assert(this.character.autoCategoryOrder.contexts.backpack.display[3] == "ac:Maps")
+                assert(FindAssignment("backpack", "Maps").showpriority < FindAssignment("backpack", "New").showpriority)
+                this.SetUseCharacterItemList(false)
+                Drain()
+                assert(FindAssignment("backpack", "Maps").showpriority > FindAssignment("backpack", "New").showpriority)
+                local sharedOrder = this.accountWide.autoCategoryOrder
+                local sharedMapsPriority = sharedAC.bags[1].rules[2].showpriority
+                AutoCategory.saved = charAC
+                integration.OnProfileChanged()
+                Drain()
+                assert(this.accountWide.autoCategoryOrder.contexts.backpack.display[1] == "ac:Maps")
+                assert(FindAssignment("backpack", "Maps").showpriority > FindAssignment("backpack", "New").showpriority)
+                assert(sharedAC.bags[1].rules[2].showpriority == sharedMapsPriority)
+                local withoutMaps = NativeProfile({ "New" })
+                AutoCategory.saved = withoutMaps
+                integration.OnProfileChanged()
+                Drain()
+                assert(this.accountWide.autoCategoryOrder.contexts.backpack.display[1] == "ac:Maps")
+                for _, row in ipairs(integration.ResolveAutoCategoryOrder("backpack")) do
+                    assert(row.reference ~= "ac:Maps", "Dormant native categories must not be shown in another AC profile")
+                end
+                AutoCategory.saved = sharedAC
+                integration.OnProfileChanged()
+                Drain()
+                assert(FindAssignment("backpack", "Maps").showpriority > FindAssignment("backpack", "New").showpriority)
+                assert(sharedOrder.contexts.backpack.display[1] == "ac:Maps")
+            end,
+        },
+        {
+            name = "Native exclusion uses an enablement-gated Other predicate without deleting native Other or settings",
+            run = function()
+                PrepareInitialSetup()
+                local ac = AutoCategory
+                local _, scheduled = InstallHooks()
+                this.accountWide.autoCategoryIntegrationEnabled = true
+                this.accountWide.autoCategorySetupComplete = true
+                ac.Plugins["Inventory Companion"].initialize()
+                for _, callback in ipairs(scheduled) do callback() end
+                local nativeOther = Assignment("Other", 90, 90, { external = "Other remains native" })
+                ac.saved.bags[1].rules[#ac.saved.bags[1].rules + 1] = nativeOther
+                assert(integration.ProjectAutoCategory())
+                local native = FindAssignment("backpack", "Selling")
+                local isHidden = native.isHidden
+                assert(integration.SetEntryIncluded("ac:Selling", "backpack", false))
+                local helper = FindAssignment("backpack", "Other" .. icCategoryNameMarkupSuffix)
+                assert(helper and helper.icOwned and helper.icRuleKey == "__ic_other")
+                assert(FindAssignment("backpack", "New").runpriority > helper.runpriority
+                    and helper.runpriority > native.runpriority)
+                assert(FindAssignment("backpack", "Other") == nativeOther and native.isHidden == isHidden)
+                local previousGetName = GetItemLinkName
+                GetItemLinkName = function(link) return link end
+                ac.checkingItemLink = "uncategorized synthetic item"
+                assert(ac.RulesW.predicate("__ic_other") == true)
+                for _, row in ipairs(integration.ResolveAutoCategoryOrder("backpack")) do
+                    assert(row.reference ~= "ic:__ic_other")
+                end
+                assert(this.GetRuntimeRules().__ic_other == nil)
+                local priority = native.runpriority
+                integration.OnEnablementChanged = originalOnEnablementChanged
+                assert(this.SetAutoCategoryIntegrationEnabled(false))
+                assert(ac.RulesW.predicate("__ic_other") == false)
+                assert(FindAssignment("backpack", helper.name) == nil and native.runpriority == priority)
+                assert(this.accountWide.autoCategoryOrder.contexts.backpack.hidden["ac:Selling"])
+                assert(this.SetAutoCategoryIntegrationEnabled(true))
+                assert(integration.ProjectAutoCategory())
+                assert(FindAssignment("backpack", helper.name).runpriority > native.runpriority)
+                GetItemLinkName = previousGetName
+            end,
+        },
+        {
+            name = "Re-inclusion restores display insertion and initializes matching from the restored display number",
+            run = function()
+                for _, reference in ipairs({ "ac:Selling", "ic:alpha" }) do
+                    PrepareActive({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true },
+                        gamma = { autoCategoryEnabled = true } })
+                    assert(integration.ProjectAutoCategory())
+                    local remaining = { "ac:New", "ic:beta", "ic:gamma", "ac:Low level",
+                        reference == "ic:alpha" and "ac:Selling" or "ic:alpha" }
+                    local display = CopyFixtureValue(remaining)
+                    table.insert(display, 4, reference)
+                    local matching = CopyFixtureValue(remaining)
+                    table.insert(matching, 1, reference)
+                    assert(this.SetAutoCategoryContextOrder("backpack", "display", display))
+                    assert(this.SetAutoCategoryContextOrder("backpack", "matching", matching))
+                    assert(integration.SetEntryIncluded(reference, "backpack", false))
+                    local order = this.accountWide.autoCategoryOrder.contexts.backpack
+                    assert(order.displayPositions[reference] == 4)
+                    assert(integration.SetEntryIncluded(reference, "backpack", true))
+                    local restored = this.accountWide.autoCategoryOrder.contexts.backpack
+                    assert(restored.display[5] == reference and restored.matching[6] == reference,
+                        "Matching must use restored display number 5, not old matching number 1")
+                    assert(#restored.display == 6 and #restored.matching == 6)
+                    this.ValidateAutoCategoryRecoveryData()
+                end
+            end,
+        },
+        {
+            name = "Failed exclusion rolls back assignments templates and proposed profile state",
+            run = function()
+                for _, reference in ipairs({ "ac:Selling", "ic:alpha" }) do
+                    PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                    assert(integration.ProjectAutoCategory())
+                    local order = this.accountWide.autoCategoryOrder
+                    local bag = AutoCategory.saved.bags[1]
+                    local rows, templates = CopyFixtureValue(bag.rules), bag.icAssignmentTemplates
+                    AutoCategory.cacheInitBag = function() error("synthetic exclusion cache failure") end
+                    assert(integration.SetEntryIncluded(reference, "backpack", false) == false)
+                    assert(integration.IsFaulted() and this.accountWide.autoCategoryOrder == order)
+                    assert(this.accountWide.trackedRules.alpha.autoCategoryEnabled)
+                    assert(bag.icAssignmentTemplates == templates and #bag.rules == #rows)
+                    for index, row in ipairs(bag.rules) do
+                        assert(row.name == rows[index].name and row.runpriority == rows[index].runpriority
+                            and row.showpriority == rows[index].showpriority)
+                    end
+                    assert(next(order.contexts.backpack.hidden) == nil
+                        and next(order.contexts.backpack.displayPositions) == nil)
+                end
+            end,
+        },
+        {
+            name = "Synchronization rejects incomplete runtime malformed templates and ownership collisions before deleting stale rows",
+            run = function()
+                for _, scenario in ipairs({ "runtime", "runtime-fields", "runtime-extra", "templates", "collision", "sparse" }) do
+                    PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                    local bag = AutoCategory.saved.bags[1]
+                    local orphan = Assignment("Stale", 42, 43, { icOwned = true, icRuleKey = "other_profile" })
+                    bag.rules[#bag.rules + 1] = orphan
+                    local order = this.accountWide.autoCategoryOrder
+                    local originalRuntime = this.GetRuntimeRules
+                    if scenario == "runtime" then this.GetRuntimeRules = function() return {} end
+                    elseif scenario == "runtime-fields" or scenario == "runtime-extra" then
+                        local incomplete = CopyFixtureValue(originalRuntime())
+                        if scenario == "runtime-fields" then incomplete.alpha.display = nil
+                        else
+                            incomplete.unexpected = CopyFixtureValue(incomplete.alpha)
+                            incomplete.unexpected.isPreloaded = false
+                        end
+                        this.GetRuntimeRules = function() return incomplete end
+                    elseif scenario == "templates" then bag.icAssignmentTemplates = { other_profile = { custom = true } }
+                    elseif scenario == "collision" then
+                        bag.rules[#bag.rules + 1] = Assignment("Other" .. icCategoryNameMarkupSuffix, 40, 40)
+                    else bag.rules[2] = nil end
+                    assert(integration.ProjectAutoCategory() == false and integration.IsFaulted(), scenario)
+                    this.GetRuntimeRules = originalRuntime
+                    assert(bag.rules[4] == orphan and orphan.runpriority == 42 and orphan.showpriority == 43
+                        and this.accountWide.autoCategoryOrder == order)
+                end
+            end,
+        },
+        {
+            name = "Missing AutoCategory preserves editable source participation without projecting or faulting IC",
+            run = function()
+                NewFixture()
+                AutoCategory = nil
+                integration.Initialize()
+                this.accountWide.autoCategoryIntegrationEnabled = true
+                this.accountWide.autoCategorySetupComplete = true
+                local order = this.accountWide.autoCategoryOrder
+                this.SetAutoCategoryParticipation("alpha", true)
+                assert(this.GetRuntimeRules().alpha.autoCategoryEnabled)
+                this.SetAutoCategoryParticipation("alpha", false)
+                assert(not this.GetRuntimeRules().alpha.autoCategoryEnabled)
+                assert(not integration.IsFaulted() and this.accountWide.autoCategoryOrder == order)
+                assert(select(1, integration.GetStatus()) == "absent")
+            end,
+        },
+        {
+            name = "Explicit profile copying includes exclusions restoration references and complete item preferences by value",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                assert(integration.ProjectAutoCategory())
+                assert(integration.SetEntryIncluded("ac:Selling", "backpack", false))
+                local source = CopyFixtureValue(this.accountWide)
+                source.trackedItems[99] = { link = "item", display = { isHidden = true, isExpanded = false,
+                    notifyChat = false, notifyHud = true }, extra = { keep = true } }
+                _G[this.SettingsName] = { Default = { account = { source = source } } }
+                InstallHooks()
+                assert(this.CopyProfile("source"))
+                local destination = this.accountWide
+                local order = destination.autoCategoryOrder.contexts.backpack
+                assert(order.hidden["ac:Selling"] and order.displayPositions["ac:Selling"] == 2)
+                assert(destination.trackedItems[99].display.isExpanded == false
+                    and destination.trackedItems[99].display.notifyChat == false
+                    and destination.trackedItems[99].extra.keep)
+                order.hidden["ac:Selling"] = nil
+                destination.trackedItems[99].extra.keep = false
+                assert(source.autoCategoryOrder.contexts.backpack.hidden["ac:Selling"]
+                    and source.trackedItems[99].extra.keep)
+            end,
+        },
+        {
+            name = "Cold startup and reload-equivalent deferred projection use IC saved order and remove stale assignments",
+            run = function()
+                NewFixture()
+                this.accountWide.trackedRules.alpha = { autoCategoryEnabled = true }
+                this.accountWide.autoCategoryIntegrationEnabled = true
+                this.accountWide.autoCategorySetupComplete = true
+                for _, context in ipairs(contexts) do
+                    this.accountWide.autoCategoryOrder.contexts[context.key] = {
+                        display = { "ac:Low level", "ic:alpha", "ac:New", "ac:Selling" },
+                        matching = { "ic:alpha", "ac:Low level", "ac:Selling", "ac:New" },
+                    }
+                    local bag = AutoCategory.saved.bags[context.bag]
+                    bag.rules[#bag.rules + 1] = Assignment("Stale", 200, 200,
+                        { icOwned = true, icRuleKey = "previous_character", custom = { keep = true } })
+                end
+                this.ValidateSavedRuleProfiles()
+                this.InvalidateRuleCache()
+                local ac = NewStartupAutoCategory()
+                local _, scheduled = InstallHooks()
+                integration.Initialize()
+                ac.Plugins["Inventory Companion"].initialize()
+                assert(select(1, integration.GetStatus()) == "pending")
+                ac.Inited = true
+                scheduled[1]()
+                assert(integration.IsEditorActive() and not integration.NeedsRecovery())
+                local order = this.accountWide.autoCategoryOrder.contexts.backpack
+                assert(order.display[1] == "ac:Low level" and order.matching[1] == "ic:alpha")
+                assert(FindAssignment("backpack", "Stale") == nil)
+                assert(ac.saved.bags[1].icAssignmentTemplates.previous_character.custom.keep)
+                local before = table.concat(order.display, ",")
+                this.InvalidateRuleCache()
+                integration.OnProfileChanged()
+                scheduled[#scheduled]()
+                assert(table.concat(this.accountWide.autoCategoryOrder.contexts.backpack.display, ",") == before)
+            end,
+        },
+        {
+            name = "Synthetic inventory-style burst coalesces 100 pattern updates across 128 groups and seven contexts",
+            run = function()
+                local rules = {}
+                for index = 1, 128 do
+                    rules["burst_" .. index] = {
+                        displayName = "Burst " .. index, addedPatterns = { "synthetic*" }, autoCategoryEnabled = true,
+                    }
+                end
+                PrepareActive(rules)
+                assert(integration.ProjectAutoCategory())
+                integration.OnRuleMutation = originalOnRuleMutation
+                local _, scheduled = InstallHooks()
+                local refreshes, caches = 0, 0
+                AutoCategory.RefreshList = function() refreshes = refreshes + 1 end
+                AutoCategory.cacheInitBag = function() caches = caches + 1 end
+                local order, sourceRules = this.accountWide.autoCategoryOrder, this.accountWide.trackedRules
+                local started = os.clock()
+                for _ = 1, 100 do integration.OnRuleMutation("patterns", "burst_1") end
+                assert(#scheduled == 100)
+                for _, callback in ipairs(scheduled) do callback() end
+                assert(refreshes == 7 and caches == 0 and not integration.NeedsRecovery())
+                assert(this.accountWide.autoCategoryOrder == order and this.accountWide.trackedRules == sourceRules)
+                for _, context in ipairs(contexts) do
+                    assert(#AutoCategory.saved.bags[context.bag].rules == 132)
+                end
+                return string.format("Synthetic only: 100 updates, 128 groups, seven contexts; %.2f ms CPU; seven refreshes, zero cache rebuilds.",
+                    (os.clock() - started) * 1000)
+            end,
+        },
+        {
+            name = "Group additions renames and deletions reconcile active output and preserve inactive profiles",
+            run = function()
+                PrepareActive({})
+                assert(integration.ProjectAutoCategory())
+                integration.OnRuleMutation = originalOnRuleMutation
+                local _, scheduled = InstallHooks()
+                local inactive = NativeProfile({ "Inactive" })
+                AutoCategory.charSaved = inactive
+                this.CreateCustomRule("lifecycle", "Original")
+                this.UpdateRulePatterns("lifecycle", { "synthetic*" })
+                assert(this.SetAutoCategoryParticipation("lifecycle", true))
+                assert(FindAssignment("backpack", "Original" .. icCategoryNameMarkupSuffix))
+                this.UpdateRuleProperty("lifecycle", "displayName", "Renamed")
+                scheduled[#scheduled]()
+                assert(FindAssignment("backpack", "Original" .. icCategoryNameMarkupSuffix) == nil)
+                assert(FindAssignment("backpack", "Renamed" .. icCategoryNameMarkupSuffix))
+                this.DeleteCustomRule("lifecycle")
+                scheduled[#scheduled]()
+                assert(FindAssignment("backpack", "Renamed" .. icCategoryNameMarkupSuffix) == nil)
+                assert(not integration.NeedsRecovery() and this.GetRuntimeRules().lifecycle == nil)
+                for _, context in ipairs(contexts) do
+                    local orders = this.accountWide.autoCategoryOrder.contexts[context.key]
+                    assert(orders.displayPositions["ic:lifecycle"] == nil)
+                    for _, mode in ipairs({ "display", "matching" }) do
+                        for _, reference in ipairs(orders[mode]) do assert(reference ~= "ic:lifecycle") end
+                    end
+                    assert(#inactive.bags[context.bag].rules == 1
+                        and inactive.bags[context.bag].rules[1].name == "Inactive")
+                end
             end,
         },
     }

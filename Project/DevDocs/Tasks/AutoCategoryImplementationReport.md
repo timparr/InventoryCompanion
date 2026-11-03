@@ -2,14 +2,48 @@
 
 ## Status
 
-The ordering fix is implemented on `feature/autocategory-integration`. The
-integration remains opt-in and disabled by default. The current regression
-runner passes **117/117 isolated addon tests**, including schema-4 downgrade
-protection, and checks Lua syntax with Lua 5.1. Tests use synthetic data only;
-normal saved variables and live inventory were not used. ESO in-game acceptance,
-compatibility certification, and release readiness remain incomplete.
+The [profile synchronization fix](../../../AutoCategorySynchronizationFix.md)
+is implemented on main, uncommitted, as of 2026-11-03. Integration remains
+opt-in and disabled by default. Current verification is **192/192 isolated
+addon tests** with Lua 5.1 syntax checks, plus **31/31 installed-dependency
+spike fixtures**, using synthetic state only. ESO in-game acceptance,
+compatibility certification and release readiness remain incomplete.
 
-### Current ordering implementation
+### Current synchronization implementation
+
+- Schema **8** stores per-context native exclusions and remembered display
+  positions, plus an item-list initialization marker. All profiles migrate
+  before ZOS constructors. Actual schema-4 through schema-7 builds reject
+  schema-8 synthetic data without mutation.
+- The selected IC profile owns groups, participation, enablement and order;
+  AC selects the destination independently. All four scope combinations,
+  A/B/A shared-profile replacement, cold startup and both mode switches
+  synchronize automatically. Incomplete runtime, malformed data and ownership
+  collisions remain failures, not excuses to delete rows.
+- Generated assignments preserve complete AC-side options in owned,
+  per-bag templates. Projection writes only the active destination, rolls
+  assignment/template changes back on failure, and publishes proposed IC
+  ordering/participation only after success. Dormant native ordering references
+  survive destination changes; historical recovery archives are not replayed.
+- Included/Excluded labels and sections apply to both order lists. Native
+  exclusion is enforced by matching precedence around the predicate-gated,
+  internal Other helper. One priority slot is reserved for it: at most **998**
+  user assignments plus Other per context.
+- First-time profile initialization and explicit copying share complete
+  by-value semantics. Reset warns and defers all mutation until a new setup
+  arrangement is confirmed. Ordinary disable preserves IC choices and the
+  last native priorities while removing generated rows.
+- Genuine malformed-priority DEV fixtures continue exercising recovery;
+  normal stale assignments now exercise successful synchronization.
+- A synthetic burst of 100 pattern updates across 128 groups/seven contexts
+  produced seven refreshes, zero cache rebuilds and a final sampled 6 ms CPU cost.
+  This is offline evidence, not an ESO performance certification.
+
+See the linked synchronization plan for the pending in-game acceptance steps,
+including the Other heading, native exclusions and profile transitions.
+The summaries below are historical where superseded by that plan.
+
+### Earlier ordering implementation (schema 5)
 
 - Saved-variable schema is version 5. Each account-wide and character profile
   stores independent Display and Priority lists for seven contexts, using

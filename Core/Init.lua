@@ -5,7 +5,7 @@ InventoryCompanion = {
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
     Version = "1.6.2",
-    SettingsVersion = 7,
+    SettingsVersion = 8,
     SettingsName = "InventoryCompanion_SavedVariables",
 }
 local this = InventoryCompanion

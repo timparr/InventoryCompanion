@@ -6,6 +6,11 @@ local pluginName = "Inventory Companion"
 local ruleTag = "Inventory Companion"
 local predicateName = "ic_group"
 local categoryNameMarkupSuffix = "|cFFFFFF|r"
+local otherRuleKey = "__ic_other"
+local otherRule = {
+    displayName = "Other", patterns = { "*" },
+    compiledPatterns = { "^.*$" }, compiledExcludedPatterns = {},
+}
 
 local contexts = {
     { key = "backpack", title = "Backpack", bagType = function() return AC_BAG_TYPE_BACKPACK end,
@@ -36,6 +41,7 @@ local pendingGeneration = 0
 local nextErrorWindow = 0
 local resetProfile
 local InstallExternalHooks
+local CopySavedValue
 local function SetStatus(state, message)
     if status.state == state and status.message == message then return end
     status = { state = state, message = message }
@@ -296,7 +302,27 @@ function integration.GetHeadingDetails(name)
 end
 
 local function GetRuntimeRules()
-    return this.GetRuntimeRules()
+    local rules = this.GetRuntimeRules()
+    local profile = this.GetAutoCategoryProfile()
+    assert(next(this.preLoadedRulesets) ~= nil, "IC baseline groups have not finished loading")
+    assert(rules[otherRuleKey] == nil and profile.trackedRules[otherRuleKey] == nil,
+        "IC group identity collides with the internal Other helper")
+    for key in pairs(this.preLoadedRulesets) do
+        assert(rules[key] ~= nil and rules[key].isPreloaded == true,
+            "IC runtime is incomplete: missing baseline group " .. key)
+    end
+    for key in pairs(profile.trackedRules) do
+        assert(rules[key] ~= nil, "IC runtime is incomplete: missing saved group " .. key)
+    end
+    for key, rule in pairs(rules) do
+        assert(type(rule.displayName) == "string" and type(rule.autoCategoryEnabled) == "boolean"
+            and type(rule.compiledPatterns) == "table" and type(rule.compiledExcludedPatterns) == "table"
+            and type(rule.display) == "table" and type(rule.patterns) == "table"
+            and (this.preLoadedRulesets[key] ~= nil or profile.trackedRules[key] ~= nil)
+            and rule.isPreloaded == (this.preLoadedRulesets[key] ~= nil),
+            "IC runtime group is incomplete: " .. key)
+    end
+    return rules
 end
 
 local function IsOrdinaryRule(ruleKey, rule)
@@ -343,6 +369,7 @@ local function BuildDefinitions(rules)
     for _, ruleKey in ipairs(GetOrderedRuleKeys(rules)) do
         definitions[#definitions + 1] = BuildDefinition(ruleKey, rules[ruleKey])
     end
+    definitions[#definitions + 1] = BuildDefinition(otherRuleKey, otherRule)
     return definitions
 end
 
@@ -400,13 +427,19 @@ local function CheckActiveAssignments(ac, allowNotReady)
 end
 
 local function CheckDefinitionCollision(ac, definitions)
+    local desiredNames = {}
+    for _, definition in ipairs(definitions) do
+        assert(not desiredNames[definition.name],
+            "IC AutoCategory category name collision: " .. definition.name)
+        desiredNames[definition.name] = true
+    end
     local sources = {
         ac.RulesW.ruleList,
         ac.predefinedRules,
         ac.default_rules and ac.default_rules.rules,
         ac.acctRules and ac.acctRules.rules,
     }
-    for _, profile in ipairs({ ac.acctSaved, ac.charSaved }) do
+    for _, profile in ipairs({ ac.acctSaved, ac.charSaved, ac.saved }) do
         if profile.rules ~= nil then sources[#sources + 1] = profile.rules end
     end
     for pluginKey, plugin in pairs(ac.Plugins) do
@@ -424,7 +457,7 @@ local function CheckDefinitionCollision(ac, definitions)
                 end
             end
         end
-        for _, profile in ipairs({ ac.acctSaved, ac.charSaved }) do
+        for _, profile in ipairs({ ac.acctSaved, ac.charSaved, ac.saved }) do
             for _, context in ipairs(contexts) do
                 local bag = profile.bags and profile.bags[context.bagType()]
                 if bag ~= nil then
@@ -544,6 +577,20 @@ local function RemoveOwnedAssignments(refresh)
     local ac = AutoCategory
     CheckExternalShape(ac)
     if not CheckActiveAssignments(ac, true) then return end
+    local templatesByContext = {}
+    for _, context in ipairs(contexts) do
+        local bag = ac.saved.bags[context.bagType()]
+        local templates = bag.icAssignmentTemplates == nil and {} or CopySavedValue(bag.icAssignmentTemplates)
+        assert(type(templates) == "table", "AutoCategory IC assignment templates must be a table")
+        for _, assignment in ipairs(bag.rules) do
+            if assignment.icOwned == true then
+                assert(type(assignment.icRuleKey) == "string" and assignment.icRuleKey ~= "",
+                    "Cannot preserve an IC assignment without its stable identity")
+                templates[assignment.icRuleKey] = CopySavedValue(assignment)
+            end
+        end
+        templatesByContext[context.key] = templates
+    end
     local changed = {}
     for _, context in ipairs(contexts) do
         local bag = ac.saved.bags[context.bagType()]
@@ -552,6 +599,7 @@ local function RemoveOwnedAssignments(refresh)
                 table.remove(bag.rules, index)
                 changed[context.key] = true
             end
+            bag.icAssignmentTemplates = templatesByContext[context.key]
         end
     end
     if refresh then RefreshContexts(ac, changed, true) end
@@ -595,7 +643,7 @@ end
 function integration.PreflightSavedDataCleanup()
     if AutoCategory == nil then return nil end
     CheckExternalShape(AutoCategory)
-    local removals = {}
+    local removals = { templates = {} }
     for _, profileName in ipairs({ "acctSaved", "charSaved" }) do
         local profile = AutoCategory[profileName]
         assert(type(profile.bags) == "table",
@@ -605,6 +653,7 @@ function integration.PreflightSavedDataCleanup()
             assert(type(bag) == "table" and type(bag.rules) == "table",
                 "AutoCategory " .. profileName .. " assignments are unavailable for " .. context.title
                     .. "; no cleanup was performed")
+            removals.templates[#removals.templates + 1] = { bag = bag, value = bag.icAssignmentTemplates }
             for index, assignment in ipairs(bag.rules) do
                 assert(type(assignment) == "table", "AutoCategory assignment is malformed; no cleanup was performed")
                 if assignment.icOwned == true then
@@ -625,6 +674,10 @@ end
 function integration.ApplySavedDataCleanup(removals)
     assert(type(removals) == "table", "AutoCategory cleanup preflight is required")
     local byRules, changedActive, count = {}, {}, 0
+    for _, template in ipairs(removals.templates) do
+        assert(template.bag.icAssignmentTemplates == template.value,
+            "AutoCategory assignment templates changed after cleanup preflight; no cleanup was applied")
+    end
     for _, removal in ipairs(removals) do
         local current = removal.rules[removal.index]
         assert(current == removal.assignment,
@@ -644,6 +697,7 @@ function integration.ApplySavedDataCleanup(removals)
             end
         end
     end
+    for _, template in ipairs(removals.templates) do template.bag.icAssignmentTemplates = nil end
     if AutoCategory.Inited == true then RefreshContexts(AutoCategory, changedActive, true) end
     SetStatus("disabled", "AutoCategory integration data was cleared for the selected Inventory Companion account.")
     return count
@@ -719,6 +773,8 @@ function integration.OnEnablementChanged(enabled)
         integration.unavailableAssignments = {}
         RemoveOwnedAssignments(AutoCategory.Inited == true)
         SetStatus("disabled", "AutoCategory integration is disabled for this Inventory Companion profile.")
+        d("[InventoryCompanion] IC exclusions will stop applying."
+            .. " AutoCategory keeps the last matching order set by IC; previously excluded categories may match later than others.")
     end
 end
 
@@ -770,6 +826,8 @@ local function RegisterPlugin()
         if integration.IsFaulted() then return end
         local function MatchesRule(ruleKey)
             if not this.GetAutoCategoryState().enabled then return false end
+            assert(type(ac.checkingItemLink) == "string", "AutoCategory checkingItemLink must be a string")
+            if ruleKey == otherRuleKey then return this.ItemMatchesRuntimeRule(ac.checkingItemLink, otherRule) end
             local rules = GetRuntimeRules()
             local rule = rules[ruleKey]
             assert(rule ~= nil, "Registered AutoCategory expression references unknown Inventory Companion group: "
@@ -844,7 +902,7 @@ local function CountEntries(values)
     return count
 end
 
-local function CopySavedValue(value, activeTables)
+CopySavedValue = function(value, activeTables)
     local valueType = type(value)
     assert(valueType == "table" or valueType == "boolean" or valueType == "number" or valueType == "string",
         "AutoCategory assignment contains an unsupported saved value")
@@ -917,7 +975,7 @@ local function FindUnavailableAssignments(ac, definitions, rules)
                 "AutoCategory assignment is malformed in " .. context.title)
             local ruleKey = GetManagedRuleKey(assignment, definitionsByName)
             local rule = ruleKey and rules[ruleKey]
-            if ruleKey ~= nil and (definitionsByKey[ruleKey] ~= true
+            if ruleKey ~= nil and ruleKey ~= otherRuleKey and (definitionsByKey[ruleKey] ~= true
                 or rule == nil or not rule.autoCategoryEnabled) then
                 unavailable[#unavailable + 1] = {
                     context = context.key,
@@ -1072,16 +1130,45 @@ local function BuildContextModel(context, definitions, rules, repairAssignments)
         definitionsByKey[definition.icRuleKey] = definition
     end
     local entries, members, actualAssignments, nativeNames = {}, {}, {}, {}
+    local templates = {}
+    if bag.icAssignmentTemplates ~= nil then
+        assert(type(bag.icAssignmentTemplates) == "table", "AutoCategory IC assignment templates must be a table")
+        for key, template in pairs(bag.icAssignmentTemplates) do
+            assert(type(key) == "string" and type(template) == "table"
+                and template.icOwned == true and template.icRuleKey == key,
+                "AutoCategory IC assignment template has an invalid ownership identity")
+            assert(template.isHidden == nil or type(template.isHidden) == "boolean",
+                "AutoCategory IC assignment template has an invalid hidden setting")
+            templates[key] = CopySavedValue(template)
+        end
+    end
     local assignments = bag.rules
+    local assignmentCount = 0
+    for index in pairs(assignments) do
+        assert(type(index) == "number" and index >= 1 and index % 1 == 0,
+            "AutoCategory assignments must be a dense list in " .. context.title)
+        assignmentCount = assignmentCount + 1
+    end
+    for index = 1, assignmentCount do
+        assert(rawget(assignments, index) ~= nil, "AutoCategory assignments contain a hole in " .. context.title)
+    end
     if repairAssignments then
         assignments = {}
         for _, assignment in ipairs(bag.rules) do
+            if assignment.icOwned == true then
+                local key = GetManagedRuleKey(assignment, definitionsByName)
+                local template = CopySavedValue(assignment)
+                template.icRuleKey = key
+                templates[key] = template
+            end
             if not repairAssignments[assignment] then assignments[#assignments + 1] = assignment end
         end
     end
     for _, assignment in ipairs(assignments) do
         assert(type(assignment) == "table" and type(assignment.name) == "string" and assignment.name ~= "",
             "AutoCategory assignment is malformed in " .. context.title)
+        assert(assignment.isHidden == nil or type(assignment.isHidden) == "boolean",
+            "AutoCategory hidden setting is invalid in " .. context.title .. ": " .. assignment.name)
         assert(type(assignment.runpriority) == "number" and assignment.runpriority == assignment.runpriority
             and math.abs(assignment.runpriority) < math.huge,
             "AutoCategory run priority is invalid in " .. context.title .. ": " .. assignment.name)
@@ -1091,18 +1178,15 @@ local function BuildContextModel(context, definitions, rules, repairAssignments)
         local ruleKey = GetManagedRuleKey(assignment, definitionsByName)
         local reference
         if ruleKey then
-            if definitionsByKey[ruleKey] == nil then
-                CaptureMissingGroupDiagnostics(context, assignment, ruleKey, rules, definitions)
-            end
-            assert(definitionsByKey[ruleKey] ~= nil,
-                "AutoCategory assignment references an unavailable IC group: " .. ruleKey)
             reference = "ic:" .. ruleKey
             assert(actualAssignments[reference] == nil,
                 "AutoCategory has duplicate managed assignments for " .. reference .. " in " .. context.title)
             actualAssignments[reference] = assignment
+            local template = CopySavedValue(assignment)
+            template.icRuleKey = ruleKey
+            templates[ruleKey] = template
             local rule = rules[ruleKey]
-            assert(rule ~= nil, "AutoCategory assignment references an unknown IC group: " .. ruleKey)
-            if rule.autoCategoryEnabled then
+            if rule and rule.autoCategoryEnabled then
                 members[reference] = { reference = reference, ruleKey = ruleKey, assignment = assignment }
             end
         else
@@ -1124,7 +1208,8 @@ local function BuildContextModel(context, definitions, rules, repairAssignments)
                 members[reference] = {
                     reference = reference,
                     ruleKey = ruleKey,
-                    assignment = { name = definitionsByKey[ruleKey].name, runpriority = 0, showpriority = 0 },
+                    assignment = templates[ruleKey]
+                        or { name = definitionsByKey[ruleKey].name, runpriority = 0, showpriority = 0 },
                 }
             end
         end
@@ -1139,7 +1224,7 @@ local function BuildContextModel(context, definitions, rules, repairAssignments)
         for index, entry in ipairs(sorted) do sequence[index] = entry.reference end
         entries[mode] = sequence
     end
-    return { entries = entries, members = members, definitions = definitionsByKey }
+    return { entries = entries, members = members, definitions = definitionsByKey, templates = templates }
 end
 
 local function FilterToMembers(sequence, members)
@@ -1162,6 +1247,7 @@ local function MergeObservedReferences(saved, observed, members)
                 for resultIndex, existing in ipairs(result) do
                     if existing == observed[nextIndex] then insertion = resultIndex; break end
                 end
+
                 if insertion then break end
             end
             if insertion then
@@ -1181,6 +1267,29 @@ local function MergeObservedReferences(saved, observed, members)
     end
     for reference in pairs(members) do
         if not present[reference] then result[#result + 1] = reference end
+    end
+    return result
+end
+
+local function PreserveDormantNativeReferences(saved, active, members, previous)
+    local result = CopySequence(active)
+    local previouslyPresent = {}
+    if previous then
+        for _, reference in ipairs(previous) do previouslyPresent[reference] = true end
+    end
+    for index = #saved, 1, -1 do
+        local reference = saved[index]
+        if reference:sub(1, 3) == "ac:" and not members[reference] and not previouslyPresent[reference] then
+            local insertion = #result + 1
+            for nextIndex = index + 1, #saved do
+                local found = false
+                for position, existing in ipairs(result) do
+                    if existing == saved[nextIndex] then insertion = position; found = true; break end
+                end
+                if found then break end
+            end
+            table.insert(result, insertion, reference)
+        end
     end
     return result
 end
@@ -1227,7 +1336,10 @@ local function CaptureAssignmentState(ac)
             for _, field in ipairs(assignmentStateFields) do values[field] = assignment[field] end
             entries[index] = { assignment = assignment, values = values }
         end
-        snapshot[context.key] = { rules = rules, entries = entries }
+        snapshot[context.key] = {
+            rules = rules, entries = entries,
+            templates = ac.saved.bags[context.bagType()].icAssignmentTemplates,
+        }
     end
     return snapshot
 end
@@ -1236,6 +1348,7 @@ local function RestoreAssignmentState(ac, snapshot)
     for _, context in ipairs(contexts) do
         local rules = ac.saved.bags[context.bagType()].rules
         local saved = snapshot[context.key]
+        ac.saved.bags[context.bagType()].icAssignmentTemplates = saved.templates
         assert(rules == saved.rules, "AutoCategory replaced an assignment list during projection")
         for index = #rules, 1, -1 do rules[index] = nil end
         for index, entry in ipairs(saved.entries) do
@@ -1290,32 +1403,12 @@ local function BuildPlans(orderOverride, setupRules, preset, repairAssignments)
         "Cannot project while AutoCategory integration is disabled")
     local rules = setupRules or GetRuntimeRules()
     local definitions = BuildDefinitions(rules)
-    RestoreArchivedAssignments(ac)
-    local unavailable = FindUnavailableAssignments(ac, definitions, rules)
-    if repairAssignments then
-        local remaining = {}
-        for _, record in ipairs(unavailable) do
-            if not repairAssignments[ac.saved.bags[record.bagType].rules[record.index]] then
-                remaining[#remaining + 1] = record
-            end
-        end
-        unavailable = remaining
-    else
-        integration.unavailableAssignments = unavailable
-    end
-    if #unavailable > 0 then
-        local message = string.format(
-            "AutoCategory integration is paused for this character: %d saved assignment(s) reference IC groups "
-                .. "unavailable or disabled in the active profile. Archived rows were restored where needed; no other "
-                .. "assignments or ordering were changed. Integration will retry when the profile changes.",
-            #unavailable)
-        SetStatus("unsupported", message)
-        return nil, nil, nil, message
-    end
+    integration.unavailableAssignments = FindUnavailableAssignments(ac, definitions, rules)
     local collisionFree, collision = CheckDefinitionCollision(ac, definitions)
     assert(collisionFree, collision)
     local profile, storedOrder = GetCurrentOrderData()
-    local snapshotByContext = projectedOrders[ac.saved]
+    local snapshotByContext = projectedOrders[ac.saved.bags]
+    if snapshotByContext and snapshotByContext.profile ~= profile then snapshotByContext = nil end
     local plans, reconciled = {}, { contexts = {} }
     for _, context in ipairs(contexts) do
         local model = BuildContextModel(context, definitions, rules, repairAssignments)
@@ -1323,7 +1416,10 @@ local function BuildPlans(orderOverride, setupRules, preset, repairAssignments)
         assert(type(savedContext) == "table", "Missing saved AutoCategory context: " .. context.key)
         local override = orderOverride and orderOverride[context.key]
         local priorSnapshot = snapshotByContext and snapshotByContext[context.key]
-        local resolved = {}
+        local resolved = {
+            hidden = CopySavedValue(override and override.hidden or savedContext.hidden),
+            displayPositions = CopySavedValue(override and override.displayPositions or savedContext.displayPositions),
+        }
         for _, mode in ipairs({ "display", "matching" }) do
             local observed = model.entries[mode]
             local savedSequence = savedContext[mode]
@@ -1332,14 +1428,41 @@ local function BuildPlans(orderOverride, setupRules, preset, repairAssignments)
             if preset then
                 sequence = BuildStartingSequence(model, mode, rules, preset)
             elseif override and override[mode] ~= nil then
-                sequence = CopySequence(override[mode])
+                local seen = {}
+                for _, reference in ipairs(override[mode]) do
+                    assert(type(reference) == "string" and not seen[reference],
+                        "AutoCategory order override contains an invalid or duplicate reference")
+                    seen[reference] = true
+                    local known = model.members[reference] ~= nil
+                    for _, savedReference in ipairs(savedSequence) do
+                        if reference == savedReference and reference:sub(1, 3) == "ac:" then known = true; break end
+                    end
+                    assert(known, "AutoCategory order override has an unavailable reference: " .. tostring(reference))
+                end
+                sequence = FilterToMembers(override[mode], model.members)
+                for _, reference in ipairs(savedSequence) do
+                    if resolved.hidden[reference] and model.members[reference] then
+                        local present = false
+                        for _, existing in ipairs(sequence) do
+                            if reference == existing then present = true; break end
+                        end
+                        if not present then sequence[#sequence + 1] = reference end
+                    end
+                end
             elseif priorSnapshot and SnapshotMatches(priorSnapshot[mode], observed, model.members) then
                 sequence = MergeObservedReferences(savedSequence, observed, model.members)
             else
                 sequence = MergeObservedReferences(savedSequence, observed, model.members)
             end
-            ValidateCompleteSequence(sequence, model.members, context.title, mode)
-            resolved[mode] = sequence
+            local included, hidden = {}, {}
+            for _, reference in ipairs(sequence) do
+                local destination = resolved.hidden[reference] and hidden or included
+                destination[#destination + 1] = reference
+            end
+            for _, reference in ipairs(hidden) do included[#included + 1] = reference end
+            ValidateCompleteSequence(included, model.members, context.title, mode)
+            assert(#included <= 998, context.title .. " supports at most 998 assignments plus the IC Other helper")
+            resolved[mode] = included
         end
         local planned = {}
         for _, mode in ipairs({ "display", "matching" }) do
@@ -1355,22 +1478,48 @@ local function BuildPlans(orderOverride, setupRules, preset, repairAssignments)
                     if target.isManaged then target.name = model.definitions[entry.ruleKey].name end
                     planned[reference] = target
                 end
-                target[field] = 1001 - index
+                local hidden = resolved.hidden[reference] == true
+                target[field] = 1001 - index - (hidden and 1 or 0)
             end
         end
+        local includedCount = 0
+        for _, reference in ipairs(resolved.matching) do
+            if not resolved.hidden[reference] then includedCount = includedCount + 1 end
+        end
+        local includedDisplayCount = 0
+        for _, reference in ipairs(resolved.display) do
+            if not resolved.hidden[reference] then includedDisplayCount = includedDisplayCount + 1 end
+        end
+        planned["ic:" .. otherRuleKey] = {
+            reference = "ic:" .. otherRuleKey, ruleKey = otherRuleKey,
+            name = GetCategoryName(otherRule), isManaged = true,
+            assignment = model.templates[otherRuleKey] or {},
+            runpriority = 1000 - includedCount, showpriority = 1000 - includedDisplayCount,
+        }
         plans[context.key] = {
             assignments = planned,
             orders = resolved,
+            templates = model.templates,
             forceRefresh = forceRefreshContexts and forceRefreshContexts[context.key] == true,
         }
-        reconciled.contexts[context.key] = resolved
+        reconciled.contexts[context.key] = {
+            hidden = resolved.hidden, displayPositions = resolved.displayPositions,
+        }
+        for _, mode in ipairs({ "display", "matching" }) do
+            reconciled.contexts[context.key][mode] = preset and resolved[mode]
+                or PreserveDormantNativeReferences(savedContext[mode], resolved[mode], model.members,
+                    priorSnapshot and priorSnapshot[mode])
+        end
     end
     return plans, reconciled, profile
 end
 
 local function ProjectPlans(plans)
     local ac = AutoCategory
-    integration.TimePhase("SyncDefinitions", SyncDefinitions, ac, integration.TimePhase("BuildDefinitions", BuildDefinitions))
+    local definitions = integration.TimePhase("BuildDefinitions", BuildDefinitions)
+    integration.TimePhase("SyncDefinitions", SyncDefinitions, ac, definitions)
+    local definitionsByName = {}
+    for _, definition in ipairs(definitions) do definitionsByName[definition.name] = definition end
     local changed = {}
     for _, context in ipairs(contexts) do
         if plans[context.key].forceRefresh then changed[context.key] = true end
@@ -1383,7 +1532,7 @@ local function ProjectPlans(plans)
             local managedByKey, wantedManaged = {}, {}
             for _, assignment in ipairs(bag.rules) do
                 if assignment.icOwned == true then
-                    local key = GetManagedRuleKey(assignment, {})
+                    local key = GetManagedRuleKey(assignment, definitionsByName)
                     managedByKey[key] = assignment
                 end
             end
@@ -1393,7 +1542,7 @@ local function ProjectPlans(plans)
             for index = #bag.rules, 1, -1 do
                 local assignment = bag.rules[index]
                 if assignment.icOwned == true then
-                    local key = GetManagedRuleKey(assignment, {})
+                    local key = GetManagedRuleKey(assignment, definitionsByName)
                     if not wantedManaged[key] then
                         table.remove(bag.rules, index)
                         changed[context.key] = true
@@ -1409,7 +1558,8 @@ local function ProjectPlans(plans)
                 if target.isManaged then
                     assignment = managedByKey[target.ruleKey]
                     if assignment == nil then
-                        assignment = { name = target.name, icOwned = true, icRuleKey = target.ruleKey }
+                        assignment = CopySavedValue(target.assignment)
+                        assignment.name, assignment.icOwned, assignment.icRuleKey = target.name, true, target.ruleKey
                         bag.rules[#bag.rules + 1] = assignment
                         managedByKey[target.ruleKey] = assignment
                         changed[context.key] = true
@@ -1434,6 +1584,7 @@ local function ProjectPlans(plans)
                     assignment.showpriority = target.showpriority
                     changed[context.key] = true
                 end
+                bag.icAssignmentTemplates = plan.templates
             end
         end
         RefreshContexts(ac, changed, true)
@@ -1443,14 +1594,14 @@ local function ProjectPlans(plans)
     end)
     reconciling = false
     if not ok then error(failure) end
-    local snapshots = {}
+    local snapshots = { profile = this.GetAutoCategoryProfile() }
     for _, context in ipairs(contexts) do
         snapshots[context.key] = {
             display = CopySequence(plans[context.key].orders.display),
             matching = CopySequence(plans[context.key].orders.matching),
         }
     end
-    projectedOrders[ac.saved] = snapshots
+    projectedOrders[ac.saved.bags] = snapshots
     return changed
 end
 
@@ -1469,7 +1620,7 @@ function integration.PreflightAutoCategory(orderOverride)
         return nil, tostring(plans)
     end
     if plans == nil then return nil, unavailableReason end
-    return { plans = plans, order = reconciled, profile = profile }
+    return { plans = plans, order = reconciled, profile = profile, bags = AutoCategory.saved.bags }
 end
 
 function integration.ProjectAutoCategory(preflight)
@@ -1483,6 +1634,8 @@ function integration.ProjectAutoCategory(preflight)
     end
 
     local ac = AutoCategory
+    assert(prepared.profile == this.GetAutoCategoryProfile() and prepared.bags == ac.saved.bags,
+        "Active profiles changed after AutoCategory preflight")
     local assignmentSnapshot = CaptureAssignmentState(ac)
     local ok, changed = xpcall(function()
         return integration.TimePhase("ProjectPlans", ProjectPlans, prepared.plans)
@@ -1502,8 +1655,96 @@ function integration.ProjectAutoCategory(preflight)
         error(changed, 0)
     end
     prepared.profile.autoCategoryOrder = prepared.order
+    integration.unavailableAssignments = {}
     SetStatus("available", "AutoCategory display and matching orders are synchronized for the selected context.")
     return changed
+end
+
+function integration.SetEntryIncluded(reference, contextKey, included)
+    assert(type(included) == "boolean" and type(reference) == "string", "Invalid AutoCategory inclusion change")
+    assert(this.GetAutoCategoryState().enabled, "Cannot change inclusion while integration is disabled")
+    local profile = this.GetAutoCategoryProfile()
+    local _, order = BuildPlans()
+    local rules = GetRuntimeRules()
+    local ruleKey = reference:sub(1, 3) == "ic:" and reference:sub(4) or nil
+    if ruleKey then
+        assert(IsOrdinaryRule(ruleKey, assert(rules[ruleKey], "Unknown IC inclusion group")),
+            "Only ordinary IC groups can participate")
+        if rules[ruleKey].autoCategoryEnabled == included then return true end
+    else
+        assert(reference:sub(1, 3) == "ac:" and contextByKey[contextKey], "Invalid native AC inclusion reference")
+        local contextOrder = order.contexts[contextKey]
+        local present = false
+        for _, assignment in ipairs(AutoCategory.saved.bags[contextByKey[contextKey].bagType()].rules) do
+            if assignment.icOwned ~= true and "ac:" .. assignment.name == reference then present = true; break end
+        end
+        assert(present, "Native AC inclusion references an unavailable category")
+        if (contextOrder.hidden[reference] ~= true) == included then return true end
+    end
+    local overrides = {}
+    for _, context in ipairs(contexts) do
+        if ruleKey or context.key == contextKey then
+            local saved = order.contexts[context.key]
+            local hidden, positions = CopySavedValue(saved.hidden), CopySavedValue(saved.displayPositions)
+            local available = {}
+            for _, row in ipairs(AutoCategory.saved.bags[context.bagType()].rules) do
+                if row.icOwned ~= true then available["ac:" .. row.name] = true end
+            end
+            for key, rule in pairs(rules) do
+                if IsOrdinaryRule(key, rule) and rule.autoCategoryEnabled then available["ic:" .. key] = true end
+            end
+            if not ruleKey then hidden[reference] = not included and true or nil end
+            local currentDisplay, displayIndex = nil, 0
+            for _, value in ipairs(saved.display) do
+                if available[value] and not saved.hidden[value] then
+                    displayIndex = displayIndex + 1
+                    if value == reference then currentDisplay = displayIndex; break end
+                end
+            end
+            if not included and currentDisplay then positions[reference] = currentDisplay end
+            local replacement = { hidden = hidden, displayPositions = positions }
+            local restoredDisplay
+            for _, mode in ipairs({ "display", "matching" }) do
+                local sequence, excluded = {}, {}
+                for _, value in ipairs(saved[mode]) do
+                    if value ~= reference and available[value] then
+                        local destination = hidden[value] and excluded or sequence
+                        destination[#destination + 1] = value
+                    end
+                end
+                if included then
+                    local insertionReference = mode == "display" and positions[reference] or restoredDisplay
+                    local insertion = insertionReference and math.min(insertionReference + 1, #sequence + 1) or #sequence + 1
+                    table.insert(sequence, insertion, reference)
+                    if mode == "display" then restoredDisplay = insertion end
+                elseif not ruleKey then
+                    excluded[#excluded + 1] = reference
+                end
+                for _, value in ipairs(excluded) do sequence[#sequence + 1] = value end
+                replacement[mode] = sequence
+            end
+            overrides[context.key] = replacement
+        end
+    end
+    local desiredRules = {}
+    for key, rule in pairs(rules) do desiredRules[key] = rule end
+    if ruleKey then
+        local copy = {}
+        for key, value in pairs(rules[ruleKey]) do copy[key] = value end
+        copy.autoCategoryEnabled = included
+        desiredRules[ruleKey] = copy
+    end
+    local plans, reconciled = BuildPlans(overrides, desiredRules)
+    if integration.ProjectAutoCategory({
+        plans = plans, order = reconciled, profile = profile, bags = AutoCategory.saved.bags,
+    }) == false then return false end
+    if ruleKey then
+        local saved = profile.trackedRules[ruleKey]
+        if saved == nil then saved = {}; profile.trackedRules[ruleKey] = saved end
+        saved.autoCategoryEnabled = included and true or nil
+        this.InvalidateRuleCache()
+    end
+    return true
 end
 
 function integration.RetrySynchronization()
@@ -1544,8 +1785,7 @@ function integration.ForceTestFailure()
 end
 
 function integration.CanRepairAssignments()
-    return integration.NeedsRecovery() and status.state == "unsupported"
-        and #integration.unavailableAssignments > 0
+    return integration.NeedsRecovery() and #integration.unavailableAssignments > 0
 end
 
 local function PrepareAssignmentRepair()
@@ -1570,7 +1810,7 @@ local function PrepareAssignmentRepair()
     end
     local plans, order, profile = BuildPlans(nil, nil, nil, skipped)
     assert(plans ~= nil, "Assignment repair could not produce a valid synchronization plan")
-    return { plans = plans, order = order, profile = profile }, unavailable
+    return { plans = plans, order = order, profile = profile, bags = ac.saved.bags }, unavailable
 end
 
 function integration.RepairAffectedAssignments(expectedProfile, expectedSaved, expectedRows)
@@ -1656,7 +1896,6 @@ function integration.ShowAssignmentRepair()
 end
 
 local function PrepareIntegrationReset()
-    assert(integration.NeedsRecovery(), "Integration reset requires a failure state")
     local ac = AutoCategory
     CheckExternalShape(ac)
     assert(ac.Inited == true and ac.Plugins[pluginName] ~= nil,
@@ -1684,7 +1923,8 @@ local function PrepareIntegrationReset()
     return { profile = this.GetAutoCategoryProfile(), saved = ac.saved, rows = rows }
 end
 
-function integration.ResetIntegration(expected)
+function integration.ResetIntegration(expected, preset)
+    assert(preset == "ic" or preset == "ac", "Reset requires a chosen starting arrangement")
     local current = PrepareIntegrationReset()
     assert(current.profile == expected.profile and current.saved == expected.saved,
         "Active profiles changed while reset confirmation was open; no reset was applied")
@@ -1701,33 +1941,32 @@ function integration.ResetIntegration(expected)
     local previousResetProfile = resetProfile
     pendingGeneration = pendingGeneration + 1
     local ok, failure = xpcall(function()
-        local order, changed = { contexts = {} }, {}
+        local order = { contexts = {} }
         for _, context in ipairs(contexts) do
-            order.contexts[context.key] = { display = {}, matching = {} }
-            local rows = ac.saved.bags[context.bagType()].rules
-            for index = #rows, 1, -1 do
-                if rows[index].icOwned == true then
-                    table.remove(rows, index)
-                    changed[context.key] = true
-                end
-            end
+            order.contexts[context.key] = { display = {}, matching = {}, hidden = {}, displayPositions = {} }
         end
-        profile.autoCategoryIntegrationEnabled = nil
-        profile.autoCategorySetupComplete = nil
         profile.autoCategoryInitialized = nil
         profile.autoCategoryOrder = order
         this.ValidateAutoCategoryRecoveryData()
-        reconciling = true
-        RefreshContexts(ac, changed, true)
-        reconciling = false
         this.autoCategoryFailure = nil
         this.autoCategoryFailureTraceback = nil
         integration.failureDiagnostics = nil
         integration.lastFailureReport = nil
         integration.unavailableAssignments = {}
-        resetProfile = profile
-        SetStatus("disabled", "AutoCategory integration was reset for the selected IC profile and active AC profile."
-            .. " It is disabled and awaiting setup. Re-enable it to choose the starting arrangement again.")
+        status = { state = "pending", message = "Rebuilding AutoCategory integration." }
+        local removals = {}
+        for _, context in ipairs(contexts) do
+            for _, row in ipairs(ac.saved.bags[context.bagType()].rules) do
+                if row.icOwned == true then removals[row] = true end
+            end
+        end
+        local plans, rebuilt = BuildPlans(nil, GetRuntimeRules(), preset, removals)
+        ProjectPlans(plans)
+        profile.autoCategoryOrder = rebuilt
+        profile.autoCategorySetupComplete = true
+        profile.autoCategoryIntegrationEnabled = true
+        resetProfile = nil
+        SetStatus("available", "AutoCategory integration was reset using the chosen starting arrangement.")
     end, AppendTraceback)
     reconciling = false
     if not ok then
@@ -1738,9 +1977,9 @@ function integration.ResetIntegration(expected)
         integration.Fail("Integration reset failed; saved changes were rolled back: " .. tostring(failure))
         return false
     end
-    d("[InventoryCompanion] Reset complete: removed " .. #current.rows
-        .. " IC-owned AC assignment(s); current IC integration ordering was cleared."
-        .. " Native AC categories, IC groups and inactive profiles were preserved. Re-enable integration to set it up again.")
+    d("[InventoryCompanion] Reset complete: the previous arrangement and native AC exclusions were replaced."
+        .. " IC groups, item assignments, participation choices, native AC categories and inactive profiles were preserved.")
+    this.RefreshAutoCategoryUI()
     return true
 end
 
@@ -1757,7 +1996,7 @@ function integration.ShowIntegrationReset()
             title = { text = "Reset AutoCategory Integration" },
             mainText = { text = function(dialog) return dialog.data.summary end },
             buttons = {
-                { text = SI_DIALOG_CONFIRM, callback = function(dialog) integration.ResetIntegration(dialog.data) end },
+                { text = SI_DIALOG_CONFIRM, callback = function(dialog) integration.ShowInitialSetup(dialog.data) end },
                 { text = SI_DIALOG_CANCEL },
             },
         })
@@ -1770,9 +2009,10 @@ function integration.ShowIntegrationReset()
     elseif prepared.saved.bags == AutoCategory.charSaved.bags then
         acScope = "current character"
     end
-    prepared.summary = "Last resort: reset the " .. icScope .. " IC integration setup and custom ordering, and remove "
-        .. #prepared.rows .. " IC-owned assignments from the " .. acScope .. " AC profile (all seven inventory contexts)."
-        .. "\n\nIntegration will be disabled. Re-enabling shows the original setup dialog."
+    prepared.summary = "Reset the " .. icScope .. " IC integration arrangement in the " .. acScope
+        .. " AC profile (all seven inventory contexts)."
+        .. "\n\nThe previous arrangement and native AC exclusions will be replaced."
+        .. " Next, choose IC categories near the top or at the bottom. Cancelling leaves the existing configuration unchanged."
         .. "\n\nIC groups, participation choices, matching rules, tracked items, native AC categories and inactive profiles"
         .. " are preserved. Removed rows and cleared settings are copied for this session only."
         .. "\n\nCustom integration ordering WILL BE LOST. Back up saved variables before continuing."
@@ -1852,10 +2092,10 @@ function integration.InjectTestAssignment(scenario)
         local assignments = AutoCategory.saved.bags[record.context.bagType()].rules
         assignments[#assignments + 1] = {
             name = record.name, icOwned = true, icRuleKey = record.key,
-            runpriority = 1, showpriority = 1, isHidden = false,
+            runpriority = "IC DEV invalid priority", showpriority = 1, isHidden = false,
         }
     end
-    d("[InventoryCompanion] Inserted " .. #records .. " orphan IC-owned assignment(s) for "
+    d("[InventoryCompanion] Inserted " .. #records .. " malformed-priority IC-owned assignment(s) for "
         .. (scenario and ("scenario " .. scenario) or "the original single-row test") .. " into the active AC profile."
         .. " Use Repair affected assignments in the IC AutoCategory panel, or /icactest remove in this same AC profile.")
     integration.ProjectAutoCategory()
@@ -1903,9 +2143,10 @@ function integration.VerifyTestAssignment()
                 local reason
                 if type(key) ~= "string" or key == "" then
                     reason = "missing or invalid IC group key"
-                elseif this.preLoadedRulesets[key] == nil and profile.trackedRules[key] == nil then
+                elseif key ~= otherRuleKey and this.preLoadedRulesets[key] == nil and profile.trackedRules[key] == nil then
                     reason = "group missing from selected IC profile"
-                elseif profile.trackedRules[key] == nil or profile.trackedRules[key].autoCategoryEnabled ~= true then
+                elseif key ~= otherRuleKey
+                    and (profile.trackedRules[key] == nil or profile.trackedRules[key].autoCategoryEnabled ~= true) then
                     reason = "group not enabled for integration in selected IC profile"
                 end
                 if reason then
@@ -1969,6 +2210,8 @@ function integration.CompleteInitialSetup(preset, profile)
     -- Check every context before publishing participation, enablement, or orders.
     local plans, order = BuildPlans(nil, rules, preset)
     if plans == nil then return false end
+    integration.ProjectAutoCategory({ plans = plans, order = order, profile = profile, bags = AutoCategory.saved.bags })
+    if integration.IsFaulted() then return false end
     for _, ruleKey in ipairs(participation) do
         local saved = profile.trackedRules[ruleKey]
         if saved == nil then saved = {}; profile.trackedRules[ruleKey] = saved end
@@ -1976,8 +2219,6 @@ function integration.CompleteInitialSetup(preset, profile)
     end
     this.InvalidateRuleCache()
     profile.autoCategoryIntegrationEnabled = true
-    integration.ProjectAutoCategory({ plans = plans, order = order, profile = profile })
-    if integration.IsFaulted() then return false end
     profile.autoCategorySetupComplete = true
     integration.OnEnablementChanged(true)
     this.RefreshAutoCategoryUI()
@@ -1985,8 +2226,8 @@ function integration.CompleteInitialSetup(preset, profile)
 end
 
 local setupDialogRegistered = false
-function integration.ShowInitialSetup()
-    assert(integration.IsAvailable(), "AutoCategory integration is unavailable")
+function integration.ShowInitialSetup(resetExpected)
+    assert(resetExpected ~= nil or integration.IsAvailable(), "AutoCategory integration is unavailable")
     if not setupDialogRegistered then
         local function Choose(dialog, preset)
             if dialog.data.profile ~= this.GetAutoCategoryProfile() then
@@ -1994,7 +2235,11 @@ function integration.ShowInitialSetup()
                 this.RefreshAutoCategoryUI()
                 return
             end
-            integration.CompleteInitialSetup(preset, dialog.data.profile)
+            if dialog.data.resetExpected then
+                integration.ResetIntegration(dialog.data.resetExpected, preset)
+            else
+                integration.CompleteInitialSetup(preset, dialog.data.profile)
+            end
         end
         ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_AUTOCATEGORY_SETUP", {
             gamepadInfo = { dialogType = GAMEPAD_DIALOGS.BASIC },
@@ -2019,7 +2264,9 @@ function integration.ShowInitialSetup()
         })
         setupDialogRegistered = true
     end
-    ZO_Dialogs_ShowDialog("InventoryCompanion_AUTOCATEGORY_SETUP", { profile = this.GetAutoCategoryProfile() })
+    ZO_Dialogs_ShowDialog("InventoryCompanion_AUTOCATEGORY_SETUP", {
+        profile = this.GetAutoCategoryProfile(), resetExpected = resetExpected,
+    })
     return false
 end
 
@@ -2028,31 +2275,45 @@ function integration.ResolveAutoCategoryOrder(contextKey, options)
     local mode = options and options.mode or "display"
     assert(mode == "display" or mode == "matching", "Unknown AutoCategory ordering mode: " .. tostring(mode))
     local _, order = GetCurrentOrderData()
-    local sequence = order.contexts[contextKey][mode]
+    local nativeNames = {}
+    for _, assignment in ipairs(AutoCategory.saved.bags[contextByKey[contextKey].bagType()].rules) do
+        if assignment.icOwned ~= true then nativeNames["ac:" .. assignment.name] = true end
+    end
+    local function ActiveSequence(modeName)
+        local active = {}
+        for _, reference in ipairs(order.contexts[contextKey][modeName]) do
+            if reference:sub(1, 3) == "ic:" or nativeNames[reference] then active[#active + 1] = reference end
+        end
+        return active
+    end
+    local sequence = ActiveSequence(mode)
     local rules = GetRuntimeRules()
     -- The two mode lists only share membership after reconciliation, so the other list may lack a reference.
     local positions = { display = {}, matching = {} }
     for _, modeName in ipairs({ "display", "matching" }) do
-        for index, reference in ipairs(order.contexts[contextKey][modeName]) do
+        for index, reference in ipairs(ActiveSequence(modeName)) do
             positions[modeName][reference] = index
         end
     end
-    local rows = {}
+    local rows, excluded = {}, {}
     for index, reference in ipairs(sequence) do
+        local hidden = order.contexts[contextKey].hidden[reference] == true
+        local destination = hidden and excluded or rows
         if reference:sub(1, 3) == "ic:" then
             local ruleKey = reference:sub(4)
             local rule = rules[ruleKey]
             assert(rule and IsOrdinaryRule(ruleKey, rule) and rule.autoCategoryEnabled,
                 "Saved AutoCategory order references a nonparticipating IC group: " .. ruleKey)
-            rows[#rows + 1] = {
+            destination[#destination + 1] = {
                 kind = "group", reference = reference, ruleKey = ruleKey,
-                name = rule.displayName, participating = true, index = index,
+                name = rule.displayName, participating = true, included = true, index = #rows + 1,
                 displayPosition = positions.display[reference], matchingPosition = positions.matching[reference],
             }
         else
-            rows[#rows + 1] = {
+            destination[#destination + 1] = {
                 kind = "heading", reference = reference, name = reference:sub(4),
-                index = index, hidden = false, scopeLabel = contextByKey[contextKey].title,
+                index = #rows + 1, hidden = hidden, included = not hidden,
+                scopeLabel = contextByKey[contextKey].title,
                 displayPosition = positions.display[reference], matchingPosition = positions.matching[reference],
             }
         end
@@ -2065,14 +2326,31 @@ function integration.ResolveAutoCategoryOrder(contextKey, options)
     end
     table.sort(nonparticipants, function(left, right) return left.ruleKey < right.ruleKey end)
     for _, entry in ipairs(nonparticipants) do
-        rows[#rows + 1] = {
+        excluded[#excluded + 1] = {
             kind = "group", reference = "ic:" .. entry.ruleKey, ruleKey = entry.ruleKey,
-            name = entry.rule.displayName, participating = false, index = #rows + 1,
-            orderCount = #sequence,
+            name = entry.rule.displayName, participating = false, included = false,
         }
     end
-    for _, row in ipairs(rows) do row.orderCount = row.orderCount or #sequence end
+    local includedCount = #rows
+    table.sort(excluded, function(left, right)
+        if left.kind ~= right.kind then return left.kind == "group" end
+        if left.name:lower() ~= right.name:lower() then return left.name:lower() < right.name:lower() end
+        return left.reference < right.reference
+    end)
+    if #excluded > 0 then
+        rows[#rows + 1] = { kind = "divider", reference = "__excluded", name = "Excluded", included = false }
+        for _, entry in ipairs(excluded) do rows[#rows + 1] = entry end
+    end
+    for _, row in ipairs(rows) do row.orderCount = includedCount end
     return rows
+end
+
+function integration.GetIncludedSequence(contextKey, mode)
+    local sequence = {}
+    for _, row in ipairs(integration.ResolveAutoCategoryOrder(contextKey, { mode = mode })) do
+        if row.included then sequence[#sequence + 1] = row.reference end
+    end
+    return sequence
 end
 
 local function ApplyOrderOverride(orderOverride)
@@ -2121,8 +2399,7 @@ end
 function integration.MoveEntries(selection, contextKey, mode, movement)
     assert(contextByKey[contextKey], "Unknown AutoCategory context: " .. tostring(contextKey))
     assert(mode == "display" or mode == "matching", "Unknown AutoCategory ordering mode: " .. tostring(mode))
-    local _, order = GetCurrentOrderData()
-    local sequence, changed = integration.GetMovedSequence(order.contexts[contextKey][mode], selection, movement)
+    local sequence, changed = integration.GetMovedSequence(integration.GetIncludedSequence(contextKey, mode), selection, movement)
     if not changed then return false end
     return ApplyOrderOverride({ [contextKey] = { [mode] = sequence } })
 end
@@ -2185,10 +2462,14 @@ InstallExternalHooks = function()
         if integration.NeedsRecovery() or reconciling or ac.Inited ~= true then return end
         assert(type(oldName) == "string" and oldName ~= "" and type(newName) == "string" and newName ~= "",
             "AutoCategory rename hook supplied invalid names")
+        if oldName == newName then return end
         local profile = this.GetAutoCategoryProfile()
         local oldReference, newReference = "ac:" .. oldName, "ac:" .. newName
         for _, context in ipairs(contexts) do
             local lists = profile.autoCategoryOrder.contexts[context.key]
+            lists.hidden[newReference], lists.hidden[oldReference] = lists.hidden[oldReference], nil
+            lists.displayPositions[newReference], lists.displayPositions[oldReference] =
+                lists.displayPositions[oldReference], nil
             for _, mode in ipairs({ "display", "matching" }) do
                 local seen = {}
                 for index, reference in ipairs(lists[mode]) do
@@ -2199,7 +2480,7 @@ InstallExternalHooks = function()
                 end
             end
         end
-        local snapshots = projectedOrders[ac.saved]
+        local snapshots = projectedOrders[ac.saved.bags]
         if snapshots then
             for _, context in ipairs(contexts) do
                 for _, mode in ipairs({ "display", "matching" }) do
@@ -2217,8 +2498,15 @@ end
 for _, name in ipairs({
     "Initialize", "OnRuleMutation", "OnProfileChanged", "OnEnablementChanged",
     "ProjectAutoCategory", "MoveEntry", "MoveEntries", "UseOtherOrder", "CopyBothOrders", "GetHeadingDetails",
-    "CompleteInitialSetup", "ShowInitialSetup",
+    "CompleteInitialSetup",
+    "SetEntryIncluded",
 }) do
     local operation = integration[name]
     integration[name] = function(...) return integration.TimePhase(name, integration.Run, operation, ...) end
+end
+
+local showInitialSetup = integration.ShowInitialSetup
+function integration.ShowInitialSetup(resetExpected)
+    if resetExpected ~= nil then return showInitialSetup(resetExpected) end
+    return integration.Run(showInitialSetup)
 end

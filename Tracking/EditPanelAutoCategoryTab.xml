@@ -7,7 +7,7 @@
                     <AnchorFill />
                 </Texture>
                 <Label name="$(parent)Name" font="ZoFontGame" color="FFFFFF" verticalAlignment="CENTER" wrapMode="ELLIPSE">
-                    <Dimensions x="540" y="32" />
+                    <Dimensions x="440" y="32" />
                     <Anchor point="LEFT" relativeTo="$(parent)" relativePoint="LEFT" offsetX="8" />
                 </Label>
                 <Button name="$(parent)MoveDown" inherits="ZO_DefaultButton" text="v" hidden="true">
@@ -18,8 +18,14 @@
                     <Dimensions x="28" y="24" />
                     <Anchor point="RIGHT" relativeTo="$(parent)MoveDown" relativePoint="LEFT" offsetX="-4" />
                 </Button>
-                <Button name="$(parent)Participation" inherits="ZO_CheckButton" hidden="true">
+                <Button name="$(parent)Participation" mouseEnabled="true" hidden="true">
+                    <Dimensions x="82" y="32" />
                     <Anchor point="RIGHT" relativeTo="$(parent)MoveUp" relativePoint="LEFT" offsetX="-8" />
+                    <Controls>
+                        <Label name="$(parent)State" font="ZoFontGame" verticalAlignment="CENTER" horizontalAlignment="CENTER">
+                            <AnchorFill />
+                        </Label>
+                    </Controls>
                 </Button>
                 <Label name="$(parent)Orders" font="ZoFontGameSmall" color="E6B35C" verticalAlignment="CENTER" horizontalAlignment="RIGHT">
                     <Dimensions x="100" y="32" />
@@ -146,6 +152,10 @@
                         <Button name="$(parent)BtnUseOtherOrder" inherits="ZO_DefaultButton" text="Use priority list">
                             <Dimensions x="160" y="26" />
                             <Anchor point="LEFT" relativeTo="$(parent)BtnPriorityOrder" relativePoint="RIGHT" offsetX="12" />
+                        </Button>
+                        <Button name="$(parent)BtnResetArrangement" inherits="ZO_DefaultButton" text="Reset...">
+                            <Dimensions x="100" y="26" />
+                            <Anchor point="RIGHT" relativeTo="$(parent)" relativePoint="RIGHT" offsetX="-30" />
                         </Button>
                     </Controls>
                 </Control>

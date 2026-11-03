@@ -132,6 +132,9 @@ local function ConfigureToolbar()
     copy:SetHandler("OnMouseExit", HideTooltip)
 
     local options = Window("OptionsBar")
+    GetControl(options, "BtnResetArrangement"):SetHandler("OnClicked", function()
+        this.AutoCategoryIntegration.ShowIntegrationReset()
+    end)
     local display = GetControl(options, "BtnDisplayOrder")
     local priority = GetControl(options, "BtnPriorityOrder")
     display:SetEnabled(mode ~= "display")
@@ -160,7 +163,7 @@ local function ConfigureToolbar()
         .. " then use the buttons at the bottom to move them all together."
     if mode == "display" then
         info:SetText("Display order — Choose the order the categories appear in your inventory."
-            .. " Untick an Inventory Companion group to have it ignored by AutoCategory completely." .. trailer)
+            .. " Click Included or Excluded to move a category between the two sections in both lists." .. trailer)
     else
         info:SetText("Priority order — Choose the order that AutoCategory applies the rules to decide"
             .. " which group an item is in. Only applies when an item might be in more than one group." .. trailer)
@@ -178,7 +181,7 @@ local function GetOrCreateRow(scrollChild, index)
 end
 
 local function CanOrder(entry)
-    return entry.kind == "heading" or entry.participating
+    return entry.included == true
 end
 
 local function SetRowBackground(row, entry, hovered)
@@ -203,20 +206,27 @@ end
 
 local function ConfigureParticipation(row, entry, contextAtRender, modeAtRender)
     local participation = GetControl(row, "Participation")
-    participation:SetHidden(entry.kind ~= "group")
-    if entry.kind ~= "group" then return end
-    ZO_CheckButton_SetCheckState(participation, entry.participating)
-    ZO_CheckButton_SetToggleFunction(participation, function(_, enabled)
-        Timed("participation " .. tostring(enabled), entry, this.AutoCategoryIntegration.Run, function()
+    participation:SetHidden(false)
+    local stateLabel = GetControl(participation, "State")
+    stateLabel:SetText(entry.included and "Included" or "Excluded")
+    if entry.included then stateLabel:SetColor(0.2, 0.8, 0.4, 1)
+    else stateLabel:SetColor(1, 0.25, 0.25, 1) end
+    participation:SetHandler("OnClicked", function()
+        Timed("inclusion " .. tostring(not entry.included), entry, this.AutoCategoryIntegration.Run, function()
             assert(row.autoCategoryEntry == entry, "AutoCategory participation action targets a stale row")
             AssertCurrentView(contextAtRender, modeAtRender)
-            Phase("SetAutoCategoryParticipation", this.SetAutoCategoryParticipation, entry.ruleKey, enabled)
+            Phase("SetEntryIncluded", this.AutoCategoryIntegration.SetEntryIncluded,
+                entry.reference, contextAtRender, not entry.included)
             this.RefreshAutoCategoryEditor()
             Phase("RefreshTrackedItemsEditor", this.RefreshTrackedItemsEditor)
         end)
     end)
     participation:SetHandler("OnMouseEnter", function(control)
-        ShowTooltip(control, "Include this group in AutoCategory across all seven contexts.")
+        local scope = entry.kind == "group" and " across all seven contexts" or " in this context"
+        ShowTooltip(control, entry.included
+            and "Included" .. scope .. ". Click to exclude it and move it below the Excluded divider in both lists."
+            or "Excluded" .. scope .. ". Click to include it again in both lists."
+                .. " Its display position is restored; matching priority starts from the restored display number.")
     end)
     participation:SetHandler("OnMouseExit", HideTooltip)
 end
@@ -256,6 +266,14 @@ local function PopulateRow(row, entry, displayIndex, scrollChild, contextAtRende
     local label = GetControl(row, "Name")
     SetRowBackground(row, entry, false)
     local orders = GetControl(row, "Orders")
+    if entry.kind == "divider" then
+        label:SetText("Excluded")
+        label:SetColor(1, 0.7, 0.7, 1)
+        orders:SetText("")
+        for _, name in ipairs({ "Participation", "MoveUp", "MoveDown" }) do GetControl(row, name):SetHidden(true) end
+        for _, event in ipairs({ "OnMouseDown", "OnMouseEnter", "OnMouseExit" }) do row:SetHandler(event, nil) end
+        return
+    end
     -- Flag divergence between the two lists; the other position can be missing until reconciliation realigns them.
     local otherPosition = modeAtRender == "display" and entry.matchingPosition or entry.displayPosition
     if CanOrder(entry) and otherPosition ~= nil and otherPosition ~= entry.index then
@@ -271,6 +289,7 @@ local function PopulateRow(row, entry, displayIndex, scrollChild, contextAtRende
         if modeAtRender == "display" then label:SetColor(0.2, 0.8, 0.4, 1)
         else label:SetColor(0.60, 0.90, 0.65, 1) end
     end
+    if not entry.included then label:SetColor(1, 0.25, 0.25, 1) end
 
     row:SetHandler("OnMouseEnter", function()
         SetRowBackground(row, entry, true)

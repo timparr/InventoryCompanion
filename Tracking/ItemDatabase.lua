@@ -43,7 +43,7 @@ local autoCategoryRuleFields = {
     autoCategoryEnabled = true,
 }
 local autoCategoryOrderFields = { contexts = true }
-local autoCategoryOrderModes = { display = true, matching = true }
+local autoCategoryOrderModes = { display = true, matching = true, hidden = true, displayPositions = true }
 local autoCategoryReferenceNamespaces = { ic = true, ac = true }
 local invalidAutoCategoryProfiles = setmetatable({}, { __mode = "k" })
 -- profile -> trackedRules table it was validated with; the AutoCategory matcher reads rules per item, so
@@ -147,6 +147,26 @@ local function CheckAutoCategoryOrder(order, context, trackedRules)
         for key in pairs(contextOrder) do
             assert(autoCategoryOrderModes[key], path .. " has an unknown order: " .. tostring(key))
         end
+        for _, field in ipairs({ "hidden", "displayPositions" }) do
+            local values = contextOrder[field]
+            assert(values == nil or type(values) == "table", path .. "." .. field .. " must be a table")
+            for reference, value in pairs(values or {}) do
+                assert(type(reference) == "string" and reference:match("^..:.+$"),
+                    path .. "." .. field .. " has an invalid reference")
+                local namespace, identity = reference:match("^([^:]+):(.*)$")
+                assert(autoCategoryReferenceNamespaces[namespace], path .. "." .. field .. " has an unsupported reference")
+                if field == "hidden" then
+                    assert(namespace == "ac" and type(value) == "boolean",
+                        path .. ".hidden must map native AC references to booleans")
+                else
+                    assert(type(value) == "number" and value >= 1 and value < math.huge and value % 1 == 0,
+                        path .. ".displayPositions must contain positive integer positions")
+                    assert(namespace ~= "ic" or identity ~= "miscellaneous"
+                        and (this.preLoadedRulesets[identity] ~= nil or trackedRules ~= nil and trackedRules[identity] ~= nil),
+                        path .. ".displayPositions references an unknown IC group: " .. identity)
+                end
+            end
+        end
         for _, mode in ipairs({ "display", "matching" }) do
             local references = contextOrder[mode]
             assert(type(references) == "table", path .. "." .. mode .. " must be a dense list")
@@ -189,7 +209,7 @@ end
 local function NewAutoCategoryOrder()
     local order = { contexts = {} }
     for contextKey in pairs(autoCategoryContexts) do
-        order.contexts[contextKey] = { display = {}, matching = {} }
+        order.contexts[contextKey] = { display = {}, matching = {}, hidden = {}, displayPositions = {} }
     end
     return order
 end
@@ -212,11 +232,13 @@ local function NormalizeAutoCategoryOrder(order)
         normalized.contexts[contextKey] = {
             display = CopyList(contextOrder.display),
             matching = CopyList(contextOrder.matching),
+            hidden = CopyList(contextOrder.hidden),
+            displayPositions = CopyList(contextOrder.displayPositions),
         }
     end
     for contextKey in pairs(autoCategoryContexts) do
         if normalized.contexts[contextKey] == nil then
-            normalized.contexts[contextKey] = { display = {}, matching = {} }
+            normalized.contexts[contextKey] = { display = {}, matching = {}, hidden = {}, displayPositions = {} }
         end
     end
     return normalized
@@ -241,6 +263,8 @@ local function ValidateSavedRules(rules, context)
 end
 
 local function ValidateAutoCategoryProfile(profile, context)
+    assert(profile.itemListInitialized == nil or type(profile.itemListInitialized) == "boolean",
+        context .. ".itemListInitialized must be boolean")
     if profile.version == 4 then
         assert(not HasLegacyAutoCategoryOrdering(profile),
             context .. " contains schema-4 AutoCategory ordering data that schema 5 cannot migrate safely. "
@@ -315,7 +339,13 @@ function this.ValidateSavedRuleProfiles()
         for _, item in pairs(profile.trackedItems) do
             if item.display == nil then item.display = {} end
         end
+        if profile.itemListInitialized == nil and (next(profile.trackedRules) ~= nil
+            or next(profile.trackedItems) ~= nil or profile.autoCategorySetupComplete ~= nil
+            or profile.autoCategoryIntegrationEnabled ~= nil) then
+            profile.itemListInitialized = true
+        end
     end
+    this.GetAutoCategoryProfile().itemListInitialized = true
 end
 
 local function GetBaseline(ruleName)
@@ -574,6 +604,7 @@ function this.RestoreAccountWideListBackup()
     this.accountWide.autoCategoryIntegrationEnabled = restored.autoCategoryIntegrationEnabled
     this.accountWide.autoCategorySetupComplete = restored.autoCategorySetupComplete
     this.accountWide.autoCategoryOrder = restored.autoCategoryOrder
+    this.accountWide.itemListInitialized = true
     this.InvalidateRuleCache()
     trackerContextRevision = trackerContextRevision + 1
 end
@@ -599,7 +630,7 @@ function this.PrepareSavedVariables()
                 string.format("[InventoryCompanion] %s uses saved-variable version %s, but this addon supports version %s. "
                     .. "Initialization stopped without changing saved data. Install a compatible newer addon or restore a compatible backup.",
                     context, tostring(version), tostring(this.SettingsVersion)))
-            assert(version == this.SettingsVersion
+            assert(this.SettingsVersion <= 8 and (version == this.SettingsVersion
                     or (version == 1 and (this.SettingsVersion == 2 or this.SettingsVersion == 3 or this.SettingsVersion == 4
                         or this.SettingsVersion == 5 or this.SettingsVersion == 6 or this.SettingsVersion == 7))
                     or (version == 2 and (this.SettingsVersion == 3 or this.SettingsVersion == 4
@@ -609,10 +640,24 @@ function this.PrepareSavedVariables()
                     or (version == 4 and (this.SettingsVersion == 5 or this.SettingsVersion == 6
                         or this.SettingsVersion == 7))
                     or (version == 5 and (this.SettingsVersion == 6 or this.SettingsVersion == 7))
-                    or (version == 6 and this.SettingsVersion == 7),
+                    or (version == 6 and this.SettingsVersion == 7)
+                    or (version <= 7 and this.SettingsVersion == 8)),
                 context .. " has no supported migration from version " .. tostring(version)
                     .. " to version " .. tostring(this.SettingsVersion))
-            table.insert(profiles, { data = profile, context = context })
+            local initialized = profile.itemListInitialized
+            if initialized == nil then
+                initialized = profile.trackedRules ~= nil and next(profile.trackedRules) ~= nil
+                    or profile.trackedItems ~= nil and next(profile.trackedItems) ~= nil
+                    or profile.autoCategorySetupComplete ~= nil or profile.autoCategoryIntegrationEnabled ~= nil
+                    or profileName ~= "$AccountWide" and profile.useCharacterItemList == true
+                if profileName == "$AccountWide" then
+                    for key, character in pairs(account) do
+                        if key ~= "$AccountWide" and type(character) == "table"
+                            and character.useCharacterItemList ~= true then initialized = true end
+                    end
+                end
+            end
+            table.insert(profiles, { data = profile, context = context, initialized = initialized })
         end
     end
 
@@ -640,9 +685,9 @@ function this.PrepareSavedVariables()
                     NormalizeRule(rules, ruleName)
                 end
             end
-            table.insert(migrations, { profile = profile, rules = rules })
+            table.insert(migrations, { profile = profile, rules = rules, initialized = entry.initialized })
         else
-            table.insert(migrations, { profile = profile })
+            table.insert(migrations, { profile = profile, initialized = entry.initialized })
         end
     end
 
@@ -670,6 +715,7 @@ function this.PrepareSavedVariables()
             end
         end
         migration.profile.version = this.SettingsVersion
+        migration.profile.itemListInitialized = migration.initialized
     end
     this.InvalidateRuleCache()
 end
@@ -851,6 +897,9 @@ function this.SetAutoCategoryParticipation(ruleKey, enabled)
     local runtimeRule = this.GetRuntimeRules()[ruleKey]
     assert(runtimeRule ~= nil and ruleKey ~= "miscellaneous",
         "AutoCategory participation requires an ordinary group: " .. tostring(ruleKey))
+    if this.AutoCategoryIntegration.IsEditorActive() then
+        return this.AutoCategoryIntegration.SetEntryIncluded("ic:" .. ruleKey, nil, enabled)
+    end
     local savedRules = GetRawSavedRules()
     local saved = savedRules[ruleKey] or {}
     savedRules[ruleKey] = saved
@@ -959,8 +1008,43 @@ function this.CleanAutoCategorySavedData(accountName)
     return #profilePlans, removedAssignments
 end
 
+local function CopyItemListProfile(source, destination)
+    if source.trackedRules ~= nil then ValidateSavedRules(source.trackedRules, "Source profile.trackedRules") end
+    if source.trackedItems ~= nil then CheckTrackedItems(source.trackedItems, "Source profile.trackedItems") end
+    ValidateAutoCategoryProfile(source, "Source profile")
+    local rules = source.trackedRules == nil and {} or CopySavedValue(source.trackedRules)
+    local items = source.trackedItems == nil and {} or CopySavedValue(source.trackedItems)
+    for _, item in pairs(items) do
+        if item.display == nil then item.display = {} end
+        if item.mode ~= nil then
+            item.display.show = item.display.show ~= false or item.mode ~= 3
+            item.display.notify = item.display.notify == true or item.mode == 2
+            item.mode = nil
+        end
+    end
+    for ruleKey in pairs(rules) do NormalizeRule(rules, ruleKey) end
+    local order = NormalizeAutoCategoryOrder(source.autoCategoryOrder)
+    CheckAutoCategoryOrder(order, "Copied profile.autoCategoryOrder", rules)
+    destination.trackedRules = rules
+    destination.trackedItems = items
+    destination.autoCategoryIntegrationEnabled = source.autoCategoryIntegrationEnabled
+    destination.autoCategorySetupComplete = source.autoCategorySetupComplete
+    destination.autoCategoryOrder = order
+    destination.itemListInitialized = true
+end
+
 function this.SetUseCharacterItemList(value)
     assert(type(value) == "boolean", "Character list preference must be boolean")
+    local source = this.GetAutoCategoryProfile()
+    local destination = value and this.character or this.accountWide
+    if destination ~= source and destination.itemListInitialized ~= true then
+        if next(destination.trackedRules) == nil and next(destination.trackedItems) == nil
+            and destination.autoCategorySetupComplete == nil and destination.autoCategoryIntegrationEnabled == nil then
+            CopyItemListProfile(source, destination)
+        else
+            destination.itemListInitialized = true
+        end
+    end
     this.character.useCharacterItemList = value
     trackerContextRevision = trackerContextRevision + 1
     this.InvalidateRuleCache()
@@ -1029,6 +1113,14 @@ end
 function this.DeleteCustomRule(ruleName)
     assert(not this.preLoadedRulesets[ruleName], "Built-in rules cannot be deleted")
     GetRawSavedRules()[ruleName] = nil
+    for _, orders in pairs(this.GetAutoCategoryProfile().autoCategoryOrder.contexts) do
+        for _, mode in ipairs({ "display", "matching" }) do
+            for index = #orders[mode], 1, -1 do
+                if orders[mode][index] == "ic:" .. ruleName then table.remove(orders[mode], index) end
+            end
+        end
+        orders.displayPositions["ic:" .. ruleName] = nil
+    end
     this.InvalidateRuleCache()
     this.AutoCategoryIntegration.OnRuleMutation("delete", ruleName)
 end
@@ -1087,60 +1179,7 @@ function this.CopyProfile(sourceKey)
     if sourceBlock.trackedItems ~= nil then
         CheckTrackedItems(sourceBlock.trackedItems, context .. ".trackedItems")
     end
-    local destTable = this.GetActiveTrackedItems()
-    local destRules = GetRawSavedRules()
-
-    local copiedItems, copiedRules = {}, {}
-    if sourceBlock.trackedItems ~= nil then
-        for itemId, data in pairs(sourceBlock.trackedItems) do
-            local srcDisplay = data.display or {}
-            local mode = data.mode or 1
-            copiedItems[itemId] = {
-                link = data.link,
-                icon = data.icon,
-                display = {
-                    show = srcDisplay.show ~= false or (mode ~= 3),
-                    notify = srcDisplay.notify == true or (mode == 2),
-                    bank = srcDisplay.bank == true,
-                    group = srcDisplay.group == true,
-                },
-            }
-            for flag in pairs(extendedDisplayFlags) do
-                copiedItems[itemId].display[flag] = srcDisplay[flag]
-            end
-        end
-    end
-
-    if sourceBlock.trackedRules ~= nil then
-        for ruleKey, ruleData in pairs(sourceBlock.trackedRules) do
-            copiedRules[ruleKey] = {
-                displayName = ruleData.displayName,
-                patterns = CopyOptionalValues(ruleData.patterns),
-                addedPatterns = CopyOptionalValues(ruleData.addedPatterns),
-                removedPatterns = CopyOptionalValues(ruleData.removedPatterns),
-                display = CopyOptionalValues(ruleData.display),
-                autoCategoryEnabled = ruleData.autoCategoryEnabled,
-            }
-            NormalizeRule(copiedRules, ruleKey)
-        end
-    end
-
-    local copiedAutoCategoryOrder = NormalizeAutoCategoryOrder(sourceBlock.autoCategoryOrder)
-    for contextKey, contextOrder in pairs(copiedAutoCategoryOrder.contexts) do
-        copiedAutoCategoryOrder.contexts[contextKey] = {
-            display = CopyValues(contextOrder.display),
-            matching = CopyValues(contextOrder.matching),
-        }
-    end
-
-    ZO_ClearTable(destTable)
-    for key, value in pairs(copiedItems) do destTable[key] = value end
-    ZO_ClearTable(destRules)
-    for key, value in pairs(copiedRules) do destRules[key] = value end
-    local destinationProfile = this.GetAutoCategoryProfile()
-    destinationProfile.autoCategoryIntegrationEnabled = sourceBlock.autoCategoryIntegrationEnabled
-    destinationProfile.autoCategorySetupComplete = sourceBlock.autoCategorySetupComplete
-    destinationProfile.autoCategoryOrder = copiedAutoCategoryOrder
+    CopyItemListProfile(sourceBlock, this.GetAutoCategoryProfile())
     this.InvalidateRuleCache()
     trackerContextRevision = trackerContextRevision + 1
     this.AutoCategoryIntegration.OnProfileChanged()

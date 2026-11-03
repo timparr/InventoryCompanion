@@ -4,6 +4,15 @@ Updated 2026-11-01. **Implemented, but not compatibility-certified.**
 This document defines required behavior, accepted author decisions, and open
 decisions. It is not a test log or a claim that all requirements are feasible.
 
+**Profile synchronization supersession (2026-11-03):** the
+[synchronization fix](../../../AutoCategorySynchronizationFix.md) supersedes
+earlier no-exclusion behavior and profile-mismatch pauses. It defines
+independent IC/AC scopes, active-only automatic replacement of generated
+assignments, preserved AC-side options, Included/Excluded sections with an
+internal Other matching barrier, complete profile copying and cancellable
+reset/re-setup. Saved-variable schema is now 8. Its offline evidence and
+pending in-game checks take precedence over older status descriptions here.
+
 **Ordering contract supersession:** the [ordering-fix plan](todo_implementation_autocategoryOrderingFix.md)
 replaces this document's earlier Master, preset, heading-visibility, and
 rank/anchor ordering design. Each of the seven contexts now has independent

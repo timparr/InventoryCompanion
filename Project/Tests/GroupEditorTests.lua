@@ -104,6 +104,7 @@ function this.GetGroupEditorTests()
                 },
             }
             this.InvalidateRuleCache()
+            this.ValidateSavedRuleProfiles()
             this.RefreshGroupsEditor()
             run()
         end })
