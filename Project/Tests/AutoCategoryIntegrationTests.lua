@@ -76,6 +76,8 @@ local function NewFixture(headingLists)
     this.autoCategoryFailure = nil
     this.autoCategoryFailureTraceback = nil
     integration.failureDiagnostics = nil
+    AutoCategory = nil
+    integration.Initialize()
     local function Display()
         return { show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false }
     end
@@ -163,6 +165,7 @@ local function PrepareActive(rules)
     NewFixture()
     local bags = AutoCategory.saved.bags
     NewStartupAutoCategory()
+    integration.Initialize()
     AutoCategory.saved.bags = bags
     AutoCategory.Inited = true
     AutoCategory.Plugins["Inventory Companion"] = { predef = {} }
@@ -207,6 +210,11 @@ SI_DIALOG_CANCEL = "Cancel"
 function ZO_Dialogs_RegisterCustomDialog(name, definition) setupDialogs[name] = definition end
 function ZO_Dialogs_ShowDialog(name, data)
     local definition = assert(setupDialogs[name])
+    if name == "InventoryCompanion_AUTOCATEGORY_REPAIR" or name == "InventoryCompanion_AUTOCATEGORY_RESET" then
+        assert(#definition.buttons == 2 and type(definition.mainText.text) == "function")
+        shownSetup = { definition = definition, data = data }
+        return
+    end
     assert(type(definition.radioButtons) == "table" and #definition.radioButtons == 2,
         "Setup must offer exactly two radio arrangement choices")
     assert(#definition.buttons == 2 and definition.buttons[1].text == SI_DIALOG_CONFIRM
@@ -246,6 +254,569 @@ end
 
 function this.GetAutoCategoryIntegrationTests()
     return {
+        {
+            name = "AutoCategory numbered injections replace prior scenarios and exercise few repeated many and cutoff rows",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local previousDevelopment = this.IsDevelopment
+                this.IsDevelopment = true
+                local groups = this.accountWide.trackedRules
+                local savedOrder = this.accountWide.autoCategoryOrder
+                local expectedCounts = { 3, 7, 30, 5 }
+                local inactiveRows = { Assignment("Inactive", 91, 92,
+                    { icOwned = true, icRuleKey = "other_character" }) }
+                AutoCategory.charSaved.bags = { [1] = { rules = inactiveRows } }
+                for _, scenario in ipairs({ 3, 1, 4, 2, 3, 3, 1 }) do
+                    integration.InjectTestAssignment(scenario)
+                    local counts = integration.VerifyTestAssignment()
+                    assert(counts.test == expectedCounts[scenario]
+                        and counts.unavailable == expectedCounts[scenario],
+                        "A new scenario must replace, not accumulate, previous test rows")
+                    local keys = {}
+                    local preview = integration.GetProblemRowsMessage()
+                    for _, record in ipairs(integration.unavailableAssignments) do
+                        keys[record.ruleKey] = true
+                        assert(record.ruleKey:find("_scenario" .. scenario .. "_", 1, true))
+                        assert(preview:find(record.ruleKey, 1, true),
+                            "Every scenario row must appear in the scrollable panel")
+                    end
+                    local unique = 0
+                    for _ in pairs(keys) do unique = unique + 1 end
+                    assert(unique == (scenario == 2 and 1 or expectedCounts[scenario]))
+                    assert(integration.ShowAssignmentRepair())
+                    local summary = shownSetup.data.summary
+                    local shown = 0
+                    for line in summary:gmatch("[^\n]+") do
+                        if line:find(": IC DEV recovery test", 1, true) then shown = shown + 1 end
+                    end
+                    assert(shown == (expectedCounts[scenario] <= 5 and expectedCounts[scenario] or 3))
+                    if scenario == 2 then
+                        assert(preview:find("Furniture Vault:", 1, true)
+                            and summary:find("4 more", 1, true))
+                    elseif scenario == 3 then
+                        assert(preview:find("Group 30", 1, true) and summary:find("27 more", 1, true))
+                    end
+                    assert(this.accountWide.trackedRules == groups and #inactiveRows == 1
+                        and inactiveRows[1].icRuleKey == "other_character")
+                    for _, context in ipairs(contexts) do
+                        for _, mode in ipairs({ "display", "matching" }) do
+                            assert(table.concat(this.accountWide.autoCategoryOrder.contexts[context.key][mode], ",")
+                                == table.concat(savedOrder.contexts[context.key][mode], ","))
+                        end
+                    end
+                end
+                ConfirmSetup()
+                assert(not integration.NeedsRecovery() and integration.VerifyTestAssignment().test == 0)
+                integration.InjectTestAssignment(2)
+                assert(integration.RemoveTestAssignment() == 7)
+                assert(not integration.NeedsRecovery() and integration.VerifyTestAssignment().test == 0)
+                this.IsDevelopment = previousDevelopment
+            end,
+        },
+        {
+            name = "AutoCategory scenario replacement does not delete genuine mismatches",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local previousDevelopment = this.IsDevelopment
+                this.IsDevelopment = true
+                integration.InjectTestAssignment(3)
+                local bag = AutoCategory.saved.bags[1].rules
+                local real = Assignment("Real orphan", 42, 43,
+                    { icOwned = true, icRuleKey = "real_missing_group" })
+                bag[#bag + 1] = real
+                assert(not pcall(integration.InjectTestAssignment, 1),
+                    "Unrelated real failures must not be bypassed to install a scenario")
+                local counts = integration.VerifyTestAssignment()
+                assert(counts.test == 0 and counts.unavailable == 1 and bag[#bag] == real)
+                assert(not pcall(integration.InjectTestAssignment, 9))
+                this.IsDevelopment = previousDevelopment
+            end,
+        },
+        {
+            name = "AutoCategory recovery scrollable lists every escaped row and confirmation bounds its preview",
+            run = function()
+                PrepareActive({})
+                local previousRows = integration.unavailableAssignments
+                integration.Fail("synthetic preview failure")
+                integration.unavailableAssignments = {}
+                assert(integration.GetProblemRowsMessage():find("No specific", 1, true))
+                local records = integration.unavailableAssignments
+                for index = 1, 21 do
+                    records[index] = {
+                        context = "backpack", ruleKey = "missing_" .. index,
+                        line = { name = "Category " .. index .. "|cFFFFFF|r" },
+                    }
+                end
+                local preview = integration.GetProblemRowsMessage()
+                assert(preview:find("Problematic assignments (21)", 1, true)
+                    and preview:find("Backpack: Category 1||cFFFFFF||r [key=missing_1]", 1, true)
+                    and preview:find("[key=missing_20]", 1, true)
+                    and preview:find("[key=missing_21]", 1, true))
+                local bag = AutoCategory.saved.bags[1].rules
+                for index = 1, 21 do
+                    bag[#bag + 1] = Assignment("Category " .. index, 42, 43,
+                        { icOwned = true, icRuleKey = "missing_" .. index })
+                end
+                this.RefreshAutoCategoryUI = function() end
+                assert(not integration.RetrySynchronization())
+                assert(integration.ShowAssignmentRepair())
+                local summary = shownSetup.data.summary
+                assert(summary:find("Remove 21 affected", 1, true)
+                    and summary:find("Backpack: Category 3", 1, true)
+                    and not summary:find("Backpack: Category 4", 1, true)
+                    and summary:find("18 more", 1, true)
+                    and summary:find("cancel and review", 1, true))
+                local ok, report = pcall(integration.ShowRecoveryDetails)
+                assert(not ok and tostring(report):find("[key=missing_21]", 1, true))
+                while #bag > 8 do table.remove(bag) end
+                assert(not integration.RetrySynchronization())
+                assert(integration.ShowAssignmentRepair())
+                summary = shownSetup.data.summary
+                assert(summary:find("Remove 5 affected", 1, true)
+                    and summary:find("Backpack: Category 5", 1, true)
+                    and not summary:find("more.", 1, true))
+                integration.unavailableAssignments = previousRows
+            end,
+        },
+        {
+            name = "AutoCategory verification reports real mismatches separately and throws a copyable read-only report",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local previousDevelopment = this.IsDevelopment
+                this.IsDevelopment = true
+                AutoCategory.acctSaved.bags = AutoCategory.saved.bags
+                local order, groups = this.accountWide.autoCategoryOrder, this.accountWide.trackedRules
+                for _, context in ipairs(contexts) do
+                    local rows = AutoCategory.saved.bags[context.bag].rules
+                    rows[#rows + 1] = Assignment("Treasure Maps", 42, 43,
+                        { icOwned = true, icRuleKey = "real_missing_group" })
+                end
+                local counts, report = integration.VerifyTestAssignment()
+                assert(counts.test == 0 and counts.unavailable == 7 and counts.managed > 7)
+                assert(report:find("AC profile: account-wide", 1, true)
+                    and report:find("Reserved test row result: item gone", 1, true)
+                    and report:find("Real assignment check: 7 unavailable", 1, true)
+                    and report:find("real_missing_group", 1, true)
+                    and report:find("does not prove a real repair succeeded", 1, true))
+                local ok, thrown = pcall(integration.ShowTestVerification)
+                assert(not ok and thrown == report and integration.lastVerificationReport == report)
+                assert(not integration.NeedsRecovery() and this.accountWide.autoCategoryOrder == order
+                    and this.accountWide.trackedRules == groups,
+                    "Verification must not reconcile, build plans or fault integration")
+                for _, context in ipairs(contexts) do
+                    local rows = AutoCategory.saved.bags[context.bag].rules
+                    assert(rows[#rows].icRuleKey == "real_missing_group")
+                end
+                this.IsDevelopment = previousDevelopment
+            end,
+        },
+        {
+            name = "AutoCategory saved-data verification distinguishes repair from confirmed reset and setup again",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local previousDevelopment = this.IsDevelopment
+                this.IsDevelopment = true
+                local messages = {}
+                d = function(message) messages[#messages + 1] = message end
+                local function Verify(expected)
+                    messages = {}
+                    local counts = integration.VerifyTestAssignment()
+                    assert(messages[#messages - 1]:find(expected, 1, true))
+                    return counts
+                end
+                integration.InjectTestAssignment()
+                assert(Verify("test item still present").test == 1)
+                assert(integration.ShowAssignmentRepair())
+                ConfirmSetup()
+                local repaired = Verify("item gone")
+                assert(repaired.test == 0 and repaired.managed > 0)
+                integration.InjectTestAssignment()
+                local profile = this.accountWide
+                local groups, order, items = profile.trackedRules, profile.autoCategoryOrder, profile.trackedItems
+                local characterOrder = this.character.autoCategoryOrder
+                local nativeRows = {}
+                for _, context in ipairs(contexts) do
+                    nativeRows[context.key] = {}
+                    for _, row in ipairs(AutoCategory.saved.bags[context.bag].rules) do
+                        if row.icOwned ~= true then
+                            nativeRows[context.key][#nativeRows[context.key] + 1] = {
+                                row = row, name = row.name, runpriority = row.runpriority,
+                                showpriority = row.showpriority, isHidden = row.isHidden,
+                            }
+                        end
+                    end
+                end
+                local inactive = { bags = { [1] = { rules = {
+                    Assignment("Inactive", 91, 92, { icOwned = true, icRuleKey = "other_character" }),
+                } } } }
+                AutoCategory.charSaved = inactive
+                assert(integration.ShowIntegrationReset())
+                assert(shownSetup.data.summary:find("Custom integration ordering WILL BE LOST", 1, true))
+                assert(profile.autoCategoryOrder == order and profile.autoCategoryIntegrationEnabled == true,
+                    "Reset preview must not change saved data")
+                ConfirmSetup()
+                assert(not integration.NeedsRecovery() and integration.IsAwaitingSetup()
+                    and integration.IsPanelAvailable() and integration.IsAvailable()
+                    and not this.GetAutoCategoryState().enabled and not integration.IsEditorActive())
+                local reset = Verify("everything gone - its lonely in here")
+                assert(reset.test == 0 and reset.managed == 0 and reset.native == repaired.native)
+                assert(profile.trackedRules == groups and profile.trackedItems == items
+                    and profile.trackedRules.alpha.autoCategoryEnabled == true
+                    and profile.autoCategoryIntegrationEnabled == nil and profile.autoCategorySetupComplete == nil
+                    and this.character.autoCategoryOrder == characterOrder
+                    and AutoCategory.charSaved == inactive and #inactive.bags[1].rules == 1)
+                for _, context in ipairs(contexts) do
+                    assert(#profile.autoCategoryOrder.contexts[context.key].display == 0
+                        and #profile.autoCategoryOrder.contexts[context.key].matching == 0)
+                    for index, previous in ipairs(nativeRows[context.key]) do
+                        local row = AutoCategory.saved.bags[context.bag].rules[index]
+                        assert(row == previous.row and row.name == previous.name and row.runpriority == previous.runpriority
+                            and row.showpriority == previous.showpriority and row.isHidden == previous.isHidden,
+                            "Reset must preserve native assignments and priorities exactly")
+                    end
+                end
+                assert(integration.lastResetBackup.fields.autoCategoryOrder == order)
+                assert(this.SetAutoCategoryIntegrationEnabled(true) == false)
+                assert(shownSetup.definition.radioButtons ~= nil, "Re-enable must show the original setup dialog")
+                ConfirmSetup()
+                assert(profile.autoCategorySetupComplete and integration.IsEditorActive()
+                    and not integration.IsAwaitingSetup())
+                this.IsDevelopment = previousDevelopment
+            end,
+        },
+        {
+            name = "AutoCategory reset rolls back assignments and settings if cache refresh fails",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local previousDevelopment = this.IsDevelopment
+                this.IsDevelopment = true
+                integration.InjectTestAssignment()
+                this.IsDevelopment = previousDevelopment
+                local profile = this.accountWide
+                local order, bag = profile.autoCategoryOrder, AutoCategory.saved.bags[1].rules
+                local count, injected = #bag, bag[#bag]
+                assert(integration.ShowIntegrationReset())
+                AutoCategory.cacheInitBag = function() error("synthetic reset cache failure") end
+                ConfirmSetup()
+                assert(integration.NeedsRecovery() and not integration.IsAwaitingSetup()
+                    and profile.autoCategoryOrder == order and profile.autoCategoryIntegrationEnabled == true
+                    and #bag == count and bag[#bag] == injected)
+            end,
+        },
+        {
+            name = "AutoCategory reset refuses sparse assignment lists instead of silently dropping unidentified rows",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                integration.Fail("synthetic failure")
+                local bag = AutoCategory.saved.bags[1].rules
+                local row = bag[2]
+                bag[2] = nil
+                assert(not integration.ShowIntegrationReset())
+                assert(bag[2] == nil and bag[3] ~= nil and this.accountWide.autoCategoryIntegrationEnabled)
+                bag[2] = row
+            end,
+        },
+        {
+            name = "AutoCategory reset refuses profile changes after confirmation without deleting assignments",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                integration.Fail("synthetic failure")
+                assert(integration.ShowIntegrationReset())
+                local bag = AutoCategory.saved.bags[1].rules
+                local count = #bag
+                shownSetup.data.profile = this.character
+                assert(not pcall(ConfirmSetup))
+                assert(#bag == count and this.accountWide.autoCategoryIntegrationEnabled)
+            end,
+        },
+        {
+            name = "AutoCategory orphan survives plugin startup again and can be repaired from reloaded saved tables",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local previousDevelopment = this.IsDevelopment
+                this.IsDevelopment = true
+                integration.InjectTestAssignment()
+                this.IsDevelopment = previousDevelopment
+                local previousIntegration = this.AutoCategoryIntegration
+                local previousRepairDialog = setupDialogs["InventoryCompanion_AUTOCATEGORY_REPAIR"]
+                assert(loadstring(AutoCategoryIntegrationSource))()
+                local reloaded = this.AutoCategoryIntegration
+                AutoCategory.Inited = false
+                AutoCategory.Plugins = {}
+                local _, scheduled = InstallHooks()
+                reloaded.Initialize()
+                AutoCategory.Plugins["Inventory Companion"].initialize()
+                AutoCategory.Inited = true
+                assert(#scheduled == 1)
+                scheduled[1]()
+                assert(reloaded.NeedsRecovery() and reloaded.IsPanelAvailable()
+                    and this.GetAutoCategoryState().configuredEnabled and not this.GetAutoCategoryState().enabled)
+                assert(reloaded.ShowAssignmentRepair())
+                ConfirmSetup()
+                assert(not reloaded.NeedsRecovery() and reloaded.IsEditorActive())
+                this.AutoCategoryIntegration = previousIntegration
+                setupDialogs["InventoryCompanion_AUTOCATEGORY_REPAIR"] = previousRepairDialog
+            end,
+        },
+        {
+            name = "AutoCategory injected saved assignment is removed by confirmed repair without touching other data",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local ac, profile = AutoCategory, this.accountWide
+                local order, groups = profile.autoCategoryOrder, profile.trackedRules
+                local before = {}
+                for _, context in ipairs(contexts) do
+                    before[context.key] = {}
+                    for index, row in ipairs(ac.saved.bags[context.bag].rules) do
+                        before[context.key][index] = {
+                            row = row, name = row.name, runpriority = row.runpriority,
+                            showpriority = row.showpriority, isHidden = row.isHidden,
+                        }
+                    end
+                end
+                local inactive = { bags = { [1] = { rules = {
+                    Assignment("Inactive", 91, 92, { icOwned = true, icRuleKey = "other_character" }),
+                } } } }
+                ac.charSaved = inactive
+                local wasDevelopment = this.IsDevelopment
+                this.IsDevelopment = true
+                integration.InjectTestAssignment()
+                this.IsDevelopment = wasDevelopment
+                local bag = ac.saved.bags[1].rules
+                local injected = bag[#bag]
+                assert(#bag == #before.backpack + 1 and injected.icOwned == true
+                    and this.GetRuntimeRules()[injected.icRuleKey] == nil)
+                assert(integration.CanRepairAssignments() and integration.NeedsRecovery())
+                assert(profile.autoCategoryOrder == order and profile.trackedRules == groups
+                    and profile.autoCategoryIntegrationEnabled == true)
+                assert(not integration.RetrySynchronization(), "Retry must not remove damaged saved assignments")
+                assert(bag[#bag] == injected)
+                assert(integration.ShowAssignmentRepair())
+                assert(shownSetup.definition.mainText.text(shownSetup):find(injected.name, 1, true))
+                assert(bag[#bag] == injected and profile.autoCategoryOrder == order,
+                    "Preview must not edit assignments or order")
+                ConfirmSetup()
+                assert(not integration.NeedsRecovery() and integration.IsEditorActive())
+                assert(#integration.lastRepairBackup.rows == 1
+                    and integration.lastRepairBackup.rows[1].line.icRuleKey == injected.icRuleKey
+                    and integration.lastRepairBackup.rows[1].line ~= injected)
+                for _, context in ipairs(contexts) do
+                    local rows = ac.saved.bags[context.bag].rules
+                    assert(#rows == #before[context.key], "Only the injected row should be removed")
+                    for index, previous in ipairs(before[context.key]) do
+                        local row = rows[index]
+                        assert(row == previous.row and row.name == previous.name
+                            and row.runpriority == previous.runpriority and row.showpriority == previous.showpriority
+                            and row.isHidden == previous.isHidden, "Existing assignments must be unchanged")
+                    end
+                    for _, mode in ipairs({ "display", "matching" }) do
+                        assert(table.concat(profile.autoCategoryOrder.contexts[context.key][mode], ",")
+                            == table.concat(order.contexts[context.key][mode], ","))
+                    end
+                end
+                assert(profile.trackedRules == groups and ac.charSaved == inactive
+                    and inactive.bags[1].rules[1].icRuleKey == "other_character")
+                assert(not pcall(integration.InjectTestAssignment)
+                    and not pcall(integration.RemoveTestAssignment), "Saved-data tests must be DEV-only")
+            end,
+        },
+        {
+            name = "AutoCategory saved-data test cleanup removes only its own row and retries recovery",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local bag = AutoCategory.saved.bags[1].rules
+                local count = #bag
+                local wasDevelopment = this.IsDevelopment
+                this.IsDevelopment = true
+                integration.InjectTestAssignment()
+                integration.InjectTestAssignment()
+                assert(#bag == count + 1, "Repeated injection must replace the prior row without accumulating rows")
+                assert(integration.RemoveTestAssignment() == 1)
+                assert(#bag == count and not integration.NeedsRecovery())
+                assert(integration.RemoveTestAssignment() == 0 and #bag == count)
+                this.IsDevelopment = wasDevelopment
+            end,
+        },
+        {
+            name = "AutoCategory assignment repair rolls back when synchronization fails and refuses incomplete runtime",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local wasDevelopment = this.IsDevelopment
+                this.IsDevelopment = true
+                integration.InjectTestAssignment()
+                this.IsDevelopment = wasDevelopment
+                local bag = AutoCategory.saved.bags[1].rules
+                local injected = bag[#bag]
+                local count, order = #bag, this.accountWide.autoCategoryOrder
+                local originalRules = this.GetRuntimeRules
+                this.GetRuntimeRules = function() return {} end
+                assert(not integration.ShowAssignmentRepair())
+                this.GetRuntimeRules = originalRules
+                assert(#bag == count and bag[#bag] == injected and this.accountWide.autoCategoryOrder == order)
+                assert(integration.ShowAssignmentRepair())
+                local cacheInit = AutoCategory.cacheInitBag
+                AutoCategory.cacheInitBag = function() error("synthetic repair refresh failure") end
+                ConfirmSetup()
+                AutoCategory.cacheInitBag = cacheInit
+                assert(integration.NeedsRecovery() and #bag == count and bag[#bag] == injected
+                    and this.accountWide.autoCategoryOrder == order,
+                    "Failed repair must restore assignments and retain saved order")
+            end,
+        },
+        {
+            name = "AutoCategory assignment repair restores data when post-projection UI refresh fails",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local wasDevelopment = this.IsDevelopment
+                this.IsDevelopment = true
+                integration.InjectTestAssignment()
+                this.IsDevelopment = wasDevelopment
+                local bag = AutoCategory.saved.bags[1].rules
+                local count, injected, order = #bag, bag[#bag], this.accountWide.autoCategoryOrder
+                assert(integration.ShowAssignmentRepair())
+                this.RefreshAutoCategoryUI = function()
+                    if not integration.NeedsRecovery() then error("synthetic post-projection UI failure") end
+                end
+                ConfirmSetup()
+                assert(integration.NeedsRecovery() and #bag == count and bag[#bag] == injected
+                    and this.accountWide.autoCategoryOrder == order)
+                this.RefreshAutoCategoryUI = function() end
+            end,
+        },
+        {
+            name = "AutoCategory assignment repair refuses a changed profile or candidate after confirmation",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local wasDevelopment = this.IsDevelopment
+                this.IsDevelopment = true
+                integration.InjectTestAssignment()
+                this.IsDevelopment = wasDevelopment
+                assert(integration.ShowAssignmentRepair())
+                local bag = AutoCategory.saved.bags[1].rules
+                local count = #bag
+                local row = bag[count]
+                row.showpriority = 17
+                assert(not pcall(ConfirmSetup), "Changed candidates must require a fresh confirmation")
+                assert(#bag == count and bag[count] == row and row.showpriority == 17)
+                assert(integration.ShowAssignmentRepair())
+                shownSetup.data.profile = this.character
+                assert(not pcall(ConfirmSetup), "A changed profile must prevent repair")
+                assert(#bag == count and bag[count] == row)
+            end,
+        },
+        {
+            name = "AutoCategory failed state preserves boolean enablement and blocks writes until retry succeeds",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                InstallHooks()
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local prepared = integration.PreflightAutoCategory()
+                local profile = this.accountWide
+                local order, rules = profile.autoCategoryOrder, profile.trackedRules
+                local bag = AutoCategory.saved.bags[1].rules
+                local count = #bag
+                local wasDevelopment = this.IsDevelopment
+                this.IsDevelopment = true
+                integration.ForceTestFailure()
+                this.IsDevelopment = wasDevelopment
+                local state = this.GetAutoCategoryState()
+                assert(state.configuredEnabled == true and state.enabled == false and state.failed == true)
+                assert(type(state.enabled) == "boolean" and type(state.failed) == "boolean")
+                assert(profile.autoCategoryIntegrationEnabled == true and profile.autoCategoryOrder == order
+                    and profile.trackedRules == rules and #bag == count,
+                    "Forced failure must not edit saved data")
+                assert(integration.IsPanelAvailable() and not integration.IsEditorActive())
+                assert(integration.ProjectAutoCategory(prepared) == false and #bag == count,
+                    "A prepared plan must not bypass failure gating")
+                assert(not pcall(this.SetAutoCategoryParticipation, "alpha", false))
+                assert(profile.trackedRules.alpha.autoCategoryEnabled == true)
+                assert(integration.RetrySynchronization(), this.autoCategoryFailure)
+                state = this.GetAutoCategoryState()
+                assert(state.configuredEnabled and state.enabled and not state.failed)
+                assert(integration.IsEditorActive() and integration.IsPanelAvailable())
+                assert(profile.trackedRules == rules and profile.trackedRules.alpha.autoCategoryEnabled)
+                assert(not pcall(integration.ForceTestFailure), "Release builds must reject forced failures")
+                profile.autoCategoryIntegrationEnabled = nil
+                state = this.GetAutoCategoryState()
+                assert(not state.enabled and not state.configuredEnabled and not state.failed)
+                assert(not integration.IsPanelAvailable(), "Off is distinct from failed")
+            end,
+        },
+        {
+            name = "AutoCategory retry retains recovery UI and data when validation still fails",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                InstallHooks()
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local profile = this.accountWide
+                local order = profile.autoCategoryOrder
+                local count = #AutoCategory.saved.bags[1].rules
+                profile.autoCategorySetupComplete = "malformed"
+                integration.Fail("Saved integration data needs validation")
+                assert(not integration.RetrySynchronization())
+                assert(integration.IsFaulted() and integration.NeedsRecovery() and integration.IsPanelAvailable())
+                assert(this.autoCategoryFailure:find("autoCategorySetupComplete must be boolean", 1, true))
+                assert(profile.autoCategorySetupComplete == "malformed" and profile.autoCategoryOrder == order
+                    and profile.autoCategoryIntegrationEnabled == true and #AutoCategory.saved.bags[1].rules == count,
+                    "An unsuccessful retry must not normalize away or overwrite damaged data")
+                profile.autoCategorySetupComplete = true
+                assert(integration.RetrySynchronization(), this.autoCategoryFailure)
+            end,
+        },
+        {
+            name = "AutoCategory unsupported mismatch exposes recovery and retry without deleting assignments",
+            run = function()
+                PrepareActive({})
+                InstallHooks()
+                this.RefreshAutoCategoryUI = function() end
+                local bag = AutoCategory.saved.bags[1].rules
+                local orphan = Assignment("Missing", 42, 43, { icOwned = true, icRuleKey = "custom_missing" })
+                bag[#bag + 1] = orphan
+                assert(integration.ProjectAutoCategory() == false)
+                assert(not integration.IsFaulted() and this.GetAutoCategoryState().failed
+                    and not this.GetAutoCategoryState().enabled and integration.IsPanelAvailable())
+                assert(not integration.RetrySynchronization())
+                assert(bag[#bag] == orphan and orphan.runpriority == 42 and orphan.showpriority == 43)
+                assert(integration.NeedsRecovery() and not integration.IsFaulted())
+                local ok, report = pcall(integration.ShowRecoveryDetails)
+                assert(not ok and tostring(report):find("paused", 1, true))
+                this.accountWide.trackedRules.custom_missing = {
+                    displayName = "Missing", addedPatterns = { "missing" }, autoCategoryEnabled = true,
+                }
+                this.InvalidateRuleCache()
+                integration.OnProfileChanged()
+                assert(not integration.NeedsRecovery() and integration.IsEditorActive(),
+                    "A profile change must still retry an unsupported mismatch")
+            end,
+        },
         {
             name = "AutoCategory bulk movement preserves contiguous blocks and separated selections",
             run = function()
@@ -405,7 +976,7 @@ function this.GetAutoCategoryIntegrationTests()
                 assert(integration.IsFaulted(), "Debug Mode must still disable the integration")
                 local ok, report = pcall(this.AutoCategoryTestClock.RunFrame)
                 report = tostring(report)
-                assert(not ok and report:find("disabled by this failure", 1, true)
+                assert(not ok and report:find("synchronization stopped after this failure", 1, true)
                     and report:find("simulated integration defect", 1, true)
                     and report:find("stack traceback", 1, true), report)
                 assert(this.AutoCategoryTestClock.RunFrame() == 0, "The failure report must unregister before raising")
@@ -973,7 +1544,7 @@ function this.GetAutoCategoryIntegrationTests()
                 this.IsDevelopment = true
                 this.state = { isLoaded = false }
                 local passiveSnapshot = this.GetRuntimeRuleDiagnostics("custom_missing")
-                assert(passiveSnapshot.cacheInvalid and passiveSnapshot.firstAccess == nil,
+                assert(passiveSnapshot.cacheInvalid,
                     "Passive diagnostics must not build the lazy runtime-rule cache")
                 local orphan = Assignment("Orphan", 42, 43, { icOwned = true, icRuleKey = "custom_missing" })
                 local backpack = AutoCategory.saved.bags[1].rules
@@ -994,8 +1565,17 @@ function this.GetAutoCategoryIntegrationTests()
                 assert(#profile.debug.autoCategoryRemovedLines == 0,
                     "Do not archive or remove a mismatch that can be ignored without changing saved data")
                 local runtime = this.GetRuntimeRuleDiagnostics("custom_missing")
-                assert(runtime.firstAccess ~= nil and runtime.firstAccess.cachePath == "built",
+                assert(runtime.firstAccess ~= nil and not runtime.cacheInvalid,
                     "The natural rule-cache access should still be observable after preflight")
+                if passiveSnapshot.firstAccess == nil then
+                    assert(runtime.firstAccess.cachePath == "built",
+                        "The first natural access should build the invalid cache")
+                else
+                    for field, value in pairs(passiveSnapshot.firstAccess) do
+                        assert(runtime.firstAccess[field] == value,
+                            "An earlier session-first access must not be overwritten: " .. field)
+                    end
+                end
                 assert(#integration.unavailableAssignments == 1
                     and integration.unavailableAssignments[1].ruleKey == "custom_missing",
                     "The ignored mismatch should remain available to diagnostics")

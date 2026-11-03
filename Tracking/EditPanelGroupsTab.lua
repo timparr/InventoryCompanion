@@ -619,7 +619,7 @@ end
 local function InitEditItemsButton()
     local btnEditItems = GetControl(InventoryCompanion_GroupsWindow, "BtnEditItems")
 	btnEditItems:SetHandler("OnClicked", function() this.OpenEditItemsPanel() end)
-    GetControl(InventoryCompanion_GroupsWindow, "BtnAutoCategory"):SetHidden(not this.AutoCategoryIntegration.IsEditorActive())
+    GetControl(InventoryCompanion_GroupsWindow, "BtnAutoCategory"):SetHidden(not this.AutoCategoryIntegration.IsPanelAvailable())
 end
 
 local function InitNewGroupButton()

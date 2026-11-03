@@ -385,6 +385,59 @@ end
 
 function this.RefreshAutoCategoryEditor()
     if InventoryCompanion_AutoCategoryWindow:IsHidden() then return end
+    local failed = this.AutoCategoryIntegration.NeedsRecovery()
+    local awaitingSetup = this.AutoCategoryIntegration.IsAwaitingSetup()
+    local recoveryVisible = failed or awaitingSetup
+    for _, name in ipairs({ "TopActionBar", "OptionsBar", "Info", "List", "MovementBar" }) do
+        Window(name):SetHidden(recoveryVisible)
+    end
+    local recovery = Window("Recovery")
+    recovery:SetHidden(not recoveryVisible)
+    if recoveryVisible then
+        selectedReferences = {}
+        scrollAfterMove = nil
+        for _, row in ipairs(rows) do row:SetHidden(true) end
+        local _, message = this.AutoCategoryIntegration.GetStatus()
+        GetControl(recovery, "Warning"):SetText(failed and this.AutoCategoryIntegration.GetRecoveryMessage() or message)
+        for _, name in ipairs({ "BtnRetry", "BtnRepair", "BtnDetails", "BtnReset" }) do
+            GetControl(recovery, name):SetHidden(not failed)
+        end
+        local enable = GetControl(recovery, "BtnEnableSetup")
+        enable:SetHidden(not awaitingSetup or failed)
+        enable:SetHandler("OnClicked", function() this.SetAutoCategoryIntegrationEnabled(true) end)
+        local retry = GetControl(recovery, "BtnRetry")
+        retry:SetHandler("OnClicked", function() this.AutoCategoryIntegration.RetrySynchronization() end)
+        local repair = GetControl(recovery, "BtnRepair")
+        repair:SetEnabled(this.AutoCategoryIntegration.CanRepairAssignments())
+        repair:SetHandler("OnClicked", function() this.AutoCategoryIntegration.ShowAssignmentRepair() end)
+        repair:SetHandler("OnMouseEnter", function(control)
+            ShowTooltip(control, this.AutoCategoryIntegration.CanRepairAssignments()
+                and "Preview removal of affected IC-owned assignments in the active AC profile, then synchronize."
+                or "No specific assignment repair is available. Retry or use Show details; code defects cannot be repaired by deleting rows.")
+        end)
+        repair:SetHandler("OnMouseExit", HideTooltip)
+        GetControl(recovery, "BtnDetails"):SetHandler("OnClicked", function()
+            this.AutoCategoryIntegration.ShowRecoveryDetails()
+        end)
+        GetControl(recovery, "BtnReset"):SetHandler("OnClicked", function()
+            this.AutoCategoryIntegration.ShowIntegrationReset()
+        end)
+        GetControl(recovery, "Help"):SetText(awaitingSetup and not failed
+            and "Reset is complete. Integration is disabled. Enable and set up again to choose the starting arrangement."
+                .. " Your IC groups and native AC categories were preserved."
+            or "Retry validates your configuration. Repair previews removal of affected IC-owned assignments."
+                .. " Reset integration is the last resort: it clears the selected IC profile's integration setup and ordering"
+                .. " and all IC-owned assignments in the active AC profile. It requires confirmation.")
+        local problems = GetControl(recovery, "Problems")
+        problems:SetHidden(not failed)
+        if failed then
+            local label = GetControl(problems, "ScrollChildProblemRows")
+            label:SetText(this.AutoCategoryIntegration.GetProblemRowsMessage())
+            GetControl(problems, "ScrollChild"):SetHeight(label:GetTextHeight())
+            ZO_Scroll_UpdateScrollBar(problems)
+        end
+        return
+    end
     if not IsActive() then
         this.OpenEditGroupsPanel()
         return
@@ -404,11 +457,15 @@ end
 local autoCategoryScene = ZO_Scene:New("InventoryCompanion_AutoCategoryScene", SCENE_MANAGER)
 autoCategoryScene:AddFragment(ZO_FadeSceneFragment:New(InventoryCompanion_AutoCategoryWindow))
 
-InventoryCompanion_AutoCategoryWindow:SetHandler("OnEffectivelyShown", function() Timed("open editor", nil, function()
+InventoryCompanion_AutoCategoryWindow:SetHandler("OnEffectivelyShown", function()
     SetGameCameraUIMode(true)
-    this.RefreshAutoCategoryEditor()
+    if this.AutoCategoryIntegration.NeedsRecovery() or this.AutoCategoryIntegration.IsAwaitingSetup() then
+        this.RefreshAutoCategoryEditor()
+    else
+        Timed("open editor", nil, this.RefreshAutoCategoryEditor)
+    end
     this.UpdateEditorLayout()
-end) end)
+end)
 
 InventoryCompanion_AutoCategoryWindow:SetHandler("OnEffectivelyHidden", function()
     SetGameCameraUIMode(false)

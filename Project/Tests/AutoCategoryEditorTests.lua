@@ -8,6 +8,7 @@ local function Control(name)
     function control:SetHandler(event, handler) self.handlers[event] = handler end
     function control:SetText(text) self.text = text end
     function control:GetText() return self.text end
+    function control:GetTextHeight() return 30 end
     function control:ClearAnchors() end
     function control:SetAnchor(_, _, _, x, y) self.offsetX, self.offsetY = x, y end
     function control:SetColor(...) self.color = { ... } end
@@ -187,6 +188,71 @@ function this.GetAutoCategoryEditorTests()
     end
 
     return {
+        {
+            name = "AutoCategory editor failure view avoids rule resolution and keeps recovery controls available",
+            run = WithActiveIntegration(function()
+                Setup({ alpha = { autoCategoryEnabled = true } })
+                local previousResolve = integration.ResolveAutoCategoryOrder
+                integration.ResolveAutoCategoryOrder = function() error("Failure UI must not resolve normal editor rules") end
+                integration.Fail("synthetic editor failure")
+                this.RefreshAutoCategoryEditor()
+                local recovery = GetControl(window, "Recovery")
+                assert(not recovery.hidden)
+                assert(GetControl(recovery, "Warning").text == integration.GetRecoveryMessage())
+                assert(not GetControl(recovery, "Problems").hidden)
+                assert(GetControl(GetControl(recovery, "Problems"), "ScrollChildProblemRows").text
+                    == integration.GetProblemRowsMessage())
+                for _, name in ipairs({ "TopActionBar", "OptionsBar", "Info", "List", "MovementBar" }) do
+                    assert(GetControl(window, name).hidden, "Normal editing must be hidden: " .. name)
+                end
+                assert(#VisibleRows() == 0 and not GetControl(window, "BtnEditItems").hidden
+                    and not GetControl(window, "BtnEditGroups").hidden)
+                local oldRetry, oldDetails = integration.RetrySynchronization, integration.ShowRecoveryDetails
+                local retried, detailed = 0, 0
+                integration.RetrySynchronization = function() retried = retried + 1 end
+                integration.ShowRecoveryDetails = function() detailed = detailed + 1 end
+                GetControl(recovery, "BtnRetry").handlers.OnClicked()
+                GetControl(recovery, "BtnDetails").handlers.OnClicked()
+                assert(retried == 1 and detailed == 1, "Recovery must not go through the faulted Run gate")
+                local previousCanRepair, previousShowRepair = integration.CanRepairAssignments, integration.ShowAssignmentRepair
+                assert(GetControl(recovery, "BtnRepair").enabled == false,
+                    "A code failure must not offer assignment repair")
+                local repaired = 0
+                integration.CanRepairAssignments = function() return true end
+                integration.ShowAssignmentRepair = function() repaired = repaired + 1 end
+                this.RefreshAutoCategoryEditor()
+                assert(GetControl(recovery, "BtnRepair").enabled)
+                GetControl(recovery, "BtnRepair").handlers.OnClicked()
+                assert(repaired == 1)
+                integration.CanRepairAssignments, integration.ShowAssignmentRepair = previousCanRepair, previousShowRepair
+                integration.RetrySynchronization, integration.ShowRecoveryDetails = oldRetry, oldDetails
+                integration.ResolveAutoCategoryOrder = previousResolve
+                local previousReset = integration.ShowIntegrationReset
+                local resets = 0
+                integration.ShowIntegrationReset = function() resets = resets + 1 end
+                assert(not GetControl(recovery, "BtnReset").hidden)
+                GetControl(recovery, "BtnReset").handlers.OnClicked()
+                assert(resets == 1)
+                integration.ShowIntegrationReset = previousReset
+                this.autoCategoryFailure = nil
+                this.autoCategoryFailureTraceback = nil
+                local previousAwaiting, previousEnable = integration.IsAwaitingSetup, this.SetAutoCategoryIntegrationEnabled
+                integration.IsAwaitingSetup = function() return true end
+                local enabledAgain = false
+                this.SetAutoCategoryIntegrationEnabled = function(enabled) enabledAgain = enabled end
+                this.RefreshAutoCategoryEditor()
+                assert(not recovery.hidden and not GetControl(recovery, "BtnEnableSetup").hidden
+                    and GetControl(recovery, "BtnReset").hidden and GetControl(recovery, "BtnRetry").hidden
+                    and GetControl(window, "List").hidden)
+                assert(GetControl(recovery, "Problems").hidden)
+                GetControl(recovery, "BtnEnableSetup").handlers.OnClicked()
+                assert(enabledAgain)
+                integration.IsAwaitingSetup, this.SetAutoCategoryIntegrationEnabled = previousAwaiting, previousEnable
+                this.RefreshAutoCategoryEditor()
+                assert(recovery.hidden and not GetControl(window, "List").hidden and #VisibleRows() > 0,
+                    "Recovered view must restore normal editing")
+            end),
+        },
         {
             name = "AutoCategory editor clicks start a new selection and shift-clicks toggle membership",
             run = WithActiveIntegration(function()

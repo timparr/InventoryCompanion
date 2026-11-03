@@ -345,7 +345,7 @@ local function InitEditGroupsButton(topBar)
             this.OpenEditGroupsPanel()
         end)
     end
-    GetControl(InventoryCompanion_TrackedItemsWindow, "BtnAutoCategory"):SetHidden(not this.AutoCategoryIntegration.IsEditorActive())
+    GetControl(InventoryCompanion_TrackedItemsWindow, "BtnAutoCategory"):SetHidden(not this.AutoCategoryIntegration.IsPanelAvailable())
 end
 
 local function InitToolbar()
@@ -735,7 +735,8 @@ end
 
 local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
     local toggle = GetControl(row, "AutoCategory")
-    local columnActive = this.AutoCategoryIntegration.IsAvailable() and this.GetAutoCategoryState().enabled
+    local failed = this.AutoCategoryIntegration.NeedsRecovery()
+    local columnActive = failed or this.AutoCategoryIntegration.IsEditorActive()
     local rowActive = columnActive and entry.isRule and entry.key ~= "miscellaneous"
     -- Reserve the column width on every row while the integration is active so
     -- the Notify/Show columns stay aligned; hidden controls still anchor.
@@ -743,6 +744,23 @@ local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
     GetControl(row, "ItemLabel"):SetWidth(columnActive and 302 or 432)
     toggle:SetHidden(not rowActive)
     if not rowActive then return end
+
+    local function OpenRecovery()
+        this.OpenAutoCategoryPanel()
+    end
+    if failed then
+        GetControl(toggle, "Title"):SetColor(1, 0.27, 0.27, 1)
+        local detail = GetControl(toggle, "Detail")
+        detail:SetColor(1, 0.27, 0.27, 1)
+        detail:SetText("! Needs attention")
+        toggle:SetHandler("OnClicked", OpenRecovery)
+        toggle:SetHandler("OnMouseEnter", function(control)
+            InitializeTooltip(InformationTooltip, control, RIGHT, -4, 0)
+            InformationTooltip:AddLine("AutoCategory integration needs attention. Click to view recovery options.")
+        end)
+        toggle:SetHandler("OnMouseExit", function() ClearTooltip(InformationTooltip) end)
+        return
+    end
 
     local rule = this.GetRuntimeRules()[entry.key]
     assert(rule ~= nil, "AutoCategory toggle targets a missing group")
@@ -752,7 +770,9 @@ local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
     detail:SetColor(1.0, 0.94, 0.76, enabled and 1.0 or 0.5)
     detail:SetText(enabled and "Shown as category" or "Ignored")
 
-    toggle:SetHandler("OnClicked", function() this.AutoCategoryIntegration.Run(function()
+    toggle:SetHandler("OnClicked", function()
+        if this.AutoCategoryIntegration.NeedsRecovery() then return OpenRecovery() end
+        this.AutoCategoryIntegration.Run(function()
         ResolveEntryData(entry)
         assert(this.AutoCategoryIntegration.IsAvailable() and this.GetAutoCategoryState().enabled,
             "AutoCategory toggle targets an inactive integration")

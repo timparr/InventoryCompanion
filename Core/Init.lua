@@ -162,6 +162,24 @@ SLASH_COMMANDS["/iclistbackup"] = function(arguments)
     end
 end
 
+if this.IsDevelopment then
+    SLASH_COMMANDS["/icactest"] = function(arguments)
+        local action = arguments:lower():match("^%s*(.-)%s*$")
+        if action == "inject" then
+            this.AutoCategoryIntegration.InjectTestAssignment()
+        elseif action:match("^inject[1-4]$") then
+            this.AutoCategoryIntegration.InjectTestAssignment(tonumber(action:sub(-1)))
+        elseif action == "remove" then
+            this.AutoCategoryIntegration.RemoveTestAssignment()
+        elseif action == "verify" then
+            this.AutoCategoryIntegration.ShowTestVerification()
+        else
+            d("Usage: /icactest inject1 | inject2 | inject3 | inject4 | remove | verify"
+                .. " (DEV only; inject retains the original single-row test; verify is read-only)")
+        end
+    end
+end
+
 ------------------------------------------------------------------
 -- Debug Key
 ------------------------------------------------------------------

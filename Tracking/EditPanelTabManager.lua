@@ -82,7 +82,7 @@ function this.OpenEditGroupsPanel()
 end
 
 function this.OpenAutoCategoryPanel()
-    assert(this.AutoCategoryIntegration.IsEditorActive(), "AutoCategory editor opened while integration is inactive")
+    assert(this.AutoCategoryIntegration.IsPanelAvailable(), "AutoCategory panel opened while integration is inactive")
     OpenEditorTab(AUTOCATEGORY_SCENE)
 end
 
@@ -103,7 +103,7 @@ function this.ToggleTrackedItemsEditor()
 
     local sceneName = this.state.lastActiveEditTab
     -- The AutoCategory tab may have been closed before integration was disabled or AutoCategory was removed.
-    if sceneName == AUTOCATEGORY_SCENE and not this.AutoCategoryIntegration.IsEditorActive() then
+    if sceneName == AUTOCATEGORY_SCENE and not this.AutoCategoryIntegration.IsPanelAvailable() then
         sceneName = GROUPS_SCENE
     end
     SCENE_MANAGER:Show(sceneName)

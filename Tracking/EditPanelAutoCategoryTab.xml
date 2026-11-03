@@ -60,6 +60,55 @@
                     <Anchor point="TOPLEFT" relativeTo="$(parent)Title" relativePoint="BOTTOMLEFT" offsetX="-5" offsetY="10" />
                 </Texture>
 
+                <Control name="$(parent)Recovery" hidden="true">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Divider" relativePoint="BOTTOMLEFT" offsetX="15" offsetY="12" />
+                    <Anchor point="BOTTOMRIGHT" relativeTo="$(parent)" relativePoint="BOTTOMRIGHT" offsetX="-20" offsetY="-20" />
+                    <Controls>
+                        <Label name="$(parent)Warning" font="ZoFontGame" color="FFFFFF" wrapMode="TEXT_WRAP_MODE_WORD">
+                            <Dimensions x="800" y="180" />
+                            <Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPLEFT" />
+                        </Label>
+                        <Button name="$(parent)BtnRetry" inherits="ZO_DefaultButton" text="Retry synchronization">
+                            <Dimensions x="240" y="28" />
+                            <Anchor point="TOPLEFT" relativeTo="$(parent)Warning" relativePoint="BOTTOMLEFT" offsetY="16" />
+                        </Button>
+                        <Button name="$(parent)BtnRepair" inherits="ZO_DefaultButton" text="Repair affected assignments">
+                            <Dimensions x="260" y="28" />
+                            <Anchor point="LEFT" relativeTo="$(parent)BtnRetry" relativePoint="RIGHT" offsetX="12" />
+                        </Button>
+                        <Button name="$(parent)BtnDetails" inherits="ZO_DefaultButton" text="Show details">
+                            <Dimensions x="160" y="28" />
+                            <Anchor point="LEFT" relativeTo="$(parent)BtnRepair" relativePoint="RIGHT" offsetX="12" />
+                        </Button>
+                        <Button name="$(parent)BtnReset" inherits="ZO_DefaultButton" text="Reset integration...">
+                            <Dimensions x="240" y="28" />
+                            <Anchor point="TOPLEFT" relativeTo="$(parent)BtnRetry" relativePoint="BOTTOMLEFT" offsetY="16" />
+                        </Button>
+                        <Button name="$(parent)BtnEnableSetup" inherits="ZO_DefaultButton" text="Enable and set up again" hidden="true">
+                            <Dimensions x="260" y="28" />
+                            <Anchor point="TOPLEFT" relativeTo="$(parent)Warning" relativePoint="BOTTOMLEFT" offsetY="16" />
+                        </Button>
+                        <Label name="$(parent)Help" font="ZoFontGame" color="CCCCCC" wrapMode="TEXT_WRAP_MODE_WORD">
+                            <Dimensions x="800" y="90" />
+                            <Anchor point="TOPLEFT" relativeTo="$(parent)BtnReset" relativePoint="BOTTOMLEFT" offsetY="20" />
+                        </Label>
+                        <Control name="$(parent)Problems" inherits="ZO_ScrollContainer">
+                            <Anchor point="TOPLEFT" relativeTo="$(parent)Help" relativePoint="BOTTOMLEFT" offsetY="12" />
+                            <Anchor point="BOTTOMRIGHT" relativeTo="$(parent)" relativePoint="BOTTOMRIGHT" offsetX="-10" offsetY="-8" />
+                            <Controls>
+                                <Control name="$(parent)ScrollChild" override="true">
+                                    <Controls>
+                                        <Label name="$(parent)ProblemRows" font="$(MEDIUM_FONT)|20|soft-shadow-thin" color="FFFFFF" wrapMode="TEXT_WRAP_MODE_WORD">
+                                            <Dimensions x="760" />
+                                            <Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPLEFT" />
+                                        </Label>
+                                    </Controls>
+                                </Control>
+                            </Controls>
+                        </Control>
+                    </Controls>
+                </Control>
+
                 <Control name="$(parent)TopActionBar">
                     <Dimensions x="830" y="32" />
                     <Anchor point="TOPLEFT" relativeTo="$(parent)Divider" relativePoint="BOTTOMLEFT" offsetX="15" offsetY="8" />

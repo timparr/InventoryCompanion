@@ -137,9 +137,9 @@ function this.CreateSettingsPanel()
     end)
     this.RefreshAutoCategoryUI = function()
         CALLBACK_MANAGER:FireCallbacks("LAM-RefreshPanel", settingsPanel)
+        if this.RefreshAutoCategoryEditor then this.RefreshAutoCategoryEditor() end
         if this.RefreshTrackedItemsEditor then this.RefreshTrackedItemsEditor() end
         if this.RefreshGroupsEditor then this.RefreshGroupsEditor() end
-        if this.RefreshAutoCategoryEditor then this.RefreshAutoCategoryEditor() end
     end
 
     local optionsData = {
@@ -176,26 +176,25 @@ function this.CreateSettingsPanel()
         {
             type = "description",
             text = function()
-                local state, message = this.AutoCategoryIntegration.GetStatus()
-                if state == "error" then
-                    return "|cFF4444|t24:24:EsoUI/Art/Miscellaneous/large_yellow_warning.dds|t WARNING: AutoCategory was disabled after an error.|r\n"
-                        .. "Saved settings were preserved. Click See Error for details."
+                local _, message = this.AutoCategoryIntegration.GetStatus()
+                if this.AutoCategoryIntegration.NeedsRecovery() then
+                    return this.AutoCategoryIntegration.GetRecoveryMessage()
                 end
                 return message
             end,
         },
         {
             type = "button",
-            name = "See Error",
-            func = function() this.AutoCategoryIntegration.ShowLastError() end,
-            hidden = function() return not this.AutoCategoryIntegration.IsFaulted() end,
+            name = "More information",
+            func = function() this.OpenAutoCategoryPanel() end,
+            hidden = function() return not this.AutoCategoryIntegration.NeedsRecovery() end,
             width = "full",
         },
         {
             type = "checkbox",
             name = "Enable AutoCategory Integration",
             tooltip = "Use participating Inventory Companion groups as native AutoCategory categories. This setting follows the selected account-wide or character-specific item list.",
-            getFunc = function() return this.GetAutoCategoryState().enabled end,
+            getFunc = function() return this.GetAutoCategoryState().configuredEnabled end,
             setFunc = function(enabled)
                 this.SetAutoCategoryIntegrationEnabled(enabled)
                 this.RefreshAutoCategoryUI()
@@ -209,6 +208,16 @@ function this.CreateSettingsPanel()
             func = function()
                 this.OpenAutoCategoryPanel()
             end,
+            disabled = function() return not this.AutoCategoryIntegration.IsPanelAvailable() end,
+            hidden = function() return this.AutoCategoryIntegration.NeedsRecovery() end,
+            width = "full",
+        },
+        {
+            type = "button",
+            name = "Simulate integration failure (DEV)",
+            tooltip = "Test the recovery UI without changing saved data. Use Retry synchronization in the AutoCategory panel afterward.",
+            func = function() this.AutoCategoryIntegration.ForceTestFailure() end,
+            hidden = function() return this.IsDevelopment ~= true or this.accountWide.debugEnabled ~= true end,
             disabled = function() return not this.AutoCategoryIntegration.IsEditorActive() end,
             width = "full",
         },

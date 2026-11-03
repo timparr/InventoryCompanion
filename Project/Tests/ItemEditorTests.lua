@@ -132,6 +132,47 @@ function this.GetItemEditorTests()
         end })
     end
 
+    Add("Item editor AutoCategory failed entries navigate without writing and restore healthy controls", function()
+        local integration = this.AutoCategoryIntegration
+        local previousAvailable, previousPanel = integration.IsAvailable, this.OpenAutoCategoryPanel
+        integration.IsAvailable = function() return not integration.IsFaulted() end
+        this.autoCategoryFailure = nil
+        this.accountWide.autoCategoryIntegrationEnabled = true
+        this.accountWide.trackedRules.default = { autoCategoryEnabled = true }
+        this.InvalidateRuleCache()
+        local opened = 0
+        this.OpenAutoCategoryPanel = function() opened = opened + 1 end
+        this.RefreshTrackedItemsEditor()
+        local toggle = GetControl(Row(1), "AutoCategory")
+        local healthyClick = toggle.handlers.OnClicked
+        assert(not toggle.hidden and toggle.width == 130 and Detail(1, "AutoCategory").text == "Shown as category")
+        this.autoCategoryFailure = "synthetic failure"
+        healthyClick()
+        assert(opened == 1, "A click rendered before failure must navigate, not write")
+        this.RefreshTrackedItemsEditor()
+        assert(not toggle.hidden and toggle.width == 130
+            and GetControl(toggle, "Title").color[2] == 0.27
+            and Detail(1, "AutoCategory").text == "! Needs attention")
+        assert(not GetControl(InventoryCompanion_TrackedItemsWindow, "BtnAutoCategory").hidden)
+        toggle.handlers.OnClicked()
+        assert(opened == 2 and this.accountWide.trackedRules.default.autoCategoryEnabled == true
+            and ruleWrites == 0 and trackerRefreshes == 0)
+        this.autoCategoryFailure = nil
+        this.RefreshTrackedItemsEditor()
+        assert(not toggle.hidden and Detail(1, "AutoCategory").text == "Shown as category")
+        this.accountWide.autoCategoryIntegrationEnabled = nil
+        this.RefreshTrackedItemsEditor()
+        assert(toggle.hidden and toggle.width == 0 and GetControl(Row(1), "ItemLabel").width == 432)
+        local previousAwaiting = integration.IsAwaitingSetup
+        integration.IsAwaitingSetup = function() return true end
+        this.RefreshTrackedItemsEditor()
+        assert(toggle.hidden and toggle.width == 0
+            and not GetControl(InventoryCompanion_TrackedItemsWindow, "BtnAutoCategory").hidden,
+            "Awaiting setup must keep navigation available without enabling the item column")
+        integration.IsAwaitingSetup = previousAwaiting
+        integration.IsAvailable, this.OpenAutoCategoryPanel = previousAvailable, previousPanel
+    end)
+
     Add("Item editor toggles absent Show from its effective true default", function()
         local item = Item(nil)
         this.accountWide.trackedItems[10] = item

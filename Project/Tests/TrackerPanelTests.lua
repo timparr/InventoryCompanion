@@ -861,7 +861,7 @@ function this.GetTrackerPanelTests()
         this.UpdateEventRegistry = registry
     end)
 
-    Add("Main addon settings expose AutoCategory error details and open the item editor", function()
+    Add("Main addon settings expose AutoCategory recovery navigation and open the item editor", function()
         Setup({ 2 }, 20, false)
         this.accountWide.showTrackedItemsPanel = false
         this.defaultsCharacter = {}
@@ -878,10 +878,13 @@ function this.GetTrackerPanelTests()
         }
         CALLBACK_MANAGER = { RegisterCallback = function() end }
         this.CreateSettingsPanel()
-        local button, visibility, errorButton, statusDescription
+        local button, visibility, errorButton, statusDescription, enableToggle, editorButton, simulateButton
         for _, option in ipairs(options) do
             if option.name == "Open Item Tracking Editor" then button = option end
-            if option.name == "See Error" then errorButton = option end
+            if option.name == "More information" then errorButton = option end
+            if option.name == "Enable AutoCategory Integration" then enableToggle = option end
+            if option.name == "Open AutoCategory Editor" then editorButton = option end
+            if option.name == "Simulate integration failure (DEV)" then simulateButton = option end
             if option.type == "description" and statusDescription == nil then statusDescription = option end
             if option.name == "Item Tracker Panel" then
                 for _, control in ipairs(option.controls) do
@@ -891,27 +894,39 @@ function this.GetTrackerPanelTests()
         end
         assert(button and button.type == "button", "Editor shortcut must be on the main settings page, not inside a submenu")
         assert(errorButton and errorButton.type == "button" and errorButton.hidden and not errorButton.tooltip,
-            "AutoCategory error details must have a conditional, tooltip-free See Error button")
+            "AutoCategory recovery must have a conditional More information button")
         assert(statusDescription and type(statusDescription.text) == "function")
         local integration = this.AutoCategoryIntegration
-        local originalGetStatus, originalIsFaulted, originalShowLastError =
-            integration.GetStatus, integration.IsFaulted, integration.ShowLastError
-        local showErrorCalls = 0
+        local originalGetStatus, originalIsFaulted, originalOpenPanel =
+            integration.GetStatus, integration.IsFaulted, this.OpenAutoCategoryPanel
+        local openRecoveryCalls = 0
         integration.GetStatus = function() return "error", "synthetic raw traceback" end
         integration.IsFaulted = function() return true end
-        integration.ShowLastError = function() showErrorCalls = showErrorCalls + 1 end
+        this.OpenAutoCategoryPanel = function() openRecoveryCalls = openRecoveryCalls + 1 end
+        this.accountWide.autoCategoryIntegrationEnabled = true
         local statusText = statusDescription.text()
-        assert(statusText:find("disabled after an error", 1, true)
-            and statusText:find("settings were preserved", 1, true)
-            and statusText:find("WARNING", 1, true)
+        assert(statusText == integration.GetRecoveryMessage()
+            and statusText:find("needs attention", 1, true)
+            and statusText:find("groups and saved order are preserved", 1, true)
             and statusText:find("large_yellow_warning.dds", 1, true)
-            and not statusText:find("synthetic raw traceback", 1, true),
-            "Settings must show a visible warning instead of the raw traceback")
-        assert(not errorButton.hidden(), "Show Error must be visible while the integration is faulted")
+            and statusText:find("Reason:", 1, true),
+            "Settings and recovery panel must share a warning with the specific reason")
+        assert(enableToggle.getFunc() == true and enableToggle.disabled(),
+            "A fault must retain the saved enable choice while blocking normal controls")
+        assert(editorButton.hidden(), "Faulted settings must offer one recovery destination, not duplicate editors")
+        assert(simulateButton.hidden(), "Release settings must not expose DEV failure simulation")
+        local previousDevelopment, previousDebug = this.IsDevelopment, this.accountWide.debugEnabled
+        this.IsDevelopment, this.accountWide.debugEnabled = true, true
+        assert(not simulateButton.hidden() and simulateButton.disabled(),
+            "DEV simulation must be visible in Debug Mode but unavailable during a failure")
+        this.accountWide.debugEnabled = false
+        assert(simulateButton.hidden(), "DEV simulation must be hidden outside Debug Mode")
+        this.IsDevelopment, this.accountWide.debugEnabled = previousDevelopment, previousDebug
+        assert(not errorButton.hidden(), "More information must be visible while integration is faulted")
         errorButton.func()
-        Equal(showErrorCalls, 1)
-        integration.GetStatus, integration.IsFaulted, integration.ShowLastError =
-            originalGetStatus, originalIsFaulted, originalShowLastError
+        Equal(openRecoveryCalls, 1)
+        integration.GetStatus, integration.IsFaulted, this.OpenAutoCategoryPanel =
+            originalGetStatus, originalIsFaulted, originalOpenPanel
         assert(visibility.setFunc == this.SetItemTrackerPanelVisible, "Checkbox and keybinding must share visibility handling")
         local current = "gameMenuInGame"
         SCENE_MANAGER = {
@@ -940,6 +955,44 @@ function this.GetTrackerPanelTests()
             Equal(openedPanel, settingsPanel)
             Equal(this.state.lastActiveEditTab, scene)
         end
+    end)
+    Add("AutoCategory recovery panel opens and reopens through editor navigation while writes are disabled", function()
+        Setup({}, 20, false)
+        local integration = this.AutoCategoryIntegration
+        local previousFaulted = integration.IsFaulted
+        local previousRefresh, previousGroups = this.RefreshAutoCategoryEditor, this.RefreshGroupsEditor
+        local previousManager = SCENE_MANAGER
+        InventoryCompanion_AutoCategoryWindow = Control("autoCategoryEditor", GuiRoot)
+        local current, refreshes, groupRefreshes = nil, 0, 0
+        SCENE_MANAGER = {
+            IsShowing = function(_, name) return current == name end,
+            Show = function(_, name) current = name end,
+            Hide = function(_, name) if current == name then current = nil end end,
+        }
+        integration.IsFaulted = function() return true end
+        this.RefreshAutoCategoryEditor = function()
+            assert(integration.NeedsRecovery() and not this.GetAutoCategoryState().enabled)
+            refreshes = refreshes + 1
+        end
+        this.RefreshGroupsEditor = function() groupRefreshes = groupRefreshes + 1 end
+        this.OpenAutoCategoryPanel()
+        Equal(current, "InventoryCompanion_AutoCategoryScene")
+        Equal(refreshes, 1)
+        this.ToggleTrackedItemsEditor()
+        Equal(current, nil)
+        this.ToggleTrackedItemsEditor()
+        Equal(current, "InventoryCompanion_AutoCategoryScene")
+        Equal(refreshes, 2)
+        this.ToggleTrackedItemsEditor()
+        integration.IsFaulted = function() return false end
+        this.accountWide.autoCategoryIntegrationEnabled = nil
+        this.ToggleTrackedItemsEditor()
+        Equal(current, "InventoryCompanion_GroupsScene")
+        Equal(groupRefreshes, 1)
+        integration.IsFaulted = previousFaulted
+        this.RefreshAutoCategoryEditor, this.RefreshGroupsEditor = previousRefresh, previousGroups
+        SCENE_MANAGER = previousManager
+        InventoryCompanion_AutoCategoryWindow:SetHidden(true)
     end)
     Add("Tracker independent locations render exact backpack bank-only and combined counts", function()
         Setup({ 2 }, 20, true)

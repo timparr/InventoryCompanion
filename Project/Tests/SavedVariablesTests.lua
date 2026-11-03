@@ -72,6 +72,33 @@ end
 function GetSavedVariablesTests()
     return {
         {
+            name = "AutoCategory saved-data slash test is registered only in DEV and dispatches explicit actions",
+            run = function()
+                InventoryCompanion = { IsDevelopment = false }
+                LoadAddon(nil)
+                assert(SLASH_COMMANDS["/icactest"] == nil)
+                InventoryCompanion.IsDevelopment = true
+                local addon = LoadAddon(nil)
+                local injected, removed, verified = 0, 0, 0
+                local scenarios = {}
+                addon.AutoCategoryIntegration.InjectTestAssignment = function(scenario)
+                    injected = injected + 1
+                    if scenario then scenarios[#scenarios + 1] = scenario end
+                end
+                addon.AutoCategoryIntegration.RemoveTestAssignment = function() removed = removed + 1 end
+                addon.AutoCategoryIntegration.ShowTestVerification = function() verified = verified + 1 end
+                SLASH_COMMANDS["/icactest"](" INJECT ")
+                for index = 1, 4 do SLASH_COMMANDS["/icactest"]("inject" .. index) end
+                SLASH_COMMANDS["/icactest"]("inject5")
+                SLASH_COMMANDS["/icactest"]("remove")
+                SLASH_COMMANDS["/icactest"]("verify")
+                SLASH_COMMANDS["/icactest"]("")
+                assert(injected == 5 and table.concat(scenarios, ",") == "1,2,3,4"
+                    and removed == 1 and verified == 1)
+                InventoryCompanion.IsDevelopment = false
+            end,
+        },
+        {
             name = "Schema 5 migration preserves configured profiles and leaves unused profiles ready for setup",
             run = function()
                 local configured = { version = 5, trackedRules = { custom = { autoCategoryEnabled = true } },
@@ -396,7 +423,8 @@ function GetSavedVariablesTests()
                 assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
                 assert(addon.AutoCategoryIntegration.IsFaulted() and not addon.GetAutoCategoryState().enabled)
                 assert(calls.warnings[1]:find("AutoCategory", 1, true)
-                    and calls.warnings[1]:find("disabled for this session", 1, true))
+                    and calls.warnings[1]:find("synchronization stopped", 1, true)
+                    and calls.warnings[1]:find("More information", 1, true))
                 assert(addon.GetRuntimeRules().builtin)
             end,
         },

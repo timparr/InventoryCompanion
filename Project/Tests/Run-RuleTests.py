@@ -45,6 +45,13 @@ for path in (
     "OptionsBar/Controls/*[@name='$(parent)BtnPriorityOrder']",
     "OptionsBar/Controls/*[@name='$(parent)BtnUseOtherOrder']",
     "Info", "List", "MovementBar",
+    "Recovery/Controls/*[@name='$(parent)Warning']",
+    "Recovery/Controls/*[@name='$(parent)BtnRetry']",
+    "Recovery/Controls/*[@name='$(parent)BtnRepair']",
+    "Recovery/Controls/*[@name='$(parent)BtnReset']",
+    "Recovery/Controls/*[@name='$(parent)BtnEnableSetup']",
+    "Recovery/Controls/*[@name='$(parent)BtnDetails']",
+    "Recovery/Controls/*[@name='$(parent)Help']",
 ):
     parent, _, rest = path.partition("/")
     node = autocategory_window.find(f"*[@name='$(parent){parent}']")
@@ -53,6 +60,13 @@ assert autocategory_window.find("*[@name='$(parent)TopActionBar']/Controls/*[@na
     "The AutoCategory order filter is obsolete: filtering an ordering list hides what rows move against"
 assert autocategory_row.find("*[@name='$(parent)Visibility']") is None, "Heading visibility controls are obsolete"
 assert autocategory_window.find("*[@name='$(parent)HeadingDetails']") is None, "Movement toolbar replaces heading details"
+recovery = autocategory_window.find("*[@name='$(parent)Recovery']/Controls")
+problems = recovery.find("*[@name='$(parent)Problems']")
+assert problems.find("Dimensions") is None and len(problems.findall("Anchor")) == 2, \
+    "Recovery problems must fill remaining panel height rather than use a short fixed viewport"
+problem_rows = problems.find(".//Label[@name='$(parent)ProblemRows']")
+assert problem_rows.get("font") == "$(MEDIUM_FONT)|20|soft-shadow-thin", \
+    "Problem rows need larger regular-weight text"
 movement_bar = autocategory_window.find("*[@name='$(parent)MovementBar']/Controls")
 for child in ("BtnSelectBlock", "BtnClear", "BtnUp1", "BtnDown1", "BtnUp5", "BtnDown5", "BtnTop", "BtnBottom"):
     assert movement_bar.find(f"Button[@name='$(parent){child}']") is not None, f"Movement toolbar needs {child}"
@@ -66,7 +80,7 @@ for xml_name, window_name in (
 manifest = (root / "InventoryCompanion_DEV.txt").read_text(encoding="utf-8-sig")
 autocategory_tab_lua = (root / "Tracking" / "EditPanelAutoCategoryTab.lua").read_text(encoding="utf-8-sig")
 autocategory_tab_xml = (root / "Tracking" / "EditPanelAutoCategoryTab.xml").read_text(encoding="utf-8-sig")
-template_children = {"ScrollChild"}  # Provided by the inherited ZO_ScrollContainer template.
+template_children = {"ScrollChild", "ScrollChildProblemRows"}  # Scroll-container descendants.
 lookups = re.findall(r'Window\("(\w+)"', autocategory_tab_lua) + re.findall(r'GetControl\((?:[^"()]|\([^()]*\))*?,\s*"(\w+)"', autocategory_tab_lua)
 for name in set(lookups) - template_children:
     assert f'name="$(parent){name}"' in autocategory_tab_xml, f"AutoCategory tab Lua looks up missing XML child {name}"
@@ -177,6 +191,9 @@ autocategory_lua.execute(
 )
 # ESO does not expose debug.getinfo; keep the diagnostic tests representative of that runtime.
 autocategory_lua.execute("debug.getinfo = nil")
+autocategory_lua.globals().AutoCategoryIntegrationSource = (
+    root / "Tracking\\AutoCategoryIntegration.lua"
+).read_text(encoding="utf-8-sig")
 for relative in (
     "Core\\Constants.lua",
     "Tracking\\ItemDatabase.lua",

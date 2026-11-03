@@ -820,14 +820,34 @@ end
 
 function this.GetAutoCategoryState()
     local profile = this.GetAutoCategoryProfile()
+    local configuredEnabled = profile.autoCategoryIntegrationEnabled == true
+    local failed = this.AutoCategoryIntegration.NeedsRecovery()
     return {
-        enabled = not this.AutoCategoryIntegration.IsFaulted() and profile.autoCategoryIntegrationEnabled == true,
+        enabled = configuredEnabled and not failed,
+        configuredEnabled = configuredEnabled,
+        failed = failed,
         order = profile.autoCategoryOrder,
     }
 end
 
+function this.ValidateAutoCategoryRecoveryData()
+    assert(type(this.character.useCharacterItemList) == "boolean",
+        "Character.useCharacterItemList must be boolean")
+    for _, entry in ipairs({ { this.accountWide, "Account-wide" }, { this.character, "Character" } }) do
+        ValidateSavedRules(entry[1].trackedRules, entry[2] .. ".trackedRules")
+        ValidateAutoCategoryProfile(entry[1], entry[2])
+    end
+    for _, profile in ipairs({ this.accountWide, this.character }) do
+        invalidAutoCategoryProfiles[profile] = nil
+        validatedAutoCategoryProfiles[profile] = profile.trackedRules
+    end
+    this.InvalidateRuleCache()
+end
+
 function this.SetAutoCategoryParticipation(ruleKey, enabled)
     assert(type(enabled) == "boolean", "AutoCategory participation must be boolean")
+    assert(not this.AutoCategoryIntegration.NeedsRecovery(),
+        "AutoCategory participation cannot change while integration needs recovery")
     local runtimeRule = this.GetRuntimeRules()[ruleKey]
     assert(runtimeRule ~= nil and ruleKey ~= "miscellaneous",
         "AutoCategory participation requires an ordinary group: " .. tostring(ruleKey))
