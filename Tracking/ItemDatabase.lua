@@ -369,9 +369,10 @@ function this.ValidateSavedRuleProfiles()
         "Character.useCharacterItemList must be boolean")
     validatedAutoCategoryProfiles[this.accountWide] = nil
     validatedAutoCategoryProfiles[this.character] = nil
-    LoadSavedRules(this.accountWide, "Account-wide", true)
-    LoadSavedRules(this.character, "Character", true)
     for _, profile in ipairs({ this.accountWide, this.character }) do
+        if profile == this.accountWide or profile.itemListInitialized ~= false
+            or this.character.useCharacterItemList then
+        LoadSavedRules(profile, profile == this.accountWide and "Account-wide" or "Character", true)
         if not invalidAutoCategoryProfiles[profile] then
             profile.autoCategoryOrder = NormalizeAutoCategoryOrder(profile.autoCategoryOrder)
             CheckAutoCategoryOrder(profile.autoCategoryOrder, "Profile.autoCategoryOrder", profile.trackedRules)
@@ -381,10 +382,12 @@ function this.ValidateSavedRuleProfiles()
         for _, item in pairs(profile.trackedItems) do
             if item.display == nil then item.display = {} end
         end
+        this.PrepareProfilePreferences(profile)
         if profile.itemListInitialized == nil and (next(profile.trackedRules) ~= nil
             or next(profile.trackedItems) ~= nil or profile.autoCategorySetupComplete ~= nil
             or profile.autoCategoryIntegrationEnabled ~= nil) then
             profile.itemListInitialized = true
+        end
         end
     end
     this.GetAutoCategoryProfile().itemListInitialized = true
@@ -418,18 +421,12 @@ local function GetDefaultName(ruleName, base)
 end
 
 function this.InvalidateRuleCache()
-    cacheInvalid = true
+    if candidateSavedRules == nil then cacheInvalid = true end
 end
 
 -- Items
 function this.GetActiveTrackedItems()
-    if this.character.useCharacterItemList then
-        this.character.trackedItems = this.character.trackedItems or {}
-        return this.character.trackedItems
-    else
-        this.accountWide.trackedItems = this.accountWide.trackedItems or {}
-        return this.accountWide.trackedItems
-    end
+    return this.GetSettingsProfile().trackedItems
 end
 
 ------------------------------------------------------------------
@@ -544,6 +541,127 @@ local function CopySavedValue(value, activeTables)
     end
     activeTables[value] = nil
     return copy
+end
+
+this.CopySavedValue = CopySavedValue
+
+local preferenceFields = {
+    "showTrackedItemsPanel", "showEmptyTrackedItems", "trackerOffsetX", "trackerOffsetY",
+    "wrapTrackedItemNames", "trackerGroupThreshold", "trackerMaxRows", "trackerTitleSize",
+    "showEmptyCurrencies", "currencyOffsetX", "currencyOffsetY", "currencyPreferences",
+    "capacityPreferences", "progressBarPreferences", "progressBarAlertColors",
+    "filterShow", "filterNotify", "filterCraftbag", "filterMute", "filterUntracked",
+}
+local preferenceDefaults = {
+    showTrackedItemsPanel = true, showEmptyTrackedItems = true, trackerOffsetX = 50, trackerOffsetY = 50,
+    wrapTrackedItemNames = false, trackerGroupThreshold = 8, trackerMaxRows = 20, trackerTitleSize = 20,
+    showEmptyCurrencies = true, currencyOffsetX = 50, currencyOffsetY = 150,
+    currencyPreferences = {}, capacityPreferences = {}, progressBarPreferences = {}, progressBarAlertColors = {},
+    filterShow = true, filterNotify = true, filterCraftbag = false, filterMute = true, filterUntracked = false,
+}
+
+function this.GetSettingsProfile()
+    if this.character.useCharacterItemList then return this.character end
+    return this.accountWide
+end
+
+local function ValidateResourcePreference(preference, context)
+    assert(type(preference) == "table", context .. " must be a table")
+    for _, key in ipairs({ "showCompact", "hidden", "showBar" }) do
+        assert(preference[key] == nil or type(preference[key]) == "boolean",
+            context .. "." .. key .. " must be boolean")
+    end
+    for _, key in ipairs({ "order", "offsetX", "offsetY", "warningThreshold", "dangerThreshold" }) do
+        local value = preference[key]
+        if value ~= nil then
+            assert(type(value) == "number" and value == value and math.abs(value) < math.huge,
+                context .. "." .. key .. " must be finite")
+            if key == "order" then
+                assert(value > 0 and value % 1 == 0, context .. ".order must be a positive integer")
+            elseif key == "warningThreshold" or key == "dangerThreshold" then
+                assert(value >= 0 and value <= 1, context .. "." .. key .. " must be between zero and one")
+            else
+                assert(value >= 0, context .. "." .. key .. " must be nonnegative")
+            end
+        end
+    end
+end
+
+local function ValidatePreferenceColor(color, context)
+    assert(type(color) == "table", context .. " must be a color table")
+    for _, channel in ipairs({ "r", "g", "b", "a" }) do
+        local value = color[channel]
+        assert(type(value) == "number" and value >= 0 and value <= 1,
+            context .. "." .. channel .. " must be between zero and one")
+    end
+end
+
+local function PrepareProfilePreferences(profile, source)
+    for _, key in ipairs(preferenceFields) do
+        local default = preferenceDefaults[key]
+        local value = profile[key]
+        if value == nil then
+            value = source and source[key]
+            if value == nil then value = default end
+            profile[key] = CopySavedValue(value)
+        end
+        assert(type(profile[key]) == type(default), "Saved profile." .. key .. " has an invalid type")
+        if type(default) == "number" then
+            assert(profile[key] == profile[key] and math.abs(profile[key]) < math.huge,
+                "Saved profile." .. key .. " must be finite")
+        elseif type(default) == "table" then
+            CopySavedValue(profile[key])
+        end
+    end
+    for key, range in pairs({
+        trackerGroupThreshold = { 1, 30 }, trackerMaxRows = { 5, 50 }, trackerTitleSize = { 16, 28 },
+    }) do
+        local value = profile[key]
+        assert(value >= range[1] and value <= range[2] and value % 1 == 0,
+            "Saved profile." .. key .. " is outside its supported integer range")
+    end
+    for key, preference in pairs(profile.currencyPreferences) do
+        local context = "Saved profile.currencyPreferences[" .. tostring(key) .. "]"
+        ValidateResourcePreference(preference, context)
+        if preference.locations ~= nil then
+            assert(type(preference.locations) == "table", context .. ".locations must be a table")
+            for location, value in pairs(preference.locations) do
+                ValidateResourcePreference(value, context .. ".locations[" .. tostring(location) .. "]")
+            end
+        end
+    end
+    for _, field in ipairs({ "capacityPreferences", "progressBarPreferences" }) do
+        for key, preference in pairs(profile[field]) do
+            local context = "Saved profile." .. field .. "[" .. tostring(key) .. "]"
+            ValidateResourcePreference(preference, context)
+            if field == "progressBarPreferences" and preference.normalColor ~= nil then
+                ValidatePreferenceColor(preference.normalColor, context .. ".normalColor")
+            end
+        end
+    end
+    for _, key in ipairs({ "warning", "danger" }) do
+        if profile.progressBarAlertColors[key] ~= nil then
+            ValidatePreferenceColor(profile.progressBarAlertColors[key], "Saved profile.progressBarAlertColors." .. key)
+        end
+    end
+end
+this.PrepareProfilePreferences = PrepareProfilePreferences
+
+function this.RefreshProfileSettings()
+    this.ValidateTrackerSettings()
+    this.InitializeProgressBarResources()
+    this.RefreshResourceProgressBars()
+    InventoryCompanion_CurrencyFloat:ClearAnchors()
+    InventoryCompanion_CurrencyFloat:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT,
+        this.GetSettingsProfile().currencyOffsetX, this.GetSettingsProfile().currencyOffsetY)
+    this.RefreshCurrencyPanel()
+    this.RestoreTrackerPosition()
+    InventoryCompanion_ItemTrackerFloat:ClearAnchors()
+    InventoryCompanion_ItemTrackerFloat:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT,
+        this.GetSettingsProfile().trackerOffsetX, this.GetSettingsProfile().trackerOffsetY)
+    this.RefreshItemTrackerPanel()
+    this.UpdateEventRegistry()
+    this.RefreshAutoCategoryUI()
 end
 
 local function ValidateAutoCategoryDebug(debugData, context)
@@ -672,7 +790,8 @@ function this.PrepareSavedVariables()
                 string.format("[InventoryCompanion] %s uses saved-variable version %s, but this addon supports version %s. "
                     .. "Initialization stopped without changing saved data. Install a compatible newer addon or restore a compatible backup.",
                     context, tostring(version), tostring(this.SettingsVersion)))
-            assert(this.SettingsVersion <= 9 and (version == this.SettingsVersion
+            assert(this.SettingsVersion <= 10 and (version == this.SettingsVersion
+                    or (this.SettingsVersion == 10 and version <= 9)
                     or (version == 1 and (this.SettingsVersion == 2 or this.SettingsVersion == 3 or this.SettingsVersion == 4
                         or this.SettingsVersion == 5 or this.SettingsVersion == 6 or this.SettingsVersion == 7))
                     or (version == 2 and (this.SettingsVersion == 3 or this.SettingsVersion == 4
@@ -700,7 +819,8 @@ function this.PrepareSavedVariables()
                     end
                 end
             end
-            table.insert(profiles, { data = profile, context = context, initialized = initialized })
+            table.insert(profiles, { data = profile, context = context, initialized = initialized,
+                account = account, name = profileName })
         end
     end
 
@@ -747,17 +867,57 @@ function this.PrepareSavedVariables()
                     end
                 end
             end
-            if profile.version < 9 and this.SettingsVersion == 9 then
+            if profile.version < 9 and this.SettingsVersion >= 9 then
                 migration.order = MigrateContextInclusion(profile, migration.order)
             end
         end
         if profile.accountWideListBackup ~= nil then
             ValidateAccountWideListBackup(profile.accountWideListBackup, context .. ".accountWideListBackup")
-            if profile.version < 9 and this.SettingsVersion == 9 then
+            if profile.version < 9 and this.SettingsVersion >= 9 then
                 migration.backup = CopySavedValue(profile.accountWideListBackup)
                 migration.backup.autoCategoryOrder = MigrateContextInclusion(migration.backup,
                     NormalizeAutoCategoryOrder(migration.backup.autoCategoryOrder))
             end
+        end
+    end
+
+    if this.SettingsVersion >= 10 then
+        local candidates = {}
+        for index, entry in ipairs(profiles) do
+            local migration, candidate = migrations[index], CopyValues(entry.data)
+            if migration.rules then candidate.trackedRules = migration.rules end
+            if migration.order then candidate.autoCategoryOrder = migration.order end
+            if migration.setupComplete then candidate.autoCategorySetupComplete = true end
+            candidates[entry.data] = candidate
+            migration.candidate = candidate
+            if entry.name == "$AccountWide" then
+                PrepareProfilePreferences(candidate)
+                if candidate.trackedItems == nil then candidate.trackedItems = {} end
+                if candidate.trackedRules == nil then candidate.trackedRules = {} end
+                candidate.itemListInitialized = true
+            end
+        end
+        for index, entry in ipairs(profiles) do
+            local migration, candidate = migrations[index], migrations[index].candidate
+            if entry.name ~= "$AccountWide" then
+                local reset = entry.data.version < 10 and candidate.useCharacterItemList ~= true
+                local initialized = not reset and
+                    (candidate.useCharacterItemList == true or candidate.itemListInitialized == true)
+                if initialized then
+                    local account = entry.account["$AccountWide"]
+                    PrepareProfilePreferences(candidate, entry.data.version < 10 and account and candidates[account] or nil)
+                    if candidate.trackedItems == nil then candidate.trackedItems = {} end
+                    if candidate.trackedRules == nil then candidate.trackedRules = {} end
+                else
+                    for _, key in ipairs(preferenceFields) do candidate[key] = nil end
+                    candidate.trackedItems, candidate.trackedRules = nil, nil
+                    candidate.autoCategoryOrder, candidate.autoCategorySetupComplete = nil, nil
+                end
+                candidate.itemListInitialized = initialized
+                candidate.useCharacterItemList = candidate.useCharacterItemList == true
+                candidate.autoCategoryIntegrationEnabled = nil
+            end
+            migration.initialized = candidate.itemListInitialized
         end
     end
 
@@ -769,16 +929,24 @@ function this.PrepareSavedVariables()
             if migration.setupComplete then migration.profile.autoCategorySetupComplete = true end
         end
         if migration.backup then migration.profile.accountWideListBackup = migration.backup end
+        if migration.candidate then
+            for _, key in ipairs(preferenceFields) do migration.profile[key] = migration.candidate[key] end
+            for _, key in ipairs({ "trackedItems", "trackedRules", "autoCategoryOrder",
+                "autoCategorySetupComplete", "autoCategoryIntegrationEnabled", "useCharacterItemList" }) do
+                migration.profile[key] = migration.candidate[key]
+            end
+        end
         migration.profile.version = this.SettingsVersion
         migration.profile.itemListInitialized = migration.initialized
     end
     this.InvalidateRuleCache()
 end
 
-function this.GetRuntimeRules()
-    local savedRules = GetRawSavedRules()
+function this.GetRuntimeRules(candidateSavedRules)
+    local savedRules = candidateSavedRules or GetRawSavedRules()
+    if candidateSavedRules then ValidateSavedRules(savedRules, "Candidate rules") end
     local firstAccess
-    if this.IsDevelopment == true and runtimeRuleDiagnostics.firstAccess == nil then
+    if candidateSavedRules == nil and this.IsDevelopment == true and runtimeRuleDiagnostics.firstAccess == nil then
         local caller = "unavailable"
         if type(debug) == "table" and type(debug.getinfo) == "function" then
             local callerInfo = debug.getinfo(2, "Sl")
@@ -799,7 +967,7 @@ function this.GetRuntimeRules()
         }
         runtimeRuleDiagnostics.firstAccess = firstAccess
     end
-    if not cacheInvalid and cachedSavedRules == savedRules and cachedBaseline == this.preLoadedRulesets then
+    if candidateSavedRules == nil and not cacheInvalid and cachedSavedRules == savedRules and cachedBaseline == this.preLoadedRulesets then
         if firstAccess then
             firstAccess.cachePath = "reused"
             firstAccess.returnedRuleCount = CountEntries(runtimeRules)
@@ -838,6 +1006,7 @@ function this.GetRuntimeRules()
     for ruleName in pairs(savedRules) do
         if not this.preLoadedRulesets[ruleName] then Resolve(ruleName) end
     end
+    if candidateSavedRules then return resolvedRules end
     runtimeRules = resolvedRules
     cachedSavedRules, cachedBaseline = savedRules, this.preLoadedRulesets
     cacheInvalid = false
@@ -921,7 +1090,7 @@ end
 
 function this.GetAutoCategoryState()
     local profile = this.GetAutoCategoryProfile()
-    local configuredEnabled = profile.autoCategoryIntegrationEnabled == true
+    local configuredEnabled = this.accountWide.autoCategoryIntegrationEnabled == true
     local failed = this.AutoCategoryIntegration.NeedsRecovery()
     return {
         enabled = configuredEnabled and not failed,
@@ -935,8 +1104,10 @@ function this.ValidateAutoCategoryRecoveryData()
     assert(type(this.character.useCharacterItemList) == "boolean",
         "Character.useCharacterItemList must be boolean")
     for _, entry in ipairs({ { this.accountWide, "Account-wide" }, { this.character, "Character" } }) do
+        if entry[1] == this.accountWide or entry[1].itemListInitialized ~= false then
         ValidateSavedRules(entry[1].trackedRules, entry[2] .. ".trackedRules")
         ValidateAutoCategoryProfile(entry[1], entry[2])
+        end
     end
     for _, profile in ipairs({ this.accountWide, this.character }) do
         invalidAutoCategoryProfiles[profile] = nil
@@ -991,7 +1162,7 @@ function this.SetAutoCategoryIntegrationEnabled(enabled)
     if enabled and profile.autoCategorySetupComplete ~= true then
         return this.AutoCategoryIntegration.ShowInitialSetup()
     end
-    profile.autoCategoryIntegrationEnabled = enabled and true or nil
+    this.accountWide.autoCategoryIntegrationEnabled = enabled and true or nil
     this.AutoCategoryIntegration.OnEnablementChanged(enabled)
     return true
 end
@@ -1086,11 +1257,13 @@ local function CopyItemListProfile(source, destination)
     for ruleKey in pairs(rules) do NormalizeRule(rules, ruleKey) end
     local order = NormalizeAutoCategoryOrder(source.autoCategoryOrder)
     CheckAutoCategoryOrder(order, "Copied profile.autoCategoryOrder", rules)
+    local preferences = CopyValues(source)
+    PrepareProfilePreferences(preferences)
     destination.trackedRules = rules
     destination.trackedItems = items
-    destination.autoCategoryIntegrationEnabled = source.autoCategoryIntegrationEnabled
     destination.autoCategorySetupComplete = source.autoCategorySetupComplete
     destination.autoCategoryOrder = order
+    for _, key in ipairs(preferenceFields) do destination[key] = CopySavedValue(preferences[key]) end
     destination.itemListInitialized = true
 end
 
@@ -1098,13 +1271,8 @@ function this.SetUseCharacterItemList(value)
     assert(type(value) == "boolean", "Character list preference must be boolean")
     local source = this.GetAutoCategoryProfile()
     local destination = value and this.character or this.accountWide
-    if destination ~= source and destination.itemListInitialized ~= true then
-        if next(destination.trackedRules) == nil and next(destination.trackedItems) == nil
-            and destination.autoCategorySetupComplete == nil and destination.autoCategoryIntegrationEnabled == nil then
-            CopyItemListProfile(source, destination)
-        else
-            destination.itemListInitialized = true
-        end
+    if value and destination ~= source and destination.itemListInitialized ~= true then
+        CopyItemListProfile(this.accountWide, destination)
     end
     this.character.useCharacterItemList = value
     trackerContextRevision = trackerContextRevision + 1
@@ -1206,34 +1374,25 @@ end
 ------------------------------------------------------------------
 -- Profile Copying Logic
 ------------------------------------------------------------------
+function this.GetSavedAccountProfiles()
+    local saved = _G[this.SettingsName]
+    assert(type(saved) == "table" and type(saved.Default) == "table", "Saved profile namespace is unavailable")
+    local account = saved.Default[GetDisplayName()]
+    assert(type(account) == "table", "Current account's saved profiles are unavailable")
+    return account
+end
+
 function this.CopyProfile(sourceKey)
     assert(type(sourceKey) == "string" and sourceKey ~= "", "Profile source key must be a non-empty string")
-    local sv = _G[this.SettingsName]
-    if sv == nil then return false end
-    assert(type(sv) == "table", "Saved profile namespace must be a table")
-    if sv.Default == nil then return false end
-    assert(type(sv.Default) == "table", "Saved profile namespace.Default must be a table")
-
-    local sourceBlock = nil
-
-    for _, accData in pairs(sv.Default) do
-        assert(type(accData) == "table", "Saved account profile block must be a table")
-        if sourceKey == "$AccountWide" then
-            if accData["$AccountWide"] ~= nil then
-                sourceBlock = accData["$AccountWide"]
-                break
-            end
-        else
-            if accData[sourceKey] ~= nil then
-                sourceBlock = accData[sourceKey]
-                break
-            end
-        end
-    end
+    local sourceBlock = this.GetSavedAccountProfiles()[sourceKey]
 
     if sourceBlock == nil then return false end
     local context = "Imported profile " .. sourceKey
     assert(type(sourceBlock) == "table", context .. " must be a table")
+    local destination = this.GetSettingsProfile()
+    assert(sourceBlock ~= destination and sourceBlock.trackedRules ~= destination.trackedRules,
+        "Cannot copy a profile onto itself")
+    assert(sourceBlock.itemListInitialized ~= false, "Cannot copy an uninitialized character profile")
     if sourceBlock.trackedRules ~= nil then
         ValidateSavedRules(sourceBlock.trackedRules, context .. ".trackedRules")
     end
@@ -1241,10 +1400,101 @@ function this.CopyProfile(sourceKey)
     if sourceBlock.trackedItems ~= nil then
         CheckTrackedItems(sourceBlock.trackedItems, context .. ".trackedItems")
     end
-    CopyItemListProfile(sourceBlock, this.GetAutoCategoryProfile())
+    CopyItemListProfile(sourceBlock, destination)
     this.InvalidateRuleCache()
     trackerContextRevision = trackerContextRevision + 1
     this.AutoCategoryIntegration.OnProfileChanged()
+    return true
+end
+
+function this.SavedValuesEqual(left, right)
+    if type(left) ~= type(right) then return false end
+    if type(left) ~= "table" then return left == right end
+    for key, value in pairs(left) do
+        if not this.SavedValuesEqual(value, right[key]) then return false end
+    end
+    for key in pairs(right) do if left[key] == nil then return false end end
+    return true
+end
+
+function this.CaptureEditorState(panel, contextKey, mode)
+    local profile = this.GetSettingsProfile()
+    if panel == "autocategory" then
+        local contextOrder = profile.autoCategoryOrder.contexts[contextKey]
+        return { order = CopySavedValue(contextOrder[mode]), hidden = CopySavedValue(contextOrder.hidden),
+            displayPositions = CopySavedValue(contextOrder.displayPositions) }
+    end
+    assert(panel == "items" or panel == "groups", "Unknown editor snapshot scope")
+    local snapshot = {
+        trackedRules = CopySavedValue(profile.trackedRules),
+        autoCategoryOrder = CopySavedValue(profile.autoCategoryOrder),
+        autoCategorySetupComplete = profile.autoCategorySetupComplete,
+    }
+    if panel == "items" then
+        snapshot.trackedItems = CopySavedValue(profile.trackedItems)
+        for _, key in ipairs({ "filterShow", "filterNotify", "filterMute", "filterUntracked", "filterCraftbag" }) do
+            snapshot[key] = profile[key]
+        end
+    end
+    return snapshot
+end
+
+function this.RestoreEditorState(panel, snapshot, contextKey, mode)
+    local profile = this.GetSettingsProfile()
+    local candidate = CopyValues(profile)
+    local overrides
+    if panel == "autocategory" then
+        candidate.autoCategoryOrder = CopySavedValue(profile.autoCategoryOrder)
+        local restored = candidate.autoCategoryOrder.contexts[contextKey]
+        restored[mode] = CopySavedValue(snapshot.order)
+        restored.hidden = CopySavedValue(snapshot.hidden)
+        restored.displayPositions = CopySavedValue(snapshot.displayPositions)
+        overrides = { [contextKey] = restored }
+    else
+        for key, value in pairs(snapshot) do candidate[key] = CopySavedValue(value) end
+        candidate.autoCategorySetupComplete = snapshot.autoCategorySetupComplete
+        overrides = candidate.autoCategoryOrder.contexts
+    end
+    ValidateSavedRules(candidate.trackedRules, "Undo candidate.trackedRules")
+    CheckTrackedItems(candidate.trackedItems, "Undo candidate.trackedItems")
+    CheckAutoCategoryOrder(candidate.autoCategoryOrder, "Undo candidate.autoCategoryOrder", candidate.trackedRules)
+    if this.AutoCategoryIntegration.IsEditorActive() then
+        local rules = this.GetRuntimeRules(candidate.trackedRules)
+        for key, order in pairs(overrides) do
+            local available = {}
+            for _, row in ipairs(this.AutoCategoryIntegration.ResolveAutoCategoryOrder(key, { mode = "display" })) do
+                available[row.reference] = true
+            end
+            for _, orderMode in ipairs({ "display", "matching" }) do
+                for _, reference in ipairs(order[orderMode]) do
+                    if reference:sub(1, 3) == "ac:" and not available[reference] then
+                        this.Utils.UserError("A category in the opening state no longer exists. Close and reopen the editor.",
+                            "Undo changes unavailable")
+                        return false
+                    end
+                end
+            end
+        end
+        local prepared = this.AutoCategoryIntegration.PreflightAutoCategory(overrides, rules)
+        if not prepared then return false end
+        this.AutoCategoryIntegration.ProjectAutoCategory(prepared)
+        candidate.autoCategoryOrder = prepared.order
+    end
+    if panel ~= "autocategory" then
+        profile.trackedRules = candidate.trackedRules
+        profile.autoCategorySetupComplete = candidate.autoCategorySetupComplete
+        if panel == "items" then
+            profile.trackedItems = candidate.trackedItems
+            for _, key in ipairs({ "filterShow", "filterNotify", "filterMute", "filterUntracked", "filterCraftbag" }) do
+                profile[key] = candidate[key]
+            end
+        end
+    end
+    profile.autoCategoryOrder = candidate.autoCategoryOrder
+    this.InvalidateRuleCache()
+    trackerContextRevision = trackerContextRevision + 1
+    this.UpdateEventRegistry()
+    this.RefreshItemTrackerPanel()
     return true
 end
 

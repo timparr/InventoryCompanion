@@ -276,12 +276,12 @@ function integration.IsEditorActive()
 end
 
 function integration.IsPanelAvailable()
-    return integration.NeedsRecovery() or integration.IsAwaitingSetup() or integration.IsEditorActive()
+    return type(AutoCategory) == "table"
 end
 
 function integration.IsAwaitingSetup()
     local profile = this.GetAutoCategoryProfile()
-    return resetProfile == profile and profile.autoCategoryIntegrationEnabled ~= true
+    return resetProfile == profile and this.accountWide.autoCategoryIntegrationEnabled ~= true
         and profile.autoCategorySetupComplete ~= true
 end
 
@@ -757,7 +757,7 @@ function integration.OnProfileChanged()
     else
         integration.unavailableAssignments = {}
         RemoveOwnedAssignments(AutoCategory.Inited == true)
-        SetStatus("disabled", "AutoCategory integration is disabled for the selected Inventory Companion profile.")
+        SetStatus("disabled", "AutoCategory integration is disabled account-wide.")
     end
 end
 
@@ -1417,6 +1417,17 @@ local function BuildPlans(orderOverride, setupRules, preset, repairAssignments)
         or repairAssignments ~= nil and this.GetAutoCategoryState().configuredEnabled,
         "Cannot project while AutoCategory integration is disabled")
     local rules = setupRules or GetRuntimeRules()
+    if setupRules and not preset and not repairAssignments then
+        local currentRules = GetRuntimeRules()
+        repairAssignments = {}
+        for _, context in ipairs(contexts) do
+            for _, row in ipairs(ac.saved.bags[context.bagType()].rules) do
+                if row.icOwned == true and currentRules[row.icRuleKey] and not rules[row.icRuleKey] then
+                    repairAssignments[row] = true
+                end
+            end
+        end
+    end
     local definitions = BuildDefinitions(rules)
     integration.unavailableAssignments = FindUnavailableAssignments(ac, definitions, rules)
     local collisionFree, collision = CheckDefinitionCollision(ac, definitions)
@@ -1648,10 +1659,10 @@ local function ReportProjectionFailure(failure)
     return false
 end
 
-function integration.PreflightAutoCategory(orderOverride)
+function integration.PreflightAutoCategory(orderOverride, candidateRules)
     if integration.IsFaulted() then return nil, this.autoCategoryFailure end
     local ok, plans, reconciled, profile, unavailableReason = pcall(
-        integration.TimePhase, "BuildPlans", BuildPlans, orderOverride)
+        integration.TimePhase, "BuildPlans", BuildPlans, orderOverride, candidateRules)
     if not ok then
         integration.Fail(plans)
         return nil, tostring(plans)
@@ -1828,11 +1839,6 @@ function integration.RetrySynchronization()
     return recovered == true
 end
 
-function integration.ForceTestFailure()
-    assert(this.IsDevelopment == true, "AutoCategory failure simulation is DEV-only")
-    assert(integration.IsEditorActive(), "Enable AutoCategory integration before simulating a failure")
-    integration.Fail("DEV simulated failure. No saved data was changed by the simulation. Use Retry synchronization to recover.")
-end
 
 function integration.CanRepairAssignments()
     return integration.NeedsRecovery() and #integration.unavailableAssignments > 0
@@ -1982,9 +1988,10 @@ function integration.ResetIntegration(expected, preset)
         "IC-owned AC assignments changed; reopen the reset confirmation")
     local ac, profile = AutoCategory, current.profile
     local fields = {
-        "autoCategoryIntegrationEnabled", "autoCategorySetupComplete", "autoCategoryOrder", "autoCategoryInitialized",
+        "autoCategorySetupComplete", "autoCategoryOrder", "autoCategoryInitialized",
     }
     local prior = {}
+    local priorEnabled = this.accountWide.autoCategoryIntegrationEnabled
     for _, field in ipairs(fields) do prior[field] = profile[field] end
     local snapshot = CaptureAssignmentState(ac)
     integration.lastResetBackup = { saved = current.saved, profile = profile, rows = current.rows, fields = prior }
@@ -2024,7 +2031,7 @@ function integration.ResetIntegration(expected, preset)
         ProjectPlans(plans)
         profile.autoCategoryOrder = rebuilt
         profile.autoCategorySetupComplete = true
-        profile.autoCategoryIntegrationEnabled = true
+        this.accountWide.autoCategoryIntegrationEnabled = true
         resetProfile = nil
         SetStatus("available", "AutoCategory integration was reset using the chosen starting arrangement.")
     end, AppendTraceback)
@@ -2032,6 +2039,7 @@ function integration.ResetIntegration(expected, preset)
     if not ok then
         RestoreAssignmentState(ac, snapshot)
         for _, field in ipairs(fields) do profile[field] = prior[field] end
+        this.accountWide.autoCategoryIntegrationEnabled = priorEnabled
         resetProfile = previousResetProfile
         this.autoCategoryFailure = nil
         integration.Fail("Integration reset failed; saved changes were rolled back: " .. tostring(failure))
@@ -2184,7 +2192,7 @@ function integration.VerifyTestAssignment()
         "IC profile: " .. (profile == this.accountWide and "account-wide" or "current character"),
         "AC profile: " .. acScope,
         "Integration status: " .. status.state,
-        "Saved enablement: " .. tostring(profile.autoCategoryIntegrationEnabled == true),
+        "Saved enablement: " .. tostring(this.accountWide.autoCategoryIntegrationEnabled == true),
         "Setup complete: " .. tostring(profile.autoCategorySetupComplete == true),
         "The reserved injected test row is checked separately from real IC-owned assignments.",
         "",
@@ -2275,7 +2283,7 @@ function integration.CompleteInitialSetup(preset, profile)
         saved.autoCategoryEnabled = true
     end
     this.InvalidateRuleCache()
-    profile.autoCategoryIntegrationEnabled = true
+    this.accountWide.autoCategoryIntegrationEnabled = true
     profile.autoCategorySetupComplete = true
     integration.OnEnablementChanged(true)
     this.RefreshAutoCategoryUI()

@@ -26,263 +26,6 @@ ZO_PreHookHandler(GetControl(InventoryCompanion_TrackedItemsWindow, "ScrollConta
 ------------------------------------------------------------------
 -- DBCopy Helpers & Data Migration Logic
 ------------------------------------------------------------------
-local function GetCurrentCharacterProfileKey()
-    local sv = _G[this.SettingsName]
-    local playerName = GetUnitName("player")
-    if sv and sv.Default then
-        for _, accData in pairs(sv.Default) do
-            for profileName, profileData in pairs(accData) do
-                if profileName ~= "$AccountWide" and profileData and profileData["$LastCharacterName"] == playerName then
-                    return profileName
-                end
-            end
-        end
-    end
-    return playerName
-end
-
-local function GetCurrentDestinationKey()
-    if this.character.useCharacterItemList == true then
-        return GetCurrentCharacterProfileKey()
-    else
-        return "$AccountWide"
-    end
-end
-
-local function GetCurrentDestinationDisplayName()
-    if this.character.useCharacterItemList == true then
-        return GetUnitName("player") .. " (Character List)"
-    else
-        return "[Account Wide]"
-    end
-end
-
-local function GetAvailableProfiles()
-    local profiles = {}
-    local sv = _G[this.SettingsName]
-    local currentDestinationKey = GetCurrentDestinationKey()
-    
-    local accountWideEntry = nil
-
-    if sv and sv.Default then
-        for _, accData in pairs(sv.Default) do
-            for profileName, profileData in pairs(accData) do
-                if profileName ~= currentDestinationKey then
-                    if profileName == "$AccountWide" then
-                        accountWideEntry = {
-                            key = profileName,
-                            name = "[Account Wide]",
-                        }
-                    else
-                        local charName = profileData and profileData["$LastCharacterName"]
-                        local displayName = (charName and charName ~= "") and charName or string.format("Character (%s)", profileName)
-
-                        table.insert(profiles, {
-                            key = profileName,
-                            name = displayName,
-                        })
-                    end
-                end
-            end
-        end
-    end
-    
-    table.sort(profiles, function(a, b)
-        return a.name:lower() < b.name:lower()
-    end)
-
-    if accountWideEntry then
-        table.insert(profiles, 1, accountWideEntry)
-    end
-    
-    return profiles
-end
-
-local function GetProfileDetailedCounts(profileKey)
-    local total, showCount, notifyCount, bankCount, groupCount = 0, 0, 0, 0, 0
-    local sv = _G[InventoryCompanion.SettingsName]
-    if sv and sv.Default then
-        for _, accData in pairs(sv.Default) do
-            local block = (profileKey == "$AccountWide") and accData["$AccountWide"] or accData[profileKey]
-            if block and block.trackedItems then
-                for _, data in pairs(block.trackedItems) do
-                    total = total + 1
-                    local display = this.ResolveItemDisplay(data.display or {})
-                    if display.show then showCount = showCount + 1 end
-                    if display.notify then notifyCount = notifyCount + 1 end
-                    if display.showBank then bankCount = bankCount + 1 end
-                    if display.group then groupCount = groupCount + 1 end
-                end
-            end
-        end
-    end
-    return total, showCount, notifyCount, bankCount, groupCount
-end
-
-local function BuildImportPreviewText(sourceKey)
-    local sourceCount = GetProfileDetailedCounts(sourceKey)
-    local currentList = InventoryCompanion.GetActiveTrackedItems()
-    local destCount = 0
-    for _ in pairs(currentList) do destCount = destCount + 1 end
-    return string.format("Replace %d entries with %d", destCount, sourceCount)
-end
-
-local function ExecuteCopy(sourceKey)
-    local success = InventoryCompanion.CopyProfile(sourceKey)
-
-    if success then
-        this.Utils.UserMessage("Profile and rule overrides imported successfully!", "Item Tracker Imported")
-        this.RefreshTrackedItemsEditor()
-        this.RefreshItemTrackerPanel()
-        this.UpdateEventRegistry()
-    else
-        this.Utils.UserError("Failed to access source or destination saved variables.", "Import Error")
-    end
-end
-
-local function OnCopyButton(sourceKey, sourceDisplayName)
-    local destDisplayName = GetCurrentDestinationDisplayName()
-    local destTotal, destShow, destNotify, destBank, destGroup = GetProfileDetailedCounts(GetCurrentDestinationKey() == "$AccountWide" and "$AccountWide" or GetCurrentDestinationKey())
-    
-    if destTotal == 0 then
-        local currentList = InventoryCompanion.GetActiveTrackedItems()
-        for _, data in pairs(currentList) do
-            destTotal = destTotal + 1
-            local display = this.ResolveItemDisplay(data.display)
-            if display.show then destShow = destShow + 1 end
-            if display.notify then destNotify = destNotify + 1 end
-            if display.showBank then destBank = destBank + 1 end
-            if display.group then destGroup = destGroup + 1 end
-        end
-    end
-
-    local sourceTotal, sourceShow, sourceNotify, sourceBank, sourceGroup = GetProfileDetailedCounts(sourceKey)
-
-    ZO_Dialogs_ShowDialog("InventoryCompanion_CONFIRM_IMPORT_DIALOG", {
-        sourceKey = sourceKey,
-        sourceName = sourceDisplayName,
-        destName = destDisplayName,
-        sourceTotal = sourceTotal,
-        sourceShow = sourceShow,
-        sourceNotify = sourceNotify,
-        destTotal = destTotal,
-        destShow = destShow,
-        destNotify = destNotify,
-    })
-end
-
-------------------------------------------------------------------
--- Toolbar Initialization
-------------------------------------------------------------------
-local function InitCopyDropdown(topBar)
-    local btnImportToggle = GetControl(topBar, "BtnImportToggle")
-    local copyDropdownControl = GetControl(topBar, "CopyDropdown")
-    local btnExecuteCopy = GetControl(topBar, "BtnExecuteCopy")
-    local lblImportPreview = GetControl(topBar, "LblImportPreview")
-
-    assert(btnImportToggle and copyDropdownControl and btnExecuteCopy and lblImportPreview,
-        "Tracked-items editor is missing required import controls")
-
-    local comboBox = ZO_ComboBox_ObjectFromContainer(copyDropdownControl)
-    assert(comboBox, "Tracked-items editor is missing its import combo box")
-
-    comboBox:SetSortsItems(false)
-
-    local selectedSourceKey = nil
-    local selectedSourceName = nil
-
-    local function CollapseImportUI()
-        selectedSourceKey = nil
-        selectedSourceName = nil
-        copyDropdownControl:SetHidden(true)
-        btnExecuteCopy:SetHidden(true)
-        lblImportPreview:SetHidden(true)
-        lblImportPreview:SetText("")
-        btnImportToggle:SetText("Import from:")
-    end
-
-    local function PopulateDropdownProfiles()
-        comboBox:ClearItems()
-        local profiles = GetAvailableProfiles()
-        
-        for index, profile in ipairs(profiles) do
-            local entry = comboBox:CreateItemEntry(profile.name, function(comboBoxObj, itemName, itemData, selectionChanged, oldItem)
-                if selectionChanged and itemData then
-                    selectedSourceKey = itemData.key
-                    selectedSourceName = profile.name
-                    lblImportPreview:SetText(BuildImportPreviewText(selectedSourceKey))
-                    lblImportPreview:SetHidden(false)
-                end
-            end)
-            entry.key = profile.key
-            comboBox:AddItem(entry)
-
-            if index == 1 then
-                selectedSourceKey = profile.key
-                selectedSourceName = profile.name
-                comboBox:SetSelectedItem(profile.name)
-                lblImportPreview:SetText(BuildImportPreviewText(selectedSourceKey))
-                lblImportPreview:SetHidden(false)
-            end
-        end
-    end
-
-    btnImportToggle:SetHandler("OnClicked", function()
-        if copyDropdownControl:IsHidden() then
-            PopulateDropdownProfiles()
-            copyDropdownControl:SetHidden(false)
-            btnExecuteCopy:SetHidden(false)
-            btnImportToggle:SetText("Cancel")
-        else
-            CollapseImportUI()
-        end
-    end)
-
-    btnExecuteCopy:SetHandler("OnClicked", function()
-        if selectedSourceKey then
-            OnCopyButton(selectedSourceKey, selectedSourceName)
-            CollapseImportUI()
-        else
-            this.Utils.UserWarning("Please select a source profile from the dropdown first.")
-        end
-    end)
-end
-
-local function InitCharacterToggle(topBar)
-    local chkUseChar = GetControl(topBar, "ChkUseChar")
-    local lblUseChar = GetControl(topBar, "LblUseChar")
-
-    ZO_CheckButton_SetCheckState(chkUseChar, this.character.useCharacterItemList == true)
-
-    local function ApplyUseChar(checked)
-        this.SetUseCharacterItemList(checked)
-        
-        local copyDropdownControl = GetControl(topBar, "CopyDropdown")
-        local btnExecuteCopy = GetControl(topBar, "BtnExecuteCopy")
-        local lblImportPreview = GetControl(topBar, "LblImportPreview")
-        local btnImportToggle = GetControl(topBar, "BtnImportToggle")
-        copyDropdownControl:SetHidden(true)
-        btnExecuteCopy:SetHidden(true)
-        lblImportPreview:SetHidden(true)
-        lblImportPreview:SetText("")
-        btnImportToggle:SetText("Import from:")
-
-        this.RefreshTrackedItemsEditor()
-        this.RefreshItemTrackerPanel()
-        this.UpdateEventRegistry()
-    end
-
-    ZO_CheckButton_SetToggleFunction(chkUseChar, function(control, checked)
-        ApplyUseChar(checked)
-    end)
-
-    lblUseChar:SetHandler("OnMouseDown", function()
-        local newState = not (this.character.useCharacterItemList == true)
-        ZO_CheckButton_SetCheckState(chkUseChar, newState)
-        ApplyUseChar(newState)
-    end)
-end
-
 local function InitFilterBar(filterBar)
     local chkShow = GetControl(filterBar, "ChkShow")
     local chkNotify = GetControl(filterBar, "ChkNotify")
@@ -295,38 +38,38 @@ local function InitFilterBar(filterBar)
     local lblMute   = GetControl(filterBar, "LblMute")
     local lblUntracked = GetControl(filterBar, "LblUntracked")
 
-    ZO_CheckButton_SetCheckState(chkShow, this.character.filterShow ~= false)
-    ZO_CheckButton_SetCheckState(chkNotify, this.character.filterNotify ~= false)
-    ZO_CheckButton_SetCheckState(chkMute, this.character.filterMute ~= false)
-    ZO_CheckButton_SetCheckState(chkUntracked, this.character.filterUntracked == true)
+    ZO_CheckButton_SetCheckState(chkShow, this.GetSettingsProfile().filterShow ~= false)
+    ZO_CheckButton_SetCheckState(chkNotify, this.GetSettingsProfile().filterNotify ~= false)
+    ZO_CheckButton_SetCheckState(chkMute, this.GetSettingsProfile().filterMute ~= false)
+    ZO_CheckButton_SetCheckState(chkUntracked, this.GetSettingsProfile().filterUntracked == true)
 
     local function ToggleFilter(chkControl, key)
-        local newState = not (this.character[key] ~= false)
+        local newState = not (this.GetSettingsProfile()[key] ~= false)
         if key == "filterUntracked" then
-            newState = not (this.character[key] == true)
+            newState = not (this.GetSettingsProfile()[key] == true)
         end
-        this.character[key] = newState
+        this.GetSettingsProfile()[key] = newState
         ZO_CheckButton_SetCheckState(chkControl, newState)
         this.RefreshTrackedItemsEditor()
     end
 
     ZO_CheckButton_SetToggleFunction(chkShow, function(control, checked)
-        this.character.filterShow = checked
+        this.GetSettingsProfile().filterShow = checked
         this.RefreshTrackedItemsEditor()
     end)
 
     ZO_CheckButton_SetToggleFunction(chkNotify, function(control, checked)
-        this.character.filterNotify = checked
+        this.GetSettingsProfile().filterNotify = checked
         this.RefreshTrackedItemsEditor()
     end)
 
     ZO_CheckButton_SetToggleFunction(chkMute, function(control, checked)
-        this.character.filterMute = checked
+        this.GetSettingsProfile().filterMute = checked
         this.RefreshTrackedItemsEditor()
     end)
    
     ZO_CheckButton_SetToggleFunction(chkUntracked, function(control, checked)
-        this.character.filterUntracked = checked
+        this.GetSettingsProfile().filterUntracked = checked
         this.RefreshTrackedItemsEditor()
     end)
 
@@ -353,8 +96,6 @@ local function InitToolbar()
     local topBar = GetControl(InventoryCompanion_TrackedItemsWindow, "TopActionBar")
     local filterBar = GetControl(InventoryCompanion_TrackedItemsWindow, "FilterBar")
 
-    InitCopyDropdown(topBar)
-    InitCharacterToggle(topBar)
 	InitEditGroupsButton(topBar)
     InitFilterBar(filterBar)	
 end
@@ -362,45 +103,6 @@ end
 ------------------------------------------------------------------
 -- Custom Confirmation Dialog Registration
 ------------------------------------------------------------------
-ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_CONFIRM_IMPORT_DIALOG", {
-    gamepadInfo = { dialogType = GAMEPAD_DIALOGS.BASIC },
-    title = { text = "Confirm Item Tracker Import" },
-    mainText = {
-        text = function(dialog)
-            local data = dialog.data
-            return string.format(
-                "Are you sure you want to overwrite '%s' with '%s'?\n\n|cFF5252This action cannot be undone.|r",
-                data.destName, data.sourceName
-            )
-        end
-    },
-    buttons = {
-        [1] = {
-            text = "Import",
-            callback = function(dialog)
-                local data = dialog.data
-                ExecuteCopy(data.sourceKey)
-                
-                zo_callLater(function()
-                    SetGameCameraUIMode(true)
-                end, 50)
-            end
-        },
-        [2] = {
-            text = SI_DIALOG_CANCEL,
-            callback = function(dialog)
-                zo_callLater(function()
-                    SetGameCameraUIMode(true)
-                end, 50)
-            end
-        }
-    }    
-})
-
-------------------------------------------------------------------
--- Scene Integration & Endpoints
-------------------------------------------------------------------
-
 local itemTrackerScene = ZO_Scene:New("InventoryCompanion_TrackedItemsScene", SCENE_MANAGER)
 itemTrackerScene:AddFragment(ZO_FadeSceneFragment:New(InventoryCompanion_TrackedItemsWindow))
 
@@ -424,6 +126,7 @@ InventoryCompanion_TrackedItemsWindow:SetHandler("OnEffectivelyShown", function(
 end)
 
 InventoryCompanion_TrackedItemsWindow:SetHandler("OnEffectivelyHidden", function()
+    this.EndEditorVisit(InventoryCompanion_TrackedItemsWindow)
     this.CloseItemRowOptions()
     editorRevision = editorRevision + 1
     SetGameCameraUIMode(false)
@@ -470,10 +173,10 @@ local function CollectWildcardRules(trackedRules, sortedEntries)
 end
 
 local function CollectUntrackedItems(trackedRules, seenItemIds, sortedEntries)
-    if not this.character.filterUntracked then return end
+    if not this.GetSettingsProfile().filterUntracked then return end
 
     local bagList = { BAG_BACKPACK, BAG_BANK, BAG_SUBSCRIBER_BANK }
-    if IsESOPlusSubscriber() and this.character.filterCraftbag then
+    if IsESOPlusSubscriber() and this.GetSettingsProfile().filterCraftbag then
         table.insert(bagList, BAG_VIRTUAL)
     end
     
@@ -521,15 +224,15 @@ local function ShouldIncludeEntry(entry, queryStr)
 
         local isInactive = (not showFlag and not notifyFlag)
 
-        local allowShow = showFlag and (this.character.filterShow ~= false)
-        local allowNotify = notifyFlag and (this.character.filterNotify ~= false)
-        local allowInactive = isInactive and (this.character.filterMute ~= false)
+        local allowShow = showFlag and (this.GetSettingsProfile().filterShow ~= false)
+        local allowNotify = notifyFlag and (this.GetSettingsProfile().filterNotify ~= false)
+        local allowInactive = isInactive and (this.GetSettingsProfile().filterMute ~= false)
 
         if not (allowShow or allowNotify or allowInactive) then
             return false
         end
     else
-        if not this.character.filterUntracked then
+        if not this.GetSettingsProfile().filterUntracked then
             return false
         end
     end
@@ -603,9 +306,10 @@ local function ConfigureRowStateStyles(row, entry)
 
     local function ApplyStyle(name, active, detail)
         local button = GetControl(row, name)
+        GetControl(button, "Title"):SetHidden(true)
         GetControl(button, "Title"):SetColor(1.0, 0.94, 0.76, active and 1.0 or 0.5)
         GetControl(button, "Detail"):SetColor(1.0, 0.94, 0.76, active and 1.0 or 0.5)
-        GetControl(button, "Detail"):SetText(detail)
+        GetControl(button, "Detail"):SetText(name .. ": " .. detail)
     end
 
     local locations = display.showBackpack and (display.showBank and "Both" or "Backpack")
@@ -767,6 +471,7 @@ local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
     GetControl(row, "ItemLabel"):SetWidth(columnActive and 262 or 432)
     toggle:SetHidden(not rowActive)
     if not rowActive then return end
+    GetControl(toggle, "Title"):SetHidden(true)
 
     local function OpenRecovery()
         this.OpenAutoCategoryPanel()
@@ -775,7 +480,7 @@ local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
         GetControl(toggle, "Title"):SetColor(1, 0.27, 0.27, 1)
         local detail = GetControl(toggle, "Detail")
         detail:SetColor(1, 0.27, 0.27, 1)
-        detail:SetText("! Needs attention")
+        detail:SetText("AutoCategory: ! Needs attention")
         toggle:SetHandler("OnClicked", OpenRecovery)
         toggle:SetHandler("OnMouseEnter", function(control)
             InitializeTooltip(InformationTooltip, control, RIGHT, -4, 0)
@@ -795,13 +500,13 @@ local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
     GetControl(toggle, "Title"):SetColor(1.0, 0.94, 0.76, enabled and 1.0 or 0.5)
     local detail = GetControl(toggle, "Detail")
     detail:SetColor(1.0, 0.94, 0.76, enabled and 1.0 or 0.5)
-    detail:SetText(this.AutoCategoryIntegration.GetAreaSummary(reference, function(text)
+    detail:SetText("AutoCategory: " .. this.AutoCategoryIntegration.GetAreaSummary(reference, function(text)
         if areaSummaryMeasureLabel == nil then
             areaSummaryMeasureLabel = WINDOW_MANAGER:CreateControl(nil, GuiRoot, CT_LABEL)
             areaSummaryMeasureLabel:SetHidden(true)
         end
         areaSummaryMeasureLabel:SetFont(detail:GetFont())
-        areaSummaryMeasureLabel:SetText(text)
+        areaSummaryMeasureLabel:SetText("AutoCategory: " .. text)
         return areaSummaryMeasureLabel:GetTextWidth() <= detail:GetWidth()
     end))
 
@@ -856,6 +561,7 @@ function this.RefreshTrackedItemsEditor()
     local queryStr = searchQuery:lower():match("^%s*(.-)%s*$")
     local rowIndex = 1
     local rowHeight = 54
+    rowHeight = 34
 
     for _, entry in ipairs(sortedEntries) do
         if ShouldIncludeEntry(entry, queryStr) then
@@ -877,5 +583,6 @@ function this.RefreshTrackedItemsEditor()
 
             rowIndex = rowIndex + 1
         end
+        this.RefreshEditorChrome(InventoryCompanion_TrackedItemsWindow, "items")
     end
 end

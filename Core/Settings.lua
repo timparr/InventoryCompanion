@@ -1,6 +1,95 @@
 InventoryCompanion = InventoryCompanion or {}
 local this = InventoryCompanion
 
+function this.GetAutoCategoryInfoText()
+    if this.AutoCategoryIntegration.NeedsRecovery() then
+        return this.AutoCategoryIntegration.GetRecoveryMessage()
+    end
+    local _, message = this.AutoCategoryIntegration.GetStatus()
+    return message
+end
+
+local function GetProfileControls()
+    local names, keys = {}, {}
+    local function RefreshSources()
+        ZO_ClearTable(names)
+        ZO_ClearTable(keys)
+        for key, profile in pairs(this.GetSavedAccountProfiles()) do
+            if key == "$AccountWide" or profile.itemListInitialized == true then
+                keys[#keys + 1] = key
+            end
+        end
+        table.sort(keys)
+        for _, key in ipairs(keys) do
+            local profile = this.GetSavedAccountProfiles()[key]
+            names[#names + 1] = key == "$AccountWide" and "Account-wide"
+                or profile["$LastCharacterName"] or ("Character " .. key)
+        end
+    end
+    RefreshSources()
+    local selected
+    return {
+        { type = "checkbox", name = "Use Character Settings",
+            tooltip = "Off uses the shared account profile. On resumes your character profile, or copies account settings on first use.",
+            getFunc = function() return this.character.useCharacterItemList end,
+            setFunc = function(value)
+                this.SetUseCharacterItemList(value)
+                RefreshSources()
+                InventoryCompanion_ProfileCopySource:UpdateChoices(names, keys)
+                this.RefreshProfileSettings()
+            end },
+        { type = "dropdown", name = "Copy From", choices = names, choicesValues = keys,
+            reference = "InventoryCompanion_ProfileCopySource",
+            getFunc = function() return selected end,
+            setFunc = function(value) selected = value end },
+        { type = "description", text = function()
+            return "Copy replaces all settings, items and groups in the "
+                .. (this.character.useCharacterItemList and "current character" or "shared account")
+                .. " profile. Account-only controls are not copied."
+        end },
+        { type = "button", name = "Copy Full Profile", disabled = function() return selected == nil end,
+            func = function()
+                local destination = this.GetSettingsProfile()
+                local source = this.GetSavedAccountProfiles()[selected]
+                if source == nil then
+                    this.Utils.UserError("The selected source profile is no longer available.", "Profile Copy")
+                    return
+                end
+                if source.trackedRules == destination.trackedRules then
+                    this.Utils.UserError("Choose a different source profile.", "Profile Copy")
+                    return
+                end
+                ZO_Dialogs_ShowDialog("InventoryCompanion_CONFIRM_PROFILE_COPY",
+                    { source = selected, destination = destination })
+            end, width = "full" },
+    }
+end
+
+local function RegisterProfileCopyDialog()
+ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_CONFIRM_PROFILE_COPY", {
+    gamepadInfo = { dialogType = GAMEPAD_DIALOGS.BASIC },
+    title = { text = "Replace Full Profile" },
+    mainText = { text = function(dialog)
+        return "Replace the "
+            .. (this.character.useCharacterItemList and "current character" or "shared account")
+            .. " profile with " .. dialog.data.source
+            .. "?\nAll destination settings, items and groups will be replaced. This cannot be undone."
+    end },
+    buttons = {
+        { text = "Replace", callback = function(dialog)
+            assert(dialog.data.destination == this.GetSettingsProfile(), "Profile copy destination changed")
+            if this.CopyProfile(dialog.data.source) then
+                this.RefreshProfileSettings()
+                this.Utils.UserMessage("Full profile replaced.", "Profile Copy")
+            else
+                this.Utils.UserError("Source profile is unavailable or invalid.", "Profile Copy")
+            end
+        end },
+        { text = SI_DIALOG_CANCEL },
+    },
+})
+end
+
 local function RefreshProgressBarSettings()
     this.RefreshResourceProgressBars()
     this.UpdateEventRegistry()
@@ -108,6 +197,7 @@ local function GetStandaloneProgressBarControls()
 end
 
 function this.CreateSettingsPanel()
+    RegisterProfileCopyDialog()
     local LAM = LibAddonMenu2
     local panelName = this.Utils.DisplayName()
 
@@ -145,7 +235,7 @@ function this.CreateSettingsPanel()
     local optionsData = {
         {
             type = "header",
-            name = "Bank & Chest Operations",
+            name = "Account-wide Settings",
         },
         {
             type = "slider",
@@ -193,7 +283,7 @@ function this.CreateSettingsPanel()
         {
             type = "checkbox",
             name = "Enable AutoCategory Integration",
-            tooltip = "Use Inventory Companion groups as native AutoCategory categories, with independent inclusion in each inventory area. This setting follows the selected account-wide or character-specific item list.",
+            tooltip = "Enable integration for the whole account. Category orders and inclusion follow the selected settings profile.",
             getFunc = function() return this.GetAutoCategoryState().configuredEnabled end,
             setFunc = function(enabled)
                 this.SetAutoCategoryIntegrationEnabled(enabled)
@@ -213,21 +303,12 @@ function this.CreateSettingsPanel()
             width = "full",
         },
         {
-            type = "button",
-            name = "Simulate integration failure (DEV)",
-            tooltip = "Test the recovery UI without changing saved data. Use Retry synchronization in the AutoCategory panel afterward.",
-            func = function() this.AutoCategoryIntegration.ForceTestFailure() end,
-            hidden = function() return this.IsDevelopment ~= true or this.accountWide.debugEnabled ~= true end,
-            disabled = function() return not this.AutoCategoryIntegration.IsEditorActive() end,
-            width = "full",
-        },
-        {
             type = "header",
-            name = "On-Screen Indicators",
+            name = "Panel Setup",
         },
         {
             type = "button",
-            name = "Open Item Tracking Editor",
+            name = "Manage Items",
             tooltip = "Choose which items and groups to track, show on the panel, or receive notifications for.",
             func = function()
                 this.OpenEditItemsPanel()
@@ -243,7 +324,7 @@ function this.CreateSettingsPanel()
                     type = "checkbox",
                     name = "Show Tracked Items Panel",
                     tooltip = "Master switch to show or hide the Item Tracker window.",
-                    getFunc = function() return this.accountWide.showTrackedItemsPanel ~= false end,
+                    getFunc = function() return this.GetSettingsProfile().showTrackedItemsPanel ~= false end,
                     setFunc = this.SetItemTrackerPanelVisible,
                     default = this.defaultsAccount.showTrackedItemsPanel,
                 },
@@ -254,9 +335,9 @@ function this.CreateSettingsPanel()
                     min = 1,
                     max = 30,
                     step = 1,
-                    getFunc = function() return this.accountWide.trackerGroupThreshold or 8 end,
+                    getFunc = function() return this.GetSettingsProfile().trackerGroupThreshold or 8 end,
                     setFunc = function(v) 
-                        this.accountWide.trackerGroupThreshold = v 
+                        this.GetSettingsProfile().trackerGroupThreshold = v
                         if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
                     end,
                     default = this.defaultsAccount.trackerGroupThreshold,
@@ -268,9 +349,9 @@ function this.CreateSettingsPanel()
                     min = 16,
                     max = 28,
                     step = 1,
-                    getFunc = function() return this.accountWide.trackerTitleSize end,
+                    getFunc = function() return this.GetSettingsProfile().trackerTitleSize end,
                     setFunc = function(value)
-                        this.accountWide.trackerTitleSize = value
+                        this.GetSettingsProfile().trackerTitleSize = value
                         this.RefreshItemTrackerPanel()
                     end,
                     default = this.defaultsAccount.trackerTitleSize,
@@ -282,9 +363,9 @@ function this.CreateSettingsPanel()
                     min = 5,
                     max = 50,
                     step = 1,
-                    getFunc = function() return this.accountWide.trackerMaxRows end,
+                    getFunc = function() return this.GetSettingsProfile().trackerMaxRows end,
                     setFunc = function(value)
-                        this.accountWide.trackerMaxRows = value
+                        this.GetSettingsProfile().trackerMaxRows = value
                         this.RefreshItemTrackerPanel("settings")
                     end,
                     default = this.defaultsAccount.trackerMaxRows,
@@ -293,9 +374,9 @@ function this.CreateSettingsPanel()
                     type = "checkbox",
                     name = "Multiline Item Names",
                     tooltip = "If enabled, long item names will wrap onto multiple lines instead of truncating with ellipses.",
-                    getFunc = function() return this.accountWide.wrapTrackedItemNames == true end,
+                    getFunc = function() return this.GetSettingsProfile().wrapTrackedItemNames == true end,
                     setFunc = function(v) 
-                        this.accountWide.wrapTrackedItemNames = v 
+                        this.GetSettingsProfile().wrapTrackedItemNames = v
                         if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
                     end,
                     default = this.defaultsAccount.wrapTrackedItemNames,
@@ -304,24 +385,12 @@ function this.CreateSettingsPanel()
                     type = "checkbox",
                     name = "Show Empty Tracked Items",
                     tooltip = "If enabled, tracked items with a count of 0 will still be shown.",
-                    getFunc = function() return this.accountWide.showEmptyTrackedItems ~= false end,
+                    getFunc = function() return this.GetSettingsProfile().showEmptyTrackedItems ~= false end,
                     setFunc = function(v) 
-                        this.accountWide.showEmptyTrackedItems = v 
+                        this.GetSettingsProfile().showEmptyTrackedItems = v
                         if this.RefreshItemTrackerPanel then this.RefreshItemTrackerPanel() end
                     end,
                     default = this.defaultsAccount.showEmptyTrackedItems,
-                },
-                {
-                    type = "checkbox",
-                    name = "Use Character-Specific List",
-                    tooltip = "If enabled, this character uses their own independent tracked items list instead of the shared account-wide list.",
-                    getFunc = function() return this.character.useCharacterItemList == true end,
-                    setFunc = function(v) 
-                        this.SetUseCharacterItemList(v)
-                        this.RefreshItemTrackerPanel()
-                        this.RefreshTrackedItemsEditor()
-                    end,
-                    default = this.defaultsCharacter.useCharacterItemList,
                 },
             },
         },
@@ -365,5 +434,53 @@ function this.CreateSettingsPanel()
         },
     }
 
+    local integrationControls = {}
+    local first
+    for index, option in ipairs(optionsData) do
+        if option.type == "header" and option.name == "AutoCategory Integration" then first = index end
+        if first and option.type == "header" and option.name == "Panel Setup" then
+            for position = first, index - 1 do integrationControls[#integrationControls + 1] = optionsData[position] end
+            for _ = first, index - 1 do table.remove(optionsData, first) end
+            break
+        end
+    end
+    table.insert(optionsData, 4, { type = "header", name = "Profile Settings" })
+    local profileControls = GetProfileControls()
+    for index = #profileControls, 1, -1 do table.insert(optionsData, 5, profileControls[index]) end
+    for _, control in ipairs({
+        { type = "button", name = "Manage Groups", func = this.OpenEditGroupsPanel, width = "half" },
+        { type = "button", name = "Manage AutoCategory", func = this.OpenAutoCategoryPanel, width = "half",
+            disabled = function() return not this.AutoCategoryIntegration.IsPanelAvailable() end },
+    }) do
+        table.insert(optionsData, 5 + #profileControls + 2, control)
+    end
+    optionsData[#optionsData + 1] = { type = "header", name = "Integrations" }
+    for _, option in ipairs(integrationControls) do
+        if option.type ~= "header" and option.type ~= "description" then optionsData[#optionsData + 1] = option end
+    end
+    for _, integration in ipairs({ "TTC", "FCO ItemSaver" }) do
+        local controls = {
+            { type = "description", text = "Planned future development; not yet implemented." },
+            { type = "checkbox", name = "Enable " .. integration, getFunc = function() return false end,
+                setFunc = function() error("Planned integration controls are disabled") end,
+                disabled = true },
+        }
+        if integration == "TTC" then
+            for _, band in ipairs({
+                { "Trash below", 100 }, { "Low Level up to", 100 }, { "Mid Level up to", 1000 },
+                { "Expensive up to", 5000 }, { "Superior up to", 10000 }, { "Amazing up to", 100000 },
+                { "Jackpot above", 100000 },
+            }) do
+                local label, value = band[1], band[2]
+                controls[#controls + 1] = { type = "editbox", name = label .. " (gold per item)",
+                    setFunc = function() error("Planned integration controls are disabled") end,
+                    getFunc = function() return tostring(value) end, disabled = true }
+            end
+        end
+        optionsData[#optionsData + 1] = { type = "submenu", name = integration .. " (planned)",
+            disabled = true, controls = controls }
+    end
+    optionsData[#optionsData + 1] = { type = "submenu", name = "AutoCategory Information",
+        controls = { { type = "description", text = this.GetAutoCategoryInfoText } } }
     LAM:RegisterOptionControls("InventoryCompanionPanel", optionsData)
 end

@@ -6,6 +6,7 @@ local hudRefreshes, groupRefreshes = 0, 0
 local function Control(name)
     local control = { name = name, children = {}, handlers = {}, text = "", hidden = false, moves = 0 }
     function control:SetHidden(value) self.hidden = value end
+    function control:IsHidden() return self.hidden end
     function control:SetHandler(event, handler) self.handlers[event] = handler end
     function control:SetText(text) self.text = text end
     function control:GetText() return self.text end
@@ -110,6 +111,41 @@ function this.GetGroupEditorTests()
         end })
     end
 
+    Add("Group editor undo updates on focus-loss without rebuilding rows and resets its visit", function()
+        this.RefreshTrackedItemsEditor, this.RefreshAutoCategoryEditor = function() end, function() end
+        this.UpdateEventRegistry = function() end
+        local undo = GetControl(InventoryCompanion_GroupsWindow, "BtnUndo")
+        assert(undo.hidden)
+        local edit = Pattern(1)
+        edit:SetText("a1")
+        edit:LoseFocus()
+        assert(not undo.hidden)
+        edit:SetText("a")
+        edit:LoseFocus()
+        assert(undo.hidden, "Manual pattern reversal must hide undo without rebuilding rows")
+        edit:SetText("a1")
+        edit:LoseFocus()
+        undo.handlers.OnClicked()
+        assert(undo.hidden and this.GetRuntimeRules().default.patterns[1] == "a")
+        this.UpdateRuleProperty("default", "displayName", "New opening state")
+        this.EndEditorVisit(InventoryCompanion_GroupsWindow)
+        this.RefreshGroupsEditor()
+        assert(undo.hidden)
+    end)
+    Add("Group filter searches trimmed left-pane names rather than patterns", function()
+        this.CreateCustomRule("needle", "Needle group")
+        this.UpdateRulePatterns("default", { "needle pattern" })
+        this.RefreshGroupsEditor()
+        local find = GetControl(GetControl(InventoryCompanion_GroupsWindow, "TopActionBar"), "FindBox")
+        find:SetText("  NEEDLE  ")
+        find.handlers.OnTextChanged(find)
+        local first = controls["InventoryCompanion_GroupRow_1"]
+        assert(not first.hidden and GetControl(first, "Name").text == "Needle group")
+        assert(controls["InventoryCompanion_GroupRow_2"].hidden)
+        find:SetText("")
+        find.handlers.OnTextChanged(find)
+        assert(not controls["InventoryCompanion_GroupRow_2"].hidden)
+    end)
     Add("Group editor rename writes only the name and pattern editing preserves it", function()
         Click(Right("BtnEditGroupName"))
         Right("GroupEditBox"):SetText("Renamed")

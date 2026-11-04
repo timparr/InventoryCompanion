@@ -1,6 +1,6 @@
 # AutoCategory integration: master feature document
 
-Updated 2026-11-03.
+Updated 2026-11-04.
 
 ## Status and authority
 
@@ -10,16 +10,22 @@ documents, distinguishing implemented behavior from agreed work not yet done.
 
 - **Implemented baseline:** opt-in integration, independent context orders,
   initial setup, active-profile synchronization, native exclusions and recovery.
-  The current saved-variable schema is **9**.
+  The current saved-variable schema is **10**.
 - **Implemented, pending in-game acceptance:** context-specific IC group exclusion,
   a Display-only Other row and the items-editor area selector.
   The [current implementation document](AutocategoryTweaks_hideICNotDelete.md)
   owns detailed work sequencing, migration examples and acceptance for this work.
-- **Verification:** historical offline results and limited ESO confirmations
-  exist; full compatibility certification and release readiness remain pending.
-  Documentation consolidation does not constitute a new test pass.
+- **Verification:** 210/210 isolated Lua 5.1 regressions pass, including full
+  profiles, schema-9 downgrade rejection and editor undo. Addon Lua syntax,
+  editor XML and exact Undo labels are checked. A synthetic resource-bar check
+  confirms account/character/account positioning without recreating controls.
+  Full ESO compatibility, visual acceptance and release readiness remain pending.
 
 For requirements use this document and the current implementation document.
+The approved [settings/editor polishing plan](AutoCategory_Polishing_ImplementationPlan.md)
+owns the full-profile and editor-polishing decisions. These are implemented in
+DEV with offline regressions passing, pending the in-game acceptance gates below; historical UI
+descriptions do not override the approved plan.
 The [historical documents](<#historical-document-index>) retain dated evidence
 and dependency investigations, not independent current requirements or work
 authorizations. In particular, Master inheritance, rank/anchor placement,
@@ -77,8 +83,7 @@ Renaming an IC group does not change its stable identity.
 - Support row moves, selected-block moves, top/bottom and existing step sizes.
 - Copying another context is a one-time operation, retaining destination-specific
   membership and existing destination-slot merge behavior.
-- Same-context "Use priority list" / "Use display list" copies ordering, not an
-  ongoing link. The target change handles Other's unequal list membership.
+- Same-context cross-mode copy actions are removed by the polishing change.
 - Search/filtering must not alter saved order or classification.
 - Project distinct integer priorities within AC's supported 2-1000 range.
   Reserve one slot for Other: at most **998 user assignments plus Other** per
@@ -115,9 +120,8 @@ The current implementation document supersedes that global IC-group behavior:
 - New groups start Included in all seven contexts. Insert immediately above
   Other's current Display position, even after it has moved. Matching insertion
   is immediately before the automatic barrier.
-- "Use display list" omits Other when transferring order to Priority.
-  "Use priority list" retains Other's saved display slot. Context copying carries
-  its display placement under the destination-membership rules.
+- Context copying carries Other's display placement under the
+  destination-membership rules; there is no cross-mode copy action.
 - Moving Other above Sets in Display changes presentation only: included Sets
   still gets its matching opportunity before Other.
 
@@ -140,7 +144,7 @@ reseed it. This is separate from the confirmed all-areas Included default for
 newly created groups in the target design.
 
 The AutoCategory editor has a context selector, Display/Priority modes, ordering
-and copy actions, green Included/red Excluded labels, red excluded names and a
+and context-copy actions, Hide/Show action buttons, red excluded names and a
 single Excluded divider. State and action must be understandable without colour.
 Excluded rows have no move controls. Special Other has ordering controls only.
 
@@ -192,13 +196,13 @@ Unavailable native references can remain dormant across destination switches;
 an observed deletion in the same source/destination is a different case.
 Cold startup uses saved IC order, not stale generated AC layout.
 
-On first selection of a wholly uninitialized IC destination, copy the complete
-source configuration by value once: groups, items, tracker/notification choices,
-integration enablement/setup, inclusion, orders and restoration positions.
-Explicit profile copying uses compatible complete-copy semantics. Do not
-overwrite initialized destinations; existing groups with uninitialized integration
-use setup rather than replacement. Historical recovery archives are not replayed
-automatically into an unverified destination.
+On first enabling character settings, copy the account profile by value once:
+groups, items, panel preferences, editor filters, integration setup, inclusion,
+orders and restoration positions. Enablement remains account-wide and is not
+copied. Switching back to account settings never replaces the account profile;
+later character switches resume retained content. Explicit full-profile copying
+replaces initialized destinations only after confirmation. Historical recovery
+archives are not replayed automatically into an unverified destination.
 
 ## Disable, reset and failure handling
 
@@ -228,6 +232,34 @@ automatically into an unverified destination.
   it into success. After boundary validation, internal contracts fail directly.
 
 ## Saved variables and migration
+
+Schema 10 stores full selected profiles. Integration enablement, transfer delay,
+chest-stack merging, Debug Mode and timing diagnostics remain account-wide.
+Tracker/currency/progress-bar settings and editor filters follow the selected
+profile. Full copying replaces rather than merges and preserves destination
+identity, scope/schema metadata, account controls, caches and recovery data.
+
+The schema-10 migration alone clears unused character content for account-mode
+characters, preserving unrelated data. Character-mode profiles are upgraded,
+inheriting missing legacy preferences from the account profile. First enabling
+character mode deep-copies account content; subsequent switches resume retained
+character content without copying account changes. Every future migration must
+upgrade inactive initialized profiles too, without repeating this cleanup.
+The actual schema-9 build is tested for non-mutating rejection of schema 10.
+
+All three editors have visit-scoped, memory-only **Undo changes**, visible only
+when meaningful state differs from the opening baseline. Closing or switching
+panels discards the baseline. AutoCategory undo restores current context/mode
+ordering and shared context inclusion, not opposite-mode ordering or other
+contexts. Required external categories are validated before restoration.
+The recovery panel and its last-resort reset remain separate from normal undo.
+
+Navigation hides AutoCategory when absent and opens information/enablement when
+loaded but off. Hide/Show are action buttons; Other has neither. Cross-mode copy,
+divergence warnings and the DEV failure simulator are removed. Context copying
+still copies both orders. Groups filtering targets the left-hand names; Items
+summaries are single-line and truncate. TTC/FCO controls are disabled/off
+placeholders with no saved fields or runtime integration.
 
 Schema 8 stores per-profile integration enablement/setup, global group
 participation, independent context `display`/`matching` lists, native `hidden`
@@ -313,7 +345,7 @@ these thresholds are not reported passes.
 
 Before calling the target implementation complete:
 
-1. Pass schema-9 all-profile migration/import/copy and actual older-build
+1. Pass schema-10 all-profile migration/import/copy and actual older-build
    downgrade rejection using synthetic data.
 2. Cover context inclusion from both editors, exclusion/re-inclusion positions,
    moved-Other insertion, all/none groups, order conversion/copy, rollback,

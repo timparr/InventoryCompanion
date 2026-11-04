@@ -99,8 +99,8 @@ function this.GetRulePersistenceTests()
                 _G[this.SettingsName] = { Default = { account = { source = source } } }
                 assert(this.CopyProfile("source"), "Profile copy should succeed")
                 assert(this.accountWide.autoCategorySetupComplete == true
-                    and this.accountWide.autoCategoryIntegrationEnabled == true,
-                    "Profile import must copy the AutoCategory setup marker and enablement")
+                    and this.accountWide.autoCategoryIntegrationEnabled == nil,
+                    "Profile import copies setup but never account-wide enablement")
                 assert(this.GetRuntimeRules().custom.autoCategoryEnabled,
                     "Profile import must copy AutoCategory participation")
                 local importedOrder = this.accountWide.autoCategoryOrder.contexts.backpack
@@ -129,7 +129,7 @@ function this.GetRulePersistenceTests()
             name = "Actual clear-overrides command invalidates only the selected profile",
             run = function()
                 this.accountWide = { trackedRules = { custom = { addedPatterns = { "Custom*" } } } }
-                this.character = { trackedRules = {}, useCharacterItemList = false }
+                this.character = { trackedRules = {}, useCharacterItemList = false, itemListInitialized = true }
                 this.preLoadedRulesets = {}
                 this.character.trackedRules = { character_group = { addedPatterns = { "Character*" } } }
                 local refreshes = 0

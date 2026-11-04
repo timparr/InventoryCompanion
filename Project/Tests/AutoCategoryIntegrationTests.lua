@@ -323,6 +323,71 @@ end
 function this.GetAutoCategoryIntegrationTests()
     return {
         {
+            name = "Group undo removes newly generated definitions without changing native assignments",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                assert(integration.ProjectAutoCategory())
+                this.UpdateEventRegistry, this.RefreshItemTrackerPanel = function() end, function() end
+                local baseline = this.CaptureEditorState("groups")
+                for _, context in ipairs(contexts) do
+                    for _, row in ipairs(AutoCategory.saved.bags[context.bag].rules) do
+                        if not row.icOwned then row.undoNativeMarker = "keep" end
+                    end
+                end
+                this.CreateCustomRule("new_undo_group", "New undo group")
+                assert(integration.ProjectAutoCategory())
+                assert(this.GetRuntimeRules().new_undo_group)
+                assert(this.RestoreEditorState("groups", baseline), this.autoCategoryFailure)
+                assert(this.GetRuntimeRules().new_undo_group == nil)
+                for _, context in ipairs(contexts) do
+                    for _, row in ipairs(AutoCategory.saved.bags[context.bag].rules) do
+                        assert(row.icRuleKey ~= "new_undo_group")
+                        if not row.icOwned then assert(row.undoNativeMarker == "keep") end
+                    end
+                end
+            end,
+        },
+        {
+            name = "AutoCategory undo restores current page and shared inclusion without rewinding other pages",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
+                assert(integration.ProjectAutoCategory())
+                this.UpdateEventRegistry, this.RefreshItemTrackerPanel = function() end, function() end
+                local baseline = this.CaptureEditorState("autocategory", "backpack", "display")
+                integration.MoveEntries({ ["ic:alpha"] = true }, "backpack", "display", "bottom")
+                integration.MoveEntries({ ["ic:beta"] = true }, "bank", "matching", "top")
+                local bank = this.CopySavedValue(this.accountWide.autoCategoryOrder.contexts.bank)
+                integration.MoveEntries({ ["ic:beta"] = true }, "backpack", "matching", "top")
+                local priority = this.CopySavedValue(this.accountWide.autoCategoryOrder.contexts.backpack.matching)
+                assert(this.RestoreEditorState("autocategory", baseline, "backpack", "display"))
+                assert(this.SavedValuesEqual(this.accountWide.autoCategoryOrder.contexts.bank, bank))
+                assert(this.SavedValuesEqual(this.accountWide.autoCategoryOrder.contexts.backpack.matching, priority))
+                assert(this.SavedValuesEqual(this.CaptureEditorState("autocategory", "backpack", "display"), baseline))
+                integration.SetEntryIncluded("ic:alpha", "backpack", false)
+                assert(this.RestoreEditorState("autocategory", baseline, "backpack", "display"))
+                assert(integration.IsEntryIncluded("ic:alpha", "backpack"))
+            end,
+        },
+        {
+            name = "Undo rejects externally deleted categories without partially restoring saved or native state",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                assert(integration.ProjectAutoCategory())
+                local baseline = this.CaptureEditorState("autocategory", "backpack", "display")
+                local bag = AutoCategory.saved.bags[contexts[1].bag].rules
+                for index = #bag, 1, -1 do
+                    if bag[index].name == "Selling" then table.remove(bag, index) end
+                end
+                local saved = this.CopySavedValue(this.accountWide)
+                local native = this.CopySavedValue(AutoCategory.saved)
+                local reported = false
+                this.Utils = { UserError = function() reported = true end }
+                assert(not this.RestoreEditorState("autocategory", baseline, "backpack", "display"))
+                assert(reported and this.SavedValuesEqual(this.accountWide, saved)
+                    and this.SavedValuesEqual(AutoCategory.saved, native))
+            end,
+        },
+        {
             name = "Reset preserves per-area IC inclusion while replacing native exclusions and saved positions",
             run = function()
                 PrepareActive({ alpha = { autoCategoryEnabled = true } })
@@ -967,10 +1032,7 @@ function this.GetAutoCategoryIntegrationTests()
                 local order, rules = profile.autoCategoryOrder, profile.trackedRules
                 local bag = AutoCategory.saved.bags[1].rules
                 local count = #bag
-                local wasDevelopment = this.IsDevelopment
-                this.IsDevelopment = true
-                integration.ForceTestFailure()
-                this.IsDevelopment = wasDevelopment
+                integration.Fail("Synthetic dependency failure")
                 local state = this.GetAutoCategoryState()
                 assert(state.configuredEnabled == true and state.enabled == false and state.failed == true)
                 assert(type(state.enabled) == "boolean" and type(state.failed) == "boolean")
@@ -987,11 +1049,12 @@ function this.GetAutoCategoryIntegrationTests()
                 assert(state.configuredEnabled and state.enabled and not state.failed)
                 assert(integration.IsEditorActive() and integration.IsPanelAvailable())
                 assert(profile.trackedRules == rules and profile.trackedRules.alpha.autoCategoryEnabled)
-                assert(not pcall(integration.ForceTestFailure), "Release builds must reject forced failures")
+                assert(integration.ForceTestFailure == nil, "Production must not expose a failure simulator")
                 profile.autoCategoryIntegrationEnabled = nil
                 state = this.GetAutoCategoryState()
                 assert(not state.enabled and not state.configuredEnabled and not state.failed)
-                assert(not integration.IsPanelAvailable(), "Off is distinct from failed")
+                assert(integration.IsPanelAvailable() and not integration.IsEditorActive(),
+                    "Loaded but off retains the enablement panel")
             end,
         },
         {

@@ -43,12 +43,11 @@ assert name_label.get("verticalAlignment") == "CENTER" and orders_label.get("ver
 autocategory_window = autocategory_xml.find(".//TopLevelControl[@name='InventoryCompanion_AutoCategoryWindow']/Controls")
 for path in (
     "TopActionBar/Controls/*[@name='$(parent)ContextMode']",
-    "TopActionBar/Controls/*[@name='$(parent)CopyFromLabel']",
-    "TopActionBar/Controls/*[@name='$(parent)CopyContext']",
-    "TopActionBar/Controls/*[@name='$(parent)BtnCopy']",
+    "OptionsBar/Controls/*[@name='$(parent)CopyFromLabel']",
+    "OptionsBar/Controls/*[@name='$(parent)CopyContext']",
+    "OptionsBar/Controls/*[@name='$(parent)BtnCopy']",
     "OptionsBar/Controls/*[@name='$(parent)BtnDisplayOrder']",
     "OptionsBar/Controls/*[@name='$(parent)BtnPriorityOrder']",
-    "OptionsBar/Controls/*[@name='$(parent)BtnUseOtherOrder']",
     "Info", "List", "MovementBar",
     "Recovery/Controls/*[@name='$(parent)Warning']",
     "Recovery/Controls/*[@name='$(parent)BtnRetry']",
@@ -79,9 +78,12 @@ assert movement_bar.find("Button[@name='$(parent)BtnUp10']") is None, "Ten-step 
 for xml_name, window_name in (
     ("EditPanelItemsTab.xml", "InventoryCompanion_TrackedItemsWindow"),
     ("EditPanelGroupsTab.xml", "InventoryCompanion_GroupsWindow"),
+    ("EditPanelAutoCategoryTab.xml", "InventoryCompanion_AutoCategoryWindow"),
 ):
     window = ET.parse(root / "Tracking" / xml_name).find(f".//TopLevelControl[@name='{window_name}']/Controls")
     assert window.find("Button[@name='$(parent)BtnAutoCategory']") is not None, f"{window_name} needs the AutoCategory tab button"
+    undo = window.find("Button[@name='$(parent)BtnUndo']")
+    assert undo is not None and undo.get("text") == "Undo changes", f"{window_name} needs the exact Undo changes action"
 manifest = (root / "InventoryCompanion_DEV.txt").read_text(encoding="utf-8-sig")
 autocategory_tab_lua = (root / "Tracking" / "EditPanelAutoCategoryTab.lua").read_text(encoding="utf-8-sig")
 autocategory_tab_xml = (root / "Tracking" / "EditPanelAutoCategoryTab.xml").read_text(encoding="utf-8-sig")
@@ -97,6 +99,7 @@ parser.add_argument("--test-filter", help="Run tests whose names match this regu
 args = parser.parse_args()
 lua = LuaRuntime(unpack_returned_tuples=True)
 lua.execute('InventoryCompanion = { SettingsName = "InventoryCompanion_RuleTests" }')
+lua.execute('function GetDisplayName() return "account" end')
 lua.globals().GetGameTimeMilliseconds = lambda: int(perf_counter() * 1000)
 compile_lua = lua.eval("function(source, name) assert(loadstring(source, name)) end")
 for folder in ("Core", "Banking", "Tracking"):
@@ -109,12 +112,14 @@ for relative in (
     "Tracking\\AutoCategoryIntegration.lua",
     "Core\\RuleTests.lua",
     "Project\\Tests\\GroupEditorTests.lua",
+    "Tracking\\EditPanelTabManager.lua",
     "Tracking\\EditPanelGroupsTab.lua",
 ):
     lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
 
 persistence_lua = LuaRuntime(unpack_returned_tuples=True)
 persistence_lua.execute("""
+function GetDisplayName() return "account" end
 SLASH_COMMANDS = {}
 EVENT_MANAGER = { RegisterForEvent = function() end }
 function d() end
@@ -180,6 +185,14 @@ for field, relative in (
     saved_variables_lua.globals()[field] = subprocess.check_output(
         ["git", "--no-pager", "show", f"dd05da8489602874e1fdc12bb516f83b7364d877:{relative}"], cwd=root
     ).decode("utf-8-sig")
+for field, relative in (
+    ("Schema9InitSource", "Core/Init.lua"),
+    ("Schema9ConstantsSource", "Core/Constants.lua"),
+    ("Schema9DatabaseSource", "Tracking/ItemDatabase.lua"),
+):
+    saved_variables_lua.globals()[field] = subprocess.check_output(
+        ["git", "--no-pager", "show", f"b04cf78:{relative}"], cwd=root
+    ).decode("utf-8-sig")
 tracker_lua = LuaRuntime(unpack_returned_tuples=True)
 tracker_lua.execute("SLASH_COMMANDS = {}; EVENT_MANAGER = { RegisterForEvent = function() end }")
 tracker_lua.globals().GetGameTimeMilliseconds = lambda: int(perf_counter() * 1000)
@@ -203,6 +216,7 @@ for relative in (
     "Tracking\\ItemDatabase.lua",
     "Tracking\\AutoCategoryIntegration.lua",
     "Project\\Tests\\ItemEditorTests.lua",
+    "Tracking\\EditPanelTabManager.lua",
     "Tracking\\EditPanelItemsTab.lua",
 ):
     item_editor_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
@@ -221,6 +235,7 @@ for relative in (
     "Tracking\\AutoCategoryIntegration.lua",
     "Project\\Tests\\AutoCategoryIntegrationTests.lua",
     "Project\\Tests\\AutoCategoryEditorTests.lua",
+    "Tracking\\EditPanelTabManager.lua",
     "Tracking\\EditPanelAutoCategoryTab.lua",
 ):
     autocategory_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)

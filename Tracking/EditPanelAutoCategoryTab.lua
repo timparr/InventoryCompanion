@@ -79,7 +79,8 @@ local function Phase(name, operation, ...)
 end
 
 local function ConfigureCombo(containerName, selected, select)
-    local combo = ZO_ComboBox_ObjectFromContainer(GetControl(Window("TopActionBar"), containerName))
+    local bar = containerName == "ContextMode" and "TopActionBar" or "OptionsBar"
+    local combo = ZO_ComboBox_ObjectFromContainer(GetControl(Window(bar), containerName))
     assert(combo, "AutoCategory editor is missing its " .. containerName .. " selector")
     combo:SetSortsItems(false)
     combo:ClearItems()
@@ -112,11 +113,11 @@ local function ConfigureToolbar()
     end
     copyContextCombo = ConfigureCombo("CopyContext", source, function(value)
         copyContextCombo.selectedKey = value
-        GetControl(Window("TopActionBar"), "BtnCopy"):SetEnabled(value ~= context)
+        GetControl(Window("OptionsBar"), "BtnCopy"):SetEnabled(value ~= context)
     end)
     copyContextCombo.selectedKey = source
 
-    local copy = GetControl(topBar, "BtnCopy")
+    local copy = GetControl(Window("OptionsBar"), "BtnCopy")
     copy:SetText("Copy")
     copy:SetEnabled(source ~= context)
     copy:SetHandler("OnClicked", function() Timed("copy both orders", nil, this.AutoCategoryIntegration.Run, function()
@@ -132,9 +133,6 @@ local function ConfigureToolbar()
     copy:SetHandler("OnMouseExit", HideTooltip)
 
     local options = Window("OptionsBar")
-    GetControl(options, "BtnResetArrangement"):SetHandler("OnClicked", function()
-        this.AutoCategoryIntegration.ShowIntegrationReset()
-    end)
     local display = GetControl(options, "BtnDisplayOrder")
     local priority = GetControl(options, "BtnPriorityOrder")
     display:SetEnabled(mode ~= "display")
@@ -149,24 +147,17 @@ local function ConfigureToolbar()
         selectedReferences = {}
         this.RefreshAutoCategoryEditor()
     end) end)
-    local useOther = GetControl(options, "BtnUseOtherOrder")
-    useOther:SetText(mode == "display" and "Use priority list" or "Use display list")
-    useOther:SetHandler("OnClicked", function() Timed("use other order", nil, this.AutoCategoryIntegration.Run, function()
-        AssertCurrentView(context, mode)
-        this.AutoCategoryIntegration.UseOtherOrder(context, mode)
-        this.RefreshAutoCategoryEditor()
-    end) end)
-
     local info = Window("Info")
     local trailer = "\n\nYou can move several groups at once. Click a group to select it."
         .. " Hold shift and click to add or remove a group from the current selection,"
         .. " then use the buttons at the bottom to move them all together."
     if mode == "display" then
-        info:SetText("Display order — Choose the order the categories appear in your inventory."
-            .. " Click Included or Excluded to move a category between the two sections in both lists." .. trailer)
+        info:SetText("Display order:\nMove groups to set the order they appear in your inventory."
+            .. " Click Hide to exclude a group in this area, or Show to include it." .. trailer)
     else
-        info:SetText("Priority order — Choose the order that AutoCategory applies the rules to decide"
-            .. " which group an item is in. Only applies when an item might be in more than one group." .. trailer)
+        info:SetText("Priority order:\nWhen an item matches multiple groups, the first included group wins."
+            .. " Click Hide to exclude a group in this area, or Show to include it."
+            .. " Other contains items that match no included group." .. trailer)
     end
 end
 
@@ -208,10 +199,7 @@ local function ConfigureParticipation(row, entry, contextAtRender, modeAtRender)
     local participation = GetControl(row, "Participation")
     participation:SetHidden(entry.kind == "other")
     if entry.kind == "other" then return end
-    local stateLabel = GetControl(participation, "State")
-    stateLabel:SetText(entry.included and "Included" or "Excluded")
-    if entry.included then stateLabel:SetColor(0.2, 0.8, 0.4, 1)
-    else stateLabel:SetColor(1, 0.25, 0.25, 1) end
+    participation:SetText(entry.included and "Hide" or "Show")
     participation:SetHandler("OnClicked", function()
         Timed("inclusion " .. tostring(not entry.included), entry, this.AutoCategoryIntegration.Run, function()
             assert(row.autoCategoryEntry == entry, "AutoCategory participation action targets a stale row")
@@ -275,13 +263,7 @@ local function PopulateRow(row, entry, displayIndex, scrollChild, contextAtRende
         for _, event in ipairs({ "OnMouseDown", "OnMouseEnter", "OnMouseExit" }) do row:SetHandler(event, nil) end
         return
     end
-    -- Flag divergence between the two lists; the other position can be missing until reconciliation realigns them.
-    local otherPosition = modeAtRender == "display" and entry.matchingPosition or entry.displayPosition
-    if CanOrder(entry) and otherPosition ~= nil and otherPosition ~= entry.index then
-        orders:SetText((modeAtRender == "display" and "Priority " or "Display ") .. otherPosition)
-    else
-        orders:SetText("")
-    end
+    orders:SetText("")
     if entry.kind == "heading" then
         label:SetText("AutoCategory: " .. EscapeEsoMarkup(entry.name))
         label:SetColor(0.65, 0.68, 1, 1)
@@ -414,9 +396,25 @@ function this.RefreshAutoCategoryEditor()
     if InventoryCompanion_AutoCategoryWindow:IsHidden() then return end
     local failed = this.AutoCategoryIntegration.NeedsRecovery()
     local awaitingSetup = this.AutoCategoryIntegration.IsAwaitingSetup()
-    local recoveryVisible = failed or awaitingSetup
+    local inactive = not IsActive()
+    local recoveryVisible = failed
     for _, name in ipairs({ "TopActionBar", "OptionsBar", "Info", "List", "MovementBar" }) do
-        Window(name):SetHidden(recoveryVisible)
+        Window(name):SetHidden(recoveryVisible or inactive)
+    end
+    local off = Window("Enablement")
+    off:SetHidden(failed or not inactive)
+    if inactive or failed then
+        this.RefreshEditorChrome(InventoryCompanion_AutoCategoryWindow, "autocategory", context, mode)
+    end
+    if inactive and not failed then
+        GetControl(off, "Info"):SetText(this.GetAutoCategoryInfoText())
+        local toggle = GetControl(off, "Toggle")
+        toggle:SetEnabled(this.AutoCategoryIntegration.IsAvailable())
+        ZO_CheckButton_SetCheckState(toggle, this.GetAutoCategoryState().configuredEnabled)
+        ZO_CheckButton_SetToggleFunction(toggle, function(_, value)
+            this.SetAutoCategoryIntegrationEnabled(value)
+            this.RefreshAutoCategoryUI()
+        end)
     end
     local recovery = Window("Recovery")
     recovery:SetHidden(not recoveryVisible)
@@ -465,10 +463,7 @@ function this.RefreshAutoCategoryEditor()
         end
         return
     end
-    if not IsActive() then
-        this.OpenEditGroupsPanel()
-        return
-    end
+    if inactive then return end
     Phase("RefreshAutoCategoryEditor", this.AutoCategoryIntegration.Run, function()
         local profile = this.GetAutoCategoryProfile()
         if selectionProfile ~= profile then
@@ -478,6 +473,7 @@ function this.RefreshAutoCategoryEditor()
         Phase("ConfigureToolbar", ConfigureToolbar)
         local contextAtRender, modeAtRender = context, mode
         PopulateList(contextAtRender, modeAtRender)
+        this.RefreshEditorChrome(InventoryCompanion_AutoCategoryWindow, "autocategory", context, mode)
     end)
 end
 
@@ -495,6 +491,7 @@ InventoryCompanion_AutoCategoryWindow:SetHandler("OnEffectivelyShown", function(
 end)
 
 InventoryCompanion_AutoCategoryWindow:SetHandler("OnEffectivelyHidden", function()
+    this.EndEditorVisit(InventoryCompanion_AutoCategoryWindow)
     SetGameCameraUIMode(false)
     this.UpdateEditorLayout()
 end)

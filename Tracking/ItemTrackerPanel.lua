@@ -19,8 +19,8 @@ local function GetRowsChild()
 end
 
 local function OnTrackerMoveStop(control)
-    this.accountWide.trackerOffsetX = control:GetLeft()
-    this.accountWide.trackerOffsetY = control:GetTop()
+    this.GetSettingsProfile().trackerOffsetX = control:GetLeft()
+    this.GetSettingsProfile().trackerOffsetY = control:GetTop()
 end
 
 local function OnTrackerMouseUp(control, button)
@@ -28,22 +28,22 @@ local function OnTrackerMouseUp(control, button)
         ClearMenu()
 
         -- 1. Toggle: Show/Hide Empty Tracked Items
-        local showEmpty = (this.accountWide.showEmptyTrackedItems ~= false)
+        local showEmpty = (this.GetSettingsProfile().showEmptyTrackedItems ~= false)
         AddCustomMenuItem(
             (showEmpty and "Hide Empty Tracked Items" or "Show Empty Tracked Items"),
             function()
-                this.accountWide.showEmptyTrackedItems = not showEmpty
+                this.GetSettingsProfile().showEmptyTrackedItems = not showEmpty
                 this.RefreshItemTrackerPanel()
             end,
             MENU_ADD_OPTION_LABEL
         )
 
         -- 2. Toggle: Multiline / Single Line View
-        local isWrapped = (this.accountWide.wrapTrackedItemNames == true)
+        local isWrapped = (this.GetSettingsProfile().wrapTrackedItemNames == true)
         AddCustomMenuItem(
             (isWrapped and "Single Line View" or "Multiline View"),
             function()
-                this.accountWide.wrapTrackedItemNames = not isWrapped
+                this.GetSettingsProfile().wrapTrackedItemNames = not isWrapped
                 this.RefreshItemTrackerPanel()
             end,
             MENU_ADD_OPTION_LABEL
@@ -64,7 +64,7 @@ end
 
 function this.InitItemTrackerPanel()
     InventoryCompanion_ItemTrackerFloat:ClearAnchors()
-    InventoryCompanion_ItemTrackerFloat:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, this.accountWide.trackerOffsetX, this.accountWide.trackerOffsetY)
+    InventoryCompanion_ItemTrackerFloat:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, this.GetSettingsProfile().trackerOffsetX, this.GetSettingsProfile().trackerOffsetY)
     InventoryCompanion_ItemTrackerFloat:SetHandler("OnMoveStop", OnTrackerMoveStop)
     InventoryCompanion_ItemTrackerFloat:SetHandler("OnMouseUp", OnTrackerMouseUp)
 
@@ -638,7 +638,7 @@ local function BuildDisplayList(snapshot, activeRules, trackedItems, showEmpty)
     local seenVisibleIds = {}
     local allVisibleItems = CollectAllVisibleItems(snapshot, activeRules, trackedItems, showEmpty, seenVisibleIds)
 
-    local threshold = (this.accountWide and this.accountWide.trackerGroupThreshold) or 8
+    local threshold = (this.accountWide and this.GetSettingsProfile().trackerGroupThreshold) or 8
     if #allVisibleItems < threshold then
         table.sort(allVisibleItems, function(a, b) return a.sortName < b.sortName end)
         return allVisibleItems
@@ -974,15 +974,15 @@ end
 local function GetTrackerCoordinates()
     local oldLeft = InventoryCompanion_ItemTrackerFloat:GetLeft()
     local oldTop = InventoryCompanion_ItemTrackerFloat:GetTop()
-    if not oldLeft or oldLeft <= 0 then oldLeft = this.accountWide.trackerOffsetX or 50 end
-    if not oldTop or oldTop <= 0 then oldTop = this.accountWide.trackerOffsetY or 50 end
+    if not oldLeft or oldLeft <= 0 then oldLeft = this.GetSettingsProfile().trackerOffsetX or 50 end
+    if not oldTop or oldTop <= 0 then oldTop = this.GetSettingsProfile().trackerOffsetY or 50 end
     return oldLeft, oldTop
 end
 
 local function GetTrackerDisplayList()
     local trackedItems = this.GetActiveTrackedItems()
     local activeRules = this.GetActiveTrackedRules()
-    local showEmpty = this.accountWide.showEmptyTrackedItems ~= false
+    local showEmpty = this.GetSettingsProfile().showEmptyTrackedItems ~= false
 
     local bagIdList = { BAG_BACKPACK, BAG_BANK, BAG_SUBSCRIBER_BANK }
     if IsESOPlusSubscriber() then
@@ -1012,22 +1012,22 @@ end
 
 function this.SetItemTrackerPanelVisible(visible)
     assert(type(visible) == "boolean", "Tracker visibility must be a boolean")
-    this.accountWide.showTrackedItemsPanel = visible
+    this.GetSettingsProfile().showTrackedItemsPanel = visible
     this.UpdateEventRegistry()
     this.RefreshItemTrackerPanel()
 end
 
 function this.ToggleItemTrackerPanel()
-    this.SetItemTrackerPanelVisible(this.accountWide.showTrackedItemsPanel == false)
+    this.SetItemTrackerPanelVisible(this.GetSettingsProfile().showTrackedItemsPanel == false)
 end
 
 function this.RefreshItemTrackerPanel(reason, targetGroup)
-    local titleSize = this.accountWide.trackerTitleSize
+    local titleSize = this.GetSettingsProfile().trackerTitleSize
     InventoryCompanion_ItemTrackerFloatTitle:SetFont(string.format("%s|%d|soft-shadow-thin",
         ZoFontGame:GetFontInfo(), titleSize))
     InventoryCompanion_ItemTrackerFloatEditIcon:SetDimensions(titleSize, titleSize)
     InventoryCompanion_ItemTrackerFloatSettingsIcon:SetDimensions(titleSize, titleSize)
-    if this.accountWide.showTrackedItemsPanel == false then
+    if this.GetSettingsProfile().showTrackedItemsPanel == false then
         InventoryCompanion_ItemTrackerFloat:SetHidden(true)
         return
     end
@@ -1046,14 +1046,14 @@ function this.RefreshItemTrackerPanel(reason, targetGroup)
         items = { { link = "|c888888No tracked items in backpack|r", count = 0,
             icon = "EsoUI/Art/Buttons/edit_up.dds", isEmpty = true } }
     end
-    local budget = math.min(this.accountWide.trackerMaxRows,
+    local budget = math.min(this.GetSettingsProfile().trackerMaxRows,
         math.max(1, math.floor((GuiRoot:GetHeight() - InventoryCompanion_ItemTrackerFloatTitle:GetHeight() - 12) / 24)))
     local model = BuildLayoutModel(items, rules)
     -- Single-line row totals are a lower bound: an overflowing selection cannot fit wrapped.
     local expanded, collapsed = ChooseLayout(model, previousLayout, reason, targetGroup, budget)
     local selected = SelectRows(model, expanded)
     local wrapped = false
-    if this.accountWide.wrapTrackedItemNames == true and not collapsed and #selected <= budget then
+    if this.GetSettingsProfile().wrapTrackedItemNames == true and not collapsed and #selected <= budget then
         MeasureWrappedRows(selected)
         local units = 0
         for _, item in ipairs(selected) do units = units + item.rowUnits end

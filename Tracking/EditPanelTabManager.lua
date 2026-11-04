@@ -14,6 +14,70 @@ local editorTabs = {
     { scene = GROUPS_SCENE, window = "InventoryCompanion_GroupsWindow", refresh = "RefreshGroupsEditor" },
     { scene = AUTOCATEGORY_SCENE, window = "InventoryCompanion_AutoCategoryWindow", refresh = "RefreshAutoCategoryEditor" },
 }
+local visits = {}
+
+function this.EndEditorVisit(window)
+    visits[window] = nil
+end
+
+function this.RefreshEditorChrome(window, panel, contextKey, mode)
+    if window:IsHidden() then return end
+    local buttons = {
+        { "BtnEditItems", "items", this.OpenEditItemsPanel },
+        { "BtnEditGroups", "groups", this.OpenEditGroupsPanel },
+        { "BtnAutoCategory", "autocategory", this.OpenAutoCategoryPanel },
+    }
+    for _, entry in ipairs(buttons) do
+        local button = GetControl(window, entry[1])
+        button:SetEnabled(entry[2] ~= panel)
+        button:SetHidden(entry[2] == "autocategory" and not this.AutoCategoryIntegration.IsPanelAvailable())
+        button:SetHandler("OnClicked", entry[3])
+    end
+    local undo = GetControl(window, "BtnUndo")
+    undo:SetHidden(true)
+    if panel == "autocategory" and not this.AutoCategoryIntegration.IsEditorActive() then return end
+    local profile = this.GetSettingsProfile()
+    local visit = visits[window]
+    if visit and visit.profile ~= profile then
+        visits[window] = nil
+        visit = nil
+    end
+    if not visit then
+        visit = { profile = profile,
+            baseline = panel == "autocategory" and this.CopySavedValue(profile.autoCategoryOrder)
+                or this.CaptureEditorState(panel) }
+        visits[window] = visit
+    end
+    local snapshot = visit.baseline
+    visit.context, visit.mode = contextKey, mode
+    if panel == "autocategory" then
+        local saved = snapshot.contexts[contextKey]
+        snapshot = { order = saved[mode], hidden = saved.hidden, displayPositions = saved.displayPositions }
+    end
+    undo:SetHidden(this.SavedValuesEqual(snapshot, this.CaptureEditorState(panel, contextKey, mode)))
+    undo:SetHandler("OnClicked", function()
+        assert(visits[window] == visit and this.GetSettingsProfile() == profile,
+            "Undo action targets a previous editor visit")
+        assert(visit.context == contextKey and visit.mode == mode, "Undo action targets a previous editor page")
+        if this.AutoCategoryIntegration.NeedsRecovery() then
+            this.Utils.UserError("Resolve the AutoCategory problem before restoring the opening state.",
+                "Undo changes unavailable")
+            return
+        end
+        local function Restore()
+            if this.RestoreEditorState(panel, snapshot, contextKey, mode) then
+                this.RefreshTrackedItemsEditor()
+                this.RefreshGroupsEditor()
+                this.RefreshAutoCategoryEditor()
+            end
+        end
+        if this.AutoCategoryIntegration.IsEditorActive() then
+            this.AutoCategoryIntegration.Run(Restore)
+        else
+            Restore()
+        end
+    end)
+end
 
 local function GetTab(sceneName)
     for _, tab in ipairs(editorTabs) do

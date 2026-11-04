@@ -389,7 +389,7 @@ function this.GetRuleTests()
         assert(not this.CopyProfile("missing"), "Unknown profile should fail")
         Equal(this.GetRuntimeRules(), valid, "Failed copy does not invalidate")
         _G[this.SettingsName].Default.account.self = this.accountWide
-        assert(this.CopyProfile("self"), "Self-copy should preserve data")
+        FailsWith(function() this.CopyProfile("self") end, "Cannot copy a profile onto itself")
         Equal(this.accountWide.trackedItems[123].link, "item", "Self-copy retains items")
         List(this.GetRuntimeRules().default.patterns, { "b", "c", "d", "e" }, "Self-copy retains rules")
     end)

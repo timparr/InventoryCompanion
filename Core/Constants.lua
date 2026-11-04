@@ -238,6 +238,13 @@ this.defaultsAccount = {
     -- Standalone Progress Bars
     progressBarPreferences = {},
     progressBarAlertColors = {},
+    currencyPreferences = {},
+    capacityPreferences = {},
+    filterShow = true,
+    filterNotify = true,
+    filterCraftbag = false,
+    filterMute = true,
+    filterUntracked = false,
 }
 
 ------------------------------------------------------------------
@@ -245,12 +252,6 @@ this.defaultsAccount = {
 ------------------------------------------------------------------
 this.defaultsCharacter = {
     isEnabled = true,    
-    trackedItems = {},
-    trackedRules = {},
-    filterShow = true,
-    filterNotify = true,
-    filterCraftbag = false,
-    filterMute = true,
-    filterUntracked = false,
+    itemListInitialized = false,
     useCharacterItemList = false,
 }

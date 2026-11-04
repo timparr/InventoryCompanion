@@ -5,7 +5,7 @@ InventoryCompanion = {
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
     Version = "1.6.2",
-    SettingsVersion = 9,
+    SettingsVersion = 10,
     SettingsName = "InventoryCompanion_SavedVariables",
 }
 local this = InventoryCompanion
@@ -19,19 +19,19 @@ this.state = {
 -- Core Initialization
 ------------------------------------------------------------------
 function this.ValidateTrackerSettings()
-    local value = this.accountWide.trackerMaxRows
+    local value = this.GetSettingsProfile().trackerMaxRows
     if value == nil then
         value = this.defaultsAccount.trackerMaxRows
     end
     assert(type(value) == "number" and value == value and value >= 5 and value <= 50
         and value == math.floor(value), "Saved trackerMaxRows must be an integer from 5 to 50")
-    this.accountWide.trackerMaxRows = value
-    local titleSize = this.accountWide.trackerTitleSize
+    this.GetSettingsProfile().trackerMaxRows = value
+    local titleSize = this.GetSettingsProfile().trackerTitleSize
     if titleSize == nil then titleSize = this.defaultsAccount.trackerTitleSize end
     assert(type(titleSize) == "number" and titleSize == titleSize and titleSize >= 16
         and titleSize <= 28 and titleSize == math.floor(titleSize),
         "Saved trackerTitleSize must be an integer from 16 to 28")
-    this.accountWide.trackerTitleSize = titleSize
+    this.GetSettingsProfile().trackerTitleSize = titleSize
 end
 
 function this.ValidateDebugSettings()

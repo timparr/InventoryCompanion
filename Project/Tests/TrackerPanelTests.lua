@@ -151,6 +151,11 @@ local function Setup(sizes, budget, expanded, wrapped, length)
         showEmptyTrackedItems = false, trackerMaxRows = budget, trackerGroupThreshold = 1,
         trackerOffsetX = 50, trackerOffsetY = 50, wrapTrackedItemNames = wrapped == true, trackerTitleSize = 20 }
     this.character = { trackedRules = {}, trackedItems = {}, useCharacterItemList = false }
+    _G[this.SettingsName] = { Default = { account = { ["$AccountWide"] = this.accountWide,
+        character = this.character } } }
+    function GetDisplayName() return "account" end
+    GAMEPAD_DIALOGS, SI_DIALOG_CANCEL = { BASIC = 1 }, "Cancel"
+    function ZO_Dialogs_RegisterCustomDialog() end
     this.defaultsAccount = { trackerMaxRows = 20, trackerTitleSize = 20 }
     this.preLoadedRulesets = {}
     for index, size in ipairs(sizes) do
@@ -670,7 +675,7 @@ function this.GetTrackerPanelTests()
         this.ResetRule("group1")
         local _, reset = this.GetTrackerContext()
         Equal(reset, revision + 1)
-        _G[this.SettingsName] = nil
+        _G[this.SettingsName] = { Default = { account = {} } }
         assert(not this.CopyProfile("missing"))
         local _, failed = this.GetTrackerContext()
         Equal(failed, reset)
@@ -879,13 +884,16 @@ function this.GetTrackerPanelTests()
         CALLBACK_MANAGER = { RegisterCallback = function() end }
         this.CreateSettingsPanel()
         local button, visibility, errorButton, statusDescription, enableToggle, editorButton, simulateButton
+        local scope, copySource
         for _, option in ipairs(options) do
-            if option.name == "Open Item Tracking Editor" then button = option end
+            if option.name == "Manage Items" then button = option end
+            if option.name == "Use Character Settings" then scope = option end
+            if option.name == "Copy From" then copySource = option end
             if option.name == "More information" then errorButton = option end
             if option.name == "Enable AutoCategory Integration" then enableToggle = option end
             if option.name == "Open AutoCategory Editor" then editorButton = option end
             if option.name == "Simulate integration failure (DEV)" then simulateButton = option end
-            if option.type == "description" and statusDescription == nil then statusDescription = option end
+            if option.name == "AutoCategory Information" then statusDescription = option.controls[1] end
             if option.name == "Item Tracker Panel" then
                 for _, control in ipairs(option.controls) do
                     if control.name == "Show Tracked Items Panel" then visibility = control end
@@ -914,19 +922,25 @@ function this.GetTrackerPanelTests()
         assert(enableToggle.getFunc() == true and enableToggle.disabled(),
             "A fault must retain the saved enable choice while blocking normal controls")
         assert(editorButton.hidden(), "Faulted settings must offer one recovery destination, not duplicate editors")
-        assert(simulateButton.hidden(), "Release settings must not expose DEV failure simulation")
-        local previousDevelopment, previousDebug = this.IsDevelopment, this.accountWide.debugEnabled
-        this.IsDevelopment, this.accountWide.debugEnabled = true, true
-        assert(not simulateButton.hidden() and simulateButton.disabled(),
-            "DEV simulation must be visible in Debug Mode but unavailable during a failure")
-        this.accountWide.debugEnabled = false
-        assert(simulateButton.hidden(), "DEV simulation must be hidden outside Debug Mode")
-        this.IsDevelopment, this.accountWide.debugEnabled = previousDevelopment, previousDebug
+        assert(simulateButton == nil, "Settings must not expose a failure simulator")
         assert(not errorButton.hidden(), "More information must be visible while integration is faulted")
         errorButton.func()
         Equal(openRecoveryCalls, 1)
         integration.GetStatus, integration.IsFaulted, this.OpenAutoCategoryPanel =
             originalGetStatus, originalIsFaulted, originalOpenPanel
+        local originalRefreshProfile = this.RefreshProfileSettings
+        this.RefreshProfileSettings = function() end
+        local updates = 0
+        InventoryCompanion_ProfileCopySource = { UpdateChoices = function(_, names, keys)
+            updates = updates + 1
+            assert(#names == #keys and #keys == 2, "Newly initialized character must become a copy source")
+        end }
+        assert(#copySource.choicesValues == 1)
+        scope.setFunc(true)
+        scope.setFunc(false)
+        assert(updates == 2 and this.character.itemListInitialized
+            and this.accountWide.autoCategoryIntegrationEnabled == true)
+        this.RefreshProfileSettings = originalRefreshProfile
         assert(visibility.setFunc == this.SetItemTrackerPanelVisible, "Checkbox and keybinding must share visibility handling")
         local current = "gameMenuInGame"
         SCENE_MANAGER = {
@@ -970,6 +984,8 @@ function this.GetTrackerPanelTests()
             Hide = function(_, name) if current == name then current = nil end end,
         }
         integration.IsFaulted = function() return true end
+        local previousAutoCategory = AutoCategory
+        AutoCategory = {}
         this.RefreshAutoCategoryEditor = function()
             assert(integration.NeedsRecovery() and not this.GetAutoCategoryState().enabled)
             refreshes = refreshes + 1
@@ -986,12 +1002,14 @@ function this.GetTrackerPanelTests()
         this.ToggleTrackedItemsEditor()
         integration.IsFaulted = function() return false end
         this.accountWide.autoCategoryIntegrationEnabled = nil
+        AutoCategory = nil
         this.ToggleTrackedItemsEditor()
         Equal(current, "InventoryCompanion_GroupsScene")
         Equal(groupRefreshes, 1)
         integration.IsFaulted = previousFaulted
         this.RefreshAutoCategoryEditor, this.RefreshGroupsEditor = previousRefresh, previousGroups
         SCENE_MANAGER = previousManager
+        AutoCategory = previousAutoCategory
         InventoryCompanion_AutoCategoryWindow:SetHidden(true)
     end)
     Add("Tracker independent locations render exact backpack bank-only and combined counts", function()

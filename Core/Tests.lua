@@ -348,11 +348,11 @@ end
 
 local function RunCurrencyMessageScenario(scenario, verbose)
     local currencyType = scenario.currencyType or CURT_MONEY
-    local savedPreferences = this.accountWide.currencyPreferences
+    local savedPreferences = this.GetSettingsProfile().currencyPreferences
     local clock = 100000
 
     local ok, err = pcall(function()
-        this.accountWide.currencyPreferences = {}
+        this.GetSettingsProfile().currencyPreferences = {}
         this.SetCurrencyNotificationEnabled(currencyType, true)
         this.BeginCurrencyNotificationSuppression(0)
         if scenario.baselines then
@@ -380,7 +380,7 @@ local function RunCurrencyMessageScenario(scenario, verbose)
 
     local captured = this.Utils.EndMessageCapture()
     this.BeginCurrencyNotificationSuppression(0)
-    this.accountWide.currencyPreferences = savedPreferences
+    this.GetSettingsProfile().currencyPreferences = savedPreferences
     if not ok then error(err, 0) end
 
     local actualLines = SummarizeMessages(captured)
@@ -470,11 +470,11 @@ local function GetCapacityMessageScenarios()
 end
 
 local function RunCapacityMessageScenario(scenario, verbose)
-    local savedPreferences = this.accountWide.capacityPreferences
+    local savedPreferences = this.GetSettingsProfile().capacityPreferences
     local clock = 100000
 
     local ok, err = pcall(function()
-        this.accountWide.capacityPreferences = {}
+        this.GetSettingsProfile().capacityPreferences = {}
         for _, kind in ipairs({ "bag", "bank" }) do
             local enabled = scenario.enabled == nil or scenario.enabled[kind] == true
             this.SetCapacityNotificationEnabled(kind, enabled)
@@ -495,7 +495,7 @@ local function RunCapacityMessageScenario(scenario, verbose)
 
     local captured = this.Utils.EndMessageCapture()
     this.BeginCurrencyNotificationSuppression(0)
-    this.accountWide.capacityPreferences = savedPreferences
+    this.GetSettingsProfile().capacityPreferences = savedPreferences
     if not ok then error(err, 0) end
 
     local expectedMessages = {}
@@ -967,12 +967,12 @@ local function RunTests(arguments)
             {
                 name = "Progress bar resource model and preferences",
                 run = function()
-                    local savedPreferences = this.accountWide.progressBarPreferences
-                    local savedAlertColors = this.accountWide.progressBarAlertColors
+                    local savedPreferences = this.GetSettingsProfile().progressBarPreferences
+                    local savedAlertColors = this.GetSettingsProfile().progressBarAlertColors
                     local savedTestValue = this.accountWide.unrelatedProgressTestValue
                     local ok, err = pcall(function()
-                        this.accountWide.progressBarPreferences = {}
-                        this.accountWide.progressBarAlertColors = {}
+                        this.GetSettingsProfile().progressBarPreferences = {}
+                        this.GetSettingsProfile().progressBarAlertColors = {}
                         local resources = this.GetProgressBarResources()
                         local resourcesByKey = {}
                         local capacityCount = 0
@@ -1062,7 +1062,7 @@ local function RunTests(arguments)
                         CheckEqual(settings.warningThreshold, 0.20, "Crossing danger should move warning to the selected value")
                         CheckEqual(settings.dangerThreshold, 0.20, "Danger threshold change should be retained")
 
-                        this.accountWide.progressBarPreferences = {
+                        this.GetSettingsProfile().progressBarPreferences = {
                             [bag.key] = { showBar = "invalid", warningThreshold = 1.5, dangerThreshold = 0.2 },
                             ["capacity:future"] = { futureSetting = true },
                         }
@@ -1071,17 +1071,17 @@ local function RunTests(arguments)
                         CheckEqual(settings.warningThreshold, 0.75, "Malformed threshold ordering should fall back to defaults")
                         CheckEqual(settings.dangerThreshold, 0.90, "Malformed threshold ordering should fall back to defaults")
                         CheckEqual(
-                            this.accountWide.progressBarPreferences["capacity:future"].futureSetting,
+                            this.GetSettingsProfile().progressBarPreferences["capacity:future"].futureSetting,
                             true,
                             "Unknown resource preferences should be preserved"
                         )
-                        this.accountWide.progressBarPreferences = "malformed"
+                        this.GetSettingsProfile().progressBarPreferences = "malformed"
                         CheckEqual(this.GetProgressBarSettings(bag.key).showBar, true, "Malformed preference tables should use resource defaults")
-                        Check(type(this.accountWide.progressBarPreferences) == "table", "Malformed preference tables should be recovered")
+                        Check(type(this.GetSettingsProfile().progressBarPreferences) == "table", "Malformed preference tables should be recovered")
                         CheckEqual(this.accountWide.unrelatedProgressTestValue, "preserved", "Unrelated saved variables should remain unchanged")
                     end)
-                    this.accountWide.progressBarPreferences = savedPreferences
-                    this.accountWide.progressBarAlertColors = savedAlertColors
+                    this.GetSettingsProfile().progressBarPreferences = savedPreferences
+                    this.GetSettingsProfile().progressBarAlertColors = savedAlertColors
                     this.accountWide.unrelatedProgressTestValue = savedTestValue
                     if not ok then error(err) end
                 end,
@@ -1089,7 +1089,7 @@ local function RunTests(arguments)
             {
                 name = "Currency notification preferences and changes",
                 run = function()
-                    local savedPreferences = this.accountWide.currencyPreferences
+                    local savedPreferences = this.GetSettingsProfile().currencyPreferences
                     local savedUserWarning = this.Utils.UserWarning
                     local ok, err = pcall(function()
                         local currencyTypes = this.GetCurrencyList()
@@ -1103,7 +1103,7 @@ local function RunTests(arguments)
                             end
                         end
                         Check(isGoldAvailable, "Expected gold to be initialized for notification tests")
-                        this.accountWide.currencyPreferences = {}
+                        this.GetSettingsProfile().currencyPreferences = {}
                         local notifications = {}
                         this.Utils.UserWarning = function(chat, hud)
                             table.insert(notifications, { chat = chat, hud = hud })
@@ -1257,7 +1257,7 @@ local function RunTests(arguments)
                     end)
                     this.FlushCurrencyNotifications()
                     this.SeedCurrencyNotificationBaselines()
-                    this.accountWide.currencyPreferences = savedPreferences
+                    this.GetSettingsProfile().currencyPreferences = savedPreferences
                     this.Utils.UserWarning = savedUserWarning
                     if not ok then error(err) end
                 end,
@@ -1298,11 +1298,11 @@ local function RunTests(arguments)
             {
                 name = "Currency panel resource preferences",
                 run = function()
-                    local savedCurrencyPreferences = this.accountWide.currencyPreferences
-                    local savedCapacityPreferences = this.accountWide.capacityPreferences
+                    local savedCurrencyPreferences = this.GetSettingsProfile().currencyPreferences
+                    local savedCapacityPreferences = this.GetSettingsProfile().capacityPreferences
                     local ok, err = pcall(function()
-                        this.accountWide.currencyPreferences = {}
-                        this.accountWide.capacityPreferences = {}
+                        this.GetSettingsProfile().currencyPreferences = {}
+                        this.GetSettingsProfile().capacityPreferences = {}
 
                         local entries = this.GetCurrencyPanelResourceEntries()
                         Check(#entries > 0, "Expected currency and capacity resources")
@@ -1322,12 +1322,12 @@ local function RunTests(arguments)
                         end
                         Check(currencyEntry ~= nil, "Expected a discovered currency resource")
 
-                        this.accountWide.capacityPreferences.bag = { showCompact = false }
+                        this.GetSettingsProfile().capacityPreferences.bag = { showCompact = false }
                         CheckEqual(this.IsCapacityResourceVisible("bag"), false, "A hidden backpack capacity should report hidden")
-                        this.accountWide.capacityPreferences.bag.showCompact = nil
+                        this.GetSettingsProfile().capacityPreferences.bag.showCompact = nil
                         CheckEqual(this.IsCapacityResourceVisible("bag"), true, "A shown backpack capacity should report visible")
 
-                        this.accountWide.currencyPreferences[currencyEntry.currencyType] = {
+                        this.GetSettingsProfile().currencyPreferences[currencyEntry.currencyType] = {
                             locations = {
                                 [currencyEntry.location] = { hidden = true },
                             },
@@ -1343,15 +1343,15 @@ local function RunTests(arguments)
                         end
                         CheckEqual(hiddenCount, 1, "Expected exactly one matching currency location")
 
-                        this.accountWide.currencyPreferences = {}
-                        this.accountWide.capacityPreferences = {}
+                        this.GetSettingsProfile().currencyPreferences = {}
+                        this.GetSettingsProfile().capacityPreferences = {}
                         local function SetTestOrder(entry, order)
                             if entry.kind == "currency" then
-                                this.accountWide.currencyPreferences[entry.currencyType] = {
+                                this.GetSettingsProfile().currencyPreferences[entry.currencyType] = {
                                     locations = { [entry.location] = { order = order } },
                                 }
                             else
-                                this.accountWide.capacityPreferences[entry.resourceKey] = { order = order }
+                                this.GetSettingsProfile().capacityPreferences[entry.resourceKey] = { order = order }
                             end
                         end
                         SetTestOrder(entries[1], 2)
@@ -1360,8 +1360,8 @@ local function RunTests(arguments)
                         CheckEqual(orderedEntries[1].key, entries[2].key, "Explicit resource order should be applied")
                         CheckEqual(orderedEntries[2].key, entries[1].key, "Explicit resource order should be deterministic")
                     end)
-                    this.accountWide.currencyPreferences = savedCurrencyPreferences
-                    this.accountWide.capacityPreferences = savedCapacityPreferences
+                    this.GetSettingsProfile().currencyPreferences = savedCurrencyPreferences
+                    this.GetSettingsProfile().capacityPreferences = savedCapacityPreferences
                     if not ok then error(err) end
                 end,
             },
@@ -2176,11 +2176,11 @@ local function RunTests(arguments)
                 local cap = GetMaxPossibleCurrency(currencyType, location)
                 local resourceKey = "currency:" .. tostring(currencyType)
 
-                local savedColors = this.accountWide.progressBarAlertColors
-                local savedPreferences = this.accountWide.progressBarPreferences
+                local savedColors = this.GetSettingsProfile().progressBarAlertColors
+                local savedPreferences = this.GetSettingsProfile().progressBarPreferences
                 local ok, err = pcall(function()
-                    this.accountWide.progressBarAlertColors = {}
-                    this.accountWide.progressBarPreferences = {}
+                    this.GetSettingsProfile().progressBarAlertColors = {}
+                    this.GetSettingsProfile().progressBarPreferences = {}
                     this.SetProgressBarAlertColor("warning", { r = 1, g = 0.5, b = 0, a = 1 })
                     this.SetProgressBarAlertColor("danger", { r = 1, g = 0, b = 0, a = 1 })
                     local settings = this.GetProgressBarSettings(resourceKey)
@@ -2209,8 +2209,8 @@ local function RunTests(arguments)
                         "At the danger threshold the balance should use the danger colour"
                     )
                 end)
-                this.accountWide.progressBarAlertColors = savedColors
-                this.accountWide.progressBarPreferences = savedPreferences
+                this.GetSettingsProfile().progressBarAlertColors = savedColors
+                this.GetSettingsProfile().progressBarPreferences = savedPreferences
                 if not ok then error(err, 0) end
             end,
         })
@@ -2240,11 +2240,11 @@ local function RunTests(arguments)
         table.insert(tests, {
             name = "Capacity messages: balance colours follow the progress bar thresholds",
             run = function()
-                local savedColors = this.accountWide.progressBarAlertColors
-                local savedPreferences = this.accountWide.progressBarPreferences
+                local savedColors = this.GetSettingsProfile().progressBarAlertColors
+                local savedPreferences = this.GetSettingsProfile().progressBarPreferences
                 local ok, err = pcall(function()
-                    this.accountWide.progressBarAlertColors = {}
-                    this.accountWide.progressBarPreferences = {}
+                    this.GetSettingsProfile().progressBarAlertColors = {}
+                    this.GetSettingsProfile().progressBarPreferences = {}
                     this.SetProgressBarAlertColor("warning", { r = 1, g = 0.5, b = 0, a = 1 })
                     this.SetProgressBarAlertColor("danger", { r = 1, g = 0, b = 0, a = 1 })
                     for _, kind in ipairs({ "bag", "bank" }) do
@@ -2275,8 +2275,8 @@ local function RunTests(arguments)
                         )
                     end
                 end)
-                this.accountWide.progressBarAlertColors = savedColors
-                this.accountWide.progressBarPreferences = savedPreferences
+                this.GetSettingsProfile().progressBarAlertColors = savedColors
+                this.GetSettingsProfile().progressBarPreferences = savedPreferences
                 if not ok then error(err, 0) end
             end,
         })
@@ -2284,9 +2284,9 @@ local function RunTests(arguments)
         table.insert(tests, {
             name = "Capacity notification preferences",
             run = function()
-                local savedPreferences = this.accountWide.capacityPreferences
+                local savedPreferences = this.GetSettingsProfile().capacityPreferences
                 local ok, err = pcall(function()
-                    this.accountWide.capacityPreferences = {}
+                    this.GetSettingsProfile().capacityPreferences = {}
                     Check(not this.HasCapacityNotifications(), "Capacity notifications should default to off")
                     this.SetCapacityNotificationEnabled("bank", true)
                     Check(this.IsCapacityNotificationEnabled("bank"), "Bank notifications should turn on")
@@ -2294,9 +2294,9 @@ local function RunTests(arguments)
                     Check(this.HasCapacityNotifications(), "Any enabled capacity notification should be reported")
                     this.SetCapacityNotificationEnabled("bank", false)
                     Check(not this.HasCapacityNotifications(), "Turning the last notification off should be reported")
-                    Check(this.accountWide.capacityPreferences.bank == nil, "Empty capacity preferences should be removed")
+                    Check(this.GetSettingsProfile().capacityPreferences.bank == nil, "Empty capacity preferences should be removed")
                 end)
-                this.accountWide.capacityPreferences = savedPreferences
+                this.GetSettingsProfile().capacityPreferences = savedPreferences
                 if not ok then error(err, 0) end
             end,
         })

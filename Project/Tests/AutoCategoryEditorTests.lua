@@ -66,6 +66,12 @@ SCENE_MANAGER = {}
 ZO_Scene = { New = function() return { AddFragment = function() end } end }
 ZO_FadeSceneFragment = { New = function() return {} end }
 function SetGameCameraUIMode() end
+function GetDisplayName() return "account" end
+this.GetAutoCategoryInfoText = function()
+    local _, message = integration.GetStatus()
+    return message
+end
+this.RefreshAutoCategoryUI = function() end
 
 local function VisibleRows()
     local result = {}
@@ -198,23 +204,42 @@ function this.GetAutoCategoryEditorTests()
 
     return {
         {
+            name = "AutoCategory editor Undo changes keeps opening baselines across mode changes",
+            run = WithActiveIntegration(function()
+                Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
+                this.RefreshTrackedItemsEditor, this.RefreshGroupsEditor = function() end, function() end
+                this.UpdateEventRegistry, this.RefreshItemTrackerPanel = function() end, function() end
+                local options = GetControl(window, "OptionsBar")
+                GetControl(options, "BtnDisplayOrder").handlers.OnClicked()
+                local undo = GetControl(window, "BtnUndo")
+                assert(undo.hidden)
+                local opening = this.CaptureEditorState("autocategory", "backpack", "matching")
+                integration.MoveEntries({ ["ic:alpha"] = true }, "backpack", "matching", "bottom")
+                GetControl(options, "BtnPriorityOrder").handlers.OnClicked()
+                assert(not undo.hidden, "Switching modes must not replace the opening baseline")
+                undo.handlers.OnClicked()
+                assert(undo.hidden and this.SavedValuesEqual(
+                    this.CaptureEditorState("autocategory", "backpack", "matching"), opening))
+                GetControl(options, "BtnDisplayOrder").handlers.OnClicked()
+                this.EndEditorVisit(window)
+                this.RefreshAutoCategoryEditor()
+                assert(undo.hidden)
+            end),
+        },
+        {
             name = "AutoCategory editor shares Included Excluded state across modes with labels colours divider and tooltips",
             run = WithActiveIntegration(function()
                 Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
                 local function State(name, expected)
                     local row = RowByText(name)
                     local toggle = GetControl(row, "Participation")
-                    local label = GetControl(toggle, "State")
-                    assert(label.text == expected and not toggle.hidden)
+                    assert(toggle.text == (expected == "Included" and "Hide" or "Show") and not toggle.hidden)
                     toggle.handlers.OnMouseEnter(toggle)
                     assert(InformationTooltip.text:find(expected, 1, true)
                         and InformationTooltip.text:find("both lists", 1, true))
                     if expected == "Excluded" then
-                        assert(label.color[1] == 1 and label.color[2] == 0.25)
                         assert(GetControl(row, "Name").color[1] == 1)
                         assert(GetControl(row, "MoveUp").hidden and GetControl(row, "MoveDown").hidden)
-                    else
-                        assert(label.color[1] == 0.2 and label.color[2] == 0.8)
                     end
                     return toggle
                 end
@@ -302,13 +327,15 @@ function this.GetAutoCategoryEditorTests()
                 local enabledAgain = false
                 this.SetAutoCategoryIntegrationEnabled = function(enabled) enabledAgain = enabled end
                 this.RefreshAutoCategoryEditor()
-                assert(not recovery.hidden and not GetControl(recovery, "BtnEnableSetup").hidden
-                    and GetControl(recovery, "BtnReset").hidden and GetControl(recovery, "BtnRetry").hidden
+                this.accountWide.autoCategoryIntegrationEnabled = false
+                this.RefreshAutoCategoryEditor()
+                assert(recovery.hidden and not GetControl(window, "Enablement").hidden
                     and GetControl(window, "List").hidden)
-                assert(GetControl(recovery, "Problems").hidden)
-                GetControl(recovery, "BtnEnableSetup").handlers.OnClicked()
+                local toggle = GetControl(GetControl(window, "Enablement"), "Toggle")
+                toggle.toggleFunction(toggle, true)
                 assert(enabledAgain)
                 integration.IsAwaitingSetup, this.SetAutoCategoryIntegrationEnabled = previousAwaiting, previousEnable
+                this.accountWide.autoCategoryIntegrationEnabled = true
                 this.RefreshAutoCategoryEditor()
                 assert(recovery.hidden and not GetControl(window, "List").hidden and #VisibleRows() > 0,
                     "Recovered view must restore normal editing")
@@ -467,7 +494,7 @@ function this.GetAutoCategoryEditorTests()
                 assert(sellingLabel.color[1] == 0.65 and sellingLabel.color[2] == 0.68
                     and sellingLabel.color[3] == 1, "Native categories use a non-green tint")
                 assert(not GetControl(RowByText("Gamma"), "Participation").hidden)
-                assert(GetControl(GetControl(RowByText("Gamma"), "Participation"), "State").text == "Excluded")
+                assert(GetControl(RowByText("Gamma"), "Participation").text == "Show")
                 assert(not GetControl(RowByText("New"), "Participation").hidden)
                 assert(GetControl(RowByText("Alpha"), "MoveDown").hidden == false)
                 assert(GetControl(RowByText("Alpha"), "Orders").text == "",
@@ -479,10 +506,9 @@ function this.GetAutoCategoryEditorTests()
                 GetControl(RowByText("Alpha"), "MoveDown").handlers.OnClicked()
                 local move = integration.lastMove
                 assert(move[1]["ic:alpha"] and move[2] == "backpack" and move[3] == "display" and move[4] == 1)
-                assert(GetControl(RowByText("Alpha"), "Orders").text == "Priority 2",
-                    "Diverging rows must show their position in the other list: "
-                        .. GetControl(RowByText("Alpha"), "Orders").text)
-                assert(GetControl(RowByText("Beta"), "Orders").text == "Priority 3",
+                assert(GetControl(RowByText("Alpha"), "Orders").text == "",
+                    "Divergence warnings are removed")
+                assert(GetControl(RowByText("Beta"), "Orders").text == "",
                     GetControl(RowByText("Beta"), "Orders").text)
 
                 local options = GetControl(window, "OptionsBar")
@@ -490,13 +516,9 @@ function this.GetAutoCategoryEditorTests()
                 alphaLabel = GetControl(RowByText("Alpha"), "Name")
                 assert(alphaLabel.color[1] == 0.60 and alphaLabel.color[2] == 0.90
                     and alphaLabel.color[3] == 0.65, "Priority groups use pale green")
-                assert(GetControl(window, "Info").text:find("more than one group", 1, true))
+                assert(GetControl(window, "Info").text:find("multiple groups", 1, true))
                 assert(GetControl(window, "Info").text:find("Hold shift", 1, true))
-                assert(GetControl(options, "BtnUseOtherOrder").text == "Use display list")
-                GetControl(options, "BtnUseOtherOrder").handlers.OnClicked()
-                assert(integration.lastCopyMode[1] == "backpack" and integration.lastCopyMode[2] == "matching")
                 GetControl(options, "BtnDisplayOrder").handlers.OnClicked()
-                assert(GetControl(options, "BtnUseOtherOrder").text == "Use priority list")
 
                 local participation = GetControl(RowByText("Gamma"), "Participation")
                 participation.handlers.OnClicked()
@@ -505,7 +527,7 @@ function this.GetAutoCategoryEditorTests()
             end),
         },
         {
-            name = "AutoCategory editor falls back to Groups when integration becomes inactive",
+            name = "AutoCategory editor shows enablement instead of leaving when integration is off",
             run = WithActiveIntegration(function()
                 Setup({})
                 this.accountWide.autoCategoryIntegrationEnabled = false
@@ -515,7 +537,8 @@ function this.GetAutoCategoryEditorTests()
                 local ok, err = pcall(this.RefreshAutoCategoryEditor)
                 this.OpenEditGroupsPanel = openGroups
                 assert(ok, err)
-                assert(opened == 1, "Inactive integration must leave the AutoCategory tab")
+                assert(opened == 0 and not GetControl(window, "Enablement").hidden,
+                    "Loaded but disabled integration must retain its enablement view")
                 window.hidden = true
                 this.RefreshAutoCategoryEditor()
             end),

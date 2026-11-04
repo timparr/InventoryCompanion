@@ -4,6 +4,7 @@ local groupRows = {}
 local patternRows = {}
 local patternExclusionDivider
 local selectedGroupName = nil
+local searchQuery = ""
 local SetActionButtons
 
 ------------------------------------------------------------------
@@ -31,7 +32,9 @@ local function GetSortedGroupNames()
     local activeRules = this.GetActiveTrackedRules(true)
     local groupNames = {}
     for name in pairs(activeRules) do
-        table.insert(groupNames, name)
+        if searchQuery == "" or activeRules[name].displayName:lower():find(searchQuery, 1, true) then
+            table.insert(groupNames, name)
+        end
     end
 	
 	table.sort(groupNames, function(a, b)
@@ -287,6 +290,7 @@ end
 local function SaveRulePatterns(groupName, rows)
     this.UpdateRulePatterns(groupName, EncodePatternRows(rows))
     for _, row in ipairs(rows) do row.lastSavedPattern = row.pattern end
+    this.RefreshEditorChrome(InventoryCompanion_GroupsWindow, "groups")
 end
 
 local function HandlePatternTextChanged(self, row)
@@ -654,6 +658,11 @@ end
 local function InitToolbar()
     InitEditItemsButton()
     InitNewGroupButton()
+    GetControl(GetControl(InventoryCompanion_GroupsWindow, "TopActionBar"), "FindBox"):SetHandler(
+        "OnTextChanged", function(control)
+            searchQuery = control:GetText():match("^%s*(.-)%s*$"):lower()
+            this.RefreshGroupsEditor()
+        end)
 end
 
 function this.RefreshGroupsEditor()
@@ -665,6 +674,7 @@ function this.RefreshGroupsEditor()
     PopulateSingleGroupPane(activeRules)
 	SetActionButtons(activeRules)
     this.UpdateEventRegistry()
+    this.RefreshEditorChrome(InventoryCompanion_GroupsWindow, "groups")
 end
 
 ------------------------------------------------------------------
@@ -693,6 +703,7 @@ InventoryCompanion_GroupsWindow:SetHandler("OnEffectivelyShown", function()
 end)
 
 InventoryCompanion_GroupsWindow:SetHandler("OnEffectivelyHidden", function()
+    this.EndEditorVisit(InventoryCompanion_GroupsWindow)
     SetGameCameraUIMode(false)
     this.UpdateEditorLayout()
 end)
