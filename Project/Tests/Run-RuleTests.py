@@ -41,6 +41,34 @@ assert orders_anchor.get("relativeTo") == "$(parent)Participation"
 assert orders_anchor.get("point") == "RIGHT" and orders_anchor.get("relativePoint") == "LEFT"
 assert name_label.get("verticalAlignment") == "CENTER" and orders_label.get("verticalAlignment") == "CENTER"
 autocategory_window = autocategory_xml.find(".//TopLevelControl[@name='InventoryCompanion_AutoCategoryWindow']/Controls")
+participation_button = autocategory_row.find("Button[@name='$(parent)Participation']")
+assert participation_button.get("inherits") is None and participation_button.find("Textures") is None, \
+    "Hide/Show actions must be plain buttons without default texture bars"
+order_title = autocategory_window.find("Label[@name='$(parent)OrderTitle']")
+order_info = autocategory_window.find("Label[@name='$(parent)Info']")
+order_instructions = autocategory_window.find("Label[@name='$(parent)Instructions']")
+assert order_title.get("font") == "ZoFontWinH3" and order_info.get("font") == "ZoFontGame"
+assert order_info.get("wrapMode") is None and order_info.get("color") is None, \
+    "The main paragraph must use the same default wrapping and colour as LAM descriptions"
+assert order_instructions.get("font") == "ZoFontGame" and order_instructions.get("color") is None, \
+    "Selection guidance must use the larger regular font and normal text colour"
+assert order_info.find("Dimensions").get("y") is None, "Explanation height must not clip its last wrapped line"
+assert order_instructions.find("Dimensions").get("y") is None
+movement_anchor = autocategory_window.find("Control[@name='$(parent)MovementBar']/Anchor")
+assert movement_anchor.get("point") == "BOTTOMLEFT" and movement_anchor.get("relativeTo") == "$(parent)"
+assert movement_anchor.get("relativePoint") == "BOTTOMLEFT" and movement_anchor.get("offsetY") == "-20"
+guidance_anchor = order_instructions.find("Anchor")
+assert guidance_anchor.get("point") == "BOTTOMLEFT" and guidance_anchor.get("relativeTo") == "$(parent)MovementBar"
+assert guidance_anchor.get("relativePoint") == "TOPLEFT" and guidance_anchor.get("offsetY") == "-8", \
+    "Selection guidance must sit directly above the bottom movement buttons"
+list_top = autocategory_window.find("Control[@name='$(parent)List']/Anchor[@point='TOPLEFT']")
+list_bottom = autocategory_window.find("Control[@name='$(parent)List']/Anchor[@point='BOTTOMRIGHT']")
+assert list_top.get("relativeTo") == "$(parent)Info" and list_top.get("relativePoint") == "BOTTOMLEFT"
+assert list_bottom.get("relativeTo") == "$(parent)Instructions" and list_bottom.get("relativePoint") == "TOPRIGHT"
+assert list_bottom.get("offsetY") == "-8", "The list must leave room for the full guidance text"
+control_names = [control.get("name") for control in autocategory_window]
+assert control_names.index("$(parent)MovementBar") < control_names.index("$(parent)Instructions") \
+    < control_names.index("$(parent)List"), "Footer anchors must not refer to later siblings"
 for path in (
     "TopActionBar/Controls/*[@name='$(parent)ContextMode']",
     "OptionsBar/Controls/*[@name='$(parent)CopyFromLabel']",
@@ -48,7 +76,7 @@ for path in (
     "OptionsBar/Controls/*[@name='$(parent)BtnCopy']",
     "OptionsBar/Controls/*[@name='$(parent)BtnDisplayOrder']",
     "OptionsBar/Controls/*[@name='$(parent)BtnPriorityOrder']",
-    "Info", "List", "MovementBar",
+    "Info", "Instructions", "List", "MovementBar",
     "Recovery/Controls/*[@name='$(parent)Warning']",
     "Recovery/Controls/*[@name='$(parent)BtnRetry']",
     "Recovery/Controls/*[@name='$(parent)BtnRepair']",

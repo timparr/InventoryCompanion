@@ -15,10 +15,13 @@ documents, distinguishing implemented behavior from agreed work not yet done.
   a Display-only Other row and the items-editor area selector.
   The [current implementation document](AutocategoryTweaks_hideICNotDelete.md)
   owns detailed work sequencing, migration examples and acceptance for this work.
-- **Verification:** 210/210 isolated Lua 5.1 regressions pass, including full
+- **Verification:** the latest full-suite baseline passed 211/211 isolated Lua
+  5.1 regressions, including full
   profiles, schema-9 downgrade rejection and editor undo. Addon Lua syntax,
   editor XML and exact Undo labels are checked. A synthetic resource-bar check
   confirms account/character/account positioning without recreating controls.
+  The paragraph/wrapping revision passes 15 focused editor regressions, covering
+  all seven contexts, both modes and measured compact-copy selection.
   Full ESO compatibility, visual acceptance and release readiness remain pending.
 
 For requirements use this document and the current implementation document.
@@ -127,9 +130,24 @@ The current implementation document supersedes that global IC-group behavior:
 
 ## User experience
 
-Integration remains opt-in and disabled by default. Settings expose enablement,
-status and an Open AutoCategory Editor action. Preserve the existing recovery
-entry points and distinguish unavailable/inactive controls from usable ones.
+Integration remains opt-in and disabled by default. Main Settings groups its
+information, account-wide Enable toggle and a compact Settings button inside
+the AutoCategory expander under Integrations. This single button also opens
+recovery during a failure; there is no duplicate More information action.
+Other integrations are expanders too, without standalone section buttons.
+Panels has one row of three editor-management buttons. Debugging is the final
+expander. The profile-copy explanation precedes its source dropdown.
+
+The order editor uses a separate larger Display/Priority order heading without
+a colon. The main explanation is one paragraph using the same ZoFontGame font,
+default colour and default wrapping as Main Settings descriptions. It names
+the selected inventory area. Selection/movement instructions use the same
+full-size regular font and normal text colour immediately above the bottom
+movement buttons. The list ends above this guidance, without overlap.
+Native line counts select concise equivalent copy if the two labels
+would exceed three lines. Both label heights follow the rendered text, and the
+list fills the remaining space without clipping the explanation.
+Hide/Show remain actual buttons but no longer inherit decorative button bars.
 
 First setup uses the native two-radio arrangement dialog:
 **Near the top (default)** or **At the bottom**, with Confirm/Cancel. Near the top

@@ -8,10 +8,20 @@ local function Control(name)
     function control:SetHandler(event, handler) self.handlers[event] = handler end
     function control:SetText(text) self.text = text end
     function control:GetText() return self.text end
-    function control:GetTextHeight() return 30 end
+    function control:GetNumLines()
+        local width = 8
+        local lines = 0
+        for line in (self.text .. "\n"):gmatch("(.-)\n") do
+            lines = lines + math.max(1, math.ceil(#line * width / 830))
+        end
+        return lines
+    end
+    function control:GetTextHeight() return self:GetNumLines() * 20 end
     function control:ClearAnchors() end
     function control:SetAnchor(_, _, _, x, y) self.offsetX, self.offsetY = x, y end
     function control:SetColor(...) self.color = { ... } end
+    function control:SetNormalFontColor(...) self.normalFontColor = { ... } end
+    function control:SetMouseOverFontColor(...) self.mouseOverFontColor = { ... } end
     function control:SetAlpha(alpha) self.alpha = alpha end
     function control:SetEnabled(enabled) self.enabled = enabled end
     function control:SetHeight(height) self.height = height end
@@ -204,6 +214,56 @@ function this.GetAutoCategoryEditorTests()
 
     return {
         {
+            name = "AutoCategory context-aware explanation and selection guidance fit three measured lines",
+            run = WithActiveIntegration(function()
+                Setup({ alpha = { autoCategoryEnabled = true } })
+                local options = GetControl(window, "OptionsBar")
+                GetControl(options, "BtnDisplayOrder").handlers.OnClicked()
+                local title, info = GetControl(window, "OrderTitle"), GetControl(window, "Info")
+                local instructions = GetControl(window, "Instructions")
+                assert(title.text == "Display order" and not title.hidden)
+                assert(not info.text:find("Display order:", 1, true))
+                assert(instructions.text:find("Shift-Click selects multiple groups", 1, true)
+                    and instructions.text:find("Buttons move groups up and down", 1, true))
+                local combo = combos[window.name .. "TopActionBarContextMode"]
+                for _, item in ipairs(combo.items) do
+                    item.callback(nil, nil, item, true)
+                    for _, button in ipairs({ "BtnDisplayOrder", "BtnPriorityOrder" }) do
+                        GetControl(options, button).handlers.OnClicked()
+                        assert(info.text:find("your " .. item.name:lower(), 1, true))
+                        assert(not info.text:find("\n", 1, true), "The main explanation must be one paragraph")
+                        assert(info.height == info:GetTextHeight()
+                            and instructions.height == instructions:GetTextHeight())
+                        assert(info:GetNumLines() + instructions:GetNumLines() <= 3,
+                            "Explanation and selection help must fit within three lines")
+                    end
+                end
+                combo.items[1].callback(nil, nil, combo.items[1], true)
+                assert(title.text == "Priority order" and not title.hidden)
+                GetControl(options, "BtnDisplayOrder").handlers.OnClicked()
+            end),
+        },
+        {
+            name = "AutoCategory explanation uses concise equivalent copy when native wrapping exceeds three lines",
+            run = WithActiveIntegration(function()
+                Setup({ alpha = { autoCategoryEnabled = true } })
+                local options = GetControl(window, "OptionsBar")
+                local info, instructions = GetControl(window, "Info"), GetControl(window, "Instructions")
+                local measure = info.GetNumLines
+                info.GetNumLines = function(self)
+                    return self.text:find("then it will always", 1, true) and 3 or 2
+                end
+                local ok, failure = pcall(function()
+                    GetControl(options, "BtnDisplayOrder").handlers.OnClicked()
+                    assert(info.text == "Order groups in your backpack. Hidden groups stay empty and do not appear.")
+                    assert(info:GetNumLines() + instructions:GetNumLines() == 3)
+                    assert(info.height == info:GetTextHeight())
+                end)
+                info.GetNumLines = measure
+                assert(ok, failure)
+            end),
+        },
+        {
             name = "AutoCategory editor Undo changes keeps opening baselines across mode changes",
             run = WithActiveIntegration(function()
                 Setup({ alpha = { autoCategoryEnabled = true }, beta = { autoCategoryEnabled = true } })
@@ -288,7 +348,7 @@ function this.GetAutoCategoryEditorTests()
                 assert(not GetControl(recovery, "Problems").hidden)
                 assert(GetControl(GetControl(recovery, "Problems"), "ScrollChildProblemRows").text
                     == integration.GetProblemRowsMessage())
-                for _, name in ipairs({ "TopActionBar", "OptionsBar", "Info", "List", "MovementBar" }) do
+                for _, name in ipairs({ "TopActionBar", "OptionsBar", "OrderTitle", "Info", "Instructions", "List", "MovementBar" }) do
                     assert(GetControl(window, name).hidden, "Normal editing must be hidden: " .. name)
                 end
                 assert(#VisibleRows() == 0 and not GetControl(window, "BtnEditItems").hidden
@@ -517,7 +577,7 @@ function this.GetAutoCategoryEditorTests()
                 assert(alphaLabel.color[1] == 0.60 and alphaLabel.color[2] == 0.90
                     and alphaLabel.color[3] == 0.65, "Priority groups use pale green")
                 assert(GetControl(window, "Info").text:find("multiple groups", 1, true))
-                assert(GetControl(window, "Info").text:find("Hold shift", 1, true))
+                assert(GetControl(window, "Instructions").text:find("Shift-Click", 1, true))
                 GetControl(options, "BtnDisplayOrder").handlers.OnClicked()
 
                 local participation = GetControl(RowByText("Gamma"), "Participation")

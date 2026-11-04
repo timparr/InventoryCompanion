@@ -1,3 +1,50 @@
+##snag list 2
+word wrap in autocategory panel is still not right. Use the same font/style as in the main settings panel? (You can automanage your...)
+
+
+##Snag List post dev
+Manage autocategory
+Display order - needs to be bigger, no : after it  
+font is fine, word wrap is not (last line) 
+
+hide, show buttons - can we lose the top and bottom bar on the buttons? 
+
+Main settings
+copy from   - move the info label above the dropdown
+You can copy all the settings from another profile, replacing your current settings.
+
+Panel set -> Panels
+buttons should be in a line [] [] [] look like 
+
+
+Integrations
+You can extend the capabilities of IC by linking it to these other addons.
+NO BUTTONS - just expanders for the rest of the section
+AutoCategory (not information...) (expander)
+You can manage your autocategory category and priority orders in ic's easy to use interface. You can also include your ic groups as ac categories to apply them to your bag, backpack, bank etc.
+
+Enable [yes/no]
+[open autocategory settings]
+
+NEXT EXPANDER
+
+NEXT EXPANDER
+
+NEXT EXPANDER
+
+Debugging (right at the bottom), as an expander
+
+
+
+
+
+
+
+
+
+
+
+
 ## Changes to the ui (and a bit of behaviour)
 1. Make autocategory on/off account wide
 2. Make everything apart from the item transfer delay and automerge chest stacks either/or 

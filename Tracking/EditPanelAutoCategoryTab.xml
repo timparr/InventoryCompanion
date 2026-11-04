@@ -18,7 +18,7 @@
                     <Dimensions x="28" y="24" />
                     <Anchor point="RIGHT" relativeTo="$(parent)MoveDown" relativePoint="LEFT" offsetX="-4" />
                 </Button>
-                <Button name="$(parent)Participation" inherits="ZO_DefaultButton" mouseEnabled="true" hidden="true">
+                <Button name="$(parent)Participation" font="ZoFontGame" mouseEnabled="true" hidden="true">
                     <Dimensions x="82" y="32" />
                     <Anchor point="RIGHT" relativeTo="$(parent)MoveUp" relativePoint="LEFT" offsetX="-8" />
                 </Button>
@@ -147,17 +147,17 @@
                     </Controls>
                 </Control>
 
-                <Label name="$(parent)Info" font="ZoFontGame" color="CCCCCC" wrapMode="TEXT_WRAP_MODE_WORD">
-                    <Dimensions x="830" y="108" />
-                    <Anchor point="TOPLEFT" relativeTo="$(parent)OptionsBar" relativePoint="BOTTOMLEFT" offsetY="4" />
+                <Label name="$(parent)OrderTitle" font="ZoFontWinH3" color="FFFFFF">
+                    <Dimensions x="830" y="30" />
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)OptionsBar" relativePoint="BOTTOMLEFT" offsetY="8" />
                 </Label>
-                <Control name="$(parent)List" inherits="ZO_ScrollContainer">
-                    <Dimensions x="830" y="500" />
-                    <Anchor point="TOPLEFT" relativeTo="$(parent)Info" relativePoint="BOTTOMLEFT" offsetY="6" />
-                </Control>
+                <Label name="$(parent)Info" font="ZoFontGame" verticalAlignment="TOP">
+                    <Dimensions x="830" />
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)OrderTitle" relativePoint="BOTTOMLEFT" offsetY="4" />
+                </Label>
                 <Control name="$(parent)MovementBar">
                     <Dimensions x="830" y="32" />
-                    <Anchor point="TOPLEFT" relativeTo="$(parent)List" relativePoint="BOTTOMLEFT" offsetY="8" />
+                    <Anchor point="BOTTOMLEFT" relativeTo="$(parent)" relativePoint="BOTTOMLEFT" offsetX="15" offsetY="-20" />
                     <Controls>
 <Button name="$(parent)BtnSelectBlock" inherits="ZO_DefaultButton" text="Select block">
                             <Dimensions x="110" y="26" />
@@ -192,6 +192,14 @@
                             <Anchor point="LEFT" relativeTo="$(parent)BtnDown5" relativePoint="RIGHT" offsetX="6" />
                         </Button>
 </Controls>
+                </Control>
+                <Label name="$(parent)Instructions" font="ZoFontGame" verticalAlignment="TOP">
+                    <Dimensions x="830" />
+                    <Anchor point="BOTTOMLEFT" relativeTo="$(parent)MovementBar" relativePoint="TOPLEFT" offsetY="-8" />
+                </Label>
+                <Control name="$(parent)List" inherits="ZO_ScrollContainer">
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)Info" relativePoint="BOTTOMLEFT" offsetY="6" />
+                    <Anchor point="BOTTOMRIGHT" relativeTo="$(parent)Instructions" relativePoint="TOPRIGHT" offsetY="-8" />
                 </Control>
             </Controls>
         </TopLevelControl>

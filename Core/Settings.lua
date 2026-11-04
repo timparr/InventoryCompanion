@@ -38,15 +38,12 @@ local function GetProfileControls()
                 InventoryCompanion_ProfileCopySource:UpdateChoices(names, keys)
                 this.RefreshProfileSettings()
             end },
+        { type = "description",
+            text = "You can copy all the settings from another profile, replacing your current settings." },
         { type = "dropdown", name = "Copy From", choices = names, choicesValues = keys,
             reference = "InventoryCompanion_ProfileCopySource",
             getFunc = function() return selected end,
             setFunc = function(value) selected = value end },
-        { type = "description", text = function()
-            return "Copy replaces all settings, items and groups in the "
-                .. (this.character.useCharacterItemList and "current character" or "shared account")
-                .. " profile. Account-only controls are not copied."
-        end },
         { type = "button", name = "Copy Full Profile", disabled = function() return selected == nil end,
             func = function()
                 local destination = this.GetSettingsProfile()
@@ -63,6 +60,25 @@ local function GetProfileControls()
                     { source = selected, destination = destination })
             end, width = "full" },
     }
+end
+
+local function CreatePanelNavigation(control)
+    local entries = {
+        { "Manage Items", function() this.OpenEditItemsPanel() end },
+        { "Manage Groups", function() this.OpenEditGroupsPanel() end },
+        { "Manage AutoCategory", function() this.OpenAutoCategoryPanel() end },
+    }
+    local width = (control:GetWidth() - 16) / 3
+    control.panelButtons = {}
+    for index, entry in ipairs(entries) do
+        local button = WINDOW_MANAGER:CreateControlFromVirtual(nil, control, "ZO_DefaultButton")
+        button:SetText(entry[1])
+        button:SetDimensions(width, 28)
+        button:SetAnchor(TOPLEFT, control, TOPLEFT, (index - 1) * (width + 8), 0)
+        button:SetHandler("OnClicked", entry[2])
+        control.panelButtons[index] = button
+    end
+    control.panelButtons[3]:SetEnabled(this.AutoCategoryIntegration.IsPanelAvailable())
 end
 
 local function RegisterProfileCopyDialog()
@@ -261,59 +277,17 @@ function this.CreateSettingsPanel()
         },
         {
             type = "header",
-            name = "AutoCategory Integration",
+            name = "Panels",
         },
         {
-            type = "description",
-            text = function()
-                local _, message = this.AutoCategoryIntegration.GetStatus()
-                if this.AutoCategoryIntegration.NeedsRecovery() then
-                    return this.AutoCategoryIntegration.GetRecoveryMessage()
-                end
-                return message
+            type = "custom",
+            reference = "InventoryCompanion_PanelNavigation",
+            minHeight = 32,
+            maxHeight = 32,
+            createFunc = CreatePanelNavigation,
+            refreshFunc = function(control)
+                control.panelButtons[3]:SetEnabled(this.AutoCategoryIntegration.IsPanelAvailable())
             end,
-        },
-        {
-            type = "button",
-            name = "More information",
-            func = function() this.OpenAutoCategoryPanel() end,
-            hidden = function() return not this.AutoCategoryIntegration.NeedsRecovery() end,
-            width = "full",
-        },
-        {
-            type = "checkbox",
-            name = "Enable AutoCategory Integration",
-            tooltip = "Enable integration for the whole account. Category orders and inclusion follow the selected settings profile.",
-            getFunc = function() return this.GetAutoCategoryState().configuredEnabled end,
-            setFunc = function(enabled)
-                this.SetAutoCategoryIntegrationEnabled(enabled)
-                this.RefreshAutoCategoryUI()
-            end,
-            disabled = function() return not this.AutoCategoryIntegration.IsAvailable() end,
-        },
-        {
-            type = "button",
-            name = "Open AutoCategory Editor",
-            tooltip = "Manage category order and choose which groups and native categories to include in each inventory area.",
-            func = function()
-                this.OpenAutoCategoryPanel()
-            end,
-            disabled = function() return not this.AutoCategoryIntegration.IsPanelAvailable() end,
-            hidden = function() return this.AutoCategoryIntegration.NeedsRecovery() end,
-            width = "full",
-        },
-        {
-            type = "header",
-            name = "Panel Setup",
-        },
-        {
-            type = "button",
-            name = "Manage Items",
-            tooltip = "Choose which items and groups to track, show on the panel, or receive notifications for.",
-            func = function()
-                this.OpenEditItemsPanel()
-            end,
-            width = "full",
         },
         {
             type = "submenu",
@@ -408,56 +382,40 @@ function this.CreateSettingsPanel()
         },
         {
             type = "header",
-            name = "Debugging",
+            name = "Integrations",
         },
         {
-            type = "checkbox",
-            name = "Enable Debug Mode",
-            tooltip = "Output verbose debug logs to the chat window.",
-            getFunc = function() return this.accountWide.debugEnabled end,
-            setFunc = function(v) 
-                this.accountWide.debugEnabled = v
-            end,
-            default = this.defaultsAccount.debugEnabled,
+            type = "description",
+            text = "You can extend the capabilities of IC by linking it to these other addons.",
         },
         {
-            type = "slider",
-            name = "AutoCategory Editor Slow-Action Limit (ms)",
-            tooltip = "With Debug Mode on, AutoCategory editor actions that take longer than this print a timing report to chat.",
-            min = 50,
-            max = 5000,
-            step = 50,
-            getFunc = function() return this.accountWide.autoCategoryTimingThresholdMs end,
-            setFunc = function(v) this.accountWide.autoCategoryTimingThresholdMs = v end,
-            disabled = function() return not this.accountWide.debugEnabled end,
-            default = this.defaultsAccount.autoCategoryTimingThresholdMs,
+            type = "submenu",
+            name = "AutoCategory",
+            controls = {
+                { type = "description",
+                    text = "You can manage your AutoCategory category and priority orders in IC's easy-to-use interface."
+                        .. " You can also include your IC groups as AutoCategory categories to apply them to your"
+                        .. " backpack, bank and other inventory areas." },
+                { type = "description", text = this.GetAutoCategoryInfoText },
+                { type = "checkbox", name = "Enable",
+                    tooltip = "Enable integration for the whole account. Category orders and inclusion follow the selected settings profile.",
+                    getFunc = function() return this.GetAutoCategoryState().configuredEnabled end,
+                    setFunc = function(enabled)
+                        this.SetAutoCategoryIntegrationEnabled(enabled)
+                        this.RefreshAutoCategoryUI()
+                    end,
+                    disabled = function() return not this.AutoCategoryIntegration.IsAvailable() end },
+                { type = "button", name = "Settings",
+                    func = function() this.OpenAutoCategoryPanel() end,
+                    disabled = function() return not this.AutoCategoryIntegration.IsPanelAvailable() end,
+                    width = "half" },
+            },
         },
     }
 
-    local integrationControls = {}
-    local first
-    for index, option in ipairs(optionsData) do
-        if option.type == "header" and option.name == "AutoCategory Integration" then first = index end
-        if first and option.type == "header" and option.name == "Panel Setup" then
-            for position = first, index - 1 do integrationControls[#integrationControls + 1] = optionsData[position] end
-            for _ = first, index - 1 do table.remove(optionsData, first) end
-            break
-        end
-    end
     table.insert(optionsData, 4, { type = "header", name = "Profile Settings" })
     local profileControls = GetProfileControls()
     for index = #profileControls, 1, -1 do table.insert(optionsData, 5, profileControls[index]) end
-    for _, control in ipairs({
-        { type = "button", name = "Manage Groups", func = this.OpenEditGroupsPanel, width = "half" },
-        { type = "button", name = "Manage AutoCategory", func = this.OpenAutoCategoryPanel, width = "half",
-            disabled = function() return not this.AutoCategoryIntegration.IsPanelAvailable() end },
-    }) do
-        table.insert(optionsData, 5 + #profileControls + 2, control)
-    end
-    optionsData[#optionsData + 1] = { type = "header", name = "Integrations" }
-    for _, option in ipairs(integrationControls) do
-        if option.type ~= "header" and option.type ~= "description" then optionsData[#optionsData + 1] = option end
-    end
     for _, integration in ipairs({ "TTC", "FCO ItemSaver" }) do
         local controls = {
             { type = "description", text = "Planned future development; not yet implemented." },
@@ -480,7 +438,19 @@ function this.CreateSettingsPanel()
         optionsData[#optionsData + 1] = { type = "submenu", name = integration .. " (planned)",
             disabled = true, controls = controls }
     end
-    optionsData[#optionsData + 1] = { type = "submenu", name = "AutoCategory Information",
-        controls = { { type = "description", text = this.GetAutoCategoryInfoText } } }
+    optionsData[#optionsData + 1] = { type = "submenu", name = "Debugging", controls = {
+        { type = "checkbox", name = "Enable Debug Mode",
+            tooltip = "Output verbose debug logs to the chat window.",
+            getFunc = function() return this.accountWide.debugEnabled end,
+            setFunc = function(value) this.accountWide.debugEnabled = value end,
+            default = this.defaultsAccount.debugEnabled },
+        { type = "slider", name = "AutoCategory Editor Slow-Action Limit (ms)",
+            tooltip = "With Debug Mode on, AutoCategory editor actions that take longer than this print a timing report to chat.",
+            min = 50, max = 5000, step = 50,
+            getFunc = function() return this.accountWide.autoCategoryTimingThresholdMs end,
+            setFunc = function(value) this.accountWide.autoCategoryTimingThresholdMs = value end,
+            disabled = function() return not this.accountWide.debugEnabled end,
+            default = this.defaultsAccount.autoCategoryTimingThresholdMs },
+    } }
     LAM:RegisterOptionControls("InventoryCompanionPanel", optionsData)
 end

@@ -147,18 +147,35 @@ local function ConfigureToolbar()
         selectedReferences = {}
         this.RefreshAutoCategoryEditor()
     end) end)
-    local info = Window("Info")
-    local trailer = "\n\nYou can move several groups at once. Click a group to select it."
-        .. " Hold shift and click to add or remove a group from the current selection,"
-        .. " then use the buttons at the bottom to move them all together."
-    if mode == "display" then
-        info:SetText("Display order:\nMove groups to set the order they appear in your inventory."
-            .. " Click Hide to exclude a group in this area, or Show to include it." .. trailer)
-    else
-        info:SetText("Priority order:\nWhen an item matches multiple groups, the first included group wins."
-            .. " Click Hide to exclude a group in this area, or Show to include it."
-            .. " Other contains items that match no included group." .. trailer)
+    local area
+    for _, entry in ipairs(this.AutoCategoryIntegration.GetContexts()) do
+        if entry.key == context then
+            area = entry.title:lower()
+            break
+        end
     end
+    assert(area, "AutoCategory explanation requires a known context")
+    local info, instructions = Window("Info"), Window("Instructions")
+    instructions:SetText("Click a group to select it. Shift-Click selects multiple groups."
+        .. " Buttons move groups up and down.")
+    local paragraph, compact
+    if mode == "display" then
+        Window("OrderTitle"):SetText("Display order")
+        paragraph = "Move groups to set the order they appear in your %s."
+            .. " If you hide a group then it will always be empty, and will not appear."
+        compact = "Order groups in your %s. Hidden groups stay empty and do not appear."
+    else
+        Window("OrderTitle"):SetText("Priority order")
+        paragraph = "When an item matches multiple groups, the first included group wins in your %s."
+            .. " Hidden groups stay empty and do not appear."
+        compact = "The first included match wins in your %s. Hidden groups stay empty and do not appear."
+    end
+    info:SetText(paragraph:format(area))
+    if info:GetNumLines() + instructions:GetNumLines() > 3 then
+        info:SetText(compact:format(area))
+    end
+    info:SetHeight(info:GetTextHeight())
+    instructions:SetHeight(instructions:GetTextHeight())
 end
 
 local function GetOrCreateRow(scrollChild, index)
@@ -199,6 +216,8 @@ local function ConfigureParticipation(row, entry, contextAtRender, modeAtRender)
     local participation = GetControl(row, "Participation")
     participation:SetHidden(entry.kind == "other")
     if entry.kind == "other" then return end
+    participation:SetNormalFontColor(1, 0.94, 0.76, 1)
+    participation:SetMouseOverFontColor(1, 0.82, 0.46, 1)
     participation:SetText(entry.included and "Hide" or "Show")
     participation:SetHandler("OnClicked", function()
         Timed("inclusion " .. tostring(not entry.included), entry, this.AutoCategoryIntegration.Run, function()
@@ -398,7 +417,7 @@ function this.RefreshAutoCategoryEditor()
     local awaitingSetup = this.AutoCategoryIntegration.IsAwaitingSetup()
     local inactive = not IsActive()
     local recoveryVisible = failed
-    for _, name in ipairs({ "TopActionBar", "OptionsBar", "Info", "List", "MovementBar" }) do
+    for _, name in ipairs({ "TopActionBar", "OptionsBar", "OrderTitle", "Info", "Instructions", "List", "MovementBar" }) do
         Window(name):SetHidden(recoveryVisible or inactive)
     end
     local off = Window("Enablement")

@@ -14,6 +14,7 @@ local function Control(name, parent, width, height)
         hidden = false, children = {}, handlers = {}, text = "", x = 0, y = 0, color = nil }
     controls[name] = control
     function control:SetHidden(value) self.hidden = value end
+    function control:SetEnabled(value) self.enabled = value end
     function control:IsHidden() return self.hidden end
     function control:SetHandler(event, handler) self.handlers[event] = handler end
     function control:SetText(text) self.text = text end
@@ -883,26 +884,77 @@ function this.GetTrackerPanelTests()
         }
         CALLBACK_MANAGER = { RegisterCallback = function() end }
         this.CreateSettingsPanel()
-        local button, visibility, errorButton, statusDescription, enableToggle, editorButton, simulateButton
+        local button, visibility, statusDescription, enableToggle, editorButton, simulateButton
         local scope, copySource
-        for _, option in ipairs(options) do
-            if option.name == "Manage Items" then button = option end
+        local navigation, integrationsIndex, copyIndex, explanationIndex
+        for index, option in ipairs(options) do
             if option.name == "Use Character Settings" then scope = option end
-            if option.name == "Copy From" then copySource = option end
-            if option.name == "More information" then errorButton = option end
-            if option.name == "Enable AutoCategory Integration" then enableToggle = option end
-            if option.name == "Open AutoCategory Editor" then editorButton = option end
+            if option.name == "Copy From" then copySource, copyIndex = option, index end
+            if option.text == "You can copy all the settings from another profile, replacing your current settings." then
+                explanationIndex = index
+            end
+            if option.reference == "InventoryCompanion_PanelNavigation" then navigation = option end
+            if option.name == "Integrations" then
+                integrationsIndex = index
+                assert(options[index + 1].text ==
+                    "You can extend the capabilities of IC by linking it to these other addons.")
+            end
+            if option.name == "AutoCategory" then
+                assert(option.type == "submenu")
+                statusDescription = option.controls[2]
+                local buttonCount = 0
+                for _, child in ipairs(option.controls) do
+                    if child.type == "button" then buttonCount = buttonCount + 1 end
+                    if child.name == "Enable" then enableToggle = child end
+                    if child.name == "Settings" then editorButton = child end
+                end
+                assert(buttonCount == 1, "AutoCategory must have a single Settings destination")
+            end
             if option.name == "Simulate integration failure (DEV)" then simulateButton = option end
-            if option.name == "AutoCategory Information" then statusDescription = option.controls[1] end
             if option.name == "Item Tracker Panel" then
                 for _, control in ipairs(option.controls) do
                     if control.name == "Show Tracked Items Panel" then visibility = control end
                 end
             end
         end
-        assert(button and button.type == "button", "Editor shortcut must be on the main settings page, not inside a submenu")
-        assert(errorButton and errorButton.type == "button" and errorButton.hidden and not errorButton.tooltip,
-            "AutoCategory recovery must have a conditional More information button")
+        assert(explanationIndex < copyIndex, "Profile-copy explanation must precede the dropdown")
+        assert(options[#options].name == "Debugging" and options[#options].type == "submenu",
+            "Debugging must be the final expander")
+        for index = integrationsIndex + 2, #options do
+            assert(options[index].type == "submenu", "Only expanders may follow the integration introduction")
+        end
+        local previousWindowManager = WINDOW_MANAGER
+        local created = 0
+        WINDOW_MANAGER = { CreateControlFromVirtual = function(_, _, parent, template)
+            assert(template == "ZO_DefaultButton")
+            created = created + 1
+            return Control("settingsNavigationButton" .. created, parent)
+        end }
+        local navigationRow = Control("settingsNavigation", GuiRoot, 600, 32)
+        navigation.createFunc(navigationRow)
+        WINDOW_MANAGER = previousWindowManager
+        assert(created == 3)
+        for index, name in ipairs({ "Manage Items", "Manage Groups", "Manage AutoCategory" }) do
+            local panelButton = navigationRow.panelButtons[index]
+            assert(panelButton.text == name and panelButton.y == 0)
+            assert(panelButton.x == (index - 1) * (panelButton.width + 8))
+            assert(panelButton.x + panelButton.width <= navigationRow:GetWidth())
+        end
+        button = navigationRow.panelButtons[1]
+        local previousAutoCategory = AutoCategory
+        AutoCategory = nil
+        navigation.refreshFunc(navigationRow)
+        assert(not navigationRow.panelButtons[3].enabled)
+        AutoCategory = {}
+        navigation.refreshFunc(navigationRow)
+        assert(navigationRow.panelButtons[3].enabled)
+        AutoCategory = previousAutoCategory
+        assert(editorButton and editorButton.width == "half" and editorButton.hidden == nil,
+            "The compact Settings button must remain visible for both editing and recovery")
+        AutoCategory = nil
+        assert(editorButton.disabled(), "Settings must be unavailable when AutoCategory is not loaded")
+        AutoCategory = {}
+        assert(not editorButton.disabled())
         assert(statusDescription and type(statusDescription.text) == "function")
         local integration = this.AutoCategoryIntegration
         local originalGetStatus, originalIsFaulted, originalOpenPanel =
@@ -921,11 +973,11 @@ function this.GetTrackerPanelTests()
             "Settings and recovery panel must share a warning with the specific reason")
         assert(enableToggle.getFunc() == true and enableToggle.disabled(),
             "A fault must retain the saved enable choice while blocking normal controls")
-        assert(editorButton.hidden(), "Faulted settings must offer one recovery destination, not duplicate editors")
+        assert(not editorButton.disabled(), "The Settings button must remain usable during a failure")
         assert(simulateButton == nil, "Settings must not expose a failure simulator")
-        assert(not errorButton.hidden(), "More information must be visible while integration is faulted")
-        errorButton.func()
+        editorButton.func()
         Equal(openRecoveryCalls, 1)
+        AutoCategory = previousAutoCategory
         integration.GetStatus, integration.IsFaulted, this.OpenAutoCategoryPanel =
             originalGetStatus, originalIsFaulted, originalOpenPanel
         local originalRefreshProfile = this.RefreshProfileSettings
@@ -950,10 +1002,10 @@ function this.GetTrackerPanelTests()
         }
         local refreshes = 0
         this.RefreshTrackedItemsEditor = function() refreshes = refreshes + 1 end
-        button.func()
+        button.handlers.OnClicked()
         Equal(current, "InventoryCompanion_TrackedItemsScene")
         Equal(refreshes, 1)
-        button.func()
+        button.handlers.OnClicked()
         Equal(current, "InventoryCompanion_TrackedItemsScene")
         Equal(refreshes, 2)
         assert(this.accountWide.showTrackedItemsPanel == false, "Opening the editor must not change saved HUD visibility")
