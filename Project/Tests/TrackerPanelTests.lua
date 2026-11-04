@@ -934,7 +934,7 @@ function this.GetTrackerPanelTests()
         navigation.createFunc(navigationRow)
         WINDOW_MANAGER = previousWindowManager
         assert(created == 3)
-        for index, name in ipairs({ "Manage Items", "Manage Groups", "Manage AutoCategory" }) do
+        for index, name in ipairs({ "Manage Tracking", "Manage Groups", "Manage AutoCategory" }) do
             local panelButton = navigationRow.panelButtons[index]
             assert(panelButton.text == name and panelButton.y == 0)
             assert(panelButton.x == (index - 1) * (panelButton.width + 8))

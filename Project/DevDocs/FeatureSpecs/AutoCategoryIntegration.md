@@ -1,54 +1,46 @@
-# AutoCategory integration: master feature document
+# AutoCategory integration and settings/editor polish
 
 Updated 2026-11-04.
 
 ## Status and authority
 
-This is the authoritative overall feature document. It consolidates the
-integration, ordering, setup, responsiveness and profile-synchronization
-documents, distinguishing implemented behavior from agreed work not yet done.
+This is the single authoritative specification of the completed AutoCategory
+feature and its associated profile/settings/editor work. The author closed this
+work on 2026-11-04. The current saved-variable schema is **10**.
 
-- **Implemented baseline:** opt-in integration, independent context orders,
-  initial setup, active-profile synchronization, native exclusions and recovery.
-  The current saved-variable schema is **10**.
-- **Implemented, pending in-game acceptance:** context-specific IC group exclusion,
-  a Display-only Other row and the items-editor area selector.
-  The [current implementation document](AutocategoryTweaks_hideICNotDelete.md)
-  owns detailed work sequencing, migration examples and acceptance for this work.
-- **Verification:** the latest full-suite baseline passed 211/211 isolated Lua
-  5.1 regressions, including full
-  profiles, schema-9 downgrade rejection and editor undo. Addon Lua syntax,
-  editor XML and exact Undo labels are checked. A synthetic resource-bar check
-  confirms account/character/account positioning without recreating controls.
-  The paragraph/wrapping revision passes 15 focused editor regressions, covering
-  all seven contexts, both modes and measured compact-copy selection.
-  Full ESO compatibility, visual acceptance and release readiness remain pending.
+The final behavior below incorporates the exclusion/Other changes, approved
+polishing decisions and subsequent UI tweaks. Plans, snag lists, screenshots,
+spikes and dated test reports are retained in the
+[historical document index](#historical-document-index); they are reference
+material, not outstanding tasks or independent current requirements.
 
-For requirements use this document and the current implementation document.
-The approved [settings/editor polishing plan](AutoCategory_Polishing_ImplementationPlan.md)
-owns the full-profile and editor-polishing decisions. These are implemented in
-DEV with offline regressions passing, pending the in-game acceptance gates below; historical UI
-descriptions do not override the approved plan.
-The [historical documents](<#historical-document-index>) retain dated evidence
-and dependency investigations, not independent current requirements or work
-authorizations. In particular, Master inheritance, rank/anchor placement,
-fractional priorities, rank-bearing names and five-second ordering queues are
-superseded designs.
+Feature completion does not certify a release package or turn historical offline
+results into new in-game evidence. Publication review, version selection and
+candidate testing follow the [release checklist](../../Publishing/ReleaseChecklist.md).
 
-## Open decisions and acceptance gates
+## Documentation handoff
 
-- There are no remaining behavioral questions for the current exclusion/Other
-  change; its decisions are confirmed in the implementation document.
-- Final heading asset, DEV/release identity policy and exact tint still require
-  publication review. The old built-in texture probe is evidence, not an
-  approved final asset. Optional include/exclude badges and colour settings
-  are outside this change.
-- Guild Bank and the complete keyboard context/lifecycle matrix still require
-  in-game confirmation. Gamepad is outside the initial supported scope.
-- Record the outstanding in-game performance baseline and confirm its proposed
-  limits; historical offline timings do not certify real ESO performance.
-- Verify release packaging and dependency declarations before publishing.
-  Do not assume the separate installed release tree contains DEV integration.
+Use this specification when updating the [user manual](../../../UserManual.bbcode)
+and [feature overview](../../../Features.md).
+
+- **Feature overview:** optional reuse of IC group filters in AutoCategory,
+  independent per-area Display/Priority orders, Hide/Show participation, movable
+  Display-only Other, full profiles and visit-scoped undo.
+- **Manual:** enablement and first setup; the seven-area selector; Display versus
+  Priority; selection/movement; Hide/Show and re-inclusion; both-order context
+  copying; undo scope; full-profile switching/copying; disable and recovery.
+- Use the final labels **Manage Tracking**, **Manage Groups** and
+  **Manage AutoCategory**. Do not revive the removed tracking-editor AutoCategory
+  column, area-summary popup, divergence warnings, cross-mode copy or Store/Reset
+  snapshot buttons from earlier plans or screenshots.
+- Distinguish IC's special Other from the tracker's Miscellaneous group and any
+  native AC category named Other. Explain that Hide affects matching in one
+  inventory area, not just visibility or the source group.
+- TTC and FCO ItemSaver are disabled planned placeholders, not available
+  integrations. Do not advertise their proposed pricing/marker behavior.
+- Describe keyboard inventory behavior; gamepad is outside the initial scope.
+  Do not claim universal context/dependency compatibility or publish synthetic
+  timings as real ESO performance guarantees.
 
 ## Purpose and terminology
 
@@ -84,9 +76,10 @@ Renaming an IC group does not change its stable identity.
 
 - Display edits must not change matching; Priority edits must not change Display.
 - Support row moves, selected-block moves, top/bottom and existing step sizes.
-- Copying another context is a one-time operation, retaining destination-specific
-  membership and existing destination-slot merge behavior.
-- Same-context cross-mode copy actions are removed by the polishing change.
+- Copying another context copies both Display and Priority in one operation,
+  regardless of the visible mode. It is a one-time operation, retaining
+  destination-specific membership and existing destination-slot merge behavior.
+- There are no same-context cross-mode copy actions or divergence warnings.
 - Search/filtering must not alter saved order or classification.
 - Project distinct integer priorities within AC's supported 2-1000 range.
   Reserve one slot for Other: at most **998 user assignments plus Other** per
@@ -97,19 +90,10 @@ Renaming an IC group does not change its stable identity.
 
 ## Inclusion and Other
 
-### Historical schema-8 baseline
-
-IC group inclusion previously toggled the global `autoCategoryEnabled` flag.
-Native category exclusions are per-context. Both editors use Included/Excluded
-sections, but excluding an IC group currently removes its participation across
-all contexts. Other is automatic and absent from both IC ordering lists.
-
-### Implemented schema-9 behavior
-
-The current implementation document supersedes that global IC-group behavior:
-
 - Both IC groups and native categories have one per-context inclusion state
   shared by Display and Priority. Excluding in Bank does not affect Craft Bag.
+- Manage AutoCategory is the only participation editor. Included rows offer
+  **Hide**, excluded rows offer **Show**; Other has neither action.
 - Excluded rows remain accessible below the Excluded divider, without deleting
   source configuration or removing participation in other areas.
 - Runtime matching is always **included categories -> Other -> excluded
@@ -159,29 +143,103 @@ item-filter string. Cancel/dismissal publishes nothing.
 Existing first-time setup seeds participation from effective Show Backpack,
 Show Bank, Notify Chat and Notify HUD flags. Later tracker-flag edits do not
 reseed it. This is separate from the confirmed all-areas Included default for
-newly created groups in the target design.
+newly created groups.
 
 The AutoCategory editor has a context selector, Display/Priority modes, ordering
 and context-copy actions, Hide/Show action buttons, red excluded names and a
 single Excluded divider. State and action must be understandable without colour.
 Excluded rows have no move controls. Special Other has ordering controls only.
 
-The items-editor AutoCategory column opens a seven-checkbox area selector,
-using the same inclusion operation as the ordering editor. Individual items and
-Miscellaneous have no selector. Preserve column alignment and failure access.
+Manage Tracking replaces the former Manage Items name. It has no AutoCategory
+column or area-selector popup: use Manage AutoCategory for participation and
+ordering, including recovery access. This supersedes the earlier area-selector
+design without changing saved inclusion choices.
 
-Choose its summary in this order:
+Fixed Show and Notify headings align with the corresponding row controls.
+Single-line summaries use the same regular body font as item/group names and
+omit repeated `Show:` and `Notify:` prefixes. Item/group names retain their full
+width regardless of AutoCategory availability or state.
 
-1. All enabled: **All**. None enabled: **None**.
-2. One enabled: its name. One disabled: **Not: <name>**.
-3. Use the comma-separated enabled names if they fit.
-4. Otherwise use **Not: ** plus disabled names if they fit.
-5. Otherwise use the enabled count in words, such as **Three Areas**.
+All three editors share aligned navigation:
+**Main Settings**, **Manage Tracking**, **Manage Groups**, **Manage AutoCategory**.
+The current editor's button is disabled. On Tracking/Groups, the AutoCategory
+button is hidden if AC is absent, but is available if AC is loaded and integration
+is off. That off view shares Main Settings' integration information and
+account-wide enable toggle. Ordering becomes available only after successful
+setup/synchronization; genuine failures show recovery, not an ordinary off view.
 
-Measure rendered width using the label's font and available space, including
-separators/prefix. Keep context order, prefer enabled names when they fit and
-accommodate the longest single-area exception. Tooltip/dropdown exposes the
-complete state. Save neither summary text nor a duplicate checkbox-state map.
+Movement actions are grouped **Up 1 / Up 5 / Move to Top**, then
+**Down 1 / Down 5 / Move to Bottom**, preserving Shift multi-selection and block
+moves. Display/Priority mode buttons sit together; Copy From is at the right and
+explains that it copies both orders. Excluded rows cannot be moved.
+
+Manage Groups filters the displayed names in its left-hand list, not pattern
+contents or the right-hand rule editor. Filtering, clearing a search and no-result
+views never change definitions, participation or saved order. Manage Tracking
+keeps its existing Show/Notify actions, with single-line summaries that truncate
+rather than wrap.
+
+## Main Settings and full profiles
+
+Main Settings is the only home for profile selection and full-profile copying.
+The selected account or character profile owns tracked items/groups,
+AutoCategory setup/orders/inclusion, tracker visibility/layout, currency/capacity
+preferences, resource-bar settings and editor filters.
+
+The explicit account-wide exceptions are integration enablement switches,
+Item Transfer Delay, Auto-Merge Chest Stacks, Debug Mode and diagnostic timing
+thresholds. Inventory/cache records, schema/identity metadata, diagnostic history
+and recovery backups are not profile preferences. Planned TTC/FCO controls have
+no saved configuration or runtime behavior.
+
+- First use of character settings deep-copies account profile content once.
+- Switching to account settings retains the character profile unchanged.
+- Switching back resumes that retained character profile; it does not merge
+  later account changes. Initialized empty lists are valid, not first use.
+- **Copy From** replaces the complete destination profile after preview and
+  confirmation, removing destination-only settings/items/groups. It is not a
+  merge or groups-only import. Account-to-character, character-to-account and
+  character-to-character copying use independent nested tables.
+- Copying preserves destination identity, scope selection, schema metadata,
+  account-only controls and unrelated data. Sources belong to the same account;
+  self-copy, unavailable sources and invalid data are reported explicitly.
+- Selection and copying refresh the affected panels, geometry, event behavior,
+  matching caches and active AC output through the existing lifecycle.
+
+The **Panels** section has the three management buttons in one row, followed by
+tracker, currency/capacity and standalone-resource settings. **Integrations** has
+an explanation and individual expanders, not a row of integration launch
+buttons. The AutoCategory expander contains its information, Enable and Settings
+controls. TTC and FCO ItemSaver remain visibly disabled/off and marked planned;
+their presence does not indicate implemented price bands or marker groups.
+**Debugging** is the final expander. The DEV failure-simulation control is removed.
+
+## Visit-scoped Undo changes
+
+All three editors apply edits immediately and automatically take an independent,
+memory-only opening baseline after initialization/synchronization.
+**Undo changes** appears only while meaningful editable state differs from that
+baseline; manual reversal also hides it. Undo restores the baseline and keeps it
+available for subsequent edits during the same visit.
+
+- Tracking/Groups restore coherent editable item/rule state and its dependent
+  configuration, not unrelated preferences or runtime selection/scroll state.
+- AutoCategory restores the currently viewed context/mode's opening order and
+  the context's shared inclusion state. Inclusion affects both modes; undo does
+  not independently restore the opposite order or any other context. Membership
+  reconciliation still preserves Other's Display-only invariant.
+- Changing context or mode does not replace the opening baseline. Snapshots and
+  callbacks remain bound to their profile and editor.
+- Close, tab switch, opening Main Settings or closing by hotkey discards the
+  baseline. Reopening/reload starts a new visit; nothing is saved across sessions.
+- Validate external references before restoration. Changed/missing dependencies
+  cause an explicit failure without partial restore or overwriting unrelated AC
+  definitions/options.
+
+There are no Store Current Settings, Reset to Last Stored Settings, staged
+Save/Cancel or ordinary arrangement-reset controls. Undo is separate from the
+failure-recovery panel and its last-resort reset. Account-wide integration
+enablement is not undoable profile content.
 
 ## Profile ownership and synchronization
 
@@ -233,8 +291,8 @@ archives are not replayed automatically into an unverified destination.
 - Reset warns, then offers the starting arrangement; cancellation at either
   stage preserves all state. Commit only after confirmation, replacing layout
   and resettable exclusions/restoration references while preserving source
-  groups, items and existing participation choices. The current implementation
-  change must preserve these existing reset contracts unless explicitly revised.
+  groups, items and existing participation choices. This is the last-resort
+  recovery reset, not an ordinary ordering-editor action.
 - Missing AC must not prevent ordinary IC operation. Offline evidence shows
   missing IC definitions fall through in AC, with missing assignments marked
   red in its settings; this is not in-game uninstall certification.
@@ -265,21 +323,9 @@ character content without copying account changes. Every future migration must
 upgrade inactive initialized profiles too, without repeating this cleanup.
 The actual schema-9 build is tested for non-mutating rejection of schema 10.
 
-All three editors have visit-scoped, memory-only **Undo changes**, visible only
-when meaningful state differs from the opening baseline. Closing or switching
-panels discards the baseline. AutoCategory undo restores current context/mode
-ordering and shared context inclusion, not opposite-mode ordering or other
-contexts. Required external categories are validated before restoration.
-The recovery panel and its last-resort reset remain separate from normal undo.
+### Earlier schema migration contracts
 
-Navigation hides AutoCategory when absent and opens information/enablement when
-loaded but off. Hide/Show are action buttons; Other has neither. Cross-mode copy,
-divergence warnings and the DEV failure simulator are removed. Context copying
-still copies both orders. Groups filtering targets the left-hand names; Items
-summaries are single-line and truncate. TTC/FCO controls are disabled/off
-placeholders with no saved fields or runtime integration.
-
-Schema 8 stores per-profile integration enablement/setup, global group
+Schema 8 stored per-profile integration enablement/setup, global group
 participation, independent context `display`/`matching` lists, native `hidden`
 flags, `displayPositions` and an `itemListInitialized` marker.
 
@@ -288,7 +334,9 @@ references in context sequences and stores `ic:__ic_other` in Display only.
 The global flag no longer controls context inclusion. Migrate enabled groups
 as included everywhere; existing nonparticipants become excluded tails in every
 context, not newly included groups. Initialize Other last in the included
-Display section. The implementation document contains illustrative SV excerpts.
+Display section. The archived
+[exclusion/Other plan](<../Archive/AutoCategory Integration/AutocategoryTweaks_hideICNotDelete.md#illustrative-saved-variable-excerpts>)
+contains illustrative SV excerpts, not a second current data contract.
 Stored account-wide list backups migrate with their owning profile. Schema-4
 through schema-8 builds are exercised directly for non-mutating downgrade
 rejection. Reset preserves per-context IC inclusion, clearing native exclusions
@@ -306,7 +354,7 @@ or live-save editing is authorized by this document.
 
 The inspected release was **AutoCategory 4.5.2 / AddOnVersion 134**; recheck
 contracts on dependency changes rather than assuming permanent API guarantees.
-See the archived [source trail and failure history](<Archive/AutoCategory Integration/AutoCategorySpikeResults.md#dependency-contracts-and-source-trail>).
+See the archived [source trail and failure history](<../Archive/AutoCategory Integration/AutoCategorySpikeResults.md#dependency-contracts-and-source-trail>).
 
 - Declare AC as optional. Register on IC's own add-on-loaded event after AC's
   load handler, not a second listener assumed to run later on AC's event.
@@ -335,13 +383,15 @@ See the archived [source trail and failure history](<Archive/AutoCategory Integr
   A historical probe leaked state by copying a proxy; retain that regression.
 - ESO uses Lua 5.1; `xpcall` argument forwarding requires a closure.
 
-## Verification record and remaining work
+## Verification record and release evidence
 
-These are recorded results from the source documents, not rerun during this
-consolidation:
+The current isolated runner was rerun during this consolidation. Older rows
+retain dated source evidence; dependency-spike and in-game results were not
+rerun or newly certified.
 
 | Evidence | Recorded result | Limit |
 | --- | --- | --- |
+| Isolated addon runner, 2026-11-04 | 211/211, Lua 5.1 syntax and editor XML checks; full profiles, migration/downgrade rejection, undo, tracking columns and dedicated participation editor | Synthetic boundaries; no live inventory or normal saved-variable access |
 | Isolated addon runner, 2026-11-03 | 192/192, Lua 5.1 syntax checks | Synthetic boundaries; schema-8 baseline |
 | Installed-dependency spike runner | 31/31 | Inspected AC modules, not complete ESO execution |
 | Synthetic burst | 100 updates, 128 groups, seven contexts; seven refreshes, zero cache rebuilds; sampled 6 ms CPU | Not an ESO performance certification |
@@ -361,12 +411,14 @@ five reorder preflights 250 ms total, one registry/compile pass 250 ms and
 2000 synthetic classifications across 20 groups 100 ms. Measure and record;
 these thresholds are not reported passes.
 
-Before calling the target implementation complete:
+The following scenarios remain the reference matrix for release testing and
+future regressions, not an open implementation plan:
 
 1. Pass schema-10 all-profile migration/import/copy and actual older-build
    downgrade rejection using synthetic data.
-2. Cover context inclusion from both editors, exclusion/re-inclusion positions,
-   moved-Other insertion, all/none groups, order conversion/copy, rollback,
+2. Cover context inclusion through Manage AutoCategory, preservation of tracking
+   flags, exclusion/re-inclusion positions, moved-Other insertion, all/none
+   groups, both-order context copying, rollback,
    collisions, recovery and no-op/changed-bag performance contracts.
 3. Verify classification and rendered order in each required keyboard context,
    with overlapping filters, Bank/subscriber mapping, Other and native categories.
@@ -383,17 +435,33 @@ confirmation. If a dependency limitation prevents the required behavior,
 present evidence and obtain a decision rather than silently changing semantics
 or taking over AC classification/rendering.
 
+Older source documents list pending Guild Bank/lifecycle, visual, performance,
+heading-asset and packaging checks. Those are dated evidence gaps, not surviving
+feature tasks after the author's completion decision. Do not invent results for
+them: use the actual candidate and release checklist to establish publication
+evidence. The separate installed release tree is not updated by DEV completion.
+Optional badge/colour controls and gamepad support are outside this feature.
+
 ## Historical document index
 
-All retained under [Archive / AutoCategory Integration](<Archive/AutoCategory Integration>):
+All retained under [Archive / AutoCategory Integration](<../Archive/AutoCategory Integration>).
+Historical proposals are superseded by this specification, including Master
+inheritance, rank/anchor placement, fractional priorities, rank-bearing names,
+five-second ordering queues, runtime profile merging and the tracking-editor
+area selector. Archived checklists do not reopen completed work.
 
-- [Original specification](<Archive/AutoCategory Integration/todo_plan_autocategoryIntegration.md>)
-- [Original implementation plan](<Archive/AutoCategory Integration/todo_implementation_autocategoryIntegration.md>)
-- [Ordering redesign](<Archive/AutoCategory Integration/todo_implementation_autocategoryOrderingFix.md>)
-- [Profile synchronization fix and latest baseline evidence](<Archive/AutoCategory Integration/AutoCategorySynchronizationFix.md>)
-- [Implementation report](<Archive/AutoCategory Integration/AutoCategoryImplementationReport.md>)
-- [Spike results, dependency contracts and failed approaches](<Archive/AutoCategory Integration/AutoCategorySpikeResults.md>)
-- [Original spec/plan review](<Archive/AutoCategory Integration/AutoCategoryIntegrationReview.md>)
-- [Setup, responsiveness and deferred test history](<Archive/AutoCategory Integration/todo_testing_autocategoryFixes.md>)
-- [Historical gate-testing prompt](<Archive/AutoCategory Integration/prompt_autocategoryGateTesting.md>)
-- [Historical in-game-testing prompt](<Archive/AutoCategory Integration/prompt_autocategoryInGameTests.md>)
+- [Settings/profile/editor polishing plan](<../Archive/AutoCategory Integration/AutoCategory_Polishing_ImplementationPlan.md>)
+- [Original polishing snag lists and reference screenshots](<../Archive/AutoCategory Integration/AutoCategory_Polishing_Tweaks.md>)
+- [Context-specific exclusion and movable Other plan](<../Archive/AutoCategory Integration/AutocategoryTweaks_hideICNotDelete.md>)
+- [Original specification](<../Archive/AutoCategory Integration/todo_plan_autocategoryIntegration.md>)
+- [Original implementation plan](<../Archive/AutoCategory Integration/todo_implementation_autocategoryIntegration.md>)
+- [Ordering redesign](<../Archive/AutoCategory Integration/todo_implementation_autocategoryOrderingFix.md>)
+- [Profile synchronization fix and baseline evidence](<../Archive/AutoCategory Integration/AutoCategorySynchronizationFix.md>)
+- [Implementation report](<../Archive/AutoCategory Integration/AutoCategoryImplementationReport.md>)
+- [Spike results, dependency contracts and failed approaches](<../Archive/AutoCategory Integration/AutoCategorySpikeResults.md>)
+- [Original spec/plan review](<../Archive/AutoCategory Integration/AutoCategoryIntegrationReview.md>)
+- [Setup, responsiveness and deferred test history](<../Archive/AutoCategory Integration/todo_testing_autocategoryFixes.md>)
+- [Historical gate-testing prompt](<../Archive/AutoCategory Integration/prompt_autocategoryGateTesting.md>)
+- [Historical in-game-testing prompt](<../Archive/AutoCategory Integration/prompt_autocategoryInGameTests.md>)
+- [Heading-icon discussion](<../Archive/AutoCategory Integration/prompt_categoryIcon.md>)
+- [Earlier UI improvement notes](<../Archive/AutoCategory Integration/UIImprovements.md>)

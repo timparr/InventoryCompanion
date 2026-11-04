@@ -1,8 +1,7 @@
 # AutoCategory integration: IMPLEMENTATION PLAN
 
 **ARCHIVED 2026-11-03.** Historical plan, not current work instructions;
-use the [master feature document](../../AutoCategoryIntegration.md) and its
-linked current implementation document.
+use the [master feature specification](../../FeatureSpecs/AutoCategoryIntegration.md).
 
 Updated 2026-11-01. **Implemented; automated tests pass, but post-implementation
 compatibility acceptance is incomplete.** See the

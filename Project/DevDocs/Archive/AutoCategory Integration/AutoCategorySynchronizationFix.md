@@ -1,7 +1,7 @@
 # AutoCategory profile synchronization fix
 
 **ARCHIVED 2026-11-03.** Historical plan and evidence; current requirements
-are in the [master feature document](../../AutoCategoryIntegration.md).
+are in the [master feature document](../../FeatureSpecs/AutoCategoryIntegration.md).
 
 Status: implemented on main, uncommitted. Offline verification passed on
 2026-11-03; in-game acceptance remains pending. See implementation evidence

@@ -1,7 +1,7 @@
 # AutoCategory in-game gate tests
 
 **Archive consolidated 2026-11-03.** Current requirements are in the
-[master feature document](../../AutoCategoryIntegration.md).
+[master feature document](../../FeatureSpecs/AutoCategoryIntegration.md).
 
 **ARCHIVED 2026-10-31. Historical request, not current instructions.**
 Current requirements, sequencing and evidence live only in the

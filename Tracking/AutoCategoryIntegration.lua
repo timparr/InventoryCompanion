@@ -629,8 +629,8 @@ function integration.Fail(failure, traceback)
     status = {
         state = "error",
         message = "AutoCategory synchronization stopped: " .. this.autoCategoryFailure
-            .. " Open the IC AutoCategory panel for recovery, or IC Settings > AutoCategory Integration"
-            .. " > More information. Saved settings are preserved; other IC features remain available.",
+            .. " Open the IC AutoCategory panel for recovery, or IC Settings > Integrations > AutoCategory"
+            .. " > Settings. Saved settings are preserved; other IC features remain available.",
     }
     d("[InventoryCompanion] WARNING: " .. status.message)
     if this.state ~= nil and this.state.isLoaded then

@@ -64,7 +64,7 @@ end
 
 local function CreatePanelNavigation(control)
     local entries = {
-        { "Manage Items", function() this.OpenEditItemsPanel() end },
+        { "Manage Tracking", function() this.OpenEditItemsPanel() end },
         { "Manage Groups", function() this.OpenEditGroupsPanel() end },
         { "Manage AutoCategory", function() this.OpenAutoCategoryPanel() end },
     }

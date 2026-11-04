@@ -6,9 +6,9 @@ Inventory Companion is an Elder Scrolls Online addon for inventory transfers, it
 
 [LIST=1]
 [*]In ESO, open [B]Settings > Add-Ons > Inventory Companion[/B] to change addon options.
-[*]Open the tracked-items editor using [B]Open Item Tracking Editor[/B] under [B]Settings > Addons > Inventory Companion[/B], the tracker panel's right-click menu, its edit icon, or the key assigned to [B]Show/Hide Tracking Settings[/B] under [B]Settings > Controls > Keybindings > Inventory Companion[/B].
+[*]Open [B]Manage Tracking[/B] under [B]Panels[/B] in the addon settings, the tracker panel's right-click menu, its edit icon, or the key assigned to [B]Show/Hide Tracking Settings[/B] under [B]Settings > Controls > Keybindings > Inventory Companion[/B].
 [*]Assign [B]Show/Hide Item Tracking Panel[/B] in the same keybindings section to toggle the tracker HUD. This changes the same saved visibility setting as [B]Show Tracked Items Panel[/B]; the panel can still appear temporarily while editing or interacting with items.
-[*]The editor has [B]Edit Items[/B] and [B]Edit Groups[/B] buttons to switch views. Right-click the tracker HUD for quick display options.
+[*]Use [B]Manage Tracking[/B] and [B]Manage Groups[/B] to switch views. Show and Notify column headings identify the clickable tracking summaries. Right-click the tracker HUD for quick display options.
 [/LIST]
 
 [SIZE="4"][B]Show currency and inventory resources[/B][/SIZE]
@@ -61,11 +61,11 @@ A category that is too large on its own, an oversized flat list, or too many cat
 [SIZE="4"][B]Create and edit a custom group[/B][/SIZE]
 
 [LIST=1]
-[*]Open the tracked-items editor and select [B]Edit Groups[/B].
+[*]Open [B]Manage Tracking[/B] and select [B]Manage Groups[/B].
 [*]Select [B]+ New Group[/B]. A new group is created and its name field opens; enter a name and press Enter or move focus away to save it.
 [*]Select [B]+ Add Pattern[/B] to add a matching rule. Enter an item-name pattern, then move focus away from the field to save it. A green deposit (IN) icon before each row identifies an Include rule; a red withdraw (OUT) icon identifies an Exclude rule. Hover over the icon for an explanation. Use the small swap button after the pattern to change its kind; hover over the button to see what it will do. Changing a rule's kind moves it to the Include section or the Exclusions section below. A group includes an item when it matches at least one Include pattern and no Exclude patterns. For example, include [B]*treasure map*[/B] and add [B]*cyrodiil*[/B] as an Exclude to keep Cyrodiil treasure maps out of that group. Exclusions narrow only this group; the item may still match other groups or be tracked individually. Matching ignores letter case, and [B]*[/B] matches any part of an item name.
-[*]Return to [B]Edit Items[/B]. The group's [B]Show[/B] box contains [B]Display items together[/B], [B]Show backpack[/B], and [B]Show bank[/B]. Grouping adds ", grouped" to the detail while the group is shown. The [B]Notify[/B] box independently selects Chat and HUD gain alerts. Changing a group does not overwrite individually tracked item settings.
-[*]In [B]Edit Groups[/B], use the group action buttons to hide/unhide or delete a custom group. Resetting a predefined group restores only its name and pattern list to the current addon defaults. All display settings, including hidden state, are retained. The [B]Miscellaneous[/B] group is a special catch-all and does not have editable patterns.
+[*]Return to [B]Manage Tracking[/B]. Click the group's summary under [B]Show[/B] to choose [B]Display items together[/B], [B]Show backpack[/B], and [B]Show bank[/B]. Grouping adds ", grouped" to the detail while the group is shown. The summary under [B]Notify[/B] independently selects Chat and HUD gain alerts. Changing a group does not overwrite individually tracked item settings.
+[*]In [B]Manage Groups[/B], use the group action buttons to hide/unhide or delete a custom group. Resetting a predefined group restores only its name and pattern list to the current addon defaults. All display settings, including hidden state, are retained. The [B]Miscellaneous[/B] group is a special catch-all and does not have editable patterns.
 [/LIST]
 
 Only your edits to predefined groups are saved. Unmodified names, patterns, and display settings can follow updated defaults in future addon versions. Restoring an edited value to its default removes that override.
@@ -78,7 +78,7 @@ IC and AutoCategory may independently use account-wide or character-specific set
 
 On first enablement, choose whether IC groups start [B]Near the top[/B] (the default) or [B]At the bottom[/B] of your existing categories. Groups with any Show or Notify option enabled are included automatically during setup. You can change their order and participation later. In Main Settings, expand [B]AutoCategory[/B] under [B]Integrations[/B] for its information, account-wide [B]Enable[/B] toggle and compact [B]Settings[/B] button. The same button opens recovery when the integration needs attention; there is no separate More information button.
 
-In [B]Edit Items[/B], click an ordinary group's [B]AutoCategory[/B] summary to choose its included areas from seven independent checkboxes. Checked means Included; unchecked means Excluded. This uses the same per-context state as the AutoCategory editor, independently of Show, Notify and tracker visibility. Individual items and [B]Miscellaneous[/B] do not have this option. The summary shows All, None, one area, or Not: one area first; otherwise it shows included names if they fit, excluded names prefixed with Not: if they fit, or a count such as Three Areas. The tooltip and dropdown always show every area's state.
+AutoCategory inclusion is managed only in [B]Manage AutoCategory[/B], independently of Show, Notify and tracker visibility. [B]Manage Tracking[/B] has no AutoCategory column.
 
 Open [B]Manage AutoCategory[/B] to choose Backpack, Bank, Guild Bank, House Bank, Crafting Station, Craft Bag, or Furniture Vault. [B]Edit Display Order[/B] controls where assignments appear; [B]Edit Priority Order[/B] controls which matching assignment wins first. Moving an entry changes only the selected list and context. Native AutoCategory assignments are included as rows. Pick another context under [B]Copy from[/B] and press [B]Copy[/B] to copy both orders for shared entries. Later changes do not stay linked. There is no cross-mode copy or divergence warning.
 

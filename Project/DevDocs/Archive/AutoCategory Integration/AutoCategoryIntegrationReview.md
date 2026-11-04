@@ -1,7 +1,7 @@
 # AutoCategory integration: spec and plan review
 
 **ARCHIVED 2026-11-03.** Historical review; current requirements are in the
-[master feature document](../../AutoCategoryIntegration.md).
+[master feature document](../../FeatureSpecs/AutoCategoryIntegration.md).
 
 Review dated 2026-10-31. This is a reference assessment of the
 [spec](todo_plan_autocategoryIntegration.md),

@@ -26,7 +26,7 @@ There is no build or linter; the addon runs inside the ESO client.
 - **Core/** – saved-variable init and schema/migration (`Init.lua`), constants, settings (LibAddonMenu-2.0, required), inventory scanning, event registration, in-game tests.
 - **Banking/** – automatic bank deposit/withdraw, stack restocking, currency transfers, resource progress bars.
 - **Tracking/** – tracked item/group database (`ItemDatabase.lua`), item tracker and currency panels, the multi-tab edit window (`EditPanel*Tab.lua/.xml`, coordinated by `EditPanelTabManager.lua`), and optional **AutoCategory** integration (`AutoCategoryIntegration.lua`, declared via `OptionalDependsOn`).
-- For load ordering and AutoCategory integration, start with `Project\DevDocs\Tasks\AutoCategoryIntegration.md`; it links the implementation doc and archived spike/dependency contracts. Consult them before repeating research.
+- For load ordering and AutoCategory integration, start with `Project\DevDocs\FeatureSpecs\AutoCategoryIntegration.md`; it consolidates final behavior and links archived plans and spike/dependency contracts. Consult them before repeating research.
 - `generated-eso-api\` (git-ignored) holds LuaLS ESO API stubs for the editor only (`Project\DevDocs\UpdateESOApiLibrary.ps1`); never add them to a manifest.
 
 ## Conventions

@@ -1,7 +1,7 @@
 # AutoCategory integration: spike results
 
 **ARCHIVED 2026-11-03.** Retained dependency contracts and dated evidence;
-current requirements are in the [master feature document](../../AutoCategoryIntegration.md).
+current requirements are in the [master feature document](../../FeatureSpecs/AutoCategoryIntegration.md).
 
 Updated 2026-10-31, incorporating ESO evidence through 23:08 UTC and subsequent
 offline follow-up.

@@ -734,7 +734,7 @@ function GetSavedVariablesTests()
                 assert(addon.AutoCategoryIntegration.IsFaulted() and not addon.GetAutoCategoryState().enabled)
                 assert(calls.warnings[1]:find("AutoCategory", 1, true)
                     and calls.warnings[1]:find("synchronization stopped", 1, true)
-                    and calls.warnings[1]:find("More information", 1, true))
+                    and calls.warnings[1]:find("IC Settings > Integrations > AutoCategory > Settings", 1, true))
                 assert(addon.GetRuntimeRules().builtin)
             end,
         },

@@ -1033,6 +1033,10 @@ function this.GetAutoCategoryIntegrationTests()
                 local bag = AutoCategory.saved.bags[1].rules
                 local count = #bag
                 integration.Fail("Synthetic dependency failure")
+                local status, message = integration.GetStatus()
+                assert(status == "error"
+                    and message:find("IC Settings > Integrations > AutoCategory > Settings.", 1, true),
+                    "Recovery guidance must point to the remaining Settings button")
                 local state = this.GetAutoCategoryState()
                 assert(state.configuredEnabled == true and state.enabled == false and state.failed == true)
                 assert(type(state.enabled) == "boolean" and type(state.failed) == "boolean")

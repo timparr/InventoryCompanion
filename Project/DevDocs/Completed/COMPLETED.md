@@ -4,6 +4,17 @@ Completed work is recorded here for project history and future release-note draf
 
 ## Verified Addon Work
 
+- **AutoCategory integration and settings/editor polish (D11):** Closed by the
+  author on 2026-11-04. Includes per-area Display/Priority orders and Hide/Show,
+  movable Display-only Other, full profiles, centralized settings/profile tools,
+  aligned editor navigation, Manage Tracking Show/Notify columns and visit-scoped
+  Undo changes. The [master feature specification](../FeatureSpecs/AutoCategoryIntegration.md)
+  owns final behavior and documentation handoff; supporting plans, snag lists,
+  screenshots and dated evidence are in the
+  [AutoCategory archive](<../Archive/AutoCategory Integration>).
+  Release approval and candidate evidence follow the publishing checklist
+  separately; historical pending checks do not reopen this implementation.
+
 - **Item tracker flags / row options (C4):** Implemented and archived at the
   user's request on 2026-10-31. Aligned two-line Show/Notify controls open compact
   boxes for independent backpack/bank display, grouping, and Chat/HUD delivery.
@@ -45,7 +56,7 @@ Completed work is recorded here for project history and future release-note draf
   passed 71/71 tests on 2026-10-30.
 - **Tracker visibility and smart positioning:** Keeps the tracker visible during bank, store, fence, and inventory interactions and adjusts its position to avoid UI overlap. Implemented in `Core/Events.lua` and `Tracking/ItemTrackerPanel.lua`.
 - **Item and group editor switching:** Provides dual-layer group management and window switching while preserving geometry and the last-active tab. Implemented in `Tracking/EditPanelTabManager.lua`, `Tracking/EditPanelItemsTab.lua`, and `Tracking/EditPanelGroupsTab.lua`.
-- **Profile import and copy:** Copies profiles and rule overrides between characters or account-wide settings. Implemented in `Tracking/EditPanelItemsTab.lua`.
+- **Profile selection and full copy:** Main Settings selects retained account/character profiles and replaces complete profile content after confirmation. See the [current profile contract](../FeatureSpecs/AutoCategoryIntegration.md#main-settings-and-full-profiles); this supersedes the earlier item-editor list-copy workflow.
 - **Context menu integration:** Supports tracked-item addition/removal and partial-stack banking transfers. Implemented in `Core/ContextMenus.lua`.
 - **Currency and capacity panel:** Shows configurable ESO currencies and addon-defined capacity resources in a compact panel, with optional standalone progress bars. Implemented in `Tracking/CurrencyPanel.lua` and `Banking/ResourceProgressBars.lua`. See the completed [currency preferences specification](CurrencyPreferences.md) and [implementation plan](CurrencyPanelImplementationPlan.md); optional improvements are retained in the [master TODO, Section F](../TODO.md#section-f-tweaks-and-improvement-ideas).
 - **Tracker right-click options:** Toggles empty-item visibility and multiline/single-line view from the tracker context menu. Implemented in `Tracking/ItemTrackerPanel.lua`.

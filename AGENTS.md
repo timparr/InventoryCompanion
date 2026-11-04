@@ -15,7 +15,7 @@
 - Keep this file concise; move context-specific guidance into scoped instruction files when it grows enough to justify the extra files.
 - Decide when accumulated preferences warrant scoped instruction files; keep a concise pointer here stating when each specialized file applies.
 - Prefer conversational discussion, including release-test evidence and confirmations. The user does not want question panels or structured forms; keep requests in the conversation.
-- For ESO addon load ordering and AutoCategory integration, start with the [master feature document](Project/DevDocs/AutoCategoryIntegration.md), which links the current implementation document and archived spike/dependency contracts; consult those contracts before repeating research.
+- For ESO addon load ordering and AutoCategory integration, start with the [master feature specification](Project/DevDocs/FeatureSpecs/AutoCategoryIntegration.md), which consolidates final behavior and links archived plans and spike/dependency contracts; consult those contracts before repeating research.
 
 ## Git Workflow
 

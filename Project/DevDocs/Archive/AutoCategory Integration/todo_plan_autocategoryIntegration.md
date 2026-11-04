@@ -1,7 +1,7 @@
 # AutoCategory integration: SPEC
 
 **ARCHIVED 2026-11-03.** Historical specification; current requirements are
-in the [master feature document](../../AutoCategoryIntegration.md).
+in the [master feature document](../../FeatureSpecs/AutoCategoryIntegration.md).
 
 Updated 2026-11-01. **Implemented, but not compatibility-certified.**
 This document defines required behavior, accepted author decisions, and open

@@ -5,7 +5,6 @@ local searchQuery = ""
 local editorRevision = 0
 local optionsTarget
 local optionsEventName = this.Name .. "_ItemRowOptions"
-local areaSummaryMeasureLabel
 
 function this.CloseItemRowOptions()
     optionsTarget = nil
@@ -306,10 +305,8 @@ local function ConfigureRowStateStyles(row, entry)
 
     local function ApplyStyle(name, active, detail)
         local button = GetControl(row, name)
-        GetControl(button, "Title"):SetHidden(true)
-        GetControl(button, "Title"):SetColor(1.0, 0.94, 0.76, active and 1.0 or 0.5)
         GetControl(button, "Detail"):SetColor(1.0, 0.94, 0.76, active and 1.0 or 0.5)
-        GetControl(button, "Detail"):SetText(name .. ": " .. detail)
+        GetControl(button, "Detail"):SetText(detail)
     end
 
     local locations = display.showBackpack and (display.showBank and "Both" or "Backpack")
@@ -323,12 +320,13 @@ end
 
 local OpenRowOptions
 OpenRowOptions = function(row, entry, kind, refreshCallback)
+    assert(kind == "Show" or kind == "Notify", "Unknown tracking option column: " .. tostring(kind))
     if optionsTarget and optionsTarget.entry == entry and optionsTarget.kind == kind then
         this.CloseItemRowOptions()
         return
     end
     this.CloseItemRowOptions()
-    local display = this.ResolveItemDisplay(ResolveEntryData(entry).display)
+    ResolveEntryData(entry)
     local panel = InventoryCompanion_ItemRowOptions
     local target = { entry = entry, kind = kind, row = row }
     optionsTarget = target
@@ -338,15 +336,10 @@ OpenRowOptions = function(row, entry, kind, refreshCallback)
         if entry.isRule then fields[#fields + 1] = { "group", "Display items together" } end
         fields[#fields + 1] = { "showBackpack", "Show backpack" }
         fields[#fields + 1] = { "showBank", "Show bank" }
-    elseif kind == "AutoCategory" then
-        fields = {}
-        for _, context in ipairs(this.AutoCategoryIntegration.GetContexts()) do
-            fields[#fields + 1] = { context.key, context.title }
-        end
     else
         fields = { { "notifyChat", "Notify Chat" }, { "notifyHud", "Notify HUD" } }
     end
-    for index = 1, 7 do
+    for index = 1, 3 do
         local option = GetControl(panel, "Option" .. index)
         local field = fields[index]
         option:SetHidden(field == nil)
@@ -355,9 +348,6 @@ OpenRowOptions = function(row, entry, kind, refreshCallback)
             label:SetText(field[2])
             label:SetColor(1.0, 0.94, 0.76, 1.0)
             local function IsChecked()
-                if kind == "AutoCategory" then
-                    return this.AutoCategoryIntegration.IsEntryIncluded("ic:" .. entry.key, field[1])
-                end
                 return this.ResolveItemDisplay(ResolveEntryData(entry).display)[field[1]] == true
             end
             ZO_CheckButton_SetCheckState(check, IsChecked())
@@ -374,18 +364,7 @@ OpenRowOptions = function(row, entry, kind, refreshCallback)
                         end
                     end
                 end
-                if kind == "AutoCategory" then
-                    this.AutoCategoryIntegration.Run(function()
-                        ResolveEntryData(entry)
-                        assert(this.AutoCategoryIntegration.IsEditorActive(), "Area selection targets an inactive integration")
-                        if this.AutoCategoryIntegration.SetEntryIncluded("ic:" .. entry.key, field[1], checked) then
-                            Refresh()
-                        end
-                        this.RefreshAutoCategoryEditor()
-                    end)
-                else
-                    SetEntryFlag(entry, field[1], checked, Refresh)
-                end
+                SetEntryFlag(entry, field[1], checked, Refresh)
             end
             ZO_CheckButton_SetToggleFunction(check, function(_, checked) Apply(checked) end)
             label:SetHandler("OnMouseDown", function(_, button)
@@ -460,82 +439,10 @@ local function ConfigureRowTextAndRemoval(row, entry, refreshCallback)
     end
 end
 
-local function ConfigureAutoCategoryToggle(row, entry, refreshCallback)
-    local toggle = GetControl(row, "AutoCategory")
-    local failed = this.AutoCategoryIntegration.NeedsRecovery()
-    local columnActive = failed or this.AutoCategoryIntegration.IsEditorActive()
-    local rowActive = columnActive and entry.isRule and entry.key ~= "miscellaneous"
-    -- Reserve the column width on every row while the integration is active so
-    -- the Notify/Show columns stay aligned; hidden controls still anchor.
-    toggle:SetWidth(columnActive and 170 or 0)
-    GetControl(row, "ItemLabel"):SetWidth(columnActive and 262 or 432)
-    toggle:SetHidden(not rowActive)
-    if not rowActive then return end
-    GetControl(toggle, "Title"):SetHidden(true)
-
-    local function OpenRecovery()
-        this.OpenAutoCategoryPanel()
-    end
-    if failed then
-        GetControl(toggle, "Title"):SetColor(1, 0.27, 0.27, 1)
-        local detail = GetControl(toggle, "Detail")
-        detail:SetColor(1, 0.27, 0.27, 1)
-        detail:SetText("AutoCategory: ! Needs attention")
-        toggle:SetHandler("OnClicked", OpenRecovery)
-        toggle:SetHandler("OnMouseEnter", function(control)
-            InitializeTooltip(InformationTooltip, control, RIGHT, -4, 0)
-            InformationTooltip:AddLine("AutoCategory integration needs attention. Click to view recovery options.")
-        end)
-        toggle:SetHandler("OnMouseExit", function() ClearTooltip(InformationTooltip) end)
-        return
-    end
-
-    local rule = this.GetRuntimeRules()[entry.key]
-    assert(rule ~= nil, "AutoCategory toggle targets a missing group")
-    local reference = "ic:" .. entry.key
-    local enabled = false
-    for _, context in ipairs(this.AutoCategoryIntegration.GetContexts()) do
-        enabled = this.AutoCategoryIntegration.IsEntryIncluded(reference, context.key) or enabled
-    end
-    GetControl(toggle, "Title"):SetColor(1.0, 0.94, 0.76, enabled and 1.0 or 0.5)
-    local detail = GetControl(toggle, "Detail")
-    detail:SetColor(1.0, 0.94, 0.76, enabled and 1.0 or 0.5)
-    detail:SetText("AutoCategory: " .. this.AutoCategoryIntegration.GetAreaSummary(reference, function(text)
-        if areaSummaryMeasureLabel == nil then
-            areaSummaryMeasureLabel = WINDOW_MANAGER:CreateControl(nil, GuiRoot, CT_LABEL)
-            areaSummaryMeasureLabel:SetHidden(true)
-        end
-        areaSummaryMeasureLabel:SetFont(detail:GetFont())
-        areaSummaryMeasureLabel:SetText("AutoCategory: " .. text)
-        return areaSummaryMeasureLabel:GetTextWidth() <= detail:GetWidth()
-    end))
-
-    toggle:SetHandler("OnClicked", function()
-        if this.AutoCategoryIntegration.NeedsRecovery() then return OpenRecovery() end
-        this.AutoCategoryIntegration.Run(function()
-        ResolveEntryData(entry)
-        assert(this.AutoCategoryIntegration.IsAvailable() and this.GetAutoCategoryState().enabled,
-            "AutoCategory toggle targets an inactive integration")
-        OpenRowOptions(row, entry, "AutoCategory", refreshCallback)
-    end) end)
-    toggle:SetHandler("OnMouseEnter", function(control)
-        InitializeTooltip(InformationTooltip, control, RIGHT, -4, 0)
-        InformationTooltip:AddLine("Choose the areas where this group is included. Each area is independent.")
-        for _, context in ipairs(this.AutoCategoryIntegration.GetContexts()) do
-            InformationTooltip:AddLine(context.title .. ": "
-                .. (this.AutoCategoryIntegration.IsEntryIncluded(reference, context.key) and "Included" or "Excluded"))
-        end
-    end)
-    toggle:SetHandler("OnMouseExit", function()
-        ClearTooltip(InformationTooltip)
-    end)
-end
-
 local function UpdateRowVisualsAndHandlers(row, entry, refreshCallback)
     ConfigureRowStateStyles(row, entry)
     ConfigureRowClickHandlers(row, entry, refreshCallback)
     ConfigureRowTextAndRemoval(row, entry, refreshCallback)
-    ConfigureAutoCategoryToggle(row, entry, refreshCallback)
 end
 
 function this.RefreshTrackedItemsEditor()
@@ -560,8 +467,7 @@ function this.RefreshTrackedItemsEditor()
     
     local queryStr = searchQuery:lower():match("^%s*(.-)%s*$")
     local rowIndex = 1
-    local rowHeight = 54
-    rowHeight = 34
+    local rowHeight = 34
 
     for _, entry in ipairs(sortedEntries) do
         if ShouldIncludeEntry(entry, queryStr) then

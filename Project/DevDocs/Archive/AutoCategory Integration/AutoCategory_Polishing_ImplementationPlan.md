@@ -1,5 +1,11 @@
 # Settings and AutoCategory polishing: implementation plan
 
+**ARCHIVED 2026-11-04.** Completed work; retained decisions, sequencing and
+historical acceptance criteria, not current work instructions. The
+[master feature specification](../../FeatureSpecs/AutoCategoryIntegration.md)
+consolidates final behavior and supersedes this plan where later tweaks differ,
+including the dedicated participation editor and final settings layout.
+
 ## Open questions and decisions
 
 These decisions must be settled before the affected implementation starts.
@@ -88,11 +94,11 @@ The remaining release-visibility decision does not block development.
 
 - [Original polishing notes](AutoCategory_Polishing_Tweaks.md) and their reference
   images are read-only inputs; do not edit them during discussion.
-- [Current AutoCategory feature document](AutoCategoryIntegration.md) defines the
+- [Current AutoCategory feature document](../../FeatureSpecs/AutoCategoryIntegration.md) defines the
   existing integration baseline.
 - [Current exclusion/Other implementation document](AutocategoryTweaks_hideICNotDelete.md)
   owns the preceding change and its outstanding acceptance.
-- [Archived spike results and dependency contracts](../Archive/AutoCategory%20Integration/AutoCategorySpikeResults.md)
+- [Archived spike results and dependency contracts](AutoCategorySpikeResults.md)
   retain prior load-order and dependency evidence. Their historical designs
   are not new requirements.
 
@@ -424,10 +430,10 @@ full profiles.
 | `autoCategorySetupComplete`, `autoCategoryOrder` | Unreleased DEV-only setup state and per-area Display/Priority/inclusion configuration, currently owned by the selected list profile. Orders/inclusion remain profile content after enablement moves account-wide. |
 | `itemListInitialized` | Profile initialization metadata, not a user preference. It controls existing first-use seeding and must not be confused with an intentionally empty initialized list. |
 
-The defaults are in [Constants](../../../Core/Constants.lua); selection, item/rule
+The defaults are in [Constants](../../../../Core/Constants.lua); selection, item/rule
 formats and initialization behavior are in
-[ItemDatabase](../../../Tracking/ItemDatabase.lua); current filter readers/writers
-are in [the Items editor](../../../Tracking/EditPanelItemsTab.lua).
+[ItemDatabase](../../../../Tracking/ItemDatabase.lua); current filter readers/writers
+are in [the Items editor](../../../../Tracking/EditPanelItemsTab.lua).
 
 **Example A - account list selected, but editor filters still character-owned
 today**
@@ -546,14 +552,14 @@ saves and does not justify a public AC-to-AC migration project.
   `currencyOffsetY`, `currencyPreferences` (keyed by currency ID, then
   `locations`, then location) and `capacityPreferences` (keyed by resource).
   These preference maps are created by the
-  [currency panel](../../../Tracking/CurrencyPanel.lua), not listed in the
+  [currency panel](../../../../Tracking/CurrencyPanel.lua), not listed in the
   static defaults.
 - Standalone resource bars: `progressBarPreferences` and
   `progressBarAlertColors`, including nested resource preferences.
 - `houseBankNames` is populated from externally reported chest names by
-  [bank transfers](../../../Banking/BankTransfers.lua), not a user preference.
+  [bank transfers](../../../../Banking/BankTransfers.lua), not a user preference.
   `currencyNamesById` is maintained for diagnostics by
-  [Tests](../../../Core/Tests.lua), not the currency panel's preference map.
+  [Tests](../../../../Core/Tests.lua), not the currency panel's preference map.
   Neither belongs in profile-content copying.
 - TTC thresholds and FCO group configuration are planned additions, not existing
   character saved-variable fields.
@@ -769,14 +775,14 @@ integration behavior. Release visibility is explicitly decided.
 | Performance safety | Synthetic bursts never mutate live inventory or saved variables; agree numerical workload/timing limits before declaring a pass. No live transfers for performance testing. |
 
 Extend the existing
-[saved-variable tests](../../Tests/SavedVariablesTests.lua),
-[rule persistence tests](../../Tests/RulePersistenceTests.lua),
-[item editor tests](../../Tests/ItemEditorTests.lua),
-[group editor tests](../../Tests/GroupEditorTests.lua),
-[AutoCategory editor tests](../../Tests/AutoCategoryEditorTests.lua),
-[integration tests](../../Tests/AutoCategoryIntegrationTests.lua) and
-[tracker panel tests](../../Tests/TrackerPanelTests.lua).
-Use the existing [Lua 5.1 runner](../../Tests/Run-RuleTests.py), selecting the
+[saved-variable tests](../../../Tests/SavedVariablesTests.lua),
+[rule persistence tests](../../../Tests/RulePersistenceTests.lua),
+[item editor tests](../../../Tests/ItemEditorTests.lua),
+[group editor tests](../../../Tests/GroupEditorTests.lua),
+[AutoCategory editor tests](../../../Tests/AutoCategoryEditorTests.lua),
+[integration tests](../../../Tests/AutoCategoryIntegrationTests.lua) and
+[tracker panel tests](../../../Tests/TrackerPanelTests.lua).
+Use the existing [Lua 5.1 runner](../../../Tests/Run-RuleTests.py), selecting the
 smallest supported test scope at implementation time. Its XML assertions are
 coupled to current controls and must change alongside approved UI changes.
 
@@ -786,20 +792,20 @@ offline results do not replace ESO visual or dependency acceptance.
 
 ## Expected implementation surfaces
 
-- [Constants](../../../Core/Constants.lua), [initialization](../../../Core/Init.lua)
-  and [item database/profile lifecycle](../../../Tracking/ItemDatabase.lua):
+- [Constants](../../../../Core/Constants.lua), [initialization](../../../../Core/Init.lua)
+  and [item database/profile lifecycle](../../../../Tracking/ItemDatabase.lua):
   field ownership, defaults, boundary validation, all-profile schema migration,
   first-use copying and retained-profile switching.
-- [Main settings](../../../Core/Settings.lua): layout and relocated profile tools.
-- [Tab manager](../../../Tracking/EditPanelTabManager.lua) and all three editor
+- [Main settings](../../../../Core/Settings.lua): layout and relocated profile tools.
+- [Tab manager](../../../../Tracking/EditPanelTabManager.lua) and all three editor
   Lua/XML pairs: navigation, item summaries, group search and AC view controls.
-- [AutoCategory adapter](../../../Tracking/AutoCategoryIntegration.lua):
+- [AutoCategory adapter](../../../../Tracking/AutoCategoryIntegration.lua):
   account enablement, validated runtime undo through existing publication,
   existing group/profile synchronization and dedicated simulation removal.
-- [Tracker](../../../Tracking/ItemTrackerPanel.lua),
-  [currency panel](../../../Tracking/CurrencyPanel.lua),
-  [resource progress bars](../../../Banking/ResourceProgressBars.lua) and
-  [events](../../../Core/Events.lua): every reader/writer affected by scope.
+- [Tracker](../../../../Tracking/ItemTrackerPanel.lua),
+  [currency panel](../../../../Tracking/CurrencyPanel.lua),
+  [resource progress bars](../../../../Banking/ResourceProgressBars.lua) and
+  [events](../../../../Core/Events.lua): every reader/writer affected by scope.
 - Relevant tests, manifests only if this implementation changes load requirements,
   and directly related feature/user documentation.
 

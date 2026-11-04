@@ -1,3 +1,8 @@
+**ARCHIVED 2026-11-04.** Completed exclusion/Other work and dated evidence.
+The [master feature specification](../../FeatureSpecs/AutoCategoryIntegration.md)
+owns final behavior. In particular, its dedicated AutoCategory participation
+editor supersedes this plan's tracking-editor area selector and summaries.
+
 ## Open questions
 
 None. The decisions below are confirmed.
@@ -6,8 +11,8 @@ None. The decisions below are confirmed.
 
 # Context-specific exclusion and movable Other
 
-This is the current implementation document for the agreed changes below.
-The [master feature document](AutoCategoryIntegration.md) owns the overall
+This was the implementation document for the agreed changes below.
+The [master feature document](../../FeatureSpecs/AutoCategoryIntegration.md) owns the overall
 integration contract, implemented baseline, dependency guidance and evidence
 status. Earlier plans and investigations are retained in its archive index.
 

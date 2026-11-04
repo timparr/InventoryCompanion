@@ -1,7 +1,7 @@
 # AutoCategory integration implementation report
 
 **ARCHIVED 2026-11-03.** Historical report; current status and requirements
-are in the [master feature document](../../AutoCategoryIntegration.md).
+are in the [master feature document](../../FeatureSpecs/AutoCategoryIntegration.md).
 
 ## Status
 

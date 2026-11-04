@@ -15,34 +15,12 @@
                     <Anchor point="RIGHT" relativeTo="$(parent)" relativePoint="RIGHT" offsetX="-8" offsetY="0" />
                 </Button>
 
-                <Button name="$(parent)AutoCategory" mouseEnabled="true" hidden="true">
-                    <Dimensions x="0" y="30" />
-                    <Anchor point="RIGHT" relativeTo="$(parent)BtnRemove" relativePoint="LEFT" offsetX="-8" />
-                    <Controls>
-                        <Label name="$(parent)Title" font="ZoFontGame" horizontalAlignment="CENTER" text="AutoCategory">
-                            <Dimensions x="170" y="24" />
-                            <Anchor point="TOP" />
-                        </Label>
-                        <Label name="$(parent)Detail" font="ZoFontGameSmall" horizontalAlignment="CENTER" wrapMode="ELLIPSE">
-                            <Dimensions x="170" y="22" />
-                            <Anchor point="CENTER"/>
-                        </Label>
-                    </Controls>
-                </Button>
-                <Control name="$(parent)CategorySpace">
-                    <Dimensions x="0" y="30" />
-                    <Anchor point="RIGHT" relativeTo="$(parent)AutoCategory" relativePoint="LEFT" offsetX="-4" />
-                </Control>
                 <Button name="$(parent)Notify" mouseEnabled="true">
                     <Dimensions x="120" y="30" />
-                    <Anchor point="RIGHT" relativeTo="$(parent)CategorySpace" relativePoint="LEFT" offsetX="-4" />
+                    <Anchor point="RIGHT" relativeTo="$(parent)BtnRemove" relativePoint="LEFT" offsetX="-8" />
                     <Controls>
-                        <Label name="$(parent)Title" font="ZoFontGame" horizontalAlignment="CENTER" text="Notify">
-                            <Dimensions x="120" y="24" />
-                            <Anchor point="TOP" />
-                        </Label>
-                        <Label name="$(parent)Detail" font="ZoFontGameSmall" horizontalAlignment="CENTER" wrapMode="ELLIPSE">
-                            <Dimensions x="120" y="22" />
+                        <Label name="$(parent)Detail" font="ZoFontGame" horizontalAlignment="CENTER" verticalAlignment="CENTER" wrapMode="ELLIPSE">
+                            <Dimensions x="120" y="30" />
                             <Anchor point="CENTER"/>
                         </Label>
                     </Controls>
@@ -51,12 +29,8 @@
                     <Dimensions x="190" y="30" />
                     <Anchor point="RIGHT" relativeTo="$(parent)Notify" relativePoint="LEFT" offsetX="-4" />
                     <Controls>
-                        <Label name="$(parent)Title" font="ZoFontGame" horizontalAlignment="CENTER" text="Show">
-                            <Dimensions x="190" y="24" />
-                            <Anchor point="TOP" />
-                        </Label>
-                        <Label name="$(parent)Detail" font="ZoFontGameSmall" horizontalAlignment="CENTER" wrapMode="ELLIPSE">
-                            <Dimensions x="190" y="22" />
+                        <Label name="$(parent)Detail" font="ZoFontGame" horizontalAlignment="CENTER" verticalAlignment="CENTER" wrapMode="ELLIPSE">
+                            <Dimensions x="190" y="30" />
                             <Anchor point="CENTER"/>
                         </Label>
                     </Controls>
@@ -88,18 +62,6 @@
                 <Control name="$(parent)Option3" inherits="InventoryCompanion_ItemOption_Template">
                     <Anchor point="TOPLEFT" relativeTo="$(parent)Option2" relativePoint="BOTTOMLEFT" />
                 </Control>
-                <Control name="$(parent)Option4" inherits="InventoryCompanion_ItemOption_Template" hidden="true">
-                    <Anchor point="TOPLEFT" relativeTo="$(parent)Option3" relativePoint="BOTTOMLEFT" />
-                </Control>
-                <Control name="$(parent)Option5" inherits="InventoryCompanion_ItemOption_Template" hidden="true">
-                    <Anchor point="TOPLEFT" relativeTo="$(parent)Option4" relativePoint="BOTTOMLEFT" />
-                </Control>
-                <Control name="$(parent)Option6" inherits="InventoryCompanion_ItemOption_Template" hidden="true">
-                    <Anchor point="TOPLEFT" relativeTo="$(parent)Option5" relativePoint="BOTTOMLEFT" />
-                </Control>
-                <Control name="$(parent)Option7" inherits="InventoryCompanion_ItemOption_Template" hidden="true">
-                    <Anchor point="TOPLEFT" relativeTo="$(parent)Option6" relativePoint="BOTTOMLEFT" />
-                </Control>
             </Controls>
         </TopLevelControl>
         <TopLevelControl name="InventoryCompanion_TrackedItemsWindow" clampedToScreen="true" mouseEnabled="true" movable="true" hidden="true">
@@ -107,11 +69,11 @@
             <Anchor point="CENTER" relativeTo="GuiRoot" relativePoint="CENTER" />
             <Controls>
                 <Backdrop name="$(parent)BG" inherits="ZO_DefaultBackdrop" />
-                <Label name="$(parent)Title" font="ZoFontHeader3" text="Manage Items" wrapMode="ELLIPSE"><Dimensions x="225" y="30"/><Anchor point="TOPLEFT" offsetX="20" offsetY="12"/></Label>
+                <Label name="$(parent)Title" font="ZoFontHeader3" text="Manage Tracking" wrapMode="ELLIPSE"><Dimensions x="225" y="30"/><Anchor point="TOPLEFT" offsetX="20" offsetY="12"/></Label>
 <Button name="$(parent)BtnOtherSettings" inherits="ZO_DefaultButton" text="Main Settings"><Dimensions x="115" y="26"/><Anchor point="TOPLEFT" offsetX="245" offsetY="15"/><OnClicked>InventoryCompanion.OpenSettingsFromEditor()</OnClicked></Button>
-<Button name="$(parent)BtnEditItems" inherits="ZO_DefaultButton" text="Manage Items"><Dimensions x="120" y="26"/><Anchor point="TOPLEFT" offsetX="365" offsetY="15"/></Button>
-<Button name="$(parent)BtnEditGroups" inherits="ZO_DefaultButton" text="Manage Groups"><Dimensions x="125" y="26"/><Anchor point="TOPLEFT" offsetX="490" offsetY="15"/></Button>
-<Button name="$(parent)BtnAutoCategory" inherits="ZO_DefaultButton" text="Manage AutoCategory"><Dimensions x="180" y="26"/><Anchor point="TOPLEFT" offsetX="620" offsetY="15"/></Button>
+<Button name="$(parent)BtnEditItems" inherits="ZO_DefaultButton" text="Manage Tracking"><Dimensions x="135" y="26"/><Anchor point="TOPLEFT" offsetX="365" offsetY="15"/></Button>
+<Button name="$(parent)BtnEditGroups" inherits="ZO_DefaultButton" text="Manage Groups"><Dimensions x="125" y="26"/><Anchor point="TOPLEFT" offsetX="505" offsetY="15"/></Button>
+<Button name="$(parent)BtnAutoCategory" inherits="ZO_DefaultButton" text="Manage AutoCategory"><Dimensions x="170" y="26"/><Anchor point="TOPLEFT" offsetX="635" offsetY="15"/></Button>
 <Button name="$(parent)Close" inherits="ZO_CloseButton"><Anchor point="TOPRIGHT" offsetX="-10" offsetY="10"/><OnClicked>SCENE_MANAGER:Hide("InventoryCompanion_TrackedItemsScene")</OnClicked></Button>
 <Button name="$(parent)BtnUndo" inherits="ZO_DefaultButton" text="Undo changes" hidden="true"><Dimensions x="140" y="26"/><Anchor point="TOPRIGHT" offsetX="-20" offsetY="65"/></Button>
 <Texture name="$(parent)Divider" textureFile="EsoUI/Art/Miscellaneous/horizontalDivider.dds">
@@ -170,9 +132,25 @@
                     </Controls>
                 </Control>
 
-                <!-- Scroll Container anchored under FilterBar -->
+                <Control name="$(parent)ColumnHeaders">
+                    <Dimensions x="810" y="24" />
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)FilterBar" relativePoint="BOTTOMLEFT" offsetY="12" />
+                    <Controls>
+                        <Button name="$(parent)RemovalSpace" inherits="ZO_CloseButton" hidden="true" mouseEnabled="false">
+                            <Anchor point="RIGHT" relativeTo="$(parent)" relativePoint="RIGHT" offsetX="-8" />
+                        </Button>
+                        <Label name="$(parent)Notify" font="ZoFontGame" text="Notify" horizontalAlignment="CENTER" verticalAlignment="CENTER">
+                            <Dimensions x="120" y="24" />
+                            <Anchor point="RIGHT" relativeTo="$(parent)RemovalSpace" relativePoint="LEFT" offsetX="-8" />
+                        </Label>
+                        <Label name="$(parent)Show" font="ZoFontGame" text="Show" horizontalAlignment="CENTER" verticalAlignment="CENTER">
+                            <Dimensions x="190" y="24" />
+                            <Anchor point="RIGHT" relativeTo="$(parent)Notify" relativePoint="LEFT" offsetX="-4" />
+                        </Label>
+                    </Controls>
+                </Control>
                 <Control name="$(parent)ScrollContainer" inherits="ZO_ScrollContainer">
-                    <Anchor point="TOPLEFT" relativeTo="$(parent)FilterBar" relativePoint="BOTTOMLEFT" offsetX="0" offsetY="12" />
+                    <Anchor point="TOPLEFT" relativeTo="$(parent)ColumnHeaders" relativePoint="BOTTOMLEFT" offsetY="4" />
                     <Anchor point="BOTTOMRIGHT" relativeTo="$(parent)" relativePoint="BOTTOMRIGHT" offsetX="-15" offsetY="-20" />
                 </Control>
             </Controls>

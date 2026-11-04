@@ -239,7 +239,7 @@ build.
 
 The agreed ownership model, all four profile combinations, worked examples,
 mode-switch behavior and implementation requirements have moved to
-[the master feature document](Project/DevDocs/AutoCategoryIntegration.md#profile-ownership-and-synchronization).
+[the master feature document](Project/DevDocs/FeatureSpecs/AutoCategoryIntegration.md#profile-ownership-and-synchronization).
 This document retains the mismatch investigation and recovery-work evidence.
 
 ## Planned failure recovery and settings UX
@@ -594,5 +594,5 @@ a reset, show the disabled/awaiting-setup state rather than a healthy active
 editor; re-enabling must still use the initial setup dialog.
 
 
-Profile setup and copying follow-ups are tracked in
-[the master feature document](Project/DevDocs/AutoCategoryIntegration.md#profile-ownership-and-synchronization).
+Final profile setup and copying behavior is documented in
+[the master feature document](Project/DevDocs/FeatureSpecs/AutoCategoryIntegration.md#main-settings-and-full-profiles).

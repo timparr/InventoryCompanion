@@ -74,11 +74,6 @@ EVENT_MANAGER = {
     UnregisterForEvent = function(_, name) events[name] = nil end,
 }
 WINDOW_MANAGER = { GetMouseOverControl = function() return mouseOver end }
-CT_LABEL = 1
-function WINDOW_MANAGER:CreateControl(name, parent, controlType)
-    assert(name == nil and parent == GuiRoot and controlType == CT_LABEL)
-    return Control("measure")
-end
 function ZO_PreHookHandler(control, event, callback)
     local original = control.handlers[event]
     control.handlers[event] = function(...)
@@ -148,10 +143,15 @@ function this.GetItemEditorTests()
         end })
     end
 
-    Add("Item editor AutoCategory failed entries navigate without writing and restore healthy controls", function()
+    Add("Item editor leaves AutoCategory participation to its dedicated editor", function()
         local integration = this.AutoCategoryIntegration
         local previousAvailable, previousPanel = integration.IsAvailable, this.OpenAutoCategoryPanel
         local previousAutoCategory = AutoCategory
+        local previousCallLater, scheduled = zo_callLater, {}
+        zo_callLater = function(callback, delay)
+            assert(type(callback) == "function" and delay == 100)
+            scheduled[#scheduled + 1] = callback
+        end
         AutoCategory = {}
         integration.IsAvailable = function() return not integration.IsFaulted() end
         this.autoCategoryFailure = nil
@@ -160,86 +160,37 @@ function this.GetItemEditorTests()
         this.InvalidateRuleCache()
         local opened = 0
         this.OpenAutoCategoryPanel = function() opened = opened + 1 end
-        this.RefreshTrackedItemsEditor()
-        local toggle = GetControl(Row(1), "AutoCategory")
-        local healthyClick = toggle.handlers.OnClicked
-        assert(not toggle.hidden and toggle.width == 170 and Detail(1, "AutoCategory").text == "AutoCategory: All")
-        this.autoCategoryFailure = "synthetic failure"
-        healthyClick()
-        assert(opened == 1, "A click rendered before failure must navigate, not write")
-        this.RefreshTrackedItemsEditor()
-        assert(not toggle.hidden and toggle.width == 170
-            and GetControl(toggle, "Title").color[2] == 0.27
-            and Detail(1, "AutoCategory").text == "AutoCategory: ! Needs attention")
-        assert(not GetControl(InventoryCompanion_TrackedItemsWindow, "BtnAutoCategory").hidden)
-        toggle.handlers.OnClicked()
-        assert(opened == 2 and this.accountWide.trackedRules.default.autoCategoryEnabled == true
-            and ruleWrites == 0 and trackerRefreshes == 0)
-        this.autoCategoryFailure = nil
-        this.RefreshTrackedItemsEditor()
-        assert(not toggle.hidden and Detail(1, "AutoCategory").text == "AutoCategory: All")
-        this.accountWide.autoCategoryIntegrationEnabled = nil
-        this.RefreshTrackedItemsEditor()
-        assert(toggle.hidden and toggle.width == 0 and GetControl(Row(1), "ItemLabel").width == 432)
-        local previousAwaiting = integration.IsAwaitingSetup
-        integration.IsAwaitingSetup = function() return true end
-        this.RefreshTrackedItemsEditor()
-        assert(toggle.hidden and toggle.width == 0
-            and not GetControl(InventoryCompanion_TrackedItemsWindow, "BtnAutoCategory").hidden,
-            "Awaiting setup must keep navigation available without enabling the item column")
-        integration.IsAwaitingSetup = previousAwaiting
-        integration.IsAvailable, this.OpenAutoCategoryPanel = previousAvailable, previousPanel
-        AutoCategory = previousAutoCategory
-    end)
-
-    Add("Item editor area dropdown shares context state and refreshes both editors without a global toggle", function()
-        local integration = this.AutoCategoryIntegration
-        local previousAvailable, previousSet, previousRefresh = integration.IsAvailable,
-            integration.SetEntryIncluded, this.RefreshAutoCategoryEditor
-        integration.IsAvailable = function() return true end
-        this.autoCategoryFailure = nil
-        this.accountWide.autoCategoryIntegrationEnabled = true
-        local writes, refreshes = {}, 0
-        integration.SetEntryIncluded = function(reference, context, included)
-            assert(reference == "ic:default")
-            writes[#writes + 1] = { context, included }
-            this.accountWide.autoCategoryOrder.contexts[context].hidden[reference] = not included or nil
-            return true
-        end
-        this.RefreshAutoCategoryEditor = function() refreshes = refreshes + 1 end
         local ok, failure = pcall(function()
-            this.RefreshTrackedItemsEditor()
-            Handler(1, "AutoCategory")()
-            assert(not InventoryCompanion_ItemRowOptions.hidden)
-            for index, context in ipairs(integration.GetContexts()) do
-                assert(not Option(index).hidden and GetControl(Option(index), "Label").text == context.title)
-                assert(GetControl(Option(index), "Check").checked)
+            local bank = this.accountWide.autoCategoryOrder.contexts.bank
+            bank.hidden["ic:default"] = true
+            for _, state in ipairs({ "enabled", "off", "failed", "absent" }) do
+                AutoCategory = state ~= "absent" and {} or nil
+                this.accountWide.autoCategoryIntegrationEnabled = state ~= "off"
+                this.autoCategoryFailure = state == "failed" and "synthetic failure" or nil
+                this.RefreshTrackedItemsEditor()
+                assert(Row(1).children.AutoCategory == nil and Row(1).children.CategorySpace == nil,
+                    "Tracking rows must not create or configure AutoCategory columns")
+                local navigation = GetControl(InventoryCompanion_TrackedItemsWindow, "BtnAutoCategory")
+                assert(navigation.hidden == (state == "absent"))
+                if state ~= "absent" then navigation.handlers.OnClicked() end
             end
-            Detail(1, "AutoCategory"):SetWidth(400)
+            assert(opened == 3 and ruleWrites == 0 and trackerRefreshes == 0)
+            AutoCategory = {}
+            this.accountWide.autoCategoryIntegrationEnabled = true
+            this.RefreshTrackedItemsEditor()
+            Handler(1, "Show")()
             SetOption(2, false)
-            assert(writes[1][1] == "bank" and writes[1][2] == false and refreshes == 1)
-            assert(Detail(1, "AutoCategory").text == "AutoCategory: Not: Bank")
-            assert(not GetControl(Option(2), "Check").checked and GetControl(Option(6), "Check").checked)
-            SetOption(6, false)
-            assert(not integration.IsEntryIncluded("ic:default", "bank")
-                and not integration.IsEntryIncluded("ic:default", "craft_bag")
-                and integration.IsEntryIncluded("ic:default", "backpack"))
-            assert(not integration.NeedsRecovery() and Detail(1, "AutoCategory").text == "AutoCategory: Not: Bank, Craft Bag")
-            local exactWidth = #"AutoCategory: Not: Bank, Craft Bag" * 7
-            Detail(1, "AutoCategory"):SetWidth(exactWidth)
-            this.RefreshTrackedItemsEditor()
-            assert(Detail(1, "AutoCategory").text == "AutoCategory: Not: Bank, Craft Bag")
-            Detail(1, "AutoCategory"):SetWidth(exactWidth - 1)
-            this.RefreshTrackedItemsEditor()
-            assert(Detail(1, "AutoCategory").text == "AutoCategory: Five Areas")
-            Detail(1, "AutoCategory"):SetWidth(170)
-            Handler(1, "AutoCategory")()
+            Handler(1, "Notify")()
             SetOption(2, true)
-            assert(Detail(1, "AutoCategory").text == "AutoCategory: Not: Craft Bag" and refreshes == 3)
-            assert(this.accountWide.trackedRules.default == nil, "Area changes must not save a global participation flag")
+            assert(ruleWrites == 2 and this.accountWide.trackedRules.default.autoCategoryEnabled == true)
+            assert(#scheduled == 2, "Tracking edits must still schedule normal integration refreshes")
+            for _, callback in ipairs(scheduled) do callback() end
+            assert(this.accountWide.autoCategoryOrder.contexts.bank == bank and bank.hidden["ic:default"] == true,
+                "Show and Notify must preserve AutoCategory participation")
         end)
-        integration.IsAvailable, integration.SetEntryIncluded, this.RefreshAutoCategoryEditor =
-            previousAvailable, previousSet, previousRefresh
+        integration.IsAvailable, this.OpenAutoCategoryPanel = previousAvailable, previousPanel
+        AutoCategory, this.autoCategoryFailure = previousAutoCategory, nil
+        zo_callLater = previousCallLater
         assert(ok, failure)
     end)
 
@@ -377,7 +328,7 @@ function this.GetItemEditorTests()
                     this.RefreshTrackedItemsEditor()
                     local expected = backpack and (bank and "Both" or "Backpack") or (bank and "Bank" or "None")
                     if (backpack or bank) and grouped then expected = expected .. ", grouped" end
-                    Equal(Detail(1, "Show").text, "Show: " .. expected, "Show summary must reflect exact combination")
+                    Equal(Detail(1, "Show").text, expected, "Show summary must omit the column heading")
                     Equal(Detail(1, "Show").color[1], 1, "Existing warm color must be used")
                     Equal(Detail(1, "Show").color[4], (backpack or bank) and 1 or 0.5, "Inactive opacity must be retained")
                 end
@@ -389,7 +340,7 @@ function this.GetItemEditorTests()
                 this.UpdateRuleFlag("default", "notifyHud", hud)
                 this.RefreshTrackedItemsEditor()
                 local expected = chat and (hud and "Both" or "Chat") or (hud and "HUD" or "None")
-                Equal(Detail(1, "Notify").text, "Notify: " .. expected, "Notify summary must reflect destinations")
+                Equal(Detail(1, "Notify").text, expected, "Notify summary must omit the column heading")
             end
         end
     end)
@@ -404,7 +355,7 @@ function this.GetItemEditorTests()
         Equal(registryUpdates, 1, "Label click must update listeners once")
         Equal(GetControl(Option(1), "Check").checked, true, "Rebound popup must show current value")
         SetOption(2, true)
-        Equal(Detail(1, "Notify").text, "Notify: Both", "Second edit must target same rule")
+        Equal(Detail(1, "Notify").text, "Both", "Second edit must target same rule")
         Equal(ruleWrites, 2, "Second checkbox must write once")
         Handler(1, "Notify")()
         Equal(InventoryCompanion_ItemRowOptions.hidden, true, "Same trigger must dismiss popup")

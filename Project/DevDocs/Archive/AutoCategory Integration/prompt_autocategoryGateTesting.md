@@ -1,7 +1,7 @@
 # Prompt: continue AutoCategory integration gate testing
 
 **Archive consolidated 2026-11-03.** Current requirements are in the
-[master feature document](../../AutoCategoryIntegration.md).
+[master feature document](../../FeatureSpecs/AutoCategoryIntegration.md).
 
 **ARCHIVED 2026-10-31. Historical prompt, not current instructions.**
 Use the three authoritative documents linked below; do not execute this prompt

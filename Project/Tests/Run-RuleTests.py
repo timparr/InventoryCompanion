@@ -14,19 +14,51 @@ root = Path(__file__).resolve().parents[2]
 editor_xml = ET.parse(root / "Tracking" / "EditPanelItemsTab.xml")
 editor_row = editor_xml.find(".//Control[@name='InventoryCompanion_TrackedItemRow_Template']/Controls")
 item_label = editor_row.find("Label[@name='$(parent)ItemLabel']")
-assert item_label.find("Dimensions").get("x") == "432", "Collapsed category column must give names an explicit width"
+assert item_label.find("Dimensions").get("x") == "432", "Tracking names must retain the full width without an AutoCategory column"
 assert len(item_label.findall("Anchor")) == 1, "Item names must not depend on a forward sibling anchor"
-assert editor_row.find("Control[@name='$(parent)CategorySpace']/Dimensions").get("x") == "0"
-# Lua addresses these children through GetControl, which returns nil for a missing name.
-auto_toggle = editor_row.find("Button[@name='$(parent)AutoCategory']/Controls")
-assert auto_toggle is not None, "Item row AutoCategory toggle must be a button with child controls"
-assert auto_toggle.find("Label[@name='$(parent)Title']") is not None, "Item row AutoCategory toggle needs a Title child"
-assert auto_toggle.find("Label[@name='$(parent)Detail']") is not None, "Item row AutoCategory toggle needs a Detail child"
-area_popup = editor_xml.find(".//TopLevelControl[@name='InventoryCompanion_ItemRowOptions']/Controls")
-for index in range(1, 8):
-    option = area_popup.find(f"Control[@name='$(parent)Option{index}']")
+assert editor_row.find("*[@name='$(parent)AutoCategory']") is None
+assert editor_row.find("*[@name='$(parent)CategorySpace']") is None
+editor_window = editor_xml.find(".//TopLevelControl[@name='InventoryCompanion_TrackedItemsWindow']/Controls")
+assert editor_window.find("Label[@name='$(parent)Title']").get("text") == "Manage Tracking"
+headers = editor_window.find("Control[@name='$(parent)ColumnHeaders']")
+assert headers.find("Dimensions").get("x") == editor_xml.find(
+    ".//Control[@name='InventoryCompanion_TrackedItemRow_Template']/Dimensions"
+).get("x"), "Column headings and rows must share the same width"
+header_anchor = headers.find("Anchor")
+assert header_anchor.get("relativeTo") == "$(parent)FilterBar" and header_anchor.get("relativePoint") == "BOTTOMLEFT"
+scroll_anchor = editor_window.find("Control[@name='$(parent)ScrollContainer']/Anchor[@point='TOPLEFT']")
+assert scroll_anchor.get("relativeTo") == "$(parent)ColumnHeaders" and scroll_anchor.get("relativePoint") == "BOTTOMLEFT"
+header_controls = headers.find("Controls")
+removal_space = header_controls.find("Button[@name='$(parent)RemovalSpace']")
+remove_button = editor_row.find("Button[@name='$(parent)BtnRemove']")
+assert removal_space.get("inherits") == remove_button.get("inherits") == "ZO_CloseButton"
+assert removal_space.get("hidden") == "true" and removal_space.get("mouseEnabled") == "false"
+for attribute in ("point", "relativeTo", "relativePoint", "offsetX", "offsetY"):
+    assert removal_space.find("Anchor").get(attribute, "0") == remove_button.find("Anchor").get(attribute, "0")
+for column, target in (("Show", "Notify"), ("Notify", "BtnRemove")):
+    button = editor_row.find(f"Button[@name='$(parent){column}']")
+    heading = header_controls.find(f"Label[@name='$(parent){column}']")
+    assert heading.get("text") == column and heading.get("horizontalAlignment") == "CENTER"
+    assert heading.find("Dimensions").get("x") == button.find("Dimensions").get("x")
+    assert button.find("Controls/Label[@name='$(parent)Title']") is None
+    detail = button.find("Controls/Label[@name='$(parent)Detail']")
+    assert detail.get("font") == item_label.get("font") == "ZoFontGame"
+    assert detail.get("verticalAlignment") == "CENTER" and detail.get("wrapMode") == "ELLIPSE"
+    assert detail.find("Dimensions").get("y") == button.find("Dimensions").get("y") == "30", \
+        "Regular-size summaries need the full row height to avoid clipping"
+    assert button.find("Anchor").get("relativeTo") == "$(parent)" + target
+    assert heading.find("Anchor").get("relativeTo") == "$(parent)" + (
+        "RemovalSpace" if target == "BtnRemove" else target
+    )
+    for attribute in ("point", "relativePoint", "offsetX"):
+        assert heading.find("Anchor").get(attribute) == button.find("Anchor").get(attribute), \
+            f"{column} heading must align with its row summaries"
+options_popup = editor_xml.find(".//TopLevelControl[@name='InventoryCompanion_ItemRowOptions']/Controls")
+assert len(options_popup.findall("Control")) == 3, "Only Show/Notify checkbox options remain"
+for index in range(1, 4):
+    option = options_popup.find(f"Control[@name='$(parent)Option{index}']")
     assert option is not None and option.get("inherits") == "InventoryCompanion_ItemOption_Template", \
-        f"Area selector needs checkbox option {index}"
+        f"Tracking options need checkbox option {index}"
 autocategory_xml = ET.parse(root / "Tracking" / "EditPanelAutoCategoryTab.xml")
 autocategory_row = autocategory_xml.find(".//Control[@name='InventoryCompanion_AutoCategoryRow_Template']/Controls")
 for child in ("BG", "Orders", "Name", "MoveUp", "MoveDown", "Participation"):
@@ -109,6 +141,14 @@ for xml_name, window_name in (
     ("EditPanelAutoCategoryTab.xml", "InventoryCompanion_AutoCategoryWindow"),
 ):
     window = ET.parse(root / "Tracking" / xml_name).find(f".//TopLevelControl[@name='{window_name}']/Controls")
+    assert window.find("Button[@name='$(parent)BtnEditItems']").get("text") == "Manage Tracking"
+    previous_right = 0
+    for name in ("BtnOtherSettings", "BtnEditItems", "BtnEditGroups", "BtnAutoCategory"):
+        button = window.find(f"Button[@name='$(parent){name}']")
+        left = int(button.find("Anchor").get("offsetX"))
+        assert left >= previous_right + 5, f"{window_name} navigation must not overlap"
+        previous_right = left + int(button.find("Dimensions").get("x"))
+    assert previous_right <= 810, f"{window_name} navigation must leave room for Close"
     assert window.find("Button[@name='$(parent)BtnAutoCategory']") is not None, f"{window_name} needs the AutoCategory tab button"
     undo = window.find("Button[@name='$(parent)BtnUndo']")
     assert undo is not None and undo.get("text") == "Undo changes", f"{window_name} needs the exact Undo changes action"

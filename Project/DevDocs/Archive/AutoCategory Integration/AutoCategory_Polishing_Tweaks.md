@@ -1,3 +1,7 @@
+**ARCHIVED 2026-11-04.** Completed polishing input and reference screenshots.
+These notes retain superseded proposals; final behavior is defined by the
+[master feature specification](../../FeatureSpecs/AutoCategoryIntegration.md).
+
 ##snag list 2
 word wrap in autocategory panel is still not right. Use the same font/style as in the main settings panel? (You can automanage your...)
 

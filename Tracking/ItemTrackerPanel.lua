@@ -51,7 +51,7 @@ local function OnTrackerMouseUp(control, button)
 
         -- 3. Open Full Settings Editor
         AddCustomMenuItem(
-            "Open Tracked Items Editor...",
+            "Manage Tracking...",
             function()
                 this.ToggleTrackedItemsEditor()
             end,
