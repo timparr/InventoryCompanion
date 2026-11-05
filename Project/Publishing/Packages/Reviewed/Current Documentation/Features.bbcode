@@ -2,11 +2,8 @@
 
 This overview describes features implemented in the current addon. For setup and step-by-step instructions, see [URL=./UserManual.bbcode]UserManual.bbcode[/URL].
 
-[SIZE="5"][B]Autocategory Integration  [COLOR="#ff8800"]New[/COLOR][/B][/SIZE]
-Do you struggle with your autocategory setup? Wish you could just list all the categories and move them up and down instead of dealing with a cumbersome interface? Wished you could easily add new categories of your own? Well Inventory Companion makes it easy to manage your AutoCategory rules directly within the addon, giving you full control over your tracking setup. You can even add InventoryCompanion categories into the mix so you get fine control of your bag, bank and chest inventories.
-Guild-bank partial withdrawals are now available from the right-click menu: withdraw one item or all but one, and Inventory Companion returns the remainder. The account-wide setting is on by default.
-
-Also [COLOR="#ff8800"]new[/COLOR] in this release, the [b]withdraw 1 / withdraw all-but-one options are available for the guild bank.[/b] Note that behind the scenes, this will actually withdraw the whole stack, split it in your backpack and then deposit the appropriate amount back into the guild bank. If you don't like the sound of that, there is a setting you can turn off to disable this behavior.
+[SIZE="5"][B]AutoCategory integration  [COLOR="#ff8800"]New[/COLOR][/B][/SIZE]
+Manage AutoCategory's native categories and Inventory Companion groups in one dedicated editor. For Backpack, Bank, Guild Bank, House Bank, Crafting Station, Craft Bag and Furniture Vault, set separate Display and Priority orders. Hide or show categories independently in each area without deleting their definitions, and move the special Other heading in Display order without changing its catch-all matching behavior. AutoCategory remains responsible for classifying and displaying inventory items; integration is optional and off by default.
 
 [SIZE="5"][B]Features at a glance[/B][/SIZE]
 [LIST]
@@ -14,12 +11,12 @@ Also [COLOR="#ff8800"]new[/COLOR] in this release, the [b]withdraw 1 / withdraw 
 [*][B]Capacity bars:[/B] Watch backpack space, bank space and Transmute Crystals on movable bars.
 [*][B]Currency panel:[/B] See selected balances at a glance and get alerts when they change.
 [*][B]Live Item Tracker:[/B] Keep important items on your HUD and get alerts when you find more.
-[*][B]Custom groups:[/B] Track matching items together using your own name patterns and wildcards.
+[*][B]Custom groups:[/B] Track matching items together with Include and Exclude name patterns and wildcards.
 [*][B]Built-in groups:[/B] Start with ready-made groups you can customize.
-[*][B]Profiles:[/B] Share settings account-wide or keep separate character setups, and copy between them.
+[*][B]Profiles:[/B] Share settings account-wide or keep full character-specific setups, and copy profiles between them.
 [*][B]Crafted-item transfers:[/B] Bank or retrieve your character's supported crafted items with a keypress.
 [*][B]Chest-stack merging:[/B] Automatically top up matching house-chest stacks from your backpack.
-[*][B]Partial-stack transfers:[/B] Move one item, or all but one, with a right-click.
+[*][B]Partial-stack transfers:[/B] Deposit or withdraw one item, or all but one, with a right-click where the storage supports it.
 [/LIST]
 
 [SIZE="5"][B]More Detail[/B][/SIZE]
@@ -39,7 +36,7 @@ There are a [I]lot[/I] of currencies in this game: Tel Var, Transmute Crystals, 
 It doesn't stop with currencies. We all care more about some items than others (sorry, Lorkhan's Tears). Want to see at a glance how many Nirncrux you have, or get a notification when you find one? Inventory Companion provides a movable HUD panel for the items that matter to you. Choose whether to show each item on the panel, notify when you gain it, or both. Add items in the tracking editor, or right-click an item in your backpack or bank and choose [B]Add to Tracked Items[/B].
 
 [SIZE="3"][B]Custom Groups.[/B][/SIZE]
-Too much work to track items one by one? You can create groups with lists of name patterns and wildcards. For example, a "Rare Mats" group could match any item whose name contains "nirncrux" or is "perfect roe." Matching items can appear together in a group on the tracker, and you can enable notifications when you gain a match. Expand the group to see its items, or collapse it to see the group total. Groups with more than 200 eligible items show an overflow message instead of item rows; narrow their patterns to display the items. Summary counts still include all matching items.
+Too much work to track items one by one? You can create groups with Include and Exclude name patterns and wildcards. A group matches when at least one Include matches and no Exclude matches; exclusions narrow only their own group. Matching items can appear together in a group on the tracker, and you can enable notifications when you gain a match. Expand the group to see its items, or collapse it to see the group total. Groups with more than 200 eligible items show an overflow message instead of item rows; narrow their patterns to display the items. Summary counts still include all matching items.
 
 [SIZE="3"][B]Built-in item groups.[/B][/SIZE]
 But even that seems like too much trouble? You don't have to set up groups from scratch: the addon comes with a collection of groups I personally use, plus some I thought other players might like. I may be a bit obsessive about some things and laissez-faire about others, so you can rename a built-in group, hide it, change its patterns, or just laugh at it.
@@ -47,7 +44,7 @@ But even that seems like too much trouble? You don't have to set up groups from 
 [SIZE="5"][B]Profiles[/B][/SIZE]
 
 [SIZE="3"][B]Account-wide and character-specific tracking lists.[/B][/SIZE]
-A single item list may not fit every character's activities: your crafter may care about different items than your mules do. The addon uses an account-wide list of tracked items, rules, and groups by default, but you can switch any character to a separate list. You can copy a setup from one character to another, from a character to the account-wide list, or from the account-wide list to a character.
+A single setup may not fit every character's activities. By default, characters share the account-wide profile; turn on Use Character Settings to retain a separate full profile for a character. Profiles include tracked items and groups, panel preferences and positions, editor filters, and AutoCategory layouts. First use copies the account profile; later switches resume the retained character settings. In Main Settings, choose a source in Copy From and select Copy Full Profile to replace the active profile after confirmation. Integration enablement, transfer delay, chest-stack merging, and diagnostic controls remain account-wide.
 
 [SIZE="5"][B]Bank and chest helpers[/B][/SIZE]
 
@@ -58,4 +55,4 @@ If, like me, you craft several days' worth of gear ahead with LazyWritCrafter, y
 If you have a lot of surveys or treasure maps in your bank and house chests, you may find yourself hunting for the chest with the Blacksmith's Survey for Auridon so you can add the copies from your backpack. Now you just need to open each chest in turn. Inventory Companion looks for matching stacks with room and moves matching items from your backpack onto them. You can turn this feature off in the settings.
 
 [SIZE="3"][B]Move just one item without the 'split' window. Move all but one item.[/B][/SIZE]
-Ever want to take just one item from a stack in your bank, backpack, or house chest—or take all [I]except[/I] one? (Maybe you are obsessive like me and keep at least one of every possible survey in alphabetical order across your first three 30-slot chests and want to preserve that organization). Instead of moving a stack to your backpack, splitting it, and moving the unwanted items back, use the handy right-click options to deposit or withdraw one item or all but one. One click and you're done!
+Ever want to take just one item from a stack in your bank, backpack, house chest or guild bank—or take all [I]except[/I] one? Instead of moving a stack to your backpack, splitting it, and moving the unwanted items back, use the right-click options to deposit or withdraw one item or all but one. Guild-bank partial deposits require deposit access, a free backpack slot and a free guild-bank slot. Partial withdrawals temporarily take the whole stack and return the remainder; they require both deposit and withdrawal access, at least two free backpack slots and a free guild-bank slot. The account-wide [B]Enable Partial Guild Bank Withdrawals[/B] setting controls withdrawals and is on by default.

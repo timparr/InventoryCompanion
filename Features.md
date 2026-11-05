@@ -2,13 +2,17 @@
 
 This overview describes features implemented in the current addon. For setup and step-by-step instructions, see [UserManual.bbcode](./UserManual.bbcode).
 
+## AutoCategory integration
+
+The optional AutoCategory integration lets you manage native categories and Inventory Companion groups in one editor. Set independent Display and Priority orders for each supported inventory area, hide or show categories per area, and move the special Other heading without changing its catch-all matching behavior. AutoCategory remains responsible for classification and display; the integration is off by default.
+
 ## Bank and chest helpers
 
 **Crafted-item deposit and withdrawal.** If, like me, you craft several days' worth of gear ahead with LazyWritCrafter, you know how repetitive it can be to move it between your backpack and bank by hand. You just want to jump into a trial, but the bank is full of other characters' crafted items. Deposit your tank's gear on top of those, and sorting it all out later can be a pain. Inventory Companion moves supported items between your backpack and bank with a single keypress. It only transfers items crafted by the current character, so your other characters' gear stays safe. The bank must be open, and you need to assign keys to the Deposit and Withdraw actions in the game's keybindings. Transfers are limited to the addon's built-in item list, which currently focuses on max-level crafting writ gear. (I should probably add all the other levels - I'll get to it sometime this year, or you could do it - its all in one file. If you want to - let me know - the repo's on github)
 
 **House-chest stack merging.** If you have a lot of surveys or treasure maps in your bank and house chests, you may find yourself hunting for the chest with the Blacksmith's Survey for Auridon so you can add the copies from your backpack. Now you just need to open each chest in turn. Inventory Companion looks for matching stacks with room and moves matching items from your backpack onto them. You can turn this feature off in the settings.
 
-**Move just one item without the 'split' window. Move all but one item.** Ever want to take just one item from a stack in your bank, backpack, or house chest—or take all *except* one? (Maybe you are obsessive like me and keep at least one of every possible survey in alphabetical order across your first three 30-slot chests and want to preserve that organization). Instead of moving a stack to your backpack, splitting it, and moving the unwanted items back, use the handy right-click options to deposit or withdraw one item or all but one. Guild-bank partial withdrawals temporarily take the whole stack and return the remainder; you can disable them with the account-wide **Enable Partial Guild Bank Withdrawals** setting. One click and you're done!
+**Move just one item without the 'split' window. Move all but one item.** Use the right-click options to deposit or withdraw one item, or all but one, from a stack in your bank, backpack, house chest or guild bank. Guild-bank partial deposits require deposit access, a free backpack slot and a free guild-bank slot. Partial withdrawals temporarily take the whole stack and return the remainder; they require both deposit and withdrawal access, at least two free backpack slots and a free guild-bank slot. The account-wide **Enable Partial Guild Bank Withdrawals** setting controls withdrawals and is on by default.
 
 ## Space and currency panels
 
@@ -26,4 +30,4 @@ This overview describes features implemented in the current addon. For setup and
 
 ## Profiles
 
-**Account-wide and character-specific tracking lists.** A single item list may not fit every character's activities: your crafter may care about different items than your mules do. The addon uses an account-wide list of tracked items, rules, and groups by default, but you can switch any character to a separate list. You can copy a setup from one character to another, from a character to the account-wide list, or from the account-wide list to a character.
+**Account-wide and character-specific profiles.** By default, characters share the account-wide profile. Use Character Settings to retain a separate full profile for a character, including tracked items and groups, panel preferences and positions, editor filters, and AutoCategory layouts. First use copies the account profile; later switches resume the retained character settings. In Main Settings, choose a source in Copy From and select Copy Full Profile to replace the active profile after confirmation. Integration enablement, transfer delay, chest-stack merging, and diagnostic controls remain account-wide.

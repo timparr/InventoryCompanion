@@ -1,168 +1,74 @@
-# ESOUI Release Standards Review
+# ESOUI Standards Review
 
-Reviewed (UTC): 2026-10-30T20:02:03Z
+Reviewed (UTC): 2026-11-05T00:39:21Z
 Reviewer: AI assistant using Copilot SDK in VS Code
-Checked by: Tim-P
+Checked by: PENDING
 Add-on: InventoryCompanion
-Release version: 1.5.0
-Candidate SHA256: 7475DDCCBAA254214C8B33E0E038B82BB055BA5ABBF767B32755C92F4A63FC72
-Candidate identity method: SHA-256 of sorted candidate-relative Windows-path and file-SHA256 pairs, joined with LF and encoded as UTF-8, as recorded by the staging script
+Release version: 1.6.2 (candidate not staged)
+Candidate SHA256: NOT STAGED
+Candidate identity method: Pending staging; SHA-256 of sorted candidate-relative Windows-path and file-SHA256 pairs, joined with LF and encoded as UTF-8
 Report location: ReleaseReview.md in the development checkout
-Review status: APPROVED
+Review status: PENDING
 Review format: compact-v1
-Review mode: DELTA
-Baseline review: Project/Publishing/Packages/Reviewed/InventoryCompanion-v1.4.1/ReleaseReview.md; approved version 1.4.1, candidate SHA256 C4E38C92BC1946F3ACBAFCB95B2735B45F462C5B0A4892A9C792C7489824E1AB, reviewed 2026-10-30T00:37:50Z
+Review mode: FULL
+Baseline review: Project/Publishing/Packages/Reviewed/InventoryCompanion-v1.5.0/ReleaseReview.md; approved version 1.5.0, candidate SHA256 7475DDCCBAA254214C8B33E0E038B82BB055BA5ABBF767B32755C92F4A63FC72, reviewed 2026-10-30T20:02:03Z
 
-Testing scope: Offline checks, Live/EU diagnostics, and requested human checks completed. PTS compatibility is not claimed.
+Testing scope: Live by default. PTS compatibility is not claimed.
 
 ## Review scope
 
-- [x] Record the candidate installation, reproducible identity method, staging/test-installation verification, and comparison baseline.
+- [x] Record the approved baseline and compare the current release source with it.
 
-PASS: Standard staging installed version 1.5.0, AddOnVersion 10500, in the sibling InventoryCompanion installation and advanced DEV to 1.5.1. All 31 candidate file hashes were independently checked against staging state. The file-set identity above was independently recomputed. Both installation saved-variable files were backed up and their SHA-256 hashes verified before staging.
+PASS: Compared the release files in the verified `InventoryCompanion-v1.5.0.zip` with the current DEV manifest. Three runtime files were added for AutoCategory; the release source changes also include profile/settings, tracking/editor, and banking updates. FULL review is appropriate because the delta adds a broad optional integration and profile model. The prior 1.5.0 report is byte-identical to the historical copy in its versioned handoff folder.
 
-The approved 1.4.1 review and archive remain in their historical handoff folder. Unchanged transfer, dependency, and policy-facing behavior carries forward from that review; this report does not relabel prior Live results as current tests.
+The previously staged 1.6.1 installation was removed after Tim-P authorized replacing it. The 1.5.0 rollback ZIP remains available. No current candidate is staged.
 
 ## Changes reviewed
 
-- [x] Summarize the actual candidate-to-baseline diff, inspect changed code plus affected callers/data flows, and record findings.
+- [x] Review the release source delta, affected callers/data flows, saved-data boundary, and manifest/dependencies.
 
-PASS: The source delta from the 1.4.1 commit changes tracker expansion handling, offline tests, and the user manual. The staged changelog adds the 1.5.0 entry, and manifest/runtime metadata identify 1.5.0. Development planning documents and offline tests are not release runtime inputs.
+PASS (AI, source): Reviewed the guild-bank partial deposit/withdrawal path in `Banking/BankTransfers.lua` and its `Core/ContextMenus.lua`, setting, and initialization callers. Permission checks, source-stack revalidation, asynchronous split polling, timeout/error paths, and recovery messages are present. No confirmed source defect was identified in the static review. The implementation conservatively requires a free guild-bank slot for a partial deposit and at least two free backpack slots for a partial withdrawal; confirm these documented limits during the human check and revisit only if they prevent an intended supported case.
 
-Inspected the tracker delta and its existing group-header creation, click handler, layout model, previous-layout/context invalidation, row selection, sizing, and final rendering. Saved isExpanded now records manual preference, while preferredExpanded and effective expanded state are separate in-memory layout fields. Automatic layout decisions no longer call SetRuleFlag. Closed preferences cannot enter automatic expansion candidates, including edited/reintroduced groups. Clicks toggle the rendered state so a temporarily collapsed preferred-open group can be opened normally. Existing overflow, wrapping, scrolling, and retention policies are otherwise preserved.
+PASS (AI, source): Reviewed the AutoCategory adapter's plugin registration and matching bridge, profile lifecycle hooks, assignment preflight/projection/rollback, and the schema-10 migration boundary against `Project/DevDocs/FeatureSpecs/AutoCategoryIntegration.md`. The release manifest declares AutoCategory optional and contains the integration/editor files. The integration remains opt-in.
 
-No new saved-variable fields, schema version, or migration are introduced. Existing saved values are preserved because their past manual/automatic origin cannot be reconstructed.
+PASS (AI, offline): `python Project\Tests\Run-RuleTests.py` passed 212/212 isolated tests, including Lua 5.1 syntax and XML checks, schema-10 profile migration, and actual older-build rejection of newer saved data without mutation. `python Project\Tests\Run-AutoCategorySpike.py` passed 31/31 dependency-spike checks. Its output includes an intentionally detected failure of the historical empty-colour-prefix ordering experiment; that superseded approach is not used by the current integer-priority implementation and is explicitly asserted by the spike tests.
+
+LIMITATION: The isolated suites do not exercise the new guild-bank partial-transfer transaction against ESO APIs. No current DEV `/ictest verbose copy` report or human in-game transfer result has been supplied. Those checks remain required before candidate staging.
+
+PASS (AI, offline; repeated 2026-11-05): Re-ran the synthetic suites against DEV before staging: `python Project\Tests\Run-RuleTests.py` passed 212/212, and `python Project\Tests\Run-AutoCategorySpike.py` passed 31/31. The spike output includes its asserted historical empty-colour-prefix ordering limitation; current code uses integer-priority ordering. Per the author's test sequence, repeat synthetic checks after staging and perform the in-game diagnostic and transfer checks on the staged candidate.
+
+## Approved document changes
+
+- [x] Update the authoritative changelog and related feature documentation.
+
+PASS: Consolidated the cumulative unreleased entries under `1.6.2 [unreleased]`. Updated the publishing feature overview, DEV feature overview, and user manual to describe AutoCategory, profile behavior, and both guild-bank partial-transfer directions, including permission, slot, and withdrawal-setting requirements. Removed the duplicated withdrawal copy.
+
+- Approved version: 1.6.2, a feature release in the 1.6 line, based on the cumulative AutoCategory, profile, editor, rule, and banking additions since the approved 1.5.0 release. The canceled 1.6.1 candidate was not reused.
+- Discussion status: APPROVED
+
+### Agreement
+
+- Feature documentation: COMPLETE
+- Changelog: COMPLETE
+- Agreed version: 1.6.2
+- Agreement date: 2026-11-05
 
 ## Release checks
 
-- [x] Check candidate identity, package contents, manifest/dependencies, final listing/changelog/assets, and applicable author confirmations.
+- [ ] Check the frozen candidate identity and package contents, dependencies, publishing resources, and applicable author confirmations.
 
-PASS: Standard staging froze runtime files, release manifest, readme, and authoritative BBCode changelog. DEV bootstrap is omitted. Candidate identity is verified. The author's standing rights/no-malicious-material assertion and unchanged policy evidence carry forward from the approved baseline.
-
-PASS: Independently reproduced the approved 1.4.1 file-set identity from its historical ZIP, using case-insensitive record ordering consistent with PowerShell Sort-Object and excluding the separately added review. Compared all candidate paths and bytes: the file set is unchanged, and only Changelog.bbcode, Core\Init.lua, InventoryCompanion.txt, and Tracking\ItemTrackerPanel.lua differ. Verified all current candidate hashes again and confirmed other runtime files match DEV test inputs byte-for-byte.
-
-PASS: Preserve the author's Current Documentation readme and feature-list text for the combined handoff listing; their expanded publishing prose intentionally differs from the minimal frozen runtime readme. The current changelog describes both changed behaviours. Preserve the prior direction not to upload a manual; the differing working manual is therefore not included in this handoff. Use the actual root InventoryCompanion CurrencyConfig.png, not its shortcut. The baseline image-cropping limitation carries forward. Final ZIP verification is delegated to Finalize after candidate approval. No ESOUI publication is claimed.
+PENDING: No candidate has been staged. The updated documents and listing assets still require a final package consistency check.
 
 ## Test evidence
 
-- [x] Reference one complete diagnostic/test report and representative human checks, with tester/date/environment and candidate identity.
+- [ ] Record the full relevant DEV test evidence and the brief human in-game checks.
 
-PASS (AI, offline): On 2026-10-30, python Project\Tests\Run-RuleTests.py passed 74/74 isolated tests and compiled runtime Lua under Lua 5.1 in the DEV checkout immediately after staging. DEV differs in version metadata/bootstrap from the candidate; the changed tracker runtime and other runtime inputs were verified byte-identical to the candidate, and the supplied Live run verifies frozen installation loading. Relevant cases cover manual closure across inventory/settings changes, reintroduction and simulated tracker reload, saved-closed initial layout, edited closed groups with spare space, temporary collapse/restoration, clicks on temporarily collapsed groups, context invalidation, one-scan refreshes and debounced bursts, and the existing large-group boundaries.
+PASS (AI, offline): The isolated test results above apply to the runtime source at DEV commit `7fa8c17caabdd934d5e5569c6014cc796aa87ae3` (version 1.6.2). Only documentation and this review report have changed since those tests. They do not establish guild-bank transfer success or AutoCategory behavior in a running ESO client.
 
-Measured synthetic workloads: 20 scans 57/500 ms; 100 slot-rule matches 1/100 ms; 100 tracked updates 0/200 ms; 5000-item expansion 4/1000 ms; five large-group refreshes 29/1500 ms; 100 x 20-item refreshes 13/250 ms; 20 x 1000-item refreshes 19/1500 ms. No live inventory or saved variables were modified by offline tests.
-
-PASS (TEST, Tim-P): Supplied the complete /ictest verbose copy report below. It reports 79/79 passed at Unix UTC 1793390318 on Live/EU, game eso.live.12.1.6.3309674, API 101051, English, ESO Plus active, bank closed. Installation=InventoryCompanion, runtime=1.5.0, DEV=false and AddOnVersion=10500 match the frozen candidate; no enabled DEV installation is listed. LibAddonMenu-2.0 integer version 43 meets the existing manifest minimum; its outOfDate flag is retained rather than treated as a minimum-version failure. All timing limits pass, including 100 live scans at 235/500 ms with 771 occupied entries. This diagnostic does not establish manual group persistence or transfer success.
-
-PASS (HUMAN, Tim-P): At 2026-10-30T20:02:03Z, in response to the requested closed-group inventory/row-limit/reload checks, clicking a temporarily collapsed group, and normal transfer check, Tim-P replied: "its all good - everything seems to work". Record this as overall confirmation of the requested checks, not a detailed storage-by-storage test log. No unavailable storage or problems were reported. ESO Plus is confirmed by diagnostics; no PTS testing was reported and none is claimed. Unchanged transfer source and prior approved transfer evidence also carry forward from the baseline.
+PENDING (TEST/HUMAN): After staging, verify candidate identity and run the current `/ictest verbose copy` report plus the in-game transfer check on the staged candidate, including partial guild-bank deposits and withdrawals. Repeat the synthetic suites against the staged candidate files. Do not approve until these results and the brief candidate load/function smoke check are recorded.
 
 ## Findings and decision
 
-- [x] Summarize findings, limitations, unresolved items and the approval decision.
+- [ ] Summarize findings, limitations, and the candidate decision.
 
-APPROVED: No unresolved material findings in the inspected delta, offline tests, current Live diagnostics, or supplied human confirmation. Approve only the identified frozen 1.5.0 candidate. Limitations: no PTS claim, no detailed storage-by-storage log, manual upload remains excluded by prior author direction, and the existing screenshot crop should be checked when submitting. Finalize must verify the archive before handoff; publication is a separate action.
-
-## Complete 1.5.0 Live diagnostic supplied by Tim-P
-
-```text
-[InventoryCompanion tests] 79/79 passed; 20 x 100-item scans / 20 rules: 56/500 ms; 100 slot-rule matches: 1/100 ms; 100 tracked-item slot updates: 2/200 ms; 100 live backpack/bank/craft-bag scans (bank closed): 235/500 ms, 771 occupied entries
-[InventoryCompanion tests] INFO Environment: timestamp=1793390318 (Unix UTC); game=eso.live.12.1.6.3309674; API=101051; server=EU Megaserver; language=en
-[InventoryCompanion tests] INFO Installation: InventoryCompanion; runtime version=1.5.0; DEV=false; ESO Plus=true; bank=closed
-[InventoryCompanion tests] INFO Enabled add-on: AddonSelector; AddOnVersion=302030; state=2; outOfDate=false
-[InventoryCompanion tests] INFO Enabled add-on: InventoryCompanion; AddOnVersion=10500; state=2; outOfDate=false
-[InventoryCompanion tests] INFO Enabled add-on: LibScrollableMenu; AddOnVersion=20407; state=2; outOfDate=false
-[InventoryCompanion tests] INFO Enabled add-on: VotansKeybinder; AddOnVersion=0; state=2; outOfDate=true
-[InventoryCompanion tests] INFO Enabled add-on: LibAddonMenu-2.0; AddOnVersion=43; state=2; outOfDate=true
-[InventoryCompanion tests] INFO Conditional currency coverage: Alliance Points; ID=2; available=true
-[InventoryCompanion tests] INFO Conditional currency coverage: Transmute Crystals; ID=5; available=true
-[InventoryCompanion tests] INFO Transmute Crystals capped-colour assertions enabled=true
-[InventoryCompanion tests] INFO Conditional currency coverage: Trade Bars; ID=9; available=true
-[InventoryCompanion tests] INFO Human evidence still required: Live/PTS channel, candidate SHA256/installation verification, manifest API/minimum-version comparison, UI/event delivery, transfers, persistence and collision checks.
-[InventoryCompanion tests] INFO Safety: live scans are read-only; synthetic tests temporarily replace runtime state and restore it; no inventory transfers or intentional saved-variable writes.
-[InventoryCompanion tests] PASS Runtime and dependency discovery
-[InventoryCompanion tests] PASS Live read-only scan: 100 scans, 771 occupied entries on final scan, bank closed
-[InventoryCompanion tests] PASS Progress bar resource model and preferences
-[InventoryCompanion tests] PASS Currency notification preferences and changes
-[InventoryCompanion tests] PASS Prune known saved-variable diagnostic keys only
-[InventoryCompanion tests] PASS Currency panel resource preferences
-[InventoryCompanion tests] PASS Live currency helper API
-[InventoryCompanion tests] PASS Profile import copies tracked items and rule overrides
-[InventoryCompanion tests] PASS Tracked item count respects backpack and craft-bag scope
-[InventoryCompanion tests] PASS Case-insensitive substring matching
-[InventoryCompanion tests] PASS Wildcard matching
-[InventoryCompanion tests] PASS Literal punctuation and missing names
-[InventoryCompanion tests] PASS Any-pattern matching
-[InventoryCompanion tests] PASS Baseline and saved-rule override resolution
-[InventoryCompanion tests] PASS Display-flag writes preserve other overrides
-[InventoryCompanion tests] PASS 100-item backpack and craft-bag scan
-[InventoryCompanion tests] PASS Repeated 100-item inventory scan performance
-[InventoryCompanion tests] PASS 100 repeated slot-rule matches
-[InventoryCompanion tests] PASS 100 synthetic tracked-item slot updates
-[InventoryCompanion tests] PASS Event listener transitions and refresh debounce
-[InventoryCompanion tests] PASS Currency messages: capped balance colours follow the progress bar thresholds
-[InventoryCompanion tests] PASS Currency messages: Picking up 10 gold
-[InventoryCompanion tests] PASS Currency messages: Picking up three 10-gold piles in quick succession merges
-[InventoryCompanion tests] PASS Currency messages: Picking up three 10-gold piles with quiet periods between
-[InventoryCompanion tests] PASS Currency messages: Withdrawing 10 gold (bank event first)
-[InventoryCompanion tests] PASS Currency messages: Withdrawing 10 gold (bag event first)
-[InventoryCompanion tests] PASS Currency messages: Depositing 10 gold
-[InventoryCompanion tests] PASS Currency messages: Withdrawing a large amount
-[InventoryCompanion tests] PASS Currency messages: Depositing a large amount
-[InventoryCompanion tests] PASS Currency messages: Spending a large amount
-[InventoryCompanion tests] PASS Currency messages: Spending a small amount
-[InventoryCompanion tests] PASS Currency messages: Login balance report is silent
-[InventoryCompanion tests] PASS Currency messages: Withdrawing then depositing the same amount in one window sends nothing
-[InventoryCompanion tests] PASS Currency messages: Pickup and withdrawal in one window show consistent balances
-[InventoryCompanion tests] PASS Currency messages: Alliance Points gained
-[InventoryCompanion tests] PASS Currency messages: Alliance Points spent
-[InventoryCompanion tests] PASS Currency messages: Alliance Points withdrawn from the bank
-[InventoryCompanion tests] PASS Currency messages: Alliance Points deposited in the bank
-[InventoryCompanion tests] PASS Currency messages: Transmute Crystals gained
-[InventoryCompanion tests] PASS Currency messages: Transmute Crystals spent
-[InventoryCompanion tests] PASS Currency messages: Trade Bars gained
-[InventoryCompanion tests] PASS Currency messages: Trade Bars spent
-[InventoryCompanion tests] PASS Capacity messages: bag space used by looting
-[InventoryCompanion tests] PASS Capacity messages: bag space freed by selling
-[InventoryCompanion tests] PASS Capacity messages: bag changes that cancel out
-[InventoryCompanion tests] PASS Capacity messages: bag space crossing the warning and danger thresholds
-[InventoryCompanion tests] PASS Capacity messages: bank to bag move
-[InventoryCompanion tests] PASS Capacity messages: bag to bank move
-[InventoryCompanion tests] PASS Capacity messages: moving a stack of 10 counts all items
-[InventoryCompanion tests] PASS Capacity messages: stack merged into an existing stack still reports the move
-[InventoryCompanion tests] PASS Capacity messages: bank change away from the bank is silent
-[InventoryCompanion tests] PASS Capacity messages: opposite changes without a bank visit are bag-only
-[InventoryCompanion tests] PASS Capacity messages: transfer plus a pickup
-[InventoryCompanion tests] PASS Capacity messages: bag-only notification during a withdrawal
-[InventoryCompanion tests] PASS Capacity messages: disabled notifications stay silent
-[InventoryCompanion tests] PASS Capacity messages: load-screen reports stay silent
-[InventoryCompanion tests] PASS Capacity messages: balance colours follow the progress bar thresholds
-[InventoryCompanion tests] PASS Capacity notification preferences
-[InventoryCompanion tests] PASS Delta patterns follow the sequential specification
-[InventoryCompanion tests] PASS Delta patterns are unique and support empty lists and custom groups
-[InventoryCompanion tests] PASS Rule setters write only selected fields and prune restored defaults
-[InventoryCompanion tests] PASS Legacy rules convert to sparse overrides without altering the baseline
-[InventoryCompanion tests] PASS Invalid rule mutations fail without writing saved state
-[InventoryCompanion tests] PASS Saved rule boundary rejects malformed data without discarding it
-[InventoryCompanion tests] PASS Initialization validates inactive saved profiles and optional absence
-[InventoryCompanion tests] PASS Internal mutation contracts reject sparse lists and invalid list switches
-[InventoryCompanion tests] PASS Broken maintained baselines fail before normalization or writes
-[InventoryCompanion tests] PASS Scans require compiled rules instead of silently compiling raw input
-[InventoryCompanion tests] PASS Runtime cache rebuilds lazily and keeps editor views isolated
-[InventoryCompanion tests] PASS Hidden groups stay cached and list switching invalidates immediately
-[InventoryCompanion tests] PASS Failed runtime rebuilds do not publish partial caches
-[InventoryCompanion tests] PASS Profile copy preserves sparse deltas and never aliases its source
-[InventoryCompanion tests] PASS Malformed imported rules fail before clearing the destination
-[InventoryCompanion tests] PASS Scanning and notifications use current compiled rules
-[InventoryCompanion tests] PASS Empty patterns do not match every item
-[InventoryCompanion tests] PASS Group lifecycle mutations invalidate and clear only the active profile
-[InventoryCompanion tests] PASS Untouched defaults allocate no saved rule data
-[InventoryCompanion tests] PASS Reconciled pattern deltas obey set invariants across repeated edits
-[InventoryCompanion tests] PASS Cached synthetic scans and inventory bursts stay within thresholds
-```
-
-## Staged release test confirmation
-
-Staged (UTC): 10/30/2026 19:44:46
-Confirmed (UTC): 2026-10-30T20:02:28.8695022Z
-
-Tim-P: Live/EU release 1.5.0 DEV=false AddOnVersion=10500: 79/79 passed, all timings pass, 100 live scans 235/500 ms. At 2026-10-30T20:02:03Z confirmed requested closed-group persistence, auto-collapsed group clicks and normal transfers: its all good - everything seems to work. Offline 74/74 passed. Full evidence in ReleaseReview.md.
-
+PENDING: No source defect was confirmed in the reviewed delta, and the approved 1.6.2 documentation updates and pre-stage synthetic checks are complete. Candidate verification is still outstanding, particularly because the new guild-bank operations have no direct isolated transaction tests. Do not approve until the staged-candidate checks are complete.
