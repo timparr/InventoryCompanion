@@ -783,6 +783,11 @@ function this.PrepareSavedVariables()
         for profileName, profile in pairs(account) do
             local context = accountPath .. "[" .. tostring(profileName) .. "]"
             assert(type(profile) == "table", context .. " must be a table; initialization stopped")
+            if profileName == "$AccountWide" then
+                assert(profile.guildBankPartialWithdrawEnabled == nil
+                    or type(profile.guildBankPartialWithdrawEnabled) == "boolean",
+                    context .. ".guildBankPartialWithdrawEnabled must be boolean")
+            end
             local version = profile.version
             assert(type(version) == "number" and version >= 1 and version < math.huge and version % 1 == 0,
                 context .. ".version must be a positive integer; saved data was not changed")

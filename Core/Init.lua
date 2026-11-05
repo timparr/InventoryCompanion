@@ -52,6 +52,13 @@ function this.ValidateDebugSettings()
         "Saved AutoCategory removed-line log must be a table")
 end
 
+function this.ValidateGuildBankPartialWithdrawSetting()
+    local enabled = this.accountWide.guildBankPartialWithdrawEnabled
+    if enabled == nil then enabled = this.defaultsAccount.guildBankPartialWithdrawEnabled end
+    assert(type(enabled) == "boolean", "Saved guildBankPartialWithdrawEnabled must be a boolean")
+    this.accountWide.guildBankPartialWithdrawEnabled = enabled
+end
+
 local function Initialize()
     this.PrepareSavedVariables()
 
@@ -67,6 +74,7 @@ local function Initialize()
     this.character   = ZO_SavedVars:NewCharacterIdSettings(this.SettingsName, this.SettingsVersion, nil, this.defaultsCharacter)
     this.ValidateTrackerSettings()
     this.ValidateDebugSettings()
+    this.ValidateGuildBankPartialWithdrawSetting()
     this.ValidateSavedRuleProfiles()
     this.AutoCategoryIntegration.Initialize()
     this.state.isCurrencySettingsOpen = false

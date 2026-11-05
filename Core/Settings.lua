@@ -266,6 +266,14 @@ function this.CreateSettingsPanel()
         },
         {
             type = "checkbox",
+            name = "Enable Partial Guild Bank Withdrawals",
+            tooltip = "Guild banks are a bit different. To withdraw just one item, you actually have to withdraw the stack, split it and put the rest back. InventoryCompanion will do that for you but you may not want it to.",
+            getFunc = function() return this.accountWide.guildBankPartialWithdrawEnabled end,
+            setFunc = function(value) this.accountWide.guildBankPartialWithdrawEnabled = value end,
+            default = this.defaultsAccount.guildBankPartialWithdrawEnabled,
+        },
+        {
+            type = "checkbox",
             name = "Auto-Merge Chest Stacks",
             tooltip = "Automatically merge matching backpack items onto existing stacks when opening house storage chests.",
             getFunc = function() return this.accountWide.autoMergeChests end,

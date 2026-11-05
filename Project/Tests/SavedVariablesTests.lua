@@ -21,7 +21,8 @@ local function LoadAddon(saved)
             display = { show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false },
         },
     }
-    addon.defaultsAccount = { trackedRules = {}, debug = {}, bankItemDelay = 100, trackerMaxRows = 20, trackerTitleSize = 20,
+    addon.defaultsAccount = { trackedRules = {}, debug = {}, bankItemDelay = 100, guildBankPartialWithdrawEnabled = true,
+        trackerMaxRows = 20, trackerTitleSize = 20,
         autoCategoryTimingThresholdMs = 500 }
     addon.defaultsCharacter = { itemListInitialized = false, useCharacterItemList = false }
     for _, method in ipairs({
@@ -101,6 +102,25 @@ function GetSavedVariablesTests()
                 source.progressBarPreferences = { ["capacity:bag"] = { showBar = "yes" } }
                 assert(not pcall(addon.CopyProfile, "source"))
                 assert(addon.SavedValuesEqual(destination, before), "Invalid import must not partially replace any fields")
+            end,
+        },
+        {
+            name = "Guild-bank partial withdrawal setting defaults on and validates saved booleans before constructors",
+            run = function()
+                local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = { version = 10 } } } })
+                calls.initialize()
+                assert(addon.accountWide.guildBankPartialWithdrawEnabled == true)
+
+                local disabledAddon, disabledCalls = LoadAddon({ Default = { account = {
+                    ["$AccountWide"] = { version = 10, guildBankPartialWithdrawEnabled = false },
+                } } })
+                disabledCalls.initialize()
+                assert(disabledAddon.accountWide.guildBankPartialWithdrawEnabled == false)
+
+                local invalidAddon, invalidCalls = LoadAddon({ Default = { account = {
+                    ["$AccountWide"] = { version = 10, guildBankPartialWithdrawEnabled = "yes" },
+                } } })
+                AssertStopped(invalidAddon, invalidCalls, "guildBankPartialWithdrawEnabled must be boolean")
             end,
         },
         {

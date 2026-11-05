@@ -209,6 +209,7 @@ this.preLoadedRulesets = {
 ------------------------------------------------------------------
 this.defaultsAccount = {
     bankItemDelay = 100,
+    guildBankPartialWithdrawEnabled = true,
     debugEnabled = false,
     debug = {},
     autoCategoryTimingThresholdMs = 500,

@@ -1,12 +1,19 @@
 [SIZE="4"][B]Inventory Companion Changelog[/B][/SIZE]
 
-[SIZE="2"][B]1.6.2 [unreleased][/B][/SIZE]
+[SIZE="2"][B]Unreleased[/B][/SIZE]
 
 [LIST]
-[*]New optional AutoCategory integration brings Inventory Companion groups and native AutoCategory categories together in one dedicated editor. For each inventory context, control Display order to decide where categories appear and Priority order to decide which matching assignment wins.
-[*]Choose which tracked groups participate, reorder individual assignments or multi-selection, and copy layouts between contexts. Account-wide and character-specific profiles keep their own setups; divergence markers reveal when display placement and matching priority differ. Renaming a participating group also updates its AutoCategory heading.
-[*]Schema version 5 validates saved profile orders before loading them, preserving existing settings and isolating invalid or legacy AutoCategory data so core startup can continue.
+[*]Guild-bank right-click options can withdraw one item or all but one by returning the unwanted part of the stack; this behavior is controlled by an account-wide setting and is on by default.
+[*]New optional AutoCategory integration lets you manage native categories alongside Inventory Companion groups. Set independent Display and Priority orders for Backpack, Bank, Guild Bank, House Bank, Crafting Station, Craft Bag and Furniture Vault. AutoCategory remains responsible for classifying and displaying inventory items.
+[*]Use Hide and Show to exclude or include categories in one inventory area without deleting their definitions or changing other areas. Move the special Other heading in Display order without changing its catch-all matching behavior. Reorder selections and copy both orders between areas.
+[*]Account-wide and character-specific profiles now include panel preferences and positions, editor filters, tracking configuration and AutoCategory layouts. First-time character setup copies the account profile; later switches resume that character's retained settings. Copy From in Main Settings replaces a complete profile after confirmation.
+[*]Integration enablement, item transfer delay, chest-stack merging and diagnostic controls remain account-wide. AutoCategory integration is off by default and has a guided first setup and a dedicated recovery panel.
+[*]Streamlined Main Settings and consistent editor navigation bring Manage Tracking, Manage Groups and Manage AutoCategory together. Tracking has aligned single-line Show and Notify summaries, Groups has name filtering, and all three editors offer visit-scoped Undo changes.
+[*]Group patterns now support Include and Exclude rules: an item must match an Include and no Exclude in that group. Per-item and per-group backpack/bank display, grouping and Chat/HUD notifications can be configured independently. Tracker stock indicators distinguish carried and banked items.
+[*]Saved-variable schema 10 upgrades stored profiles before loading, validates imported data and prevents incompatible older builds from changing newer settings. Built-in group overrides and a shared compiled matching cache preserve customization without saving unchanged defaults.
 [/LIST]
+
+[SIZE="2"][B]1.6.2 [unreleased][/B][/SIZE]
 
 [SIZE="2"][B]1.6.1 [unreleased][/B][/SIZE]
 
