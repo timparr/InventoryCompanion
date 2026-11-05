@@ -51,7 +51,7 @@ local function SplitBackpackStackForGuildBankDeposit(sourceSlot, amount)
 
     local cursorReturnSlot = FindFirstEmptySlotInBag(BAG_BACKPACK)
     if not cursorReturnSlot then
-        return false, "No empty backpack slot is available to safely return the split stack."
+        return false, string.format("You need one free slot to deposit %d to a guild bank.", amount)
     end
 
     local pickedUp, pickupFailure =
@@ -366,6 +366,10 @@ function this.DepositGuildBankPartial(sourceSlot, amount, sourceCount)
         this.Utils.UserError("The backpack stack changed before the partial guild-bank deposit could start.")
         return
     end
+    if not FindFirstEmptySlotInBag(BAG_BACKPACK) then
+        this.Utils.UserError(string.format("You need one free slot to deposit %d to a guild bank.", amount))
+        return
+    end
     if GetNumBagFreeSlots(BAG_GUILDBANK) == 0 or IsItemStolen(BAG_BACKPACK, sourceSlot) then
         this.Utils.UserError("The guild bank has no free slot or this item cannot be deposited.")
         return
@@ -412,6 +416,15 @@ function this.WithdrawGuildBankPartial(sourceSlot, requestedAmount, sourceCount)
         this.Utils.UserError("The guild-bank stack changed before the partial withdrawal could start.")
         return
     end
+    if GetNumBagFreeSlots(BAG_BACKPACK) < 2 then
+        this.Utils.UserError(string.format(
+            "You need at least 2 slots free to withdraw %d from a guild bank.", sourceCount))
+        return
+    end
+    if not DoesBagHaveSpaceFor(BAG_BACKPACK, BAG_GUILDBANK, sourceSlot) then
+        this.Utils.UserError("There is not enough backpack space to withdraw the guild-bank stack.")
+        return
+    end
 
     guildBankPartialWithdrawalSequence = guildBankPartialWithdrawalSequence + 1
     local operation = {
@@ -441,11 +454,6 @@ function this.WithdrawGuildBankPartial(sourceSlot, requestedAmount, sourceCount)
         end
     end, GUILD_BANK_WITHDRAW_TIMEOUT_MS)
 
-    if not DoesBagHaveSpaceFor(BAG_BACKPACK, BAG_GUILDBANK, sourceSlot) then
-        FailGuildBankPartialWithdrawal(operation,
-            "There is not enough backpack space to withdraw the guild-bank stack.")
-        return
-    end
     local transferStarted, transferFailure = ExecuteGuildBankAction("TransferFromGuildBank", sourceSlot)
     if not transferStarted then
         ReportGuildBankTransferFailure(operation, "TransferFromGuildBank", transferFailure,
