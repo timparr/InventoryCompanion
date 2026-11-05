@@ -5,12 +5,6 @@
 /Project/Publishing/Packages/*
 !/Project/Publishing/Packages/Reviewed/
 /Project/Publishing/Packages/Reviewed/*
-!/Project/Publishing/Packages/Reviewed/Current Documentation/
-/Project/Publishing/Packages/Reviewed/Current Documentation/*
-!/Project/Publishing/Packages/Reviewed/Current Documentation/Changelog.bbcode
-!/Project/Publishing/Packages/Reviewed/Current Documentation/readme.bbcode
-!/Project/Publishing/Packages/Reviewed/Current Documentation/UserManual.bbcode
-!/Project/Publishing/Packages/Reviewed/Current Documentation/Features.bbcode
 /Project/Publishing/.release-test/
 /generated-eso-api/
 
