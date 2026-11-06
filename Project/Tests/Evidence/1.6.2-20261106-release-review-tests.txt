@@ -1,0 +1,288 @@
+InventoryCompanion release review test evidence
+Started UTC: 2026-11-06T01:32:34Z
+Source: 7b12d8391a9e80ae4fe5a827492d5ff2af1e4fa5
+
+COMMAND: python Project\Tests\Run-RuleTests.py
+PASS Item editor leaves AutoCategory participation to its dedicated editor
+PASS Item editor toggles absent Show from its effective true default
+PASS Item editor group flags save sparse overrides and prune defaults
+PASS Item editor untracked promotion preserves other values
+PASS Item editor recycled row rejects old actions without writes
+PASS Item editor profile switch rejects old toggles and removal
+PASS Item editor hidden and removed targets reject callbacks
+PASS Item editor reads current flags rather than retained entry data
+PASS Item editor popups dismiss without writes and invalidate checkbox callbacks
+PASS Item editor shows all display and notification summaries in existing colors
+PASS Item editor checkbox labels apply once and retarget popup after refresh
+PASS Item editor Undo changes follows visit lifecycle and detects manual reversal
+PASS Item editor removal updates notification listeners
+PASS Item destination limiter never redirects chat-only or HUD-only bursts
+PASS Item destination duplicates preserve selected outputs and other callers
+PASS Shared warning burst window includes messages two seconds apart
+PASS Delta patterns follow the sequential specification
+PASS Extended flags inherit legacy settings and retain independent sparse overrides
+PASS Malformed extended saved and imported flags fail before writes
+PASS Notification destinations union matching groups and individual requests once
+PASS Delta patterns are unique and support empty lists and custom groups
+PASS Pattern kind changes are represented as sparse string deltas
+PASS Rule setters write only selected fields and prune restored defaults
+PASS Legacy rules convert to sparse overrides without altering the baseline
+PASS Invalid rule mutations fail without writing saved state
+PASS Saved rule boundary rejects malformed data without discarding it
+PASS Initialization validates inactive saved profiles and optional absence
+PASS Internal mutation contracts reject sparse lists and invalid list switches
+PASS Broken maintained baselines fail before normalization or writes
+PASS Scans require compiled rules instead of silently compiling raw input
+PASS Runtime cache rebuilds lazily and keeps editor views isolated
+PASS Hidden groups stay cached and list switching invalidates immediately
+PASS Failed runtime rebuilds do not publish partial caches
+PASS Profile copy preserves sparse deltas and never aliases its source
+PASS Malformed imported rules fail before clearing the destination
+PASS Scanning and notifications use current compiled rules
+PASS Exclusion suffix narrows only its own group
+PASS Empty patterns do not match every item
+PASS Group lifecycle mutations invalidate and clear only the active profile
+PASS Untouched defaults allocate no saved rule data
+PASS Reconciled pattern deltas obey set invariants across repeated edits
+PASS Cached synthetic scans and inventory bursts stay within thresholds
+  20 scans: 49/500 ms; 100 matches: 0/100 ms; 100 updates: 1/200 ms
+PASS Group editor undo updates on focus-loss without rebuilding rows and resets its visit
+PASS Group filter searches trimmed left-pane names rather than patterns
+PASS Group editor rename writes only the name and pattern editing preserves it
+PASS Pattern focus-loss preserves rows while refreshing HUD and Reset
+PASS Pattern kind toggle persists encoded exclusion and retains row text
+PASS Empty pattern rows retain their kind but compile to no match
+PASS Excluded patterns appear below includes with a section divider
+PASS Group editor pattern add and delete reconcile deltas
+PASS Group editor reset preserves display settings and hidden state
+PASS Group editor creates and deletes sparse custom groups
+PASS Missing maintained editor functions and controls fail at their use
+PASS Production baseline definitions satisfy strict rule contracts
+PASS Serialized rule deltas survive database reinitialization
+PASS Imported item and rule independent flags preserve explicit false and source isolation
+PASS Actual clear-overrides command invalidates only the selected profile
+PASS Full profile copy replaces every preference map and preserves destination metadata and account controls
+PASS Guild-bank partial withdrawal setting defaults on and validates saved booleans before constructors
+PASS Schema 10 upgrades every supported source and clears unused character profiles only once
+PASS Full profile first-use copy and later resume preserve account-only controls and isolation
+PASS Malformed inactive full-profile preferences abort every migration before constructors
+PASS Actual schema-9 build rejects schema-10 full profiles in every location without mutation
+PASS Schema 9 migrates all profiles and backups non-destructively and preserves moved Other on reload
+PASS Actual schema 4 through 8 builds reject schema 9 before constructors or migration
+PASS Schema 9 migration validates exclusions and remembered positions in every saved profile
+PASS First-time IC scope switches copy complete profiles once and preserve initialized destinations
+PASS AutoCategory saved-data slash test is registered only in DEV and dispatches explicit actions
+PASS Schema 5 migration preserves configured profiles and leaves unused profiles ready for setup
+PASS Malformed AutoCategory recovery log is rejected before SavedVariables constructors
+PASS Actual schema-6 build rejects schema-7 list backups without mutation
+PASS Actual schema-5 build rejects schema-6 setup data before any mutation
+PASS Version 2 upgrades every profile without rewriting saved settings before ZOS loading
+PASS Schema-4 build rejects schema 5 ordering before constructors without mutation
+PASS Schema 3 migration initializes independent context orders without completing setup
+PASS Schema 4 AutoCategory errors preserve integration data and allow core startup
+PASS AutoCategory cleanup command is account-restricted and removes only integration data
+PASS Malformed AutoCategory fields disable only integration and preserve every profile
+PASS Incompatible AutoCategory at load warns while core modules finish initializing
+PASS Fresh installations initialize schema version 10
+PASS Account-wide list backup survives reload and restores only account-wide list settings
+PASS Invalid account-wide list backup refuses recovery without changing live lists
+PASS Startup migrates all version 1 profiles before destructive ZOS loading
+PASS Already converted development deltas and empty custom groups survive version migration
+PASS Higher saved versions refuse loading even in inactive characters or other accounts
+PASS Downgrade guard uses the addon's expected version rather than a fixed threshold
+PASS Increasing the expected version cannot silently skip an unimplemented migration
+PASS Malformed saved versions and namespace containers fail without reset
+PASS Failed migration validates every profile before publishing changes
+PASS Malformed maintained baselines abort migration without writes
+PASS Missing optional legacy rules are initialized without losing unrelated settings
+PASS Tracker opens preferred categories at the exact row budget without saving layout decisions
+PASS Tracker manual collapse survives content, settings, reintroduction, and UI reload
+PASS Tracker saved closed categories stay closed on initial layout even when everything fits
+PASS Tracker explicit expansion preserves others when it fits and collapses all others on overflow
+PASS Tracker single-line fallback precedes collapse and preserves wrapping preference
+PASS Tracker reserves count space before first-frame text measurement
+PASS Tracker counts two and three wrapped lines as row equivalents
+PASS Tracker keeps a fixed panel width and narrows rows only while scrolling
+PASS Tracker passive overflow retains only the uniquely growing already-open category
+PASS Tracker multi-category growth burst collapses all on overflow
+PASS Tracker clicks toggle the rendered state of automatically collapsed categories
+PASS Tracker does not open a collapsed receiving category on overflow
+PASS Tracker configuration reintroduction restores only preferred groups without displacing others
+PASS Tracker edited manually closed categories cannot reopen into spare space
+PASS Tracker oversized category scrolls with a fixed header and clamps after shrinking
+PASS Tracker groups over 200 show overflow instead of members and retain full totals
+PASS Tracker group cap applies after zero-stock filtering
+PASS Tracker large-group expansion and refresh stay within synthetic limits
+  5000 matches, overflow message only: expand 5/1000 ms; 5 refreshes 24/1500 ms
+PASS Tracker overflow clears when eligible membership drops to 200
+PASS Tracker excessive headers and flat lists remain accessible within the viewport
+PASS Tracker empty state and small-screen bounds remain valid
+PASS Tracker keeps Miscellaneous and zero-stock filtering in the row policy
+PASS Tracker trials never create member controls for collapsed categories
+PASS Tracker trials reuse a warmed pool with bounded measurement and layout work
+PASS Tracker context switches reset comparisons and scroll offsets
+PASS Tracker context revision changes only at profile and reset boundaries
+PASS Tracker context reinitialization discards temporary collapses but preserves manual choices
+PASS Tracker uses the actual inventory debounce queue for a multi-category burst
+PASS Tracker toggle stays hidden across interaction and editor visibility ticks
+PASS Tracker row preference validates defaults and malformed external input
+PASS Tracker title uses adjustable regular font and matching icon without changing rows
+PASS Tracker warmed synthetic refresh workloads stay within explicit limits
+  100 x 20 items: 14/250 ms; 20 x 1000 items: 22/1500 ms
+PASS Tracker keybinding changes saved visibility and updates inventory listeners immediately
+PASS Main addon settings expose AutoCategory recovery navigation and open the item editor
+PASS AutoCategory recovery panel opens and reopens through editor navigation while writes are disabled
+PASS Tracker independent locations render exact backpack bank-only and combined counts
+PASS Group undo removes newly generated definitions without changing native assignments
+PASS AutoCategory undo restores current page and shared inclusion without rewinding other pages
+PASS Undo rejects externally deleted categories without partially restoring saved or native state
+PASS Reset preserves per-area IC inclusion while replacing native exclusions and saved positions
+PASS Context inclusion retains assignments and classifies Rare Mats in Craft Bag but not Bank after reload
+PASS Other moves independently survives reload and copy and brackets new groups in every context
+PASS Area summaries honor precedence exact rendered width prefix and word fallback for every inclusion mask
+PASS AutoCategory numbered injections replace prior scenarios and exercise few repeated many and cutoff rows
+PASS AutoCategory scenario replacement does not delete genuine mismatches
+PASS AutoCategory recovery scrollable lists every escaped row and confirmation bounds its preview
+PASS AutoCategory verification reports real mismatches separately and throws a copyable read-only report
+PASS AutoCategory saved-data verification distinguishes repair from confirmed reset and setup again
+PASS AutoCategory reset rolls back assignments and settings if cache refresh fails
+PASS AutoCategory reset refuses sparse assignment lists instead of silently dropping unidentified rows
+PASS AutoCategory reset refuses profile changes after confirmation without deleting assignments
+PASS AutoCategory orphan survives plugin startup again and can be repaired from reloaded saved tables
+PASS AutoCategory injected saved assignment is removed by confirmed repair without touching other data
+PASS AutoCategory saved-data test cleanup removes only its own row and retries recovery
+PASS AutoCategory assignment repair rolls back when synchronization fails and refuses incomplete runtime
+PASS AutoCategory assignment repair restores data when post-projection UI refresh fails
+PASS AutoCategory assignment repair refuses a changed profile or candidate after confirmation
+PASS AutoCategory failed state preserves boolean enablement and blocks writes until retry succeeds
+PASS AutoCategory retry retains recovery UI and data when validation still fails
+PASS AutoCategory stale assignments synchronize automatically and restore AC-side settings on return
+PASS AutoCategory bulk movement preserves contiguous blocks and separated selections
+PASS AutoCategory bulk jumps equal repeated single steps for every selection including merging and boundaries
+PASS AutoCategory bulk operations apply immediately once and isolate context and mode
+PASS Renaming a participating group updates its AutoCategory heading
+PASS AutoCategory timing reports a slow move with phases without disabling integration
+PASS AutoCategory timing reports an integration failure caught during a slow action
+PASS AutoCategory timing raises integration failures with a traceback next frame only in Debug Mode
+PASS AutoCategory profile boundary validation runs at load, not on every matcher rule read
+PASS First enable prompts with IC first and cancellation leaves all saved choices unchanged
+PASS Prefer IC seeds all Show and Notify destinations once and places groups after New in seven contexts
+PASS Prefer AutoCategory puts IC groups last in both orders without copying between native orders
+PASS Fresh AutoCategory projection preserves the saved order without a runtime snapshot
+PASS Prefer IC uses the top when New is hidden or missing
+PASS Setup with no participating groups is remembered across re-enable
+PASS Setup preflight failure leaves participation enablement and order untouched
+PASS Changing profile while setup is open cancels without applying to either profile
+PASS Legacy Show and Notify flags seed participation during setup
+PASS Missing or empty AutoCategory New string fails setup without publishing anything
+PASS Setup contract violations and projection failures fail explicitly without completing setup
+PASS Startup imports the native fractional display key independently from matching priority
+PASS Display and matching moves update only their own context sequence
+PASS Synchronized moves skip registry rebuilds and refresh only the changed bag
+PASS Cross-context copy preserves destination-only slots and never changes participation
+PASS Legacy all-area inclusion changes retain excluded assignments behind Other
+PASS Projection round-trip is idempotent and disabling preserves native assignments
+PASS Saved-data cleanup removes only explicitly IC-owned assignments in both AC profiles
+PASS Reconciliation removes deleted native rows and imports newly assigned categories
+PASS Integer projection reserves one of 999 assignments for Other and rejects overflow without writes
+PASS AutoCategory classifier failure disables the predicate and preserves core rules
+PASS AutoCategory startup errors disable integration without escaping to core startup
+PASS Mismatched profile assignments are replaced without changing source profiles
+PASS Legacy global flags no longer remove account-wide assignments
+PASS Historical AutoCategory recovery archives remain intact without being replayed into the active profile
+PASS Failed AutoCategory projection rolls assignment lists and priorities back
+PASS AutoCategory plugin registers before assignments initialize and projects after activation
+PASS Synchronization covers all four IC AC scopes and A B A with distinct identities and saved orders
+PASS Synchronization applies Maps order across both mode switches without losing dormant native references
+PASS Native exclusion uses an enablement-gated Other predicate without deleting native Other or settings
+PASS Re-inclusion restores display insertion and initializes matching from the restored display number
+PASS Failed exclusion rolls back assignments templates and proposed profile state
+PASS Synchronization rejects incomplete runtime malformed templates and ownership collisions before deleting stale rows
+PASS Missing AutoCategory preserves editable source participation without projecting or faulting IC
+PASS Explicit profile copying includes exclusions restoration references and complete item preferences by value
+PASS Cold startup and reload-equivalent deferred projection use IC saved order and remove stale assignments
+PASS Synthetic inventory-style burst coalesces 100 pattern updates across 128 groups and seven contexts
+  Synthetic only: 100 updates, 128 groups, seven contexts; 4.00 ms CPU; seven refreshes, zero cache rebuilds.
+PASS Group additions renames and deletions reconcile active output and preserve inactive profiles
+PASS AutoCategory context-aware explanation and selection guidance fit three measured lines
+PASS AutoCategory explanation uses concise equivalent copy when native wrapping exceeds three lines
+PASS AutoCategory editor Undo changes keeps opening baselines across mode changes
+PASS AutoCategory editor shares Included Excluded state across modes with labels colours divider and tooltips
+PASS AutoCategory editor failure view avoids rule resolution and keeps recovery controls available
+PASS AutoCategory editor clicks start a new selection and shift-clicks toggle membership
+PASS AutoCategory editor highlights and moves the whole block from every selected row
+PASS AutoCategory editor Select block expands every same-type seed and disables mixed selections
+PASS AutoCategory editor flood-fills separate IC runs without selecting the intervening AC heading
+PASS AutoCategory editor clears selection on profile switches even when references are shared
+PASS AutoCategory editor toolbar handles separated selections, boundaries and stable top-bottom gathering
+PASS AutoCategory editor exposes independent modes, all assignments, and full-list move semantics
+PASS AutoCategory editor shows enablement instead of leaving when integration is off
+PASS AutoCategory editor timing reports slow clicks with start state and phases without disabling integration
+PASS AutoCategory editor timing reports slow next frames and does nothing when Debug Mode is off
+212/212 isolated addon tests passed; addon Lua syntax checked (Lua 5.1).
+
+COMMAND: python Project\Tests\Run-AutoCategorySpike.py
+Read-only dependency: C:\Users\timpa\OneDrive\Documents\Elder Scrolls Online\live\AddOns\AutoCategory
+## APIVersion: 101048 101047
+## Version: 4.5.2
+## AddOnVersion: 134
+PASS Baseline existing category uses unchanged native classifier
+PASS Register real matching bridge and insert two runtime definitions/assignments
+PASS External category moved above managed groups wins without expression edits
+PASS Reversing managed order changes the winner with external category between
+PASS External category between groups wins when earlier group does not match
+PASS Native full cache rebuild retains runtime insertion and ordering
+PASS Unmatched item falls through without scans, compilation, or inventory refresh
+PASS Remove temporary entries and predicate; baseline and saved-variable sentinels unchanged
+  Synthetic state only; UI rendering and startup lifecycle are not certified.
+PASS Persisted managed entry with absent definition is skipped and flagged, not an error
+PASS Definition whose predicate function is absent is marked damaged and falls through
+PASS DEV Plunder Skull command runs actual modules and restores original identities
+PASS DEV probe accepts and restores an ESO-style userdata display control
+PASS DEV probe restores test isolation and rethrows an external error
+PASS Successful slash command raises complete copyable report after restoring runtime state
+PASS Rendering probe restores rules before delayed normal redraw and preserves external assignments
+PASS Render command reports closed Backpack or gamepad as unavailable without running probe
+PASS Slash command reports unavailable dependency in a copyable diagnostic
+PASS DEV spike preserves normal Debug Key behaviour
+PASS Fractional and above-1000 priorities classify and retain computed order
+PASS icOwned and computed priorities survive AutoCategory Export to all bags
+PASS Inline texture category names survive AutoCategory identity and settings paths
+PASS Existing category is identifiable for a pre-registration collision guard
+PASS DEV gate plugin waits for IC load after dependency initialization and exposes gate definitions
+  Startup event preflight and plugin initialization used the actual AutoCategory plugin API.
+PASS Collision command refuses registration without changing external definitions or either profile
+  The existing assignment was never passed through AutoCategory's duplicate-rename path.
+PASS Context and priority commands report unavailable surfaces through copyable diagnostics
+  Unavailable UI contexts are explicit and produce no saved-profile writes.
+PASS Context and multi-group priority commands execute their native-list paths offline
+  Synthetic lists exercised one context render and five-group top/fractional heading-order paths; ESO rendering remains an in-game gate.
+FAIL top-slot classification/native heading order above existing categories: |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 1 > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 2 > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 3 > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 4 > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 5
+Top-slot details: Heading order differs at |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 2 | Heading order differs at |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 3 | Heading order differs at |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 4 | Heading order differs at |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 5
+Actual top-slot headings: |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 5 > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 4 > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 3 > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 2 > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 1 > Gate Order Higher Anchor > Spike External
+PASS fractional classification and visible order: Gate Order Higher Anchor > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 1 > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 2 > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 3 > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 4 > |t18:18:EsoUI/Art/Buttons/plus_up.dds|t InventoryCompanion DEV Gate Order 5 > Spike External
+ESO fractional %04d sample: 0895; formatter output alone is not order evidence.
+PASS 128 prefixed groups retain fractional precedence across seven contexts and copied reload data
+PASS Prefix placement bounds expose tied anchors, bottom slots and floating-point exhaustion
+PASS Profile projection writes only the active AutoCategory profile and tagged cleanup is exact
+  Both profile directions were compared against the pre-switch inactive-profile snapshot; exact-token cleanup restored both.
+PASS Persistent prefix cycle is active-only, duplicate-free and exact-token cleanup preserves unowned data
+  Real predefined/plugin/compile/cache, synthetic assignment cycles and read-only check. Actual ESO reload is still required.
+31/31 native-insertion spike tests passed.
+Actual dependency modules executed; ESO UI/library boundaries mocked.
+No live inventory/saved variables accessed. Rendering, startup, and reload remain unverified.
+
+COMMAND: .\Project\Publishing\Test-PackageRelease.ps1
+ESO may remain open. Do not reload the UI or change characters while installed files are being changed.
+ESO may remain open. Do not reload the UI or change characters while installed files are being changed.
+ESO may remain open. Do not reload the UI or change characters while installed files are being changed.
+ESO may remain open. Do not reload the UI or change characters while installed files are being changed.
+ESO may remain open. Do not reload the UI or change characters while installed files are being changed.
+ESO may remain open. Do not reload the UI or change characters while installed files are being changed.
+ESO may remain open. Do not reload the UI or change characters while installed files are being changed.
+ESO may remain open. Do not reload the UI or change characters while installed files are being changed.
+ESO may remain open. Do not reload the UI or change characters while installed files are being changed.
+ESO may remain open. Do not reload the UI or change characters while installed files are being changed.
+PackageRelease regression tests passed: 90 assertions.
+
+Completed UTC: 2026-11-06T01:32:43Z

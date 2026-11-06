@@ -48,6 +48,7 @@ function Assert-Fails([scriptblock]$Command, [string]$ExpectedMessage) {
 function Complete-ReviewTemplate([string]$Template, [string]$Version) {
     $result = $Template.
         Replace("<YYYY-MM-DDTHH:mm:ssZ>", "2000-01-01T00:00:00Z").
+        Replace("Status: [Not Approved]", "Status: [Approved to Test]").
         Replace("<AI assistant and model name, if available; do not guess>", "Synthetic fixture").
         Replace("<add-on name>", "InventoryCompanion").
         Replace("<DEV commit or source identity>", "synthetic-source").
@@ -56,15 +57,15 @@ function Complete-ReviewTemplate([string]$Template, [string]$Version) {
         Replace("<DELTA or FULL>", "DELTA").
         Replace("<agreed major.minor.patch version>", $Version).
         Replace("<COMPLETE - findings present / COMPLETE - no findings / INCOMPLETE>", "COMPLETE - no findings").
-        Replace("| See documentation review |", "| PASS: See documentation review |").
-        Replace("| Certified by @Tim-P |", "| PASS: Certified by @Tim-P |").
         Replace("<Summary of the report.>", "Synthetic packaging report summary.").
         Replace("- <Finding and evidence, or ""No findings identified in the assessed scope."">",
             "- No findings identified in the assessed scope.").
-        Replace("<Recommend the next major.minor.patch version and briefly explain why, based on the cumulative unreleased changes. This is a recommendation for discussion, not an agreed version or authorization to change metadata.>",
+        Replace("- <List only review-form criteria whose result is PENDING, and state that each requires test deployment. Tests and metrics may appear only as missing evidence for a criterion, not as standalone items. Use ""- None."" when no review criteria are pending.>",
+            "- None.").
+        Replace("<Recommend the next major.minor.patch version and briefly explain why, based on the cumulative changes. Mark PENDING until the author agrees the version; a recommendation is not agreement or authorization to change metadata.>",
             "Recommend version $Version for this synthetic fixture.").
-        Replace("- <x>/<y> synthetic tests passed", "- 1/1 synthetic tests passed").
-        Replace("- <x>/<y> user driven unit tests passed", "- 1/1 user driven unit tests passed").
+        Replace("- <x>/<y> synthetic tests passed, or PENDING until run", "- 1/1 synthetic tests passed").
+        Replace("- <x>/<y> user driven unit tests passed, or PENDING until run", "- 1/1 user driven unit tests passed").
         Replace("- In-game UAT: <actual results and observations>", "- In-game UAT: <actual results and observations>").
         Replace("- [ ] Record the reviewed DEV source identity and comparison baseline. Use DELTA for routine reviews with an identifiable approved baseline; explain FULL for a first baseline, unavailable/unverifiable baseline, broad architectural changes, or a specific concern requiring complete inspection. A previous ZIP or test report alone is not an approved source-review baseline.",
             "- [x] Record the reviewed DEV source identity and comparison baseline. Synthetic fixture.").
@@ -117,6 +118,75 @@ function Get-CandidateIdentity {
     } finally { $sha.Dispose() }
 }
 
+function Set-ReviewCheckResult([string]$Content, [string]$CheckPrefix, [string]$Result) {
+    $lines = $Content -split "\r?\n"
+    $inCheckSection = $false
+    for ($index = 0; $index -lt $lines.Count; $index++) {
+        if ($lines[$index] -eq "### Checks performed and results") {
+            $inCheckSection = $true
+            continue
+        }
+        if ($lines[$index] -match '^### ') {
+            $inCheckSection = $false
+            continue
+        }
+        if ($inCheckSection -and $lines[$index].StartsWith("| $CheckPrefix")) {
+            $cells = @($lines[$index].Trim('|').Split('|') | ForEach-Object { $_.Trim() })
+            if ($cells.Count -ne 3) { throw "Unexpected review check row: $($lines[$index])" }
+            $cells[2] = $Result
+            $lines[$index] = "| $($cells[0]) | $($cells[1]) | $($cells[2]) |"
+            return ($lines -join "`r`n")
+        }
+    }
+    throw "Review check not found: $CheckPrefix"
+}
+
+function Set-ReviewPendingItems([string]$Content, [string[]]$Items) {
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $sourceLines = $Content -split "\r?\n"
+    $inPendingItems = $false
+    foreach ($line in $sourceLines) {
+        if ($line -eq "### Pending items") {
+            $inPendingItems = $true
+            $lines.Add($line)
+            foreach ($item in $Items) { $lines.Add($item) }
+            continue
+        }
+        if ($inPendingItems -and $line -match '^### ') {
+            $inPendingItems = $false
+        }
+        if (-not $inPendingItems) { $lines.Add($line) }
+    }
+    if (-not ($sourceLines -contains "### Pending items")) {
+        throw "Review Pending items section was not found."
+    }
+    return ($lines -join "`r`n")
+}
+
+function Set-AllPendingReviewChecksPass([string]$Content) {
+    $lines = $Content -split "\r?\n"
+    $inCheckSection = $false
+    for ($index = 0; $index -lt $lines.Count; $index++) {
+        if ($lines[$index] -eq "### Checks performed and results") {
+            $inCheckSection = $true
+            continue
+        }
+        if ($lines[$index] -match '^### ') {
+            $inCheckSection = $false
+            continue
+        }
+        if ($inCheckSection -and $lines[$index] -match '^\| .+ \|$' -and
+            $lines[$index] -notmatch '^\|[-| ]+\|$') {
+            $cells = @($lines[$index].Trim('|').Split('|') | ForEach-Object { $_.Trim() })
+            if ($cells.Count -eq 3 -and $cells[2] -match '^PENDING(?:\s|:|$)') {
+                $cells[2] = "PASS: synthetic candidate verification"
+                $lines[$index] = "| $($cells[0]) | $($cells[1]) | $($cells[2]) |"
+            }
+        }
+    }
+    return ($lines -join "`r`n")
+}
+
 try {
     $sourceManifest = Join-Path $sourceRoot "InventoryCompanion_DEV.txt"
     $manifestLines = @(Get-Content -LiteralPath $sourceManifest)
@@ -153,7 +223,7 @@ try {
     $review = Complete-ReviewTemplate $template $version
     Set-Content -LiteralPath $reviewPath -Value $review -Encoding UTF8
 
-    Set-Content -LiteralPath $reviewPath -Value $review.Replace("PASS: See documentation review", "FAIL: See documentation review") -Encoding UTF8
+    Set-Content -LiteralPath $reviewPath -Value $review.Replace("| See documentation review |", "| FAIL: See documentation review |") -Encoding UTF8
     Assert-Fails { & $script -Action Stage } "unresolved/failed check"
     Assert (-not (Test-Path -LiteralPath $candidate)) "Failed review created a candidate."
     Set-Content -LiteralPath $reviewPath -Value $review.Replace(
@@ -171,6 +241,23 @@ try {
         Assert (-not (Test-Path -LiteralPath $candidate)) "Invalid version created a candidate."
     }
     [System.IO.File]::WriteAllBytes($manifest, $originalManifest)
+
+    $review = $review.
+        Replace("Review status: COMPLETE - no findings", "Review status: COMPLETE - findings present").
+        Replace("- No findings identified in the assessed scope.", "- **F-1 — RESOLVED. Synthetic issue was corrected.**").
+        Replace("- 1/1 user driven unit tests passed", "- User-driven in-game tests: PENDING - not performed before stage.").
+        Replace("- In-game UAT: <actual results and observations>", "- In-game UAT: PENDING — not performed before stage.")
+    $review = $review.Replace("Status: [Approved to Test]", "Status: [Not Approved]")
+    Set-Content -LiteralPath $reviewPath -Value $review -Encoding UTF8
+    Assert-Fails { & $script -Action Stage } "Release review Status"
+    $review = $review.Replace("Status: [Not Approved]", "Status: [Approved to Test]")
+    $review = Set-ReviewCheckResult $review `
+        "**Package and installation:** Confirm the intended top-level" `
+        "PENDING — TEST DEPLOYMENT REQUIRED: Candidate package verification follows staging."
+    $review = Set-ReviewPendingItems $review @(
+        "- **Package and installation (requires test deployment):** Candidate package verification follows staging."
+    )
+    Set-Content -LiteralPath $reviewPath -Value $review -Encoding UTF8
 
     $null = New-Item -ItemType Directory -Path $candidate
     Assert-Fails { & $script -Action Stage } "Refusing to overwrite"
@@ -219,8 +306,24 @@ try {
     $changelogPath = Join-Path $currentRelease "Changelog.bbcode"
     [System.IO.File]::WriteAllText($changelogPath, "Final post-UAT changelog.")
     [System.IO.File]::WriteAllText((Join-Path $currentRelease "ReadMe.bbcode"), "Final post-UAT combined readme.")
+    Assert-Fails { & $script -Action Finalize } "Release review Status"
+    $review = $stagedReview.Replace("Status: [Approved to Test]", "Status: [Approved for Release]")
+    Set-Content -LiteralPath $reviewPath -Value $review -Encoding UTF8
     Assert-Fails { & $script -Action Finalize } "actual in-game UAT results"
-    $review = [regex]::Replace($stagedReview, '(?m)^- In-game UAT:.*$', "- In-game UAT: Synthetic fixture confirmed the expected behavior; no real in-game test claimed.")
+    $review = [regex]::Replace($review, '(?m)^- In-game UAT:.*$', "- In-game UAT: Synthetic fixture confirmed the expected behavior; no real in-game test claimed.")
+    Set-Content -LiteralPath $reviewPath -Value $review -Encoding UTF8
+    Assert-Fails { & $script -Action Finalize } "user-driven unit-test pass/fail rates"
+    $review = $review.Replace(
+        "- User-driven in-game tests: PENDING - not performed before stage.",
+        "- 1/1 user driven unit tests passed"
+    )
+    Set-Content -LiteralPath $reviewPath -Value $review -Encoding UTF8
+    Assert-Fails { & $script -Action Finalize } "pending check before finalization"
+    $review = Set-AllPendingReviewChecksPass $review
+    if ($review -match '(?m)^\| .+ \| PENDING(?:\s|:|$)') {
+        throw "Synthetic finalization fixture still has a pending review check."
+    }
+    $review = Set-ReviewPendingItems $review @("- None.")
     Set-Content -LiteralPath $reviewPath -Value $review -Encoding UTF8
 
     $devInit = Join-Path $devRoot "Core\Init.lua"

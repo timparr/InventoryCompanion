@@ -162,6 +162,10 @@ function Read-TestState {
 }
 
 function Assert-ReleaseReview([string]$Content, [string]$Version, [string]$CandidateHash, [bool]$RequireCandidateHash) {
+    $requiredStatus = if ($RequireCandidateHash) { "Approved for Release" } else { "Approved to Test" }
+    if ($Content -notmatch "(?m)^Status: \[$([regex]::Escape($requiredStatus))\]\s*$") {
+        throw "Release review Status must be [$requiredStatus] for this release action."
+    }
     foreach ($field in @("Reviewer", "Add-on", "Reviewed source")) {
         $fieldMatch = [regex]::Match($Content, "(?m)^$([regex]::Escape($field)): (.+?)\s*$")
         if (-not $fieldMatch.Success -or $fieldMatch.Groups[1].Value -match '^(<|TODO|TBD)') {
@@ -186,7 +190,10 @@ function Assert-ReleaseReview([string]$Content, [string]$Version, [string]$Candi
     if (-not $RequireCandidateHash -and $Content -notmatch '(?m)^Candidate SHA256: <filled after staging>\s*$') {
         throw "Release review must contain the Candidate SHA256 placeholder before staging."
     }
-    if ($Content -notmatch '(?m)^Review status: COMPLETE - no findings\s*$') {
+    $reviewStatusMatch = [regex]::Match(
+        $Content, '(?m)^Review status: (COMPLETE - no findings|COMPLETE - findings present)\s*$'
+    )
+    if (-not $reviewStatusMatch.Success) {
         throw "Release review must be complete with no unresolved findings before this release action."
     }
     $modeMatch = [regex]::Match($Content, '(?m)^Review mode: (DELTA|FULL)\s*$')
@@ -210,13 +217,27 @@ function Assert-ReleaseReview([string]$Content, [string]$Version, [string]$Candi
     if ($Content -match '(?m)^- \[ \] ') {
         throw "Release review contains unchecked requirements or unresolved/failed checks."
     }
-    if ($Content -notmatch '(?m)^- \d+/\d+ synthetic tests passed\s*$' -or
-        $Content -notmatch '(?m)^- \d+/\d+ user driven unit tests passed\s*$') {
-        throw "Release review must record synthetic and user-driven unit-test pass/fail rates."
+    if ($Content -notmatch '(?m)^- (\d+)/(\d+) synthetic tests passed\s*$' -or
+        $Matches[1] -ne $Matches[2]) {
+        throw "Release review must record the synthetic unit-test pass/fail rate."
     }
     if ($RequireCandidateHash -and
-        ($Content -notmatch '(?m)^- In-game UAT: .+\S' -or $Content -match '(?m)^- In-game UAT: <')) {
+        ($Content -notmatch '(?m)^- In-game UAT: .+\S' -or
+         $Content -match '(?m)^- In-game UAT: (?:<|PENDING\b)')) {
         throw "Release review must record actual in-game UAT results and observations before finalization."
+    }
+    $hasUserTestRate = $Content -match '(?m)^- (\d+)/(\d+) user driven unit tests passed\s*$'
+    if ($hasUserTestRate -and $Matches[1] -ne $Matches[2]) {
+        throw "Release review records failing user-driven unit tests."
+    }
+    $pendingUserTestLines = @($Content -split '\r?\n' | Where-Object { $_ -match '(?i)user.*PENDING' })
+    $hasPendingUserTests = $pendingUserTestLines.Count -gt 0
+    if (($RequireCandidateHash -and -not $hasUserTestRate) -or
+        (-not $RequireCandidateHash -and -not ($hasUserTestRate -or $hasPendingUserTests))) {
+        if ($RequireCandidateHash) {
+            throw "Release review must record user-driven unit-test pass/fail rates before finalization."
+        }
+        throw "Release review must record user-driven unit-test results or mark them PENDING before staging."
     }
     $summaryMatch = [regex]::Match($Content, '(?ms)^### Summary\s*\r?\n(?<body>.*?)(?=^### |\z)')
     $findingsMatch = [regex]::Match($Content, '(?ms)^### Findings\s*\r?\n(?<body>.*?)(?=^### |\z)')
@@ -229,8 +250,16 @@ function Assert-ReleaseReview([string]$Content, [string]$Version, [string]$Candi
         $incompleteSections.Add("Summary")
     }
     $findingLines = @($findingsMatch.Groups["body"].Value -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    if (-not $findingsMatch.Success -or $findingLines.Count -ne 1 -or
-        $findingLines[0] -ne "- No findings identified in the assessed scope.") {
+    $noFindings = $findingLines.Count -eq 1 -and
+        $findingLines[0] -eq "- No findings identified in the assessed scope."
+    $resolvedFindings = $findingLines.Count -gt 0 -and
+        @($findingLines | Where-Object { $_ -notmatch '^- \*\*F-\d+ — RESOLVED\.' }).Count -eq 0
+    $validFindings = if ($reviewStatusMatch.Groups[1].Value -eq "COMPLETE - no findings") {
+        $noFindings
+    } else {
+        $resolvedFindings
+    }
+    if (-not $findingsMatch.Success -or -not $validFindings) {
         $incompleteSections.Add("Findings")
     }
     if (-not $changesMatch.Success -or $changesMatch.Groups["body"].Value -match 'List the examined') {
@@ -248,13 +277,28 @@ function Assert-ReleaseReview([string]$Content, [string]$Version, [string]$Candi
     $checkRows = @($checkSection.Groups["body"].Value -split '\r?\n' | Where-Object { $_ -match '^\| .+ \|$' -and $_ -notmatch '^\|[-| ]+\|$' })
     foreach ($row in $checkRows | Select-Object -Skip 1) {
         $cells = @($row.Trim('|').Split('|') | ForEach-Object { $_.Trim() })
+        $prefilledResult = $cells.Count -eq 3 -and
+            $cells[2] -in @("Certified by @Tim-P", "See documentation review")
         if ($cells.Count -ne 3 -or $cells[1] -notin @("Yes", "No") -or
-            $cells[2] -notmatch '^(PASS|FAIL|UNRESOLVED|N/A)(?:\s|:|$)') {
+            (-not $prefilledResult -and
+             $cells[2] -notmatch '^(PASS|FAIL|PENDING|UNRESOLVED|N/A)(?:\s|:|$)')) {
             throw "Release review has an incomplete row in Checks performed and results: $row"
         }
         if ($cells[2] -match '^(FAIL|UNRESOLVED)(?:\s|:|$)') {
             throw "Release review contains an unresolved/failed check: $row"
         }
+        if ($RequireCandidateHash -and $cells[2] -match '^PENDING(?:\s|:|$)') {
+            throw "Release review still contains a pending check before finalization: $row"
+        }
+    }
+    $pendingSection = [regex]::Match($Content, '(?ms)^### Pending items\s*\r?\n(?<body>.*?)(?=^### |\z)')
+    if (-not $pendingSection.Success) {
+        throw "Release review must contain the Pending items section."
+    }
+    $pendingItems = @($pendingSection.Groups["body"].Value -split '\r?\n' |
+        Where-Object { $_ -match '^- ' -and $_ -notmatch '^- <' -and $_ -notmatch '^- None\.$' })
+    if ($RequireCandidateHash -and $pendingItems.Count -gt 0) {
+        throw "Release review still has Pending items before finalization."
     }
     $documentationSection = [regex]::Match($Content, '(?ms)^### Documentation review\s*\r?\n(?<body>.*?)(?=^### |\z)')
     $documentationRows = @($documentationSection.Groups["body"].Value -split '\r?\n' |

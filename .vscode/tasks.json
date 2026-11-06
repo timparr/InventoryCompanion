@@ -1,0 +1,66 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "ESOUI: List authorized addons",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-File",
+				"${workspaceFolder}\\Project\\Publishing\\Publish-ESOUI.ps1",
+				"-Action",
+				"List"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "ESOUI: Diagnose list with curl",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-File",
+				"${workspaceFolder}\\Project\\Publishing\\Publish-ESOUI.ps1",
+				"-Action",
+				"List",
+				"-UseCurl"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "ESOUI: Test current release upload",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-File",
+				"${workspaceFolder}\\Project\\Publishing\\Publish-ESOUI.ps1",
+				"-Action",
+				"Test",
+				"-Id",
+				"4997",
+				"-Compatible",
+				"12.1.6"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "ESOUI: Store encrypted API token",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-File",
+				"${workspaceFolder}\\Project\\Publishing\\Publish-ESOUI.ps1",
+				"-Action",
+				"SaveToken"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

@@ -4,6 +4,7 @@
 Use this template for any ESO add-on, regardless of its features, test framework, or release tooling. The report layout and review standards are together here: the standards are listed in the checks table. The release checklist defines the process. The timestamp is an audit record, not a freshness gate.
 
 ##Review for release of Add-On-Name
+Status: [Not Approved]
 Reviewed (UTC): <YYYY-MM-DDTHH:mm:ssZ>
 Reviewer: <AI assistant and model name, if available; do not guess>
 Add-on: <add-on name>
@@ -15,6 +16,8 @@ Candidate SHA256: <filled after staging>
 Report location: Project\Publishing\Packages\Reviewed\Current release\ReleaseReview.md
 Review status: <COMPLETE - findings present / COMPLETE - no findings / INCOMPLETE>
 
+Set Status to `[Approved to Test]` only when there are no failed or unresolved checks and every remaining Pending item requires test deployment to assess. Otherwise leave it `[Not Approved]`. After test deployment, set Status to `[Approved for Release]` only when all checks pass, no findings remain unresolved, and no Pending items remain. Neither status substitutes for the separate GO to stage or GO for UAT.
+
 
 
 ### Review scope
@@ -23,13 +26,13 @@ Review status: <COMPLETE - findings present / COMPLETE - no findings / INCOMPLET
 
 ### Checks performed and results
 
-Complete one row for every applicable criterion. Enter `Yes` or `No` in Changed. Enter `PASS`, `FAIL`, `UNRESOLVED`, or `N/A` in Result, with concise rationale and evidence. A `No` may pass by a cited prior review only when the relevant files and behavior are unchanged. A `Yes` requires assessment of the current source/materials; tests alone are not a pass.
+Complete one row for every applicable criterion. Enter `Yes` or `No` in Changed. Enter `PASS`, `FAIL`, `PENDING`, `UNRESOLVED`, or `N/A` in Result, with concise rationale and evidence. Use `PENDING` for a review-form criterion not yet assessable because required evidence is outstanding; do not infer a result or mark unperformed tests `FAIL`. In the Pending items subsection, list only review-form criteria whose result is `PENDING`, not tests or metrics as standalone items. Tests, metrics, and process steps/approvals may be mentioned only as missing evidence explaining why a criterion is pending. Use `FAIL` only when an assessed criterion actually failed. A `No` may pass by a cited prior review only when the relevant files and behavior are unchanged. A `Yes` requires assessment of the current source/materials; tests alone are not a pass. Preserve the template's prefilled results, especially author certifications; only populate blank fields unless an existing result is explicitly authorized for revision.
 
 | Check | Changed | Result |
 |---|---|---|
 | **Package and installation:** Confirm the intended top-level add-on folder(s), matching manifest basenames, and every required runtime file present exactly once at its intended path. For an existing archive, record filename, format (ZIP or RAR), hash, extraction verification, and comparison with the frozen candidate. If the release workflow produces the archive after candidate approval, identify the tool/person responsible for final content/byte verification and require its success before upload. Do not claim a not-yet-produced archive was inspected. |  |  |
 | **Package and installation:** Exclude executables unless a documented ESOUI exception permits them; exclude nested ZIP/RAR archives, `wowmatrix.dat`, hidden/OS/version-control/editor files, SavedVariables, generated API files, backups, and unrelated project files. Under an approved executable/non-addon-file exception, require purpose/file-access disclosure and, for executables, source code and the required VirusTotal report supplied by the uploader. |  |  |
-| **Package and installation:** Confirm any upload-form-required image is JPG, PNG, or GIF, and installation help is included when installation is not straightforward. Confirm the actual form requirements and check supplied assets/help. |  |  |
+| **Package and installation:** Required upload files are the ReadMe, Changelog, and ZIP file. Verify that each final artifact is present and correct. |  |  |
 | **Package and installation:** If this is a compilation, list all included add-ons in the description. If a WTF folder is included, replace personal information with generic information and inspect the submitted copy. |  |  |
 | **Listing, rights, and uploader certifications:** The listing prominently identifies the current release version, and the description accurately explains the submitted functionality and installation, lists every required dependency at or near the beginning, and uses English where practical. Update details belong in the Changelog, not in place of the description. For console-only releases, state platform support in the name and description. |  | See documentation review |
 | **Listing, rights, and uploader certifications:** Record the author's assertion that the submitted files are free of viruses, trojans, spyware, malware, and worms to their knowledge; include ToS/Add-on Terms conformity in the single consolidated confirmation if not already supplied. |  | Certified by @Tim-P |
@@ -69,17 +72,21 @@ Complete one row for every applicable criterion. Enter `Yes` or `No` in Changed.
 
 ### Test results
 
-- <x>/<y> synthetic tests passed
-- <x>/<y> user driven unit tests passed
-- In-game UAT: <actual results and observations>
+- <x>/<y> synthetic tests passed, or PENDING until run
+- <x>/<y> user driven unit tests passed, or PENDING until run
+- In-game UAT: PENDING until performed; then record only actual results and observations
 
 ### Summary
 
-<Summary of the report.>
+<Brief overall review status; keep findings and pending actions in the adjacent sections.>
 
 ### Findings
 
 - <Finding and evidence, or "No findings identified in the assessed scope.">
+
+### Pending items
+
+- <List only review-form criteria whose result is PENDING, and state that each requires test deployment. Tests and metrics may appear only as missing evidence for a criterion, not as standalone items. Use "- None." when no review criteria are pending.>
 
 ### Documentation review
 
@@ -91,7 +98,7 @@ Complete one row for every applicable criterion. Enter `Yes` or `No` in Changed.
 
 ### Version recommendation
 
-<Recommend the next major.minor.patch version and briefly explain why, based on the cumulative unreleased changes. This is a recommendation for discussion, not an agreed version or authorization to change metadata.>
+<Recommend the next major.minor.patch version and briefly explain why, based on the cumulative changes. Mark PENDING until the author agrees the version; a recommendation is not agreement or authorization to change metadata.>
 
 ### Changes reviewed
 

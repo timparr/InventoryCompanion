@@ -16,6 +16,15 @@ and source evidence archived. It is no longer a pending roadmap item.
 
 - **B3. Item Transfer Edge Cases:** Audit and refine bank/chest transfer
   execution plans and stack merging helpers.
+- **B4. Account-Wide AutoCategory Initial Setup Choice:** Make the initial
+  setup choice/completion account-wide rather than prompting separately for
+  character profiles. During 1.6.3 migration UAT, Ja'Vazzir's integration worked
+  while his character profile's `autoCategorySetupComplete` remained unset;
+  Tyelron Radiantmantle also had initialized rules, items, and context orders
+  without that flag. Preserve independent profile arrangements and hydrate
+  newly initialized character profiles without reapplying a preset over
+  existing choices. Include saved-schema/downgrade protection and migration
+  tests if the stored contract changes.
 
 ---
 
