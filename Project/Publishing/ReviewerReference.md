@@ -9,6 +9,8 @@ This is a navigation and evidence-discovery aid, not a process document, complet
 3. Use the DEV [test harness](../../Core/Tests.lua) and coverage map to identify relevant test evidence after the source review. Links here point to DEV for navigation. The coverage map explains limitations; it does not replace code inspection or guarantee behavior inside ESO alongside other add-ons.
 4. Use the coverage map and hotspots below to identify relevant evidence and risks. Treat them as navigation, not a mandatory test matrix. The release checklist governs when tests run, how results are reported, and when candidate/UAT checks happen.
 
+For design context, start with [current feature specifications](../DevDocs/FeatureSpecs), including the [AutoCategory contract](../DevDocs/FeatureSpecs/AutoCategoryIntegration.md). Use the [completed-work index](../DevDocs/Archive/CompletedWork.md) to locate historical implementation decisions, dependency findings, and failed approaches. Archived plans and prompts are not current requirements or permissions; dated results are not fresh candidate evidence.
+
 ## Test access and safety
 
 | Entry point | Purpose and cautions |

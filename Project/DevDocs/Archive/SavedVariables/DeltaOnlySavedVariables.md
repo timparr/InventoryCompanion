@@ -130,7 +130,7 @@ Start with default patterns `{a, b, c}` and empty Added and Removed collections.
 
 ## Implementation subtasks and work log
 
-For the detailed per-subtask file/method inventory, implementation decisions, and corrections, see the separate [implementation and decision review](Don_DeltaOnlySavedVariables.md).
+For the detailed per-subtask file/method inventory, implementation decisions, and corrections, see the separate [implementation and decision review](ImplementationAndDecisionReview.md).
 
 Each numbered subtask is committed separately, with its results appended here.
 All implementation remains on the existing branch unless a branch switch is approved.
@@ -265,4 +265,4 @@ Back up saved variables before testing migration. The existing publishing script
 - Maintained code now calls required addon functions directly; missing required controls/dialog data and broken built-in definitions fail near the cause. Scans require compiled rules; synthetic tests use real resolved rules instead of relying on fallback compilation.
 - Pattern setters require dense string arrays, list switching requires a boolean, and valid Reset behavior still retains all display flags.
 - Validation: 29/29 headless cases and 187 isolated packaging assertions pass; all addon Lua syntax checks and `git diff --check` pass. In-game acceptance remains pending.
-- The separate [implementation and decision review](Don_DeltaOnlySavedVariables.md#follow-up---fail-fast-internals-and-saved-data-ownership-boundary) records the affected methods, files, and explicit handling decisions.
+- The separate [implementation and decision review](ImplementationAndDecisionReview.md#follow-up---fail-fast-internals-and-saved-data-ownership-boundary) records the affected methods, files, and explicit handling decisions.

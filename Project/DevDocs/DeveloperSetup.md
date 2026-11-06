@@ -1,5 +1,13 @@
 # Developer Setup
 
+## Documentation layout
+
+- [FeatureSpecs](FeatureSpecs) holds authoritative current specifications. Start with the [AutoCategory specification](FeatureSpecs/AutoCategoryIntegration.md) for integration, profiles, and associated editor behavior.
+- [Archive](Archive) groups historical specifications, implementation plans, decision records, dependency findings, and test evidence by feature. Use the [completed-work index](Archive/CompletedWork.md) to find them. These records remain useful for understanding decisions and avoiding failed approaches; they are not current requirements or outstanding tasks.
+- [Historical AutoCategory prompts](Archive/AutoCategory/HistoricalPrompts) are retained for context, not as executable instructions or current permissions.
+- Active work belongs in the [project task list](../Tasks/TODO.md), not a separate DevDocs task folder. Reconcile historical material against the implementation before promoting it into FeatureSpecs.
+- The [release checklist](../Publishing/ReleaseChecklist.md) owns release process and evidence requirements. When moving documentation, update inbound references and rebase its relative links; preserve frozen release packages and numbered archives.
+
 ## Development and release installations
 
 Keep the Git checkout and VS Code workspace in `live\AddOns\InventoryCompanion_DEV`, with the matching `InventoryCompanion_DEV.txt` manifest. ESO lists this installation as **InventoryCompanion [DEV]** and prints a DEV reminder when it initializes. `InventoryCompanion.IsDevelopment` is true in this installation; the global namespace and saved-variable name are unchanged.

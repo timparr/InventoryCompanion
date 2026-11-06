@@ -4,9 +4,9 @@
 [master feature document](../../FeatureSpecs/AutoCategoryIntegration.md).
 
 Review dated 2026-10-31. This is a reference assessment of the
-[spec](../../Completed/AutoCategory%20Integration/todo_plan_autocategoryIntegration.md),
-[implementation plan](../../Completed/AutoCategory%20Integration/todo_implementation_autocategoryIntegration.md), and
-[spike evidence](AutoCategorySpikeResults.md), grounded in the current IC code.
+[spec](OriginalSpecification.md),
+[implementation plan](ImplementationPlan.md), and
+[spike evidence](SpikeResults.md), grounded in the current IC code.
 It is a review, not an authorization to implement or a claim that the feature
 has passed acceptance.
 
@@ -37,7 +37,7 @@ classification/rendering.
 
 The spec requires the editor order to control both the winning classification
 and visible heading order, while preserving AutoCategory's native behavior and
-leaving external entries unchanged ([spec: Classification and visible order](../../Completed/AutoCategory%20Integration/todo_plan_autocategoryIntegration.md#classification-and-visible-order)).
+leaving external entries unchanged ([spec: Classification and visible order](OriginalSpecification.md#classification-and-visible-order)).
 That contract is not proven generally.
 
 **Proven behavior**
@@ -47,7 +47,7 @@ That contract is not proven generally.
   for the sampled entries.
 - A 128-group, seven-context synthetic scale fixture passed offline.
 - The spike also tested failed alternatives and recorded their results; see
-  [heading-order evidence](AutoCategorySpikeResults.md#heading-order-and-fractional-formatter).
+  [heading-order evidence](SpikeResults.md#heading-order-and-fractional-formatter).
 
 **Limitations**
 
@@ -77,7 +77,7 @@ enabling production projection.
 Guild Bank remains one of the spec's seven required contexts, but it was
 deferred in the spike, not passed. The inspected dependency notes also say
 Guild Bank uses a separate assignment list and has a BulkMode bypass
-([dependency contracts](AutoCategorySpikeResults.md#dependency-contracts-and-source-trail)).
+([dependency contracts](SpikeResults.md#dependency-contracts-and-source-trail)).
 That is a real feasibility risk for native classification.
 
 This does not justify reopening the spike before implementation. The plan should

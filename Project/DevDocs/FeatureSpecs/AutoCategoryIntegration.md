@@ -335,7 +335,7 @@ The global flag no longer controls context inclusion. Migrate enabled groups
 as included everywhere; existing nonparticipants become excluded tails in every
 context, not newly included groups. Initialize Other last in the included
 Display section. The archived
-[exclusion/Other plan](<../Completed/AutoCategory Integration/AutocategoryTweaks_hideICNotDelete.md#illustrative-saved-variable-excerpts>)
+[exclusion/Other plan](<../Archive/AutoCategory/ExclusionsAndOther.md#illustrative-saved-variable-excerpts>)
 contains illustrative SV excerpts, not a second current data contract.
 Stored account-wide list backups migrate with their owning profile. Schema-4
 through schema-8 builds are exercised directly for non-mutating downgrade
@@ -354,7 +354,7 @@ or live-save editing is authorized by this document.
 
 The inspected release was **AutoCategory 4.5.2 / AddOnVersion 134**; recheck
 contracts on dependency changes rather than assuming permanent API guarantees.
-See the archived [source trail and failure history](<../Archive/AutoCategory Integration/AutoCategorySpikeResults.md#dependency-contracts-and-source-trail>).
+See the archived [source trail and failure history](<../Archive/AutoCategory/SpikeResults.md#dependency-contracts-and-source-trail>).
 
 - Declare AC as optional. Register on IC's own add-on-loaded event after AC's
   load handler, not a second listener assumed to run later on AC's event.
@@ -444,27 +444,28 @@ Optional badge/colour controls and gamepad support are outside this feature.
 
 ## Historical document index
 
-Completed plans are retained under
-[Completed / AutoCategory Integration](<../Completed/AutoCategory Integration>);
-spike results, implementation reports, reviews, and historical prompts remain
-under [Archive / AutoCategory Integration](<../Archive/AutoCategory Integration>).
+Completed plans, spike results, implementation reports, reviews, and dated
+evidence are retained together in the [AutoCategory archive](../Archive/AutoCategory).
+Original prompts are isolated under
+[HistoricalPrompts](../Archive/AutoCategory/HistoricalPrompts); they are context,
+not current work instructions or permissions.
 Historical proposals are superseded by this specification, including Master
 inheritance, rank/anchor placement, fractional priorities, rank-bearing names,
 five-second ordering queues, runtime profile merging and the tracking-editor
 area selector. Archived checklists do not reopen completed work.
 
-- [Settings/profile/editor polishing plan](<../Completed/AutoCategory Integration/AutoCategory_Polishing_ImplementationPlan.md>)
-- [Original polishing snag lists and reference screenshots](<../Completed/AutoCategory Integration/AutoCategory_Polishing_Tweaks.md>)
-- [Context-specific exclusion and movable Other plan](<../Completed/AutoCategory Integration/AutocategoryTweaks_hideICNotDelete.md>)
-- [Original specification](<../Completed/AutoCategory Integration/todo_plan_autocategoryIntegration.md>)
-- [Original implementation plan](<../Completed/AutoCategory Integration/todo_implementation_autocategoryIntegration.md>)
-- [Ordering redesign](<../Completed/AutoCategory Integration/todo_implementation_autocategoryOrderingFix.md>)
-- [Profile synchronization fix and baseline evidence](<../Archive/AutoCategory Integration/AutoCategorySynchronizationFix.md>)
-- [Implementation report](<../Archive/AutoCategory Integration/AutoCategoryImplementationReport.md>)
-- [Spike results, dependency contracts and failed approaches](<../Archive/AutoCategory Integration/AutoCategorySpikeResults.md>)
-- [Original spec/plan review](<../Archive/AutoCategory Integration/AutoCategoryIntegrationReview.md>)
-- [Setup, responsiveness and deferred test history](<../Completed/AutoCategory Integration/todo_testing_autocategoryFixes.md>)
-- [Historical gate-testing prompt](<../Archive/AutoCategory Integration/prompt_autocategoryGateTesting.md>)
-- [Historical in-game-testing prompt](<../Archive/AutoCategory Integration/prompt_autocategoryInGameTests.md>)
-- [Heading-icon discussion](<../Archive/AutoCategory Integration/prompt_categoryIcon.md>)
-- [Earlier UI improvement notes](<../Archive/AutoCategory Integration/UIImprovements.md>)
+- [Settings/profile/editor polishing plan](<../Archive/AutoCategory/PolishingPlan.md>)
+- [Original polishing snag lists and reference screenshots](<../Archive/AutoCategory/PolishingNotes.md>)
+- [Context-specific exclusion and movable Other plan](<../Archive/AutoCategory/ExclusionsAndOther.md>)
+- [Original specification](<../Archive/AutoCategory/OriginalSpecification.md>)
+- [Original implementation plan](<../Archive/AutoCategory/ImplementationPlan.md>)
+- [Ordering redesign](<../Archive/AutoCategory/OrderingFix.md>)
+- [Profile synchronization fix and baseline evidence](<../Archive/AutoCategory/ProfileSynchronizationFix.md>)
+- [Implementation report](<../Archive/AutoCategory/ImplementationReport.md>)
+- [Spike results, dependency contracts and failed approaches](<../Archive/AutoCategory/SpikeResults.md>)
+- [Original spec/plan review](<../Archive/AutoCategory/IntegrationReview.md>)
+- [Setup, responsiveness and deferred test history](<../Archive/AutoCategory/TestWorklist.md>)
+- [Historical gate-testing prompt](<../Archive/AutoCategory/HistoricalPrompts/GateTesting.md>)
+- [Historical in-game-testing prompt](<../Archive/AutoCategory/HistoricalPrompts/InGameTests.md>)
+- [Heading-icon discussion](<../Archive/AutoCategory/HistoricalPrompts/CategoryIcon.md>)
+- [Earlier UI improvement notes](<../Archive/AutoCategory/UIImprovements.md>)

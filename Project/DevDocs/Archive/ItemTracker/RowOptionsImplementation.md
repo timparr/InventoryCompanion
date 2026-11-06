@@ -11,7 +11,7 @@ Implementation completed and archived at the user's request on 2026-10-31.
 Automated and user-reported in-game acceptance are complete.
 
 Feature behavior and compatibility requirements are in the
-[feature plan](ItemTrackerFlags.md). The approved design replaces the
+[feature plan](RowOptionsSpecification.md). The approved design replaces the
 earlier quick-toggle / Options proposal and includes independent display
 locations and Chat/HUD delivery now, not as a later destination extension.
 
@@ -19,7 +19,7 @@ locations and Chat/HUD delivery now, not as a later destination extension.
 
 ### Representation and legacy compatibility
 
-In [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua), add optional
+In [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua), add optional
 boolean display flags `showBackpack`, `showBank`, `notifyChat`, and `notifyHud`.
 Keep `group` for grouping, plus legacy `show`, `bank`, and `notify` values.
 New editor actions write only the selected new flag or `group`.
@@ -73,7 +73,7 @@ covering native row interaction, counts/delivery, and reload/settings preservati
 
 ### Tracker counts
 
-In [Tracking/ItemTrackerPanel.lua](../../../Tracking/ItemTrackerPanel.lua):
+In [Tracking/ItemTrackerPanel.lua](../../../../Tracking/ItemTrackerPanel.lua):
 
 - Honor both location flags for grouped headers/members, flat lists, individual
   items, and the per-item policies folded into Miscellaneous.
@@ -96,25 +96,25 @@ In [Tracking/ItemTrackerPanel.lua](../../../Tracking/ItemTrackerPanel.lua):
 ### Pickup notifications
 
 `HandleTrackedItemInventoryUpdate()` in
-[Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) unions Chat/HUD
+[Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua) unions Chat/HUD
 requests from individual settings and all visible matching rules, then emits
 at most one notification per gain with only selected message arguments.
 Retain the existing positive-gain detection and backpack/craft-bag event scope.
 Hidden rules and Include/Exclude vetoes do not contribute destinations.
 
-In [Core/Utils.lua](../../../Core/Utils.lua), the item notification call opts
+In [Core/Utils.lua](../../../../Core/Utils.lua), the item notification call opts
 into destination-restricted duplicate/burst handling. Do not generate a HUD
 "check chat" prompt for Chat-only delivery or redirect HUD-only bursts to chat.
 Other warning callers, including currency/capacity messages, keep their existing
 limiter behavior.
 
 `HasTrackedItemNotifications()` participates in the slot-listener condition in
-[Core/Events.lua](../../../Core/Events.lua), so hiding the HUD does not disable
+[Core/Events.lua](../../../../Core/Events.lua), so hiding the HUD does not disable
 requested pickup delivery. Editor mutations update listener registration.
 
 ## 3. Render aligned row controls and compact boxes
 
-In [Tracking/EditPanelItemsTab.xml](../../../Tracking/EditPanelItemsTab.xml):
+In [Tracking/EditPanelItemsTab.xml](../../../../Tracking/EditPanelItemsTab.xml):
 
 - Preserve the 810-pixel row width; use a 52-pixel two-line row and 54-pixel
   spacing. Show/Notify are native buttons with title and detail labels.
@@ -134,7 +134,7 @@ In [Tracking/EditPanelItemsTab.xml](../../../Tracking/EditPanelItemsTab.xml):
   its column width must be consistent across rows, regardless of individual
   group participation; no functional-looking placeholder is shipped now.
 
-In [Tracking/EditPanelItemsTab.lua](../../../Tracking/EditPanelItemsTab.lua):
+In [Tracking/EditPanelItemsTab.lua](../../../../Tracking/EditPanelItemsTab.lua):
 
 - `ConfigureRowStateStyles()` renders Backpack / Bank / Both / None under Show,
   with ", grouped" when enabled and displayed. Notify detail is Chat / HUD /
@@ -172,22 +172,22 @@ In [Tracking/EditPanelItemsTab.lua](../../../Tracking/EditPanelItemsTab.lua):
 
 Extend existing suites rather than changing live inventory or saved variables:
 
-- [Core/RuleTests.lua](../../../Core/RuleTests.lua): legacy inheritance, explicit
+- [Core/RuleTests.lua](../../../../Core/RuleTests.lua): legacy inheritance, explicit
   independent flags, sparse pruning, malformed saved/import values, destination
   union, hidden/excluded rules, and no-output behavior.
-- [Project/Tests/RulePersistenceTests.lua](../../Tests/RulePersistenceTests.lua):
+- [Project/Tests/RulePersistenceTests.lua](../../../Tests/RulePersistenceTests.lua):
   serialization/reload/import of explicit independent flags without runtime data.
-- [Project/Tests/TrackerPanelTests.lua](../../Tests/TrackerPanelTests.lua):
+- [Project/Tests/TrackerPanelTests.lua](../../../Tests/TrackerPanelTests.lua):
   exact selected-location counts for grouped, flat, single-member Miscellaneous,
   and individual display, plus existing expansion/performance checks.
-- [Project/Tests/ItemEditorTests.lua](../../Tests/ItemEditorTests.lua): all
+- [Project/Tests/ItemEditorTests.lua](../../../Tests/ItemEditorTests.lua): all
   Show/Notify summaries, color/opacity, one write/refresh per click, untracked
   promotion, current-data rebinding, and stale profile/row/popup protection.
-- [Project/Tests/ItemNotificationTests.lua](../../Tests/ItemNotificationTests.lua):
+- [Project/Tests/ItemNotificationTests.lua](../../../Tests/ItemNotificationTests.lua):
   duplicate/burst delivery never escapes selected destinations; unrelated
   warning delivery stays unchanged.
 
-Use [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py), optionally
+Use [Project/Tests/Run-RuleTests.py](../../../Tests/Run-RuleTests.py), optionally
 `--item-editor-only` for focused editor runs. Check Lua 5.1 syntax, changed XML,
 and whitespace. The in-game listener diagnostic isolates the new query from
 real user preferences when exercising its synthetic scenarios.
@@ -208,10 +208,10 @@ real user preferences when exercising its synthetic scenarios.
 6. Reload retains flags but not an open popup; existing profile data and
    saved expansion choices survive.
 
-Update [UserManual.bbcode](../../Publishing/Source%20Documents/UserManual.bbcode) and the authoritative
-working changelog from actual changes. These records are archived in Completed;
+Update [UserManual.bbcode](../../../Publishing/Source%20Documents/UserManual.bbcode) and the authoritative
+working changelog from actual changes. These records are retained in the ItemTracker archive;
 the acceptance checklist above records the verified scope. Follow the
-[release checklist](../../Publishing/ReleaseChecklist.md) before staging;
+[release checklist](../../../Publishing/ReleaseChecklist.md) before staging;
 the cumulative backward-compatible feature work warrants a minor-version
 recommendation, not an automatic version change or release.
 
@@ -221,4 +221,4 @@ Saved flag interpretation precedes count/delivery and editor writes. Presentatio
 and lifecycle ship together. Documentation/tests follow implementation.
 AutoCategory registration, partition ownership, ordering, and optional-addon
 compatibility remain governed by its separate
-[plan](<AutoCategory%20Integration/todo_plan_autocategoryIntegration.md>).
+[plan](<../AutoCategory/OriginalSpecification.md>).

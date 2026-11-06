@@ -7,11 +7,11 @@ Updated 2026-11-01. **Implementation is present; in-game acceptance remains pend
 
 This is the current ordering-fix plan, incorporating the subsequent saved-data
 discussion. It supersedes the proposed ordering replacement section in the
-[original implementation plan](todo_implementation_autocategoryIntegration.md),
+[original implementation plan](ImplementationPlan.md),
 not the integration's unrelated requirements or release gates.
-Read the [spec](todo_plan_autocategoryIntegration.md),
-[dependency evidence](../../Archive/AutoCategory%20Integration/AutoCategorySpikeResults.md) and
-[implementation report](../../Archive/AutoCategory%20Integration/AutoCategoryImplementationReport.md) for the current
+Read the [spec](OriginalSpecification.md),
+[dependency evidence](SpikeResults.md) and
+[implementation report](ImplementationReport.md) for the current
 contract and evidence limits. The spec, report, user manual and working
 changelog now reflect this ordering design. The regression runner passes
 117/117 isolated addon tests, including synthetic schema-4 downgrade

@@ -136,7 +136,7 @@ equality: a layout at the budget does not trigger the next fallback.
 ### Layout Performance and Unit Tests
 
 Extend the existing isolated runner with
-[TrackerPanelTests.lua](../../Tests/TrackerPanelTests.lua). Exercise the actual
+[TrackerPanelTests.lua](../../../Tests/TrackerPanelTests.lua). Exercise the actual
 tracker policy and refresh path with synthetic inventory and instrumented ESO
 control mocks, not a separate test-only implementation. Existing scan/matching
 timings do not cover tracker layout.
@@ -174,7 +174,7 @@ refreshes. Report these results separately from isolated-test timings.
 ### Group Editor Font Fixes (Same Release)
 
 - Fix the tiny text in the group editor's pattern/rule edit boxes and search
-  field in [EditPanelGroupsTab.xml](../../../Tracking/EditPanelGroupsTab.xml).
+  field in [EditPanelGroupsTab.xml](../../../../Tracking/EditPanelGroupsTab.xml).
   Replace `AS_FontEditbox` with `ZoFontWinT1` and increase input heights to
   30 UI units; verify this candidate fix in game.
 - `AS_FontEditbox` has no definition in this addon. Use a standard ESO font
@@ -185,7 +185,7 @@ refreshes. Report these results separately from isolated-test timings.
   font validity and inherited edit-box behaviour before adding padding or
   alignment changes; avoid treating this as a general resolution-scaling bug.
 - Apply the equivalent search-input fix in
-  [EditPanelItemsTab.xml](../../../Tracking/EditPanelItemsTab.xml) so the two
+  [EditPanelItemsTab.xml](../../../../Tracking/EditPanelItemsTab.xml) so the two
   editors use consistent, self-contained fonts.
 - Check existing pattern text, newly added patterns, typing, focus/save
   behaviour, and clipping at 2560x1440 and the developer's normal UI scale.
@@ -198,7 +198,7 @@ refreshes. Report these results separately from isolated-test timings.
 
 ## Earlier First-Round Plan (Reference; Conflicts Superseded Above)
 
-**Behavior reference:** [Requirements and decisions](TrackerPanelHeightConstraints.md),
+**Behavior reference:** [Requirements and decisions](HeightConstraintsOriginalProposal.md),
 section C. Sections F (scrolling/mode choice) and G (follow inventory changes)
 are deferred entirely, including their outstanding decisions.
 
@@ -221,14 +221,14 @@ are deferred entirely, including their outstanding decisions.
 
 | Piece | Files | Responsibility |
 |---|---|---|
-| B1. Saved preference and loading | [Core/Constants.lua](../../../Core/Constants.lua), [Core/Init.lua](../../../Core/Init.lua) | Add `trackerMaxHeight = 600` to account defaults. Validate the loaded value before tracker initialization; missing values inherit the default, malformed external values report an error. Store UI units directly, without resolution conversion or a saved-variable version bump. |
-| B2. Settings control | [Core/Settings.lua](../../../Core/Settings.lua) | Add the height slider to the existing tracker submenu. Allow the exact full-screen endpoint, including when it does not align with the normal step. Explain collapse-threshold behavior and residual overflow. Refresh immediately after changes. |
-| B3. Active-group intent | [Tracking/ItemTrackerPanel.lua](../../../Tracking/ItemTrackerPanel.lua) | Record explicit group expansion and prefer that group during overflow handling. Keep this priority in memory only. Existing no-argument refresh callers continue working. |
-| B4. Tracking-context lifecycle | [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua), [Core/Init.lua](../../../Core/Init.lua), [Tracking/ItemTrackerPanel.lua](../../../Tracking/ItemTrackerPanel.lua) | Clear stale expansion priority on list/profile switches, imports, and rule resets, including `/icclearoverrides`. Use one small context-reset mechanism at the existing mutation entry points. Do not clear priority on every rule-cache invalidation: normal expansion and automatic collapsing invalidate that cache too. |
-| B5. Height measurement and collapse policy | [Tracking/ItemTrackerPanel.lua](../../../Tracking/ItemTrackerPanel.lua) | Measure after real row layout, select the retained group deterministically, persist only necessary collapses, and remove their member rows from the final display. Include Miscellaneous and leave non-rendered rules unchanged. |
-| B6. Final layout and positioning | [Tracking/ItemTrackerPanel.lua](../../../Tracking/ItemTrackerPanel.lua) | Relayout once after collapsing, recomputing shared count/name widths and wrapped heights. Apply existing screen positioning using final dimensions. Preserve row pooling, click handlers, dragging, and interaction/editor positioning. |
-| B7. Isolated verification | New [Project/Tests/TrackerPanelTests.lua](../../Tests/TrackerPanelTests.lua), [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py) | Add a focused Lua test suite with synthetic inventory and mocked controls, loaded by the existing isolated runner. Exercise actual tracker refresh/click behavior, preference loading, and context resets without live saved variables. |
-| B8. Documentation and acceptance | [UserManual.bbcode](../../Publishing/Source%20Documents/UserManual.bbcode), [Project/Tasks/TODO.md](../../Tasks/TODO.md), [requirements plan](TrackerPanelHeightConstraints.md) | The user manual documents the row budget and adaptive fallbacks. The reviewed release and automated verification recorded above complete this work. |
+| B1. Saved preference and loading | [Core/Constants.lua](../../../../Core/Constants.lua), [Core/Init.lua](../../../../Core/Init.lua) | Add `trackerMaxHeight = 600` to account defaults. Validate the loaded value before tracker initialization; missing values inherit the default, malformed external values report an error. Store UI units directly, without resolution conversion or a saved-variable version bump. |
+| B2. Settings control | [Core/Settings.lua](../../../../Core/Settings.lua) | Add the height slider to the existing tracker submenu. Allow the exact full-screen endpoint, including when it does not align with the normal step. Explain collapse-threshold behavior and residual overflow. Refresh immediately after changes. |
+| B3. Active-group intent | [Tracking/ItemTrackerPanel.lua](../../../../Tracking/ItemTrackerPanel.lua) | Record explicit group expansion and prefer that group during overflow handling. Keep this priority in memory only. Existing no-argument refresh callers continue working. |
+| B4. Tracking-context lifecycle | [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua), [Core/Init.lua](../../../../Core/Init.lua), [Tracking/ItemTrackerPanel.lua](../../../../Tracking/ItemTrackerPanel.lua) | Clear stale expansion priority on list/profile switches, imports, and rule resets, including `/icclearoverrides`. Use one small context-reset mechanism at the existing mutation entry points. Do not clear priority on every rule-cache invalidation: normal expansion and automatic collapsing invalidate that cache too. |
+| B5. Height measurement and collapse policy | [Tracking/ItemTrackerPanel.lua](../../../../Tracking/ItemTrackerPanel.lua) | Measure after real row layout, select the retained group deterministically, persist only necessary collapses, and remove their member rows from the final display. Include Miscellaneous and leave non-rendered rules unchanged. |
+| B6. Final layout and positioning | [Tracking/ItemTrackerPanel.lua](../../../../Tracking/ItemTrackerPanel.lua) | Relayout once after collapsing, recomputing shared count/name widths and wrapped heights. Apply existing screen positioning using final dimensions. Preserve row pooling, click handlers, dragging, and interaction/editor positioning. |
+| B7. Isolated verification | New [Project/Tests/TrackerPanelTests.lua](../../../Tests/TrackerPanelTests.lua), [Project/Tests/Run-RuleTests.py](../../../Tests/Run-RuleTests.py) | Add a focused Lua test suite with synthetic inventory and mocked controls, loaded by the existing isolated runner. Exercise actual tracker refresh/click behavior, preference loading, and context resets without live saved variables. |
+| B8. Documentation and acceptance | [UserManual.bbcode](../../../Publishing/Source%20Documents/UserManual.bbcode), [Project/Tasks/TODO.md](../../../Tasks/TODO.md), [requirements plan](HeightConstraintsOriginalProposal.md) | The user manual documents the row budget and adaptive fallbacks. The reviewed release and automated verification recorded above complete this work. |
 
 Keep layout helpers local to the tracker where possible. No new runtime module,
 general layout framework, or dependency is planned.
@@ -374,7 +374,7 @@ recursive refreshes and shrink-until-fit loops.
 
 ## D. Layout Boundary
 
-[Tracking/ItemTrackerPanel.xml](../../../Tracking/ItemTrackerPanel.xml) is
+[Tracking/ItemTrackerPanel.xml](../../../../Tracking/ItemTrackerPanel.xml) is
 expected to remain unchanged: first-round behavior keeps the existing
 resize-to-fit panel rather than introducing a capped viewport.
 

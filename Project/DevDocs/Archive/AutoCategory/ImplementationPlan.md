@@ -5,14 +5,14 @@ use the [master feature specification](../../FeatureSpecs/AutoCategoryIntegratio
 
 Updated 2026-11-01. **Implemented; automated tests pass, but post-implementation
 compatibility acceptance is incomplete.** See the
-[implementation report](../../Archive/AutoCategory%20Integration/AutoCategoryImplementationReport.md) for delivered
+[implementation report](ImplementationReport.md) for delivered
 work, verification, deviations and remaining gates.
-The [spec](todo_plan_autocategoryIntegration.md) owns required behavior and open
-decisions; the [spike results](../../Archive/AutoCategory%20Integration/AutoCategorySpikeResults.md) own completed spike
-evidence, failed approaches and dependency contracts. See the [review](../../Archive/AutoCategory%20Integration/AutoCategoryIntegrationReview.md)
+The [spec](OriginalSpecification.md) owns required behavior and open
+decisions; the [spike results](SpikeResults.md) own completed spike
+evidence, failed approaches and dependency contracts. See the [review](IntegrationReview.md)
 for the assessment and concrete recommendations.
 
-Use the [spec terminology](todo_plan_autocategoryIntegration.md#terminology):
+Use the [spec terminology](OriginalSpecification.md#terminology):
 groups are IC groups; headings are external AC category references unless
 explicitly called managed headings. Master combines context-labelled heading
 occurrences and shared placements, not a native AC context.
@@ -107,7 +107,7 @@ autoCategoryOrder = {
 Names and anchor encoding are provisional, not existing APIs or finalized
 schema. Example heading names identify actual AC categories, not hardcoded
 English defaults. Product behaviour remains subject to the
-[spec refinement](todo_plan_autocategoryIntegration.md#shared-order-and-context-overrides);
+[spec refinement](OriginalSpecification.md#shared-order-and-context-overrides);
 top/bottom/default-New placement encoding, rank validity and insertion/cleanup triggers are
 implementation details to settle here without changing that behaviour.
 In differing-order cases, an anchor must distinguish the selected Master
@@ -157,7 +157,7 @@ identity/encoding before implementing persistence.
 
 ### Initialize presets and reset placements
 
-- Implement the [preset/reset UX](todo_plan_autocategoryIntegration.md#starting-presets-and-order-reset).
+- Implement the [preset/reset UX](OriginalSpecification.md#starting-presets-and-order-reset).
   On first enablement of an uninitialized profile, present both presets with
   Prefer IC groups preselected. Prepare the arrangement before publishing
   enablement; cancellation preserves prior state. Re-enable initialized
@@ -224,7 +224,7 @@ identity/encoding before implementing persistence.
 
 ### Resolve ranks and clean up spacing
 
-Implement the [shared-order UX](todo_plan_autocategoryIntegration.md#shared-order-and-context-overrides):
+Implement the [shared-order UX](OriginalSpecification.md#shared-order-and-context-overrides):
 moving B between C and D in Bank changes only Bank's placement and preserves
 that location when unrelated parts of the list change. When inherited neighbours
 move in Master, they can pass the overridden group: its rank/anchor overrides
@@ -609,7 +609,7 @@ in ESO.
 These are completion gates after the feature and its tests are implemented,
 not work to perform before implementation starts. Do not repeat completed spike
 steps. Use the actual integration adapter and UI; record observed limits and
-results in [AutoCategorySpikeResults.md](../../Archive/AutoCategory%20Integration/AutoCategorySpikeResults.md).
+results in [SpikeResults.md](SpikeResults.md).
 
 - **Q1/Q2:** verify the implemented output in top, crowded, heading-anchor, arbitrary
   label and external run/show mismatch cases. Confirm both winning classification
@@ -639,7 +639,7 @@ results in [AutoCategorySpikeResults.md](../../Archive/AutoCategory%20Integratio
 - Preserve [ItemNotificationTests.lua](../../../Tests/ItemNotificationTests.lua)
   destination/hidden-rule/listener/duplicate coverage. Extend existing in-game
   rule tests only for safe matching/synthetic workload.
-- Execute every [spec acceptance criterion](todo_plan_autocategoryIntegration.md#acceptance-criteria):
+- Execute every [spec acceptance criterion](OriginalSpecification.md#acceptance-criteria):
   all seven keyboard contexts, subscriber
   Bank, top/crowded/immediately-below-heading order, all edits, both profile modes and shared
   character groups, automatic switching, resets, reload/disable/uninstall,
@@ -712,7 +712,7 @@ ordering model rethink (needs discussion) - AutoCategory exposes run/show priori
 ### Ordering replacement plan (2026-11-01, proposed; not implemented)
 
 **Superseded for this fix by the dedicated
-[ordering-fix implementation plan](todo_implementation_autocategoryOrderingFix.md).**
+[ordering-fix implementation plan](OrderingFix.md).**
 That plan includes the subsequent ordered-list and direct `ic:`/`ac:` reference
 decisions. The section below is retained as discussion history.
 

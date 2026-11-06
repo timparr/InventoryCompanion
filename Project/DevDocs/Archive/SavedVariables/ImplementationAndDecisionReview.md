@@ -31,8 +31,8 @@ No branch switch was made. The initial workflow warning recommended a separate b
 
 The checkpoint committed pre-existing changes in:
 
-- [COMPLETED.md](COMPLETED.md).
-- [TODO.md](../../Tasks/TODO.md).
+- [CompletedWork.md](../CompletedWork.md).
+- [TODO.md](../../../Tasks/TODO.md).
 - [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md).
 
 The breakdown commit changed only [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md), adding subtasks 0-4 and the initial work-log section.
@@ -62,16 +62,16 @@ The working tree was inspected and the checkpoint and breakdown were committed. 
 
 | File | Changes |
 |---|---|
-| [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) | Added delta calculation, focused mutation APIs, legacy conversion, and baseline-plus-override resolution. |
-| [Core/RuleTests.lua](../../../Core/RuleTests.lua) | New shared test suite, initially containing five isolated cases. |
-| [Core/Tests.lua](../../../Core/Tests.lua) | Included the new tests in `/ictest`; adjusted an existing flag-write test to use a value different from the baseline. |
-| [InventoryCompanion_DEV.txt](../../../InventoryCompanion_DEV.txt) | Added the shared rule-test module to the load order. |
-| [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py) | New headless Lua 5.1 runner using Python's `lupa` package. |
+| [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua) | Added delta calculation, focused mutation APIs, legacy conversion, and baseline-plus-override resolution. |
+| [Core/RuleTests.lua](../../../../Core/RuleTests.lua) | New shared test suite, initially containing five isolated cases. |
+| [Core/Tests.lua](../../../../Core/Tests.lua) | Included the new tests in `/ictest`; adjusted an existing flag-write test to use a value different from the baseline. |
+| [InventoryCompanion_DEV.txt](../../../../InventoryCompanion_DEV.txt) | Added the shared rule-test module to the load order. |
+| [Project/Tests/Run-RuleTests.py](../../../Tests/Run-RuleTests.py) | New headless Lua 5.1 runner using Python's `lupa` package. |
 | [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) | Appended subtask work and validation results. |
 
 ### Public methods added
 
-These methods are in [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
+These methods are in [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua):
 
 - **`UpdateRuleProperty(ruleName, propertyKey, value)`** supports `displayName` only. Writes that property without copying patterns or display flags. Removes the override when restored to its baseline value. A `nil` value also clears the override.
 - **`UpdateRuleFlag(ruleName, flagKey, value)`** updates only the selected supported display flag. Removes baseline-equivalent values and preserves unrelated fields. Accepts boolean values or `nil`.
@@ -84,7 +84,7 @@ The new test module added **`GetRuleTests()`**, returning named test cases for b
 
 ### Internal helpers added
 
-In [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
+In [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua):
 
 | Helper | Responsibility |
 |---|---|
@@ -133,18 +133,18 @@ All addon Lua files in the core, banking, and tracking directories passed Lua 5.
 
 | File | Changes |
 |---|---|
-| [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) | Added the shared cache, compiled-rule matching, private active-rule views, list-switch setter, and sparse/deep-enough profile copying. |
-| [Tracking/EditPanelItemsTab.lua](../../../Tracking/EditPanelItemsTab.lua) | Routed list switching through the new setter and used compiled matching when excluding already-matched items from the untracked list. |
-| [Core/Settings.lua](../../../Core/Settings.lua) | Routed the character-specific-list setting through the same setter. |
-| [Core/Init.lua](../../../Core/Init.lua) | Invalidated rules after `/icclearoverrides`. |
-| [Core/Tests.lua](../../../Core/Tests.lua) | Adjusted profile-copy expectations to delta fields and exercised notifications through the real cache rather than a stubbed active-rule resolver. |
-| [Core/RuleTests.lua](../../../Core/RuleTests.lua) | Added five cache/consumer test cases and expanded fixture restoration. |
-| [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py) | Initialized a synthetic settings namespace for profile-copy tests. |
+| [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua) | Added the shared cache, compiled-rule matching, private active-rule views, list-switch setter, and sparse/deep-enough profile copying. |
+| [Tracking/EditPanelItemsTab.lua](../../../../Tracking/EditPanelItemsTab.lua) | Routed list switching through the new setter and used compiled matching when excluding already-matched items from the untracked list. |
+| [Core/Settings.lua](../../../../Core/Settings.lua) | Routed the character-specific-list setting through the same setter. |
+| [Core/Init.lua](../../../../Core/Init.lua) | Invalidated rules after `/icclearoverrides`. |
+| [Core/Tests.lua](../../../../Core/Tests.lua) | Adjusted profile-copy expectations to delta fields and exercised notifications through the real cache rather than a stubbed active-rule resolver. |
+| [Core/RuleTests.lua](../../../../Core/RuleTests.lua) | Added five cache/consumer test cases and expanded fixture restoration. |
+| [Project/Tests/Run-RuleTests.py](../../../Tests/Run-RuleTests.py) | Initialized a synthetic settings namespace for profile-copy tests. |
 | [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) | Recorded the subtask and verification. |
 
 ### Public methods added
 
-In [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
+In [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua):
 
 - **`GetRuntimeRules()`** returns the shared cache, including hidden groups. Rebuilds only when invalid or when the active saved-rule/baseline table identity changes.
 - **`SetUseCharacterItemList(value)`** changes the active-list preference and invalidates the cache.
@@ -157,7 +157,7 @@ In [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
 - **`CompilePatterns`** changed from a local function declaration to a forward-declared local function variable so the earlier cache-builder function could refer to it.
 - **`HandleTrackedItemInventoryUpdate`** uses cached compiled rules directly and excludes hidden groups from rule notifications.
 - **`GetMasterItemList`** uses each rule's existing `compiledPatterns` when supplied. It retains a compilation fallback for caller-supplied raw rule tables, including existing synthetic tests.
-- **`InitCharacterToggle` / its `ApplyUseChar` callback** in [Tracking/EditPanelItemsTab.lua](../../../Tracking/EditPanelItemsTab.lua) route checkbox and label interactions through `SetUseCharacterItemList`.
+- **`InitCharacterToggle` / its `ApplyUseChar` callback** in [Tracking/EditPanelItemsTab.lua](../../../../Tracking/EditPanelItemsTab.lua) route checkbox and label interactions through `SetUseCharacterItemList`.
 - **`CollectUntrackedItems`** in the same file uses `ItemMatchesRuntimeRule`.
 - The character-list settings callback and `/icclearoverrides` handler now invalidate through the common API.
 
@@ -204,16 +204,16 @@ All addon Lua syntax checks and `git diff --check` passed. Native UI behavior an
 
 | File | Changes |
 |---|---|
-| [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) | Added lifecycle APIs and reset-availability query. |
-| [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua) | Replaced direct saved-rule writes with mutation APIs; updated action buttons and focus-loss handling. |
-| [Core/RuleTests.lua](../../../Core/RuleTests.lua) | Added a lifecycle test case. |
-| [Project/Tests/GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) | New headless harness exercising actual editor handlers with fake ESO controls. |
-| [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py) | Loaded the fake-control harness and actual group-editor module for handler tests. |
+| [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua) | Added lifecycle APIs and reset-availability query. |
+| [Tracking/EditPanelGroupsTab.lua](../../../../Tracking/EditPanelGroupsTab.lua) | Replaced direct saved-rule writes with mutation APIs; updated action buttons and focus-loss handling. |
+| [Core/RuleTests.lua](../../../../Core/RuleTests.lua) | Added a lifecycle test case. |
+| [Project/Tests/GroupEditorTests.lua](../../../Tests/GroupEditorTests.lua) | New headless harness exercising actual editor handlers with fake ESO controls. |
+| [Project/Tests/Run-RuleTests.py](../../../Tests/Run-RuleTests.py) | Loaded the fake-control harness and actual group-editor module for handler tests. |
 | [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) | Recorded implementation and validation. |
 
 ### Public methods added
 
-In [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
+In [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua):
 
 - **`CreateCustomRule(ruleName, displayName)`** rejects an existing key or built-in rule and creates a sparse custom group through the name setter.
 - **`DeleteCustomRule(ruleName)`** rejects built-in deletion, removes the custom key, and invalidates.
@@ -224,7 +224,7 @@ The headless test harness added **`GetGroupEditorTests()`**. It is not loaded by
 
 ### Existing editor methods changed
 
-In [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua):
+In [Tracking/EditPanelGroupsTab.lua](../../../../Tracking/EditPanelGroupsTab.lua):
 
 - **`CommitGroupNameEdit`** calls `UpdateRuleProperty` instead of constructing a baseline clone.
 - **`SaveRulePatterns`** delegates to `UpdateRulePatterns`; it no longer resets a renamed group's name or copies display defaults.
@@ -263,15 +263,15 @@ All addon Lua syntax checks and `git diff --check` passed. Native ESO focus/even
 
 | File | Changes |
 |---|---|
-| [Core/RuleTests.lua](../../../Core/RuleTests.lua) | Added untouched-default, exhaustive subset, stable-matcher, and cached-burst assertions. |
-| [Core/Tests.lua](../../../Core/Tests.lua) | Invalidated the synthetic cache after restoring original live runtime references. |
-| [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) | Corrected the scope of `ItemMatchesRuntimeRule` so compilation does not define/redefine the public matcher. |
-| [Project/Tests/GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) | Restricted the deterministic group-creation clock override to the relevant test. |
-| [Project/Tests/RulePersistenceTests.lua](../../Tests/RulePersistenceTests.lua) | New serialized reload and actual clear-command tests in a separate Lua state. |
-| [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py) | Added real monotonic timing, ordered suite collection, persistence-state setup, and performance detail output. |
-| [UserManual.bbcode](../../Publishing/Source%20Documents/UserManual.bbcode) | Documented default inheritance and Reset; Reset wording was subsequently corrected. |
-| [TODO.md](../../Tasks/TODO.md) | Changed the outstanding task from implementation to in-game acceptance. |
-| [COMPLETED.md](COMPLETED.md) | Recorded implementation; release verification later moved it into verified work. |
+| [Core/RuleTests.lua](../../../../Core/RuleTests.lua) | Added untouched-default, exhaustive subset, stable-matcher, and cached-burst assertions. |
+| [Core/Tests.lua](../../../../Core/Tests.lua) | Invalidated the synthetic cache after restoring original live runtime references. |
+| [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua) | Corrected the scope of `ItemMatchesRuntimeRule` so compilation does not define/redefine the public matcher. |
+| [Project/Tests/GroupEditorTests.lua](../../../Tests/GroupEditorTests.lua) | Restricted the deterministic group-creation clock override to the relevant test. |
+| [Project/Tests/RulePersistenceTests.lua](../../../Tests/RulePersistenceTests.lua) | New serialized reload and actual clear-command tests in a separate Lua state. |
+| [Project/Tests/Run-RuleTests.py](../../../Tests/Run-RuleTests.py) | Added real monotonic timing, ordered suite collection, persistence-state setup, and performance detail output. |
+| [UserManual.bbcode](../../../Publishing/Source%20Documents/UserManual.bbcode) | Documented default inheritance and Reset; Reset wording was subsequently corrected. |
+| [TODO.md](../../../Tasks/TODO.md) | Changed the outstanding task from implementation to in-game acceptance. |
+| [CompletedWork.md](../CompletedWork.md) | Recorded implementation; release verification later moved it into verified work. |
 | [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) | Added the storage contract, test commands, downgrade warning, final results, and client acceptance checklist. |
 
 ### Methods and helpers added or changed
@@ -328,22 +328,22 @@ In particular, Reset must not unhide a hidden group.
 
 | File | Changes |
 |---|---|
-| [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) | Restricted Reset to name/pattern fields and added a specifically named resettable-override query. |
-| [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua) | Used that query for Reset visibility and corrected the confirmation. |
-| [Core/RuleTests.lua](../../../Core/RuleTests.lua) | Verified every display flag, repeated reset, cache invalidation, pruning, and active-profile isolation. |
-| [Project/Tests/GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) | Verified the actual Reset handler preserves notification/hidden settings and no longer offers Reset for display-only overrides. |
-| [UserManual.bbcode](../../Publishing/Source%20Documents/UserManual.bbcode) | Corrected user-facing Reset behavior. |
+| [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua) | Restricted Reset to name/pattern fields and added a specifically named resettable-override query. |
+| [Tracking/EditPanelGroupsTab.lua](../../../../Tracking/EditPanelGroupsTab.lua) | Used that query for Reset visibility and corrected the confirmation. |
+| [Core/RuleTests.lua](../../../../Core/RuleTests.lua) | Verified every display flag, repeated reset, cache invalidation, pruning, and active-profile isolation. |
+| [Project/Tests/GroupEditorTests.lua](../../../Tests/GroupEditorTests.lua) | Verified the actual Reset handler preserves notification/hidden settings and no longer offers Reset for display-only overrides. |
+| [UserManual.bbcode](../../../Publishing/Source%20Documents/UserManual.bbcode) | Corrected user-facing Reset behavior. |
 | [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) | Corrected the contract/checklist and appended the correction log. |
 
 ### Current methods and behavior
 
-In [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
+In [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua):
 
 - **`ResetRule(ruleName)`** clears `displayName`, legacy `patterns`, `addedPatterns`, and `removedPatterns`. It keeps the display override table, prunes an otherwise empty rule, and invalidates the cache.
 - **`HasResettableRuleOverrides(ruleName)`** replaces the original `HasRuleOverrides`. It checks only the four name/pattern fields, not display flags.
 - Reset remains restricted to built-in rules and the active account/character profile.
 
-In [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua):
+In [Tracking/EditPanelGroupsTab.lua](../../../../Tracking/EditPanelGroupsTab.lua):
 
 - Reset visibility uses `HasResettableRuleOverrides`, including the special miscellaneous group.
 - Display-only changes no longer expose a button that cannot reset anything.
@@ -449,18 +449,18 @@ Source verified during implementation: [ZOS saved-variable implementation](https
 
 ### Subtask 1 completed - startup migration and tests
 
-- [Core/Init.lua](../../../Core/Init.lua): increased `SettingsVersion` to 2; calls required `PrepareSavedVariables()` first, before string registration, ZOS constructors, and module initialization.
-- [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua): added `PrepareSavedVariables()`. It checks every stored account/character profile in `Default`, including inactive characters and other accounts. Newer versions raise a contextual error with update/backup guidance. Malformed containers/versions also throw rather than being reset; existing unversioned profiles are rejected, while genuinely absent profiles remain normal fresh installations.
+- [Core/Init.lua](../../../../Core/Init.lua): increased `SettingsVersion` to 2; calls required `PrepareSavedVariables()` first, before string registration, ZOS constructors, and module initialization.
+- [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua): added `PrepareSavedVariables()`. It checks every stored account/character profile in `Default`, including inactive characters and other accounts. Newer versions raise a contextual error with update/backup guidance. Malformed containers/versions also throw rather than being reset; existing unversioned profiles are rejected, while genuinely absent profiles remain normal fresh installations.
 - Conversion reuses `NormalizeRule` and the shallow-copy helpers. It stages separate rule/display tables for every version-1 profile; only after all validation/conversion succeeds does it publish replacement rules and version 2. Items, unrelated settings, metadata, and other namespaces remain unchanged. Version-1 development data already containing deltas is supported. Version-2 data is validated but not remigrated.
-- [Project/Tests/SavedVariablesTests.lua](../../Tests/SavedVariablesTests.lua): nine headless startup cases exercise the actual addon-loaded handler with a ZOS double reproducing its destructive version behavior. Coverage includes fresh installs, every stored profile, effective patterns/flags/items preservation, already-converted data, empty custom groups, idempotency/reload, dynamic expected-version refusal, malformed versions/containers/rules, broken maintained baselines, and missing optional legacy rules.
-- [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py): runs the startup tests in their own Lua state, without live inventory or saved variables.
+- [Project/Tests/SavedVariablesTests.lua](../../../Tests/SavedVariablesTests.lua): nine headless startup cases exercise the actual addon-loaded handler with a ZOS double reproducing its destructive version behavior. Coverage includes fresh installs, every stored profile, effective patterns/flags/items preservation, already-converted data, empty custom groups, idempotency/reload, dynamic expected-version refusal, malformed versions/containers/rules, broken maintained baselines, and missing optional legacy rules.
+- [Project/Tests/Run-RuleTests.py](../../../Tests/Run-RuleTests.py): runs the startup tests in their own Lua state, without live inventory or saved variables.
 - Validation: 38/38 isolated tests pass; all addon Lua parses under Lua 5.1; `git diff --check` passes. Latest synthetic burst checks: 46/500 ms for scans, 0/100 ms for matches, 1/200 ms for updates.
 - The guard throws before constructors/modules/UI setup, leaving `state.isLoaded` false. It does not silently continue, reset data, or implement an automatic downgrade conversion.
 
 ### Subtask 2 completed - documentation and final validation
 
 - Subtask 1 implementation/tests committed as `a862f50`; the pre-work plan was committed as `306dfca`.
-- [UserManual.bbcode](../../Publishing/Source%20Documents/UserManual.bbcode) explains the settings-preserving upgrade, inactive-profile scope, compatibility error, lack of automatic backup, and the need to restore a backup when reverting to builds without the guard.
+- [UserManual.bbcode](../../../Publishing/Source%20Documents/UserManual.bbcode) explains the settings-preserving upgrade, inactive-profile scope, compatibility error, lack of automatic backup, and the need to restore a backup when reverting to builds without the guard.
 - [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) now records the current versioned startup policy, future migration requirements, updated test inventory, and disposable-profile client acceptance checks. Earlier decisions here are explicitly marked superseded rather than silently rewritten as though they were original choices.
 - Final verification also made the supported upgrade pair explicitly version 1 to 2, rather than allowing a version-1 conversion to stamp any future expected version. A tenth startup test raises the expected version to 3 and verifies refusal until that migration is implemented.
 - Final validation: 39/39 isolated cases passed; addon Lua 5.1 syntax checks passed; 187 isolated packaging assertions passed without touching the live installation or saved variables. Whitespace and relative documentation links were checked.
@@ -468,7 +468,7 @@ Source verified during implementation: [ZOS saved-variable implementation](https
 
 ### Native-client evidence retained for the future release review - 2026-10-28
 
-- Tim supplied the [complete diagnostic report](../../Tests/Evidence/1.3.0-20261028-client-tests.txt): **78/78 passed**, release installation `InventoryCompanion`, runtime 1.3.0, DEV=false, AddOnVersion 10300. Environment: live build `eso.live.12.1.6.3309674`, API 101051, EU Megaserver, English, ESO Plus enabled, bank closed.
+- Tim supplied the [complete diagnostic report](../../../Tests/Evidence/1.3.0-20261028-client-tests.txt): **78/78 passed**, release installation `InventoryCompanion`, runtime 1.3.0, DEV=false, AddOnVersion 10300. Environment: live build `eso.live.12.1.6.3309674`, API 101051, EU Megaserver, English, ESO Plus enabled, bank closed.
 - Performance: synthetic scans 50/500 ms, slot-rule matches 0/100 ms, tracked-item updates 2/200 ms; 100 read-only live scans 332/500 ms with 1106 occupied entries. All reported thresholds passed.
 - All 31 staged file hashes were independently checked against the staging records after receipt. Candidate SHA256: `AF8430F1232A06A6C4290117614BDBC1FA64B6106916C016D099FB24ECF057E5`. These results apply to that candidate, not unspecified later DEV changes.
 - After Tim's UI reload, both on-disk installation saved-variable files were written at approximately **17:25:31 UTC**. A read-only comparison with the pre-staging backups confirmed all 11 profiles at version 2, no missing original profiles, no legacy pattern lists, six added-pattern lists, four removed-pattern lists, and no persisted runtime rule fields.
@@ -491,16 +491,16 @@ The user clarified the project-wide rule: defensive checks belong at boundaries 
 
 | File | Changes |
 |---|---|
-| [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) | Added boundary and internal contract helpers; removed custom-default fallbacks for broken built-in definitions and the raw-rule scan compilation fallback. Tightened profile import before destination replacement. |
-| [Core/Init.lua](../../../Core/Init.lua) | Calls `ValidateSavedRuleProfiles` immediately after ZOS saved-variable loading, before module initialization. The clear command directly calls required refresh functions. |
-| [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua) | Direct calls to required addon methods; explicit missing-control/payload errors; removed name/pattern fallbacks for required resolved fields. |
-| [Tracking/EditPanelItemsTab.lua](../../../Tracking/EditPanelItemsTab.lua) | Direct required-method calls in import, list-switch, scene, and toggle paths; required import/scroll controls fail explicitly; resolved rule names no longer fall back to slugs. |
-| [Core/Settings.lua](../../../Core/Settings.lua) | Character-list changes directly call required editor/HUD refresh methods. |
-| [Core/Tests.lua](../../../Core/Tests.lua) | Synthetic scans use real resolved/compiled rules instead of depending on production fallback behavior. Built-in fixtures supply all required baseline fields. |
-| [Core/RuleTests.lua](../../../Core/RuleTests.lua) | Added six boundary/internal-failure cases, retaining isolated fixture restoration. |
-| [Project/Tests/GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) | Added actual handler checks for missing maintained methods, missing required controls, and invalid internal dialog data. |
-| [Project/Tests/RulePersistenceTests.lua](../../Tests/RulePersistenceTests.lua) | Added an actual production-baseline contract check and provided required refresh stubs for clear-command tests. |
-| [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py) | Supplies the production constants source to the isolated baseline test. |
+| [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua) | Added boundary and internal contract helpers; removed custom-default fallbacks for broken built-in definitions and the raw-rule scan compilation fallback. Tightened profile import before destination replacement. |
+| [Core/Init.lua](../../../../Core/Init.lua) | Calls `ValidateSavedRuleProfiles` immediately after ZOS saved-variable loading, before module initialization. The clear command directly calls required refresh functions. |
+| [Tracking/EditPanelGroupsTab.lua](../../../../Tracking/EditPanelGroupsTab.lua) | Direct calls to required addon methods; explicit missing-control/payload errors; removed name/pattern fallbacks for required resolved fields. |
+| [Tracking/EditPanelItemsTab.lua](../../../../Tracking/EditPanelItemsTab.lua) | Direct required-method calls in import, list-switch, scene, and toggle paths; required import/scroll controls fail explicitly; resolved rule names no longer fall back to slugs. |
+| [Core/Settings.lua](../../../../Core/Settings.lua) | Character-list changes directly call required editor/HUD refresh methods. |
+| [Core/Tests.lua](../../../../Core/Tests.lua) | Synthetic scans use real resolved/compiled rules instead of depending on production fallback behavior. Built-in fixtures supply all required baseline fields. |
+| [Core/RuleTests.lua](../../../../Core/RuleTests.lua) | Added six boundary/internal-failure cases, retaining isolated fixture restoration. |
+| [Project/Tests/GroupEditorTests.lua](../../../Tests/GroupEditorTests.lua) | Added actual handler checks for missing maintained methods, missing required controls, and invalid internal dialog data. |
+| [Project/Tests/RulePersistenceTests.lua](../../../Tests/RulePersistenceTests.lua) | Added an actual production-baseline contract check and provided required refresh stubs for clear-command tests. |
+| [Project/Tests/Run-RuleTests.py](../../../Tests/Run-RuleTests.py) | Supplies the production constants source to the isolated baseline test. |
 | [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) | Records the updated boundary policy and current verification commands/counts. |
 
 New helpers/API in the database:

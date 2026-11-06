@@ -94,7 +94,7 @@ Show box                         Notify box
 
 ### AutoCategory
 
-After the separate [integration](<AutoCategory%20Integration/todo_plan_autocategoryIntegration.md>) works,
+After the separate [integration](<../AutoCategory/OriginalSpecification.md>) works,
 add the full **AutoCategory** label last, after Notify, as a group-only toggle.
 Participation is independent of Show, grouping, and expansion. The column has
 zero width when integration is disabled or unavailable (including now), giving
@@ -105,7 +105,7 @@ integration exists.
 
 ## Implementation details
 
-See the separate [implementation record](ImplementationPlan_ItemTrackerFlags.md)
+See the separate [implementation record](RowOptionsImplementation.md)
 for examined code paths, saved fields, ordered changes, regression tests, and
 in-game acceptance checks. Implementation and user-facing verification are
-complete; these documents are archived in Completed.
+complete; these documents are retained in the ItemTracker archive.

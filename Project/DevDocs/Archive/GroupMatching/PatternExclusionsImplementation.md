@@ -13,7 +13,7 @@ pushed on `feature/group-pattern-exclusions`, most recently as `6130ad0`;
 merging and publishing are separate release steps.
 
 Feature behavior and compatibility requirements are in the
-[feature plan](GroupPatternExclusions.md). This document follows the
+[feature plan](PatternExclusionsSpecification.md). This document follows the
 implementation process: saved representation, runtime interpretation and
 matching, editor, then verification. Method-level changes are listed within
 the process stage where they belong.
@@ -23,7 +23,7 @@ the process stage where they belong.
 ### Current behavior
 
 Built-in group defaults are string arrays in
-[Core/Constants.lua](../../../Core/Constants.lua). Saved user changes use the
+[Core/Constants.lua](../../../../Core/Constants.lua). Saved user changes use the
 existing `patterns`, `addedPatterns`, and `removedPatterns` fields. The
 `UpdateRulePatterns()` path reconciles whole strings against the built-in
 defaults; saved-rule validation, reset, and profile-copy logic also expect
@@ -61,7 +61,7 @@ reserves the marker and does not allow it to be entered as literal pattern text.
 - **Custom-group example:** the suffixed string is an ordinary entry in
   `addedPatterns`. Removing it uses the existing list update path.
 - **Existing methods that remain unchanged:** in
-  [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua),
+  [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua),
   `ValidateSavedRules()`, `PrepareSavedVariables()`, `GetPatternList()`,
   `ReconcilePatterns()`, `NormalizeRule()`, `PruneRule()`,
   `UpdateRulePatterns()`, `HasResettableRuleOverrides()`, `ResetRule()`, and
@@ -86,10 +86,10 @@ reserves the marker and does not allow it to be entered as literal pattern text.
 
 ### Parse and compile
 
-Change [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
+Change [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua):
 
 - Add `RULE_PATTERN_EXCLUSION_SUFFIX` to
-  [Core/Constants.lua](../../../Core/Constants.lua) and use that one shared
+  [Core/Constants.lua](../../../../Core/Constants.lua) and use that one shared
   value in the runtime parser and group editor.
 - Add local `SplitStoredPatterns(patterns)`. It returns include and exclude
   text arrays, removing exactly the trailing
@@ -109,7 +109,7 @@ Change [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
 
 ### Match consistently
 
-In [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
+In [Tracking/ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua):
 
 - Modify `ItemMatchesRuntimeRule(itemLink, rule)`: return true only if at least
   one compiled include matches and no compiled exclusion matches, by calling
@@ -134,7 +134,7 @@ In [Tracking/ItemDatabase.lua](../../../Tracking/ItemDatabase.lua):
   membership. Do not remove the item from the scan snapshot, suppress other
   matching groups, or change individual tracking.
 
-In [Tracking/ItemTrackerPanel.lua](../../../Tracking/ItemTrackerPanel.lua), do
+In [Tracking/ItemTrackerPanel.lua](../../../../Tracking/ItemTrackerPanel.lua), do
 not modify `RuleSignature(rule)`: it already includes the full stored strings,
 so changing the suffix changes the signature.
 
@@ -158,7 +158,7 @@ so changing the suffix changes the signature.
 
 ## 3. Present and edit the kind in the group editor
 
-Change [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua):
+Change [Tracking/EditPanelGroupsTab.lua](../../../../Tracking/EditPanelGroupsTab.lua):
 
 - Add local `DecodePatternRows(patterns)` to convert encoded strings into
   editor-only `{ pattern, isExclusion }` row records. Preserve each kind's
@@ -192,7 +192,7 @@ Change [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lu
 - Preserve current HUD refresh, group-editor refresh, and Reset-button
   behavior for edit, add, delete, and toggle.
 
-Change [Tracking/EditPanelGroupsTab.xml](../../../Tracking/EditPanelGroupsTab.xml):
+Change [Tracking/EditPanelGroupsTab.xml](../../../../Tracking/EditPanelGroupsTab.xml):
 
 - Modify `InventoryCompanion_PatternEditRow_Template` to show a green/red
   IN/OUT status icon before the pattern field, a compact swap-icon button
@@ -215,7 +215,7 @@ Change [Tracking/EditPanelGroupsTab.xml](../../../Tracking/EditPanelGroupsTab.xm
   indicators by 25% from 20 to 25 pixels, retaining the 8-pixel textbox gap.
   The earlier `radioButton_checked.dds` path was invalid and caused the indicator
   to disappear. Use the repository's
-  [ESO-Game-Textures.md](../../Resources/ESO-Game-Textures.md) as the first
+  [ESO-Game-Textures.md](../../../Resources/ESO-Game-Textures.md) as the first
   reference for known-good texture paths. Both Bank indicator textures and all
   four CharacterWindow swap states are listed there. XML parsing alone does not
   establish asset existence or correct ESO button-state markup.
@@ -247,7 +247,7 @@ Change [Tracking/EditPanelGroupsTab.xml](../../../Tracking/EditPanelGroupsTab.xm
 
 ## 4. Documentation and completion checks
 
-- Update [UserManual.bbcode](../../Publishing/Source%20Documents/UserManual.bbcode) with the visible
+- Update [UserManual.bbcode](../../../Publishing/Source%20Documents/UserManual.bbcode) with the visible
   Include/Exclude behavior, group-local veto semantics, and a Treasure Maps /
   Cyrodiil example. Do not document the internal suffix as user syntax.
 - At implementation start, update the authoritative working changelog from

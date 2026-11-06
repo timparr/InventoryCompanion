@@ -1,19 +1,19 @@
 # AutoCategory in-game gate tests
 
 **Archive consolidated 2026-11-03.** Current requirements are in the
-[master feature document](../../FeatureSpecs/AutoCategoryIntegration.md).
+[master feature document](../../../FeatureSpecs/AutoCategoryIntegration.md).
 
 **ARCHIVED 2026-10-31. Historical request, not current instructions.**
 Current requirements, sequencing and evidence live only in the
-[SPEC](../../Completed/AutoCategory%20Integration/todo_plan_autocategoryIntegration.md),
-[IMPLEMENTATION PLAN](../../Completed/AutoCategory%20Integration/todo_implementation_autocategoryIntegration.md)
-and [SPIKE RESULTS](AutoCategorySpikeResults.md).
+[SPEC](../OriginalSpecification.md),
+[IMPLEMENTATION PLAN](../ImplementationPlan.md)
+and [SPIKE RESULTS](../SpikeResults.md).
 The original request below is retained as history; its duplicated logging
 instructions and remaining-gate assumptions are superseded.
 
-Read [AGENTS.md](../../../../AGENTS.md), the
-[AutoCategory integration gate plan](../../Completed/AutoCategory%20Integration/todo_implementation_autocategoryIntegration.md),
-and the existing [DEV slash-command probe](../../../Tests/AutoCategorySpikeRuntime.lua).
+Read [AGENTS.md](../../../../../AGENTS.md), the
+[AutoCategory integration gate plan](../ImplementationPlan.md),
+and the existing [DEV slash-command probe](../../../../Tests/AutoCategorySpikeRuntime.lua).
 Reuse that probe where possible. Add only the minimal DEV-only slash commands
 needed to answer these remaining in-game questions:
 
@@ -51,8 +51,8 @@ build editor/settings UI, or make unrelated changes. Build the test commands,
 guide the tests, and report the answers. Nothing more.
 
 After each test, update both the
-[implementation plan](../../Completed/AutoCategory%20Integration/todo_implementation_autocategoryIntegration.md) and
-[feature spec](../../Completed/AutoCategory%20Integration/todo_plan_autocategoryIntegration.md) with dated evidence:
+[implementation plan](../ImplementationPlan.md) and
+[feature spec](../OriginalSpecification.md) with dated evidence:
 the command and result, whether verified offline or in ESO, remaining
 uncertainties, and implications for implementation. Record failed approaches
 and supported alternatives; do not claim untested behavior works. Keep the

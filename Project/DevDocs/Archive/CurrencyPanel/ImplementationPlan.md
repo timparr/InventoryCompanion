@@ -4,14 +4,14 @@
 
 This document retains the original implementation plan and decision history.
 Planning language below is historical; deferred user-facing improvement ideas
-are tracked in the [master TODO, Section F](../../Tasks/TODO.md#section-f-tweaks-and-improvement-ideas),
+are tracked in the [master TODO, Section F](../../../Tasks/TODO.md#section-f-tweaks-and-improvement-ideas),
 not as outstanding release requirements here.
 
 ## Goal
 
 Unify the panel's resource discovery, preferences, and presentation so ESO currencies and addon-defined capacities can be configured in one place, without conflating their identities or changing existing defaults.
 
-The existing currency-specific requirements, including ESO validity checks and diagnostic name history, remain in [Currency Preferences](./CurrencyPreferences.md). This plan adds the broader resource UX and implementation approach.
+The existing currency-specific requirements, including ESO validity checks and diagnostic name history, remain in [Currency Preferences](CurrencyPreferences.md). This plan adds the broader resource UX and implementation approach.
 
 ## UX Decisions
 

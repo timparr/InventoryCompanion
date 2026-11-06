@@ -1,5 +1,9 @@
 # Prompt: design the Inventory Companion category icon
 
+**Historical prompt.** Retained for design context, not current work instructions.
+Use the [master feature specification](../../../FeatureSpecs/AutoCategoryIntegration.md)
+for delivered behavior.
+
 You are designing a small icon for **Inventory Companion**, an addon for The
 Elder Scrolls Online (ESO). Your deliverable is **SVG source code as copyable
 text**. Do not generate raster images as the deliverable; I will render, convert,

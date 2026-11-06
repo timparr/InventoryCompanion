@@ -6,6 +6,7 @@ The template is reusable for any ESO add-on. This checklist supplies InventoryCo
 
 The authoritative publishing documents live in `Project\Publishing\Source Documents`: `ReadMe-Header.bbcode`, `ReadMe-Body.bbcode`, `UserManual.bbcode`, and `Changelog.bbcode`. The manual's schematic source files live in `Project\Publishing\Resources`. Use the author-supplied [ESOUI formatting reference](ESOUIFormatting.md) when editing publishing text.
 
+For feature context, use the current specifications in [DevDocs/FeatureSpecs](../DevDocs/FeatureSpecs). The [completed-work index](../DevDocs/Archive/CompletedWork.md) leads to feature-grouped historical plans, decisions, and evidence. Use those records for background, not as current requirements, unresolved tasks, or evidence that a new candidate passed.
 
 
 ## Preparation and review sequence

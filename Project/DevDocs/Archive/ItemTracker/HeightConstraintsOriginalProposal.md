@@ -3,7 +3,7 @@
 **Status:** Closed; superseded by the implemented, reviewed, released, and
 verified adaptive row-based tracker layout.
 
-**Implementation and verification record:** [Adaptive tracker sizing](ImplementationPlan_TrackerPanelHeightConstraints.md).
+**Implementation and verification record:** [Adaptive tracker sizing](AdaptiveSizingImplementation.md).
 This document preserves the original product discussion; the implemented
 row-based behavior in the linked record supersedes the earlier height-based
 proposals below. All checklists, mode proposals, and decision markers below are
@@ -23,7 +23,7 @@ Preserve normal multi-group expansion when the resulting panel fits.
 
 ## B. Current Behavior and Relevant Code
 
-- [Tracker rendering and interaction](../../../Tracking/ItemTrackerPanel.lua):
+- [Tracker rendering and interaction](../../../../Tracking/ItemTrackerPanel.lua):
   group clicks save `isExpanded` through `SetRuleFlag`, then refresh the panel.
   `BuildDisplayList` chooses flat or grouped presentation and folds single-member
   and ungrouped entries into Miscellaneous.
@@ -31,14 +31,14 @@ Preserve normal multi-group expansion when the resulting panel fits.
   row heights. Wrapped names can make rows taller than the usual 22 UI units.
 - `ApplyBoundedPosition` moves the finished panel upward to avoid the screen
   bottom, but cannot make an oversized panel fit.
-- [Tracker XML](../../../Tracking/ItemTrackerPanel.xml): the panel and container
+- [Tracker XML](../../../../Tracking/ItemTrackerPanel.xml): the panel and container
   use `resizeToFitDescendents`; there is currently no scroll viewport.
-- [Account defaults](../../../Core/Constants.lua) and
-  [LAM settings](../../../Core/Settings.lua) own tracker preferences.
-- [Rule mutations](../../../Tracking/ItemDatabase.lua) provide delta-only
+- [Account defaults](../../../../Core/Constants.lua) and
+  [LAM settings](../../../../Core/Settings.lua) own tracker preferences.
+- [Rule mutations](../../../../Tracking/ItemDatabase.lua) provide delta-only
   persistence and cache invalidation. `GetActiveTrackedRules` returns view copies;
   changing those copies does not persist expansion state.
-- [Initialization](../../../Core/Init.lua) loads saved variables before creating
+- [Initialization](../../../../Core/Init.lua) loads saved variables before creating
   the tracker. Validate the new preference at this boundary.
 
 ## C. UX Contract
@@ -163,7 +163,7 @@ current working policy.
 
 - [ ] Add isolated layout/expansion tests using synthetic display data and
       mocked controls. Follow the existing Lua 5.1/Lupa test setup in
-      [Run-RuleTests.py](../../Tests/Run-RuleTests.py), using a focused tracker
+      [Run-RuleTests.py](../../../Tests/Run-RuleTests.py), using a focused tracker
       suite rather than loading ESO-dependent behavior unnecessarily.
 - [ ] Cover below/equal/above threshold and multiple groups fitting normally.
 - [ ] Cover overflowing expansion retaining the clicked group and collapsing
@@ -198,7 +198,7 @@ current working policy.
       switching/import, `/reloadui`, and hide/show of the panel.
 - [ ] Confirm residual overflow matches the agreed policy, or verify scrolling
       separately if a strict cap was selected.
-- [ ] Update [UserManual.bbcode](../../Publishing/Source%20Documents/UserManual.bbcode) with the setting, automatic
+- [ ] Update [UserManual.bbcode](../../../Publishing/Source%20Documents/UserManual.bbcode) with the setting, automatic
       collapse persistence, and any overflow limitation. Update the A1 entry and
       completion record only after implementation and recorded verification.
 
@@ -246,8 +246,8 @@ from final verification.
 
 - Keep the title and edit button fixed outside the scrolling item area.
 - Reuse ESO's `ZO_ScrollContainer` pattern already used in
-  [the item editor](../../../Tracking/EditPanelItemsTab.xml) and
-  [the group editor](../../../Tracking/EditPanelGroupsTab.xml).
+  [the item editor](../../../../Tracking/EditPanelItemsTab.xml) and
+  [the group editor](../../../../Tracking/EditPanelGroupsTab.xml).
 - Replace unrestricted panel auto-height with natural sizing capped at the
   configured maximum in Scroll mode. Keep shorter panels compact.
 - Support scrollbar dragging and mouse-wheel scrolling without breaking group

@@ -92,13 +92,13 @@ Created 2026-11-03; implementation authorized 2026-11-04 following discussion.
 This is the approved implementation plan and basis of the polishing spec.
 The remaining release-visibility decision does not block development.
 
-- [Original polishing notes](AutoCategory_Polishing_Tweaks.md) and their reference
+- [Original polishing notes](PolishingNotes.md) and their reference
   images are read-only inputs; do not edit them during discussion.
 - [Current AutoCategory feature document](../../FeatureSpecs/AutoCategoryIntegration.md) defines the
   existing integration baseline.
-- [Current exclusion/Other implementation document](AutocategoryTweaks_hideICNotDelete.md)
+- [Current exclusion/Other implementation document](ExclusionsAndOther.md)
   owns the preceding change and its outstanding acceptance.
-- [Archived spike results and dependency contracts](../../Archive/AutoCategory%20Integration/AutoCategorySpikeResults.md)
+- [Archived spike results and dependency contracts](SpikeResults.md)
   retain prior load-order and dependency evidence. Their historical designs
   are not new requirements.
 

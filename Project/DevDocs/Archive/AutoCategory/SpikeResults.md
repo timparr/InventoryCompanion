@@ -7,12 +7,12 @@ Updated 2026-10-31, incorporating ESO evidence through 23:08 UTC and subsequent
 offline follow-up.
 **Integration is implemented but not compatibility-certified.** This file
 retains dated spike evidence; see the
-[implementation report](AutoCategoryImplementationReport.md) for current code
+[implementation report](ImplementationReport.md) for current code
 and test status.
 
 This is the authoritative evidence record and reusable dependency-learnings
-document. Read the [spec](../../Completed/AutoCategory%20Integration/todo_plan_autocategoryIntegration.md) for requirements
-and the [implementation plan](../../Completed/AutoCategory%20Integration/todo_implementation_autocategoryIntegration.md)
+document. Read the [spec](OriginalSpecification.md) for requirements
+and the [implementation plan](ImplementationPlan.md)
 for work sequencing. Failed attempts below are historical, not current guidance.
 Keep dated command/result evidence here; update the other documents' blockers
 and decisions when evidence changes them, rather than duplicating the log.
@@ -38,7 +38,7 @@ inspection, and user visual confirmation are different kinds of evidence.
 
 ## Open questions, decisions, and deferred coverage
 
-IDs match the [spec's open-question register](../../Completed/AutoCategory%20Integration/todo_plan_autocategoryIntegration.md#open-questions-and-decisions).
+IDs match the [spec's open-question register](OriginalSpecification.md#open-questions-and-decisions).
 
 - **Q1 - POST-IMPLEMENTATION ACCEPTANCE:** verify safe top-heading mapping without changing external
   entries for the final general contract. Sampled prefix top placement, appearance,

@@ -44,6 +44,6 @@ treasure maps generally and excludes maps from Cyrodiil.
 
 ## Implementation details
 
-See the separate [implementation record](ImplementationPlan_GroupPatternExclusions.md)
+See the separate [implementation record](PatternExclusionsImplementation.md)
 for the examined code paths, saved-variable fields, ordered code/test changes,
 and in-game verification.

@@ -1,20 +1,20 @@
 # Prompt: continue AutoCategory integration gate testing
 
 **Archive consolidated 2026-11-03.** Current requirements are in the
-[master feature document](../../FeatureSpecs/AutoCategoryIntegration.md).
+[master feature document](../../../FeatureSpecs/AutoCategoryIntegration.md).
 
 **ARCHIVED 2026-10-31. Historical prompt, not current instructions.**
 Use the three authoritative documents linked below; do not execute this prompt
 as a separate source of feature requirements or workflow permissions.
 
-Read [AGENTS.md](../../../../AGENTS.md), then the three authoritative documents:
+Read [AGENTS.md](../../../../../AGENTS.md), then the three authoritative documents:
 
-1. [SPEC](../../Completed/AutoCategory%20Integration/todo_plan_autocategoryIntegration.md): required behavior and explicit
+1. [SPEC](../OriginalSpecification.md): required behavior and explicit
    Q1-Q5 / D1-D3 open-question and decision register.
-2. [IMPLEMENTATION PLAN](../../Completed/AutoCategory%20Integration/todo_implementation_autocategoryIntegration.md):
+2. [IMPLEMENTATION PLAN](../ImplementationPlan.md):
    dependencies and stage 1 ordering blockers; no runtime/editor implementation
    is authorized by this testing prompt.
-3. [SPIKE RESULTS](AutoCategorySpikeResults.md): current gates, dated evidence,
+3. [SPIKE RESULTS](../SpikeResults.md): current gates, dated evidence,
    failed approaches, dependency contracts, commands and pending housekeeping.
 
 Continue only nondeferred probes agreed with the user. Guild Bank is deferred
