@@ -197,8 +197,8 @@ try {
     )
     $paths = @(
         "Project\Publishing\PackageRelease.ps1"
-        "Project\Publishing\ReleaseChecklist.md"
-        "Project\Publishing\ReleaseReviewTemplate.md"
+        "Project\Processes\Release.md"
+        "Project\Processes\Templates\ReleaseReview.md"
     ) + $sourceDocuments + @(
         $manifestLines | ForEach-Object { $_.Trim().Replace('/', '\') } |
             Where-Object { $_ -and -not $_.StartsWith("#") -and -not $_.StartsWith("--") }
@@ -219,7 +219,7 @@ try {
     $body = [System.IO.File]::ReadAllText((Join-Path $devRoot $sourceDocuments[1])).TrimStart()
     [System.IO.File]::WriteAllText((Join-Path $currentRelease "ReadMe.bbcode"), "$header`r`n`r`n$body`r`n")
     Copy-Item -LiteralPath (Join-Path $devRoot $sourceDocuments[2]) -Destination (Join-Path $currentRelease "Changelog.bbcode")
-    $template = Get-Content -LiteralPath (Join-Path $devRoot "Project\Publishing\ReleaseReviewTemplate.md") -Raw
+    $template = Get-Content -LiteralPath (Join-Path $devRoot "Project\Processes\Templates\ReleaseReview.md") -Raw
     $review = Complete-ReviewTemplate $template $version
     Set-Content -LiteralPath $reviewPath -Value $review -Encoding UTF8
 

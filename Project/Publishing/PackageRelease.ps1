@@ -415,8 +415,8 @@ $initialReviewContent = [System.IO.File]::ReadAllText($reviewPath)
 Assert-ReleaseReview $initialReviewContent $version "" $false
 $sourcePaths = @(
     "InventoryCompanion_DEV.txt"
-    "Project\Publishing\ReleaseChecklist.md"
-    "Project\Publishing\ReleaseReviewTemplate.md"
+    "Project\Processes\Release.md"
+    "Project\Processes\Templates\ReleaseReview.md"
     "Project\Publishing\PackageRelease.ps1"
 ) + $sourceDocumentPaths + @($manifestFiles)
 $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
@@ -506,7 +506,7 @@ if (@(Compare-Object $expectedCandidate $actualCandidate).Count -gt 0) {
     throw "Release candidate files changed since staging. Cancel and stage a fresh candidate for testing."
 }
 if (-not (Test-Path -LiteralPath $reviewPath -PathType Leaf)) {
-    throw "Complete ReleaseReview.md from ReleaseReviewTemplate.md before finalizing."
+    throw "Complete ReleaseReview.md from Project\Processes\Templates\ReleaseReview.md before finalizing."
 }
 $reviewContent = [System.IO.File]::ReadAllText($reviewPath)
 Assert-ReleaseReview $reviewContent $version $candidateHash $true

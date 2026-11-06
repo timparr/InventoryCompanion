@@ -3,6 +3,9 @@ info panels - how to guide built into the addon - instead of the manual. - (i) b
 
 # InventoryCompanion - Letter-Numbered Master To-Do List
 
+Selecting, specifying, planning, implementing, and accepting an item follows the
+[feature development process](../Processes/FeatureDevelopment.md).
+
 Completed AutoCategory and settings/editor work is documented in the
 [master feature specification](../DevDocs/FeatureSpecs/AutoCategoryIntegration.md),
 with supporting plans and evidence in the

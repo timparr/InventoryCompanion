@@ -11,7 +11,7 @@ Automated coverage in [Core/Tests.lua](../../../../Core/Tests.lua), under
 **Event listener transitions and refresh debounce**, checks registration and bag
 filters, feature transitions, shared consumers, duplicate prevention, and
 debounce behavior. Current release verification follows the
-[short human transfer check](../../../Publishing/ReleaseChecklist.md#short-human-transfer-check).
+[short human transfer check](../../../Processes/Release.md#short-human-transfer-check).
 The separate craft-bag stow refresh observation is retained as optional idea
 **F10** in the [master TODO tweaks section](../../../Tasks/TODO.md#section-f-tweaks-and-improvement-ideas).
 

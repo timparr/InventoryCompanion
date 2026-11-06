@@ -211,7 +211,7 @@ real user preferences when exercising its synthetic scenarios.
 Update [UserManual.bbcode](../../../Publishing/Source%20Documents/UserManual.bbcode) and the authoritative
 working changelog from actual changes. These records are retained in the ItemTracker archive;
 the acceptance checklist above records the verified scope. Follow the
-[release checklist](../../../Publishing/ReleaseChecklist.md) before staging;
+[release checklist](../../../Processes/Release.md) before staging;
 the cumulative backward-compatible feature work warrants a minor-version
 recommendation, not an automatic version change or release.
 

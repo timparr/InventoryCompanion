@@ -16,7 +16,7 @@ material, not outstanding tasks or independent current requirements.
 
 Feature completion does not certify a release package or turn historical offline
 results into new in-game evidence. Publication review, version selection and
-candidate testing follow the [release checklist](../../Publishing/ReleaseChecklist.md).
+candidate testing follow the [release checklist](../../Processes/Release.md).
 
 ## Documentation handoff
 

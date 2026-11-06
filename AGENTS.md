@@ -1,5 +1,9 @@
 # Project Instructions
 
+## Processes
+
+- Before starting any task, check [Project/Processes](Project/Processes/README.md) for an applicable process and follow its discussion, independent-review, and approval gates. Use [FeatureDevelopment.md](Project/Processes/FeatureDevelopment.md) for specification, planning, implementation, and acceptance; use [Release.md](Project/Processes/Release.md) for releases. If no process applies, follow these project rules.
+
 ## Fail Hard, Fail Fast - All Work
 
 - Do not guard addon-owned functions or required internal state that should exist. Call/use them directly so defects we can fix throw errors as close to the root cause as possible.
@@ -21,7 +25,7 @@
 ## Git Workflow
 
 - For any release request, do not inspect or change files yet. First give the user a brief outline of the release steps and ask conversationally for approval to begin; then stop and wait. Follow the release checklist's later approval gates as well.
-- At the start of each release, update the authoritative working changelog from the actual changes first, then use it to recommend a build/patch or minor version increment (major only for incompatible changes), with a brief reason and proposed version, before staging. Follow `Project/Publishing/ReleaseChecklist.md` for numbering and release steps.
+- At the start of each release, update the authoritative working changelog from the actual changes first, then use it to recommend a build/patch or minor version increment (major only for incompatible changes), with a brief reason and proposed version, before staging. Follow `Project/Processes/Release.md` for numbering and release steps.
 - Before recommending a release version, verify the current DEV manifest/runtime version and the staging script. The Stage tool packages the version in the DEV manifest verbatim, then advances DEV to the next patch; under this workflow, do not recommend a candidate below the current DEV version. If a higher version is agreed, keep manifest `Version`, `AddOnVersion`, and `Core/Init.lua` synchronized before staging.
 - Keep the latest unpublished changelog heading tagged `[current version]`; at the next release review, ask whether that version was actually released and remove the marker only if the author confirms publication.
 - In release reviews, mark not-yet-testable or not-yet-decided items (including UAT, candidate/package checks before staging, and an unagreed release version) `PENDING`; do not label them `FAIL` or report results before the relevant gate. Use `FAIL` only for an assessed criterion that actually failed.

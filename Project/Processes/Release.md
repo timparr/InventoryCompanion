@@ -1,17 +1,17 @@
-# ESOUI Release Checklist
+# Release process
 
-Use this workflow before every new upload or update. The [release review template](ReleaseReviewTemplate.md) is the authoritative, self-contained set of review checks and evidence requirements.
+Use this workflow before every new upload or update. The [release review template](Templates/ReleaseReview.md) is the authoritative, self-contained set of review checks and evidence requirements.
 
-The template is reusable for any ESO add-on. This checklist supplies InventoryCompanion-specific release steps. The [reviewer reference](ReviewerReference.md) maps test access, coverage, version differences, and review hotspots to speed evidence discovery; verify it against the frozen candidate.
+The template is reusable for any ESO add-on. This checklist supplies InventoryCompanion-specific release steps. The [reviewer reference](References/ReleaseReview.md) maps test access, coverage, version differences, and review hotspots to speed evidence discovery; verify it against the frozen candidate.
 
-The authoritative publishing documents live in `Project\Publishing\Source Documents`: `ReadMe-Header.bbcode`, `ReadMe-Body.bbcode`, `UserManual.bbcode`, and `Changelog.bbcode`. The manual's schematic source files live in `Project\Publishing\Resources`. Use the author-supplied [ESOUI formatting reference](ESOUIFormatting.md) when editing publishing text.
+The authoritative publishing documents live in `Project\Publishing\Source Documents`: `ReadMe-Header.bbcode`, `ReadMe-Body.bbcode`, `UserManual.bbcode`, and `Changelog.bbcode`. The manual's schematic source files live in `Project\Publishing\Resources`. Use the author-supplied [ESOUI formatting reference](References/ESOUIFormatting.md) when editing publishing text.
 
 For feature context, use the current specifications in [DevDocs/FeatureSpecs](../DevDocs/FeatureSpecs). The [completed-work index](../DevDocs/Archive/CompletedWork.md) leads to feature-grouped historical plans, decisions, and evidence. Use those records for background, not as current requirements, unresolved tasks, or evidence that a new candidate passed.
 
 
 ## Preparation and review sequence
 0. **STOP!** Outline what the steps are going to be to the user. Wait for a go!
-1. **Prepare the working release folder.** Create `Project\Publishing\Current release` if it does not exist. If it exists, confirm its prior release ZIP is retained with a matching hash in `Project\Publishing\Archive`, then empty only this working folder. Create `ReleaseReview.md` in it from `ReleaseReviewTemplate.md`; create the combined `ReadMe.bbcode` from the authoritative header and body, and copy the authoritative `Changelog.bbcode` into the folder.
+1. **Prepare the working release folder.** Create `Project\Publishing\Current release` if it does not exist. If it exists, confirm its prior release ZIP is retained with a matching hash in `Project\Publishing\Archive`, then empty only this working folder. Create `ReleaseReview.md` in it from `Project\Processes\Templates\ReleaseReview.md`; create the combined `ReadMe.bbcode` from the authoritative header and body, and copy the authoritative `Changelog.bbcode` into the folder.
 2. **Diff the baseline and agree on the change summary.**
    - **Baseline diff:** Establish the committed DEV source identity and compare the code with the last approved review.
    - **Draft the report entry:** Use the diff to draft the **Changes reviewed** section. Distinguish what changed from what was merely inspected.
@@ -38,7 +38,7 @@ For feature context, use the current specifications in [DevDocs/FeatureSpecs](..
 ### Prepare the report and release documents (steps 1, 5, and 9)
 
 - At the start of each new release, ask whether the previous release was published. Use the answer when deciding which changes are still unreleased.
-- Use the review template as-is for report structure and checks. Do not add report sections or duplicate its standards in this checklist.
+- Use [Templates/ReleaseReview.md](Templates/ReleaseReview.md) as-is for report structure and checks. Do not add report sections or duplicate its standards in this checklist.
 - Build `ReadMe.bbcode` by placing `ReadMe-Header.bbcode` before `ReadMe-Body.bbcode`. Keep the dependency and any applicable AI disclosure in the header. Keep the changelog's newest release first.
 - Keep working copies in `Project\Publishing\Current release` and retain final ZIPs in `Project\Publishing\Archive`. Preserve archived ZIPs unchanged; the archive contains no loose documents or version folders.
 - Use BBCode for ESOUI publishing text and follow the formatting reference.

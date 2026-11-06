@@ -4,6 +4,8 @@ InventoryCompanion is an Elder Scrolls Online (ESO) addon written in Lua 5.1 wit
 
 `AGENTS.md` holds the project rules for every task; the key points are repeated below.
 
+Before starting a task, check [Project/Processes](../Project/Processes/README.md) for an applicable process. Follow [feature development](../Project/Processes/FeatureDevelopment.md) for spec/plan/code/review/acceptance and [release](../Project/Processes/Release.md) for publication; do not skip their discussion and approval gates.
+
 ## Build, test, lint
 
 There is no build or linter; the addon runs inside the ESO client.
@@ -18,7 +20,7 @@ There is no build or linter; the addon runs inside the ESO client.
   ```
   `Run-RuleTests.py` first asserts XML structure (control names/anchors in `Tracking\*.xml`), compiles every `.lua` file, then loads addon files and `Project\Tests\*Tests.lua` into stubbed Lua runtimes. Offline tests must never touch live saved variables.
 - **In-game tests:** `/ictest [verbose] [veryverbose] [copy]` (also the Debug Key) runs the `Core\Tests.lua` + `Core\RuleTests.lua` diagnostics and performance checks. Other debug commands: `/icclean`, `/icbankitems [1-20]`, `/icactest ...`.
-- **Release:** `Project\Publishing\PackageRelease.ps1 -Action Stage|Finalize|Cancel`; follow `Project\Publishing\ReleaseChecklist.md`. `AddOnVersion = major*10000 + minor*100 + patch`; keep manifest `## Version`/`## AddOnVersion` and the runtime version in sync. Update `Project\Publishing\Source Documents\Changelog.bbcode` from the actual changes before recommending a version.
+- **Release:** `Project\Publishing\PackageRelease.ps1 -Action Stage|Finalize|Cancel`; follow `Project\Processes\Release.md`. `AddOnVersion = major*10000 + minor*100 + patch`; keep manifest `## Version`/`## AddOnVersion` and the runtime version in sync. Update `Project\Publishing\Source Documents\Changelog.bbcode` from the actual changes before recommending a version.
 
 ## Architecture
 
@@ -35,7 +37,7 @@ There is no build or linter; the addon runs inside the ESO client.
 - **Saved-variable schema:** bump the schema version whenever older builds can't safely read/preserve new data (even additive fields). Validate every profile and migrate non-destructively before ZOS constructors, and test that older builds reject the newer version without modifying data — DEV and release share saved variables.
 - Lua 5.1 only: `xpcall` doesn't forward extra args (wrap in a closure); no `goto`, integer division, or bitwise operators.
 - Prioritize in-game tests for rule matching/overrides and safe synthetic inventory-burst performance checks that never mutate live inventory or saved variables.
-- Publishing text (readme, manual, changelog, features) uses BBCode with `.bbcode` extensions (`Project\Publishing\ESOUIFormatting.md`); changelog entries use BBCode headings/lists, not Markdown.
+- Publishing text (readme, manual, changelog, features) uses BBCode with `.bbcode` extensions (`Project\Processes\References\ESOUIFormatting.md`); changelog entries use BBCode headings/lists, not Markdown.
 
 ## Workflow
 

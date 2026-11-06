@@ -665,7 +665,7 @@ results in [SpikeResults.md](SpikeResults.md).
   and commands are absent and production integration still works. Record this
   teardown evidence in SPIKE RESULTS.
 - Update authoritative working changelog from actual implementation first;
-  follow [ReleaseChecklist.md](../../../Publishing/ReleaseChecklist.md) for numbering,
+  follow the [release process](../../../Processes/Release.md) for numbering,
   approval and publication. Archive only after automated and user-reported
   acceptance. Do not call planned APIs implemented or untested behavior supported.
 
