@@ -10,6 +10,22 @@ specifications live in [FeatureSpecs](../FeatureSpecs); active work lives in the
 
 ## Verified Addon Work
 
+- **Untracked-item browsing (implemented portion of D3):** The item editor's
+  Untracked filter scans backpack, bank, subscriber bank, and optionally the
+  ESO Plus craft bag, deduplicating items and excluding individually tracked
+  items and matches to tracked rules. See
+  [CollectUntrackedItems](../../../Tracking/EditPanelItemsTab.lua).
+  This does not establish list sharing or coverage of every owned storage;
+  those remaining questions stay in the master TODO.
+- **Compiled production rule matching (implemented portion of E3):**
+  [GetRuntimeRules and matching](../../../Tracking/ItemDatabase.lua) compile
+  Include/Exclude patterns when rebuilding the shared runtime cache. Production
+  scans, notifications, editor filtering, and AutoCategory consume compiled
+  rules instead of recompiling on every item. Existing
+  [regression cases](../../../Core/RuleTests.lua) cover lazy rebuilds, compiled
+  scan contracts, and current notification matching. Standalone raw-pattern
+  helpers retain their separate contract; potential changes remain in E3.
+
 - **AutoCategory integration and settings/editor polish (D11):** Closed by the
   author on 2026-11-04. Includes per-area Display/Priority orders and Hide/Show,
   movable Display-only Other, full profiles, centralized settings/profile tools,

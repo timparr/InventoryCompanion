@@ -6,6 +6,17 @@ Owner: <author>
 Updated: <date>
 Implementation plan: <relative link>
 
+## Open questions
+
+Keep this as the first section, containing only unanswered questions. As each is
+answered, update the relevant requirements and decision register below, then
+remove the question here. Remove this section when no open questions remain;
+retain agreed decisions and their evidence in Options and product decisions.
+
+| ID | Question | Blocking phase and why |
+|---|---|---|
+| Q1 | <Unanswered question> | <Spec / plan / coding / acceptance> |
+
 Use the [feature development process](../FeatureDevelopment.md). Replace
 placeholders without copying historical approvals or test results. When copied
 into DevDocs/FeatureSpecs, change this process link to
@@ -45,12 +56,6 @@ choice remains provisional until assessed in the plan.>
 | ID | Options and trade-offs | Recommendation | Agreed decision and evidence |
 |---|---|---|---|
 | D1 | <User impact of alternatives> | <Proposal, not agreement> | PENDING |
-
-## Open questions
-
-| ID | Question | Blocking phase and why | Resolution |
-|---|---|---|---|
-| Q1 | <Question, or None when actually resolved> | <Spec / plan / coding / acceptance> | PENDING |
 
 ## Feasibility notes
 

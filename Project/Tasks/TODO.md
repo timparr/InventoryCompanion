@@ -53,8 +53,11 @@ material, not approved implementation scope.
   deposits/withdrawals upon opening a bank or chest.
 - **D2. Tamriel Trade Centre (TTC) Integration:** Integrate TTC pricing data
   and set a "valuable" item threshold for chat notifications.
-- **D3. Tracked Item List Sharing & Untracked Filter:** Expand the editor
-  filter view to inspect all owned untracked items.
+- **D3. Tracked Item List Sharing & Remaining Untracked Storage Coverage:**
+  Discuss list-sharing requirements and whether untracked browsing should cover
+  storage beyond backpack, bank, subscriber bank, and the optional craft bag.
+  The existing Untracked filter already covers those bags; do not reimplement it.
+  "All owned" storage beyond that scope is not established by the current scan.
 - **D5. Global Panel Show/Hide Context Menu:** Add a right-click option on any
   panel to show/hide all HUD overlays collectively.
 - **D6. Consolidated Gained Messages:** Buffer rapid-fire item pickups (under
@@ -69,8 +72,17 @@ material, not approved implementation scope.
   Miscellaneous virtual group before implementation and reuse or extend its
   behavior where appropriate. Consider renaming the Currency Panel to Summary
   Panel if it includes broader item/group summaries.
-- **D10. Progress Bar Visibility:** Allow progress bars to be hidden below a
-  configurable percentage.
+- **D10. HUD Layout and Visibility:** One
+  [shared draft spec](../DevDocs/FeatureSpecs/HUDLayoutAndVisibility.md), with
+  separate implementation tickets:
+  - **D10.1. HUD Positioning:** Settings, slash command and hotkey enter a
+    temporary positioning mode; on-screen Done restores normal visibility.
+  - **D10.2. Vanishing Progress Bars:** Independent per-bar hide-below thresholds.
+  - **D10.3. Configurable Currency Grid Columns:** User-selected column count.
+    Formerly F1; current layout is fixed at three columns.
+  See the [positioning/bar plan](../DevDocs/Plans/ProgressBarVisibilityImplementationPlan.md)
+  and [currency-grid plan](../DevDocs/Plans/CurrencyGridColumnsImplementationPlan.md).
+  Whole-spec review and approvals remain pending; tickets do not authorize coding.
 
 ---
 
@@ -84,9 +96,11 @@ material, not approved implementation scope.
   (e.g., renaming `EditPanelItemsTab.lua` to `ItemEditorWindow.lua`), XML root
   control tags, and refresh methods (`RefreshItemEditor()` /
   `RefreshGroupEditor()`) while clearly separating data rules from UI groups.
-- **E3. Rule-Matching Optimization:** Refactor `ItemMatchesRule` and
-  `ItemMatchesAnyRule` to use pre-compiled pattern compilers rather than
-  compiling on the fly during real-time inventory updates.
+- **E3. Standalone Matching Helper Review:** Production scanning, notifications,
+  editor filtering, and AutoCategory already use precompiled runtime rules.
+  `ItemMatchesRule` and `ItemMatchesAnyRule` still compile raw patterns for
+  standalone calls; assess whether changing those helpers has any demonstrated
+  benefit before refactoring. Do not repeat the completed runtime-cache work.
 - **E4. Modular Settings Panel:** Review the currency panel settings UI,
   which is already partially owned by `Tracking/CurrencyPanel.lua`, as a
   template. Discuss whether and how to modularize the remaining settings
@@ -103,8 +117,8 @@ tasks. Superseded approaches and closed proposals are not carried forward.
 Entries are self-contained so useful ideas survive removal of the old plans.
 They may be refined or discarded during future triage.
 
-- **F1. Configurable Currency Grid Columns:** Allow users to choose the number
-  of columns instead of the released three-column layout.
+- **F1. Configurable Currency Grid Columns:** Moved to D10.3 under HUD Layout
+  and Visibility; not completed.
 - **F2. Summed Character and Bank Currency Balances:** Offer a combined total
   for currencies held in both locations, distinct from the existing combined
   cell that displays the two balances separately.
@@ -140,6 +154,13 @@ They may be refined or discarded during future triage.
 - **F12. Per-Character Tracker Placement:** Consider saving the item tracker
   window position separately for each character while keeping other settings
   account-wide.
+- **F13. Combat HUD and Notification Controls:** Optional combat suppression,
+  configurable independently by panel and notification area/type (for example,
+  mute notifications while leaving panels visible). Detect combat entry/exit;
+  restore normal visibility and notification behavior on exit without changing
+  saved preferences. Discuss which areas are independently configurable and
+  whether suppressed notifications are discarded or summarized afterward.
+  Separate future idea, not part of D10's current implementation scope.
 
 Source design history: [Currency Preferences](../DevDocs/Archive/CurrencyPanel/CurrencyPreferences.md)
 and [Currency Panel Implementation Plan](../DevDocs/Archive/CurrencyPanel/ImplementationPlan.md),
