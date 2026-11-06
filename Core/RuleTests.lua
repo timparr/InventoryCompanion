@@ -102,7 +102,7 @@ function this.GetRuleTests()
         this.character.trackedItems = {}
         local destination = { display = { show = true } }
         this.accountWide.trackedItems[1] = destination
-        _G[this.SettingsName] = { Default = { account = { source = {
+        _G[this.SettingsName] = { Default = { [GetDisplayName()] = { source = {
             trackedRules = {}, trackedItems = { [2] = { display = { showBank = 1 } } },
         } } } }
         FailsWith(function() this.CopyProfile("source") end, ".showBank must be boolean")
@@ -372,7 +372,7 @@ function this.GetRuleTests()
                 custom = { patterns = { "custom" } },
             },
         }
-        _G[this.SettingsName] = { Default = { account = { source = source } } }
+        _G[this.SettingsName] = { Default = { [GetDisplayName()] = { source = source } } }
         local before = this.GetRuntimeRules()
         assert(this.CopyProfile("source"), "Profile copy should succeed")
         local copied = this.accountWide.trackedRules
@@ -388,7 +388,7 @@ function this.GetRuleTests()
         local valid = this.GetRuntimeRules()
         assert(not this.CopyProfile("missing"), "Unknown profile should fail")
         Equal(this.GetRuntimeRules(), valid, "Failed copy does not invalidate")
-        _G[this.SettingsName].Default.account.self = this.accountWide
+        _G[this.SettingsName].Default[GetDisplayName()].self = this.accountWide
         FailsWith(function() this.CopyProfile("self") end, "Cannot copy a profile onto itself")
         Equal(this.accountWide.trackedItems[123].link, "item", "Self-copy retains items")
         List(this.GetRuntimeRules().default.patterns, { "b", "c", "d", "e" }, "Self-copy retains rules")
@@ -399,7 +399,7 @@ function this.GetRuleTests()
             trackedItems = {},
             trackedRules = { broken = { addedPatterns = false } },
         }
-        _G[this.SettingsName] = { Default = { account = { source = source } } }
+        _G[this.SettingsName] = { Default = { [GetDisplayName()] = { source = source } } }
         this.UpdateRuleProperty("default", "displayName", "Keep")
         this.accountWide.trackedItems[123] = { link = "keep" }
         local rules, items = this.accountWide.trackedRules, this.accountWide.trackedItems
@@ -411,11 +411,11 @@ function this.GetRuleTests()
         Equal(items[123].link, "keep", "Destination items retained")
         Equal(this.GetRuntimeRules(), cache, "Rejected import does not invalidate")
         Equal(source.trackedRules.broken.addedPatterns, false, "Malformed source retained for repair")
-        _G[this.SettingsName].Default.account.source = false
+        _G[this.SettingsName].Default[GetDisplayName()].source = false
         FailsWith(function() this.CopyProfile("source") end, "Imported profile source must be a table")
         source.trackedRules.broken = {}
         source.trackedItems = false
-        _G[this.SettingsName].Default.account.source = source
+        _G[this.SettingsName].Default[GetDisplayName()].source = source
         FailsWith(function() this.CopyProfile("source") end, "Imported profile source.trackedItems must be a table")
         Equal(items[123].link, "keep", "Malformed item container cannot clear destination")
     end)

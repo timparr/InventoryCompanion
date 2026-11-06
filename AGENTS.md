@@ -19,6 +19,7 @@
 
 ## Git Workflow
 
+- For any release request, do not inspect or change files yet. First give the user a brief outline of the release steps and ask conversationally for approval to begin; then stop and wait. Follow the release checklist's later approval gates as well.
 - At the start of each release, update the authoritative working changelog from the actual changes first, then use it to recommend a build/patch or minor version increment (major only for incompatible changes), with a brief reason and proposed version, before staging. Follow `Project/Publishing/ReleaseChecklist.md` for numbering and release steps.
 - Before recommending a separate branch for substantial or risky work, check the current branch. If already on a feature branch for that work, continue there; do not suggest another branch merely because the work is substantial. Otherwise, warn the user when a separate branch is advisable and explain why.
 - Do not switch branches without the user's approval.

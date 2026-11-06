@@ -1452,7 +1452,7 @@ local function RunTests(arguments)
                         this.character = { useCharacterItemList = false }
                         _G[this.SettingsName] = {
                             Default = {
-                                account = {
+                                [GetDisplayName()] = {
                                     ["$AccountWide"] = sourceProfile,
                                     sourceCharacter = sourceProfile,
                                 },
