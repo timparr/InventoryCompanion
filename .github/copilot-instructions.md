@@ -18,7 +18,7 @@ There is no build or linter; the addon runs inside the ESO client.
   ```
   `Run-RuleTests.py` first asserts XML structure (control names/anchors in `Tracking\*.xml`), compiles every `.lua` file, then loads addon files and `Project\Tests\*Tests.lua` into stubbed Lua runtimes. Offline tests must never touch live saved variables.
 - **In-game tests:** `/ictest [verbose] [veryverbose] [copy]` (also the Debug Key) runs the `Core\Tests.lua` + `Core\RuleTests.lua` diagnostics and performance checks. Other debug commands: `/icclean`, `/icbankitems [1-20]`, `/icactest ...`.
-- **Release:** `Project\Publishing\PackageRelease.ps1 -Action Stage|Finalize|Cancel`; follow `Project\Publishing\ReleaseChecklist.md`. `AddOnVersion = major*10000 + minor*100 + patch`; keep manifest `## Version`/`## AddOnVersion` and the runtime version in sync. Update the working changelog (`Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.bbcode`) from the actual changes before recommending a version.
+- **Release:** `Project\Publishing\PackageRelease.ps1 -Action Stage|Finalize|Cancel`; follow `Project\Publishing\ReleaseChecklist.md`. `AddOnVersion = major*10000 + minor*100 + patch`; keep manifest `## Version`/`## AddOnVersion` and the runtime version in sync. Update `Project\Publishing\Source Documents\Changelog.bbcode` from the actual changes before recommending a version.
 
 ## Architecture
 

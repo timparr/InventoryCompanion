@@ -20,8 +20,8 @@ candidate testing follow the [release checklist](../../Publishing/ReleaseCheckli
 
 ## Documentation handoff
 
-Use this specification when updating the [user manual](../../../UserManual.bbcode)
-and [feature overview](../../../Features.md).
+Use this specification when updating the [user manual](../../Publishing/Source%20Documents/UserManual.bbcode)
+and archived [feature overview](../../Publishing/Archive/Legacy%20Sources/Features.md).
 
 - **Feature overview:** optional reuse of IC group filters in AutoCategory,
   independent per-area Display/Priority orders, Hide/Show participation, movable

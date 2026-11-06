@@ -1,6 +1,6 @@
 # ESOUI publishing text formatting
 
-ESOUI's formatted text fields use BBCode (author-supplied reference, 2026-10-27). Publishing text in `Packages\Reviewed\Current Documentation`, including the readme, manual, features, and changelog, uses `.bbcode` filenames. The root `readme.bbcode` and `UserManual.bbcode` use the same format. Keep genuine Markdown documents, including root `Features.md`, plans, and checklists, as `.md`. Historical release snapshots retain their original names.
+ESOUI's formatted text fields use BBCode (author-supplied reference, 2026-10-27). The authoritative readme header/body, manual, and changelog are `.bbcode` files in `Project\Publishing\Source Documents`. The packaging script combines the readme header and body into `ReadMe.bbcode` for both the ZIP and upload folder. Keep genuine Markdown documents, plans, and checklists as `.md`; the retired feature overview is archived under `Project\Publishing\Archive`. Historical release snapshots retain their original names. Source SVGs for the manual are in `Project\Publishing\Resources`.
 
 For local editing, the VS Code extension **BBCode Preview** (`gimucco.bbcode-preview`) recognises `.bbcode` files and provides a live preview. Its rendering is a convenience, not a substitute for ESOUI's own preview.
 
@@ -12,4 +12,4 @@ Use size 2 bold for section headings, such as banking features. Reserve size 4 f
 
 Keep changelog versions newest first. Write concise player-facing changes, not review provenance or developer-only release-process details.
 
-When combining the readme and features into `Readme_Features.bbcode`, insert `[COLOR="#808080"]________________________________________________________________________________[/COLOR]` with a blank line on each side before the features title to separate the quick overview from the detailed features. This is a fixed-length text divider. The author tested `[HR]` in ESOUI on 2026-10-27 and reported that it does not work; do not use it.
+Do not manually combine, copy, or rename the readme parts during handoff. Stage generates the combined readme once and freezes the exact bytes into the release candidate; finalization places the same file in the ZIP and upload folder.
