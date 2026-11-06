@@ -13,7 +13,7 @@ Baseline review: <approved report location, source/candidate version and identit
 Review mode: <DELTA or FULL>
 Release version: <agreed major.minor.patch version>
 Candidate SHA256: <filled after staging>
-Report location: Project\Publishing\Packages\Reviewed\Current release\ReleaseReview.md
+Report location: Project\Publishing\Current release\ReleaseReview.md
 Review status: <COMPLETE - findings present / COMPLETE - no findings / INCOMPLETE>
 
 Set Status to `[Approved to Test]` only when there are no failed or unresolved checks and every remaining Pending item requires test deployment to assess. Otherwise leave it `[Not Approved]`. After test deployment, set Status to `[Approved for Release]` only when all checks pass, no findings remain unresolved, and no Pending items remain. Neither status substitutes for the separate GO to stage or GO for UAT.

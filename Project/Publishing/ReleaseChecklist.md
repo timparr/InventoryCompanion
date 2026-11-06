@@ -11,7 +11,7 @@ For feature context, use the current specifications in [DevDocs/FeatureSpecs](..
 
 ## Preparation and review sequence
 0. **STOP!** Outline what the steps are going to be to the user. Wait for a go!
-1. **Prepare the working release folder.** Create `Project\Publishing\Packages\Reviewed\Current release` if it does not exist. If it exists, confirm the prior numbered archive is retained, then empty only this working folder. Create `ReleaseReview.md` in it from `ReleaseReviewTemplate.md`; create the combined `ReadMe.bbcode` from the authoritative header and body, and copy the authoritative `Changelog.bbcode` into the folder.
+1. **Prepare the working release folder.** Create `Project\Publishing\Current release` if it does not exist. If it exists, confirm its prior release ZIP is retained with a matching hash in `Project\Publishing\Archive`, then empty only this working folder. Create `ReleaseReview.md` in it from `ReleaseReviewTemplate.md`; create the combined `ReadMe.bbcode` from the authoritative header and body, and copy the authoritative `Changelog.bbcode` into the folder.
 2. **Diff the baseline and agree on the change summary.**
    - **Baseline diff:** Establish the committed DEV source identity and compare the code with the last approved review.
    - **Draft the report entry:** Use the diff to draft the **Changes reviewed** section. Distinguish what changed from what was merely inspected.
@@ -27,10 +27,11 @@ For feature context, use the current specifications in [DevDocs/FeatureSpecs](..
    - **Update documents:** After user testing, update and verify the release `ReadMe.bbcode` and `Changelog.bbcode` in `Current release`. Complete the review report with user-test results and final findings.
    - **Prepare the test installation:** Copy the finalized documentation and review report into the test installation.
    - **Create the release ZIP:** Create `InventoryCompanion-v<version>.zip` from the test installation in `Current release`.
-   - **Archive and verify:** Copy the ZIP and review/documentation archive into `Project\Publishing\Packages\Reviewed\InventoryCompanion-v<version>`. Verify both ZIP hashes match.
+   - **Archive and verify:** Copy only `InventoryCompanion-v<version>.zip` into `Project\Publishing\Archive`. The ZIP contains its finalized readme, changelog, and review; do not create separate archived document copies or version folders. Verify both ZIP hashes match.
    - **Present for approval:** Present the package for approval before upload or handoff.
 10. **Upload and confirm publication.** Follow the ESOUI API upload workflow below after explicit package/upload approval. Verify the public release and obtain the author's confirmation that it was published.
 11. **Clean up files, commit, and tag.** After confirmed publication, follow the release closeout below: tidy release-related files, validate the final changes, commit the completed release, then create its version tag.
+12. **Push and preserve the package on GitHub.** For every release, obtain explicit approval to push the release commit/tag and publish the verified ZIP as an asset of the matching GitHub Release. Follow the verification steps below; a local ZIP or pushed tag alone does not complete release closeout.
 
 ## How to carry out the sequence
 
@@ -39,7 +40,7 @@ For feature context, use the current specifications in [DevDocs/FeatureSpecs](..
 - At the start of each new release, ask whether the previous release was published. Use the answer when deciding which changes are still unreleased.
 - Use the review template as-is for report structure and checks. Do not add report sections or duplicate its standards in this checklist.
 - Build `ReadMe.bbcode` by placing `ReadMe-Header.bbcode` before `ReadMe-Body.bbcode`. Keep the dependency and any applicable AI disclosure in the header. Keep the changelog's newest release first.
-- Keep working copies in `Packages\Reviewed\Current release`; preserve existing numbered archive folders.
+- Keep working copies in `Project\Publishing\Current release` and retain final ZIPs in `Project\Publishing\Archive`. Preserve archived ZIPs unchanged; the archive contains no loose documents or version folders.
 - Use BBCode for ESOUI publishing text and follow the formatting reference.
 - Review the listing header, body, and changelog for accurate current-version, dependency, feature, and change information. Do not include the old manual in the test installation or ZIP; it may remain in `Current release` as a reference.
 
@@ -87,7 +88,7 @@ Record the tester's actual response. Do not infer transfer success or storage co
 ### Complete and verify the package (step 9)
 
 - After UAT, update the combined README and changelog, then put the finalized documents and review report into the test installation as specified in the sequence.
-- Run `.\Project\Publishing\PackageRelease.ps1 -Action Finalize` after the report records actual UAT results and has no unresolved findings. It copies the finalized README, changelog, and review into the test installation, verifies the candidate files, creates the ZIP in `Current release`, and copies the ZIP plus those documents into the versioned `Reviewed` folder. It refuses to overwrite an existing archive or versioned folder.
+- Run `.\Project\Publishing\PackageRelease.ps1 -Action Finalize` after the report records actual UAT results and has no unresolved findings. It copies the finalized README, changelog, and review into the test installation, verifies the candidate files, creates the ZIP in `Current release`, and retains a hash-verified ZIP copy in `Archive`. It refuses to overwrite an existing working or archived ZIP, and opens `Current release` for upload.
 - Verify the ZIP and copied archive hashes before presenting the package. Finalize does not upload or confirm publication; do not replace historical versioned archives.
 - Once the author confirms they are satisfied with the completed documents, continue through the remaining sequence while preserving its separate GO gates and package-approval step. After package approval, perform the ESOUI upload. Upload alone does not confirm publication; ask the author whether publication is confirmed before removing the working changelog marker.
 
@@ -102,15 +103,26 @@ Record the tester's actual response. Do not infer transfer success or storage co
 - For list-request transport diagnosis, add `-UseCurl` to use the documented curl transport. The token is passed through stdin, not command-line arguments or a file. This option supports List only and never uploads. Surrounding token whitespace is removed with a warning; internal whitespace, quotes or non-ASCII characters are rejected locally without sending a request. Rejections identify each invalid UTF-16 code unit by its 1-based position after trimming, Unicode code and type/name, without displaying the token.
 - Run `pwsh -File .\Project\Publishing\Publish-ESOUI.ps1 -Id <id> -Compatible <game-version>`. The default action is `Test`: it sends the real finalized upload to `/addons/updatetest`, which saves nothing. Use `-WhatIf` for local checks without reading a token or contacting ESOUI.
 - After successful testing and explicit package/upload approval, run the same command with `-Action Publish`. Its confirmation explicitly identifies a live submission. It first repeats the non-saving test and proceeds to `/addons/update` only if accepted. Do not bypass confirmation in automation without the author's explicit approval for that exact release and target.
-- HTTP errors, unexpected responses, and mismatched handoff files stop the script. It never retries live submissions automatically; after a network failure, inspect ESOUI before retrying because the server might already have accepted the update.
+- Before reading credentials or contacting ESOUI, the uploader verifies that the ZIP in `Current release` matches its retained `Archive` copy and that the working readme, changelog, and review match the documents inside that ZIP. Missing or duplicate document entries, mismatches, HTTP errors, and unexpected responses stop the script. It never retries live submissions automatically; after a network failure, inspect ESOUI before retrying because the server might already have accepted the update.
 - Verify the public version, download and listing text afterward. API acceptance is not author-confirmed publication.
 - API contract: [ESOUI AddOn update API](https://www.esoui.com/forums/showthread.php?p=28513). Offline uploader regression tests: `pwsh -File .\Project\Publishing\Test-PublishESOUI.ps1`; these use synthetic packages and mocked requests, never real credentials or uploads.
 
 ### Clean up, commit, and tag (step 11)
 
-- Check the current branch and all pending changes. Archive superseded working documents in their appropriate project folder, retain release evidence, and remove only identified disposable files. Preserve unrelated work, private SavedVariables backups, and frozen release packages/numbered archives; never add credentials or generated/local-only files to Git.
+- Check the current branch and all pending changes. Retain technical decisions and investigation history in the appropriate DevDocs feature archive and test evidence under Tests; remove identified superseded publishing copies rather than adding them to the ZIP-only publishing archive. Preserve unrelated work, private SavedVariables backups, and frozen release ZIPs; never add credentials or generated/local-only files to Git.
 - Remove the published version's `[current version]` marker from the authoritative working changelog after the author's publication confirmation. Do not edit frozen package or archive copies.
 - Validate the final release-related changes with the relevant existing tests and `git diff --check`. Stage only the intended release changes and inspect the staged diff before committing.
 - Create the final release commit with the released version in its message and the required co-author trailer. Preserve the DEV version increment performed by Stage; do not roll DEV back to the published version.
-- Create an annotated `v<released-version>` tag on that commit, using the published package/review version rather than the advanced DEV version. Record the retained versioned package and its ZIP SHA-256 in the tag message so the release artifact remains identifiable. Never overwrite an existing tag.
+- Create an annotated `v<released-version>` tag on that commit, using the published package/review version rather than the advanced DEV version. Record `Project\Publishing\Archive\InventoryCompanion-v<released-version>.zip` and its ZIP SHA-256 in the tag message so the release artifact remains identifiable. Never overwrite an existing tag.
 - Verify that the tag resolves to the new commit and that no intended release changes remain uncommitted. Report the commit and tag to the author; pushing the commit and tag requires separate authorization.
+
+### Push and publish the GitHub Release (step 12)
+
+- This step is required for every published version. `Current release` and archived ZIPs are Git-ignored: a source commit or tag does not preserve the exact distributed package, its finalized documents, or its review. Keep ZIPs out of normal Git history and retain the local archive copy.
+- Before any remote changes, confirm the destination repository, release commit, `v<released-version>` tag, and ZIP SHA-256 with the author. Obtain explicit approval to push that commit/tag and publish that exact ZIP on its matching GitHub Release. ESOUI upload approval does not authorize GitHub publication.
+- Verify that `Project\Publishing\Current release\InventoryCompanion-v<released-version>.zip` and `Project\Publishing\Archive\InventoryCompanion-v<released-version>.zip` have matching SHA-256 hashes, equal to the package identity recorded in the annotated tag. Use the existing finalized ZIP; do not rebuild or modify it for GitHub.
+- Push the release branch and that specific tag without force-pushing or pushing unrelated tags. Verify that the remote tag resolves to the approved release commit. If the branch or remote tag has diverged, stop for discussion; do not overwrite history.
+- Use the GitHub CLI to create the release in `timparr/InventoryCompanion` for the existing tag (`gh release create <tag> --repo timparr/InventoryCompanion --verify-tag`), attaching the verified ZIP and supplying a title and notes based on the published changelog. Include the ZIP SHA-256 in the release notes. The asset must be the exact ESOUI release package, not GitHub's automatically generated source archive.
+- If the GitHub Release or asset already exists, inspect it before proceeding. Download and hash-check any existing ZIP; do not create a duplicate release or replace an asset automatically. Resolve missing or conflicting assets with the author, then perform only the approved action.
+- After publication, download the ZIP asset into a temporary verification folder and compare its SHA-256 with the local archived ZIP and tag record. Verify the GitHub Release uses the intended tag and is published, not a draft. Remove only the temporary verification files.
+- Report the GitHub Release URL, commit, tag, asset filename, and verified hash. Closeout is complete only after the remote commit/tag and downloadable release asset are verified; otherwise report the outstanding step explicitly.

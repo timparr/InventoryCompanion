@@ -364,11 +364,11 @@ Required checks for a future implementation:
 
 ## 10. Current Implementation References
 
-- [LAM settings](../../Core/Settings.lua)
-- [Items editor layout](../../Tracking/EditPanelItemsTab.xml)
-- [Groups editor layout](../../Tracking/EditPanelGroupsTab.xml)
-- [Editor navigation](../../Tracking/EditPanelTabManager.lua)
-- [Currency/resource settings and presentation](../../Tracking/CurrencyPanel.lua)
-- [Progress-bar preferences](../../Banking/ProgressBarResources.lua)
-- [Master TODO](./TODO.md): D10, E4, and F3 provide related context; this
+- [LAM settings](../../../Core/Settings.lua)
+- [Items editor layout](../../../Tracking/EditPanelItemsTab.xml)
+- [Groups editor layout](../../../Tracking/EditPanelGroupsTab.xml)
+- [Editor navigation](../../../Tracking/EditPanelTabManager.lua)
+- [Currency/resource settings and presentation](../../../Tracking/CurrencyPanel.lua)
+- [Progress-bar preferences](../../../Banking/ProgressBarResources.lua)
+- [Master TODO](../TODO.md): D10, E4, and F3 provide related context; this
   proposal does not approve or implement those tasks.

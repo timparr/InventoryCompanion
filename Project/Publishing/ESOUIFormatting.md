@@ -1,6 +1,6 @@
 # ESOUI publishing text formatting
 
-ESOUI's formatted text fields use BBCode (author-supplied reference, 2026-10-27). The authoritative readme header/body, manual, and changelog are `.bbcode` files in `Project\Publishing\Source Documents`. The packaging script combines the readme header and body into `ReadMe.bbcode` for both the ZIP and upload folder. Keep genuine Markdown documents, plans, and checklists as `.md`; the retired feature overview is archived under `Project\Publishing\Archive`. Historical release snapshots retain their original names. Source SVGs for the manual are in `Project\Publishing\Resources`.
+ESOUI's formatted text fields use BBCode (author-supplied reference, 2026-10-27). The authoritative readme header/body, manual, and changelog are `.bbcode` files in `Project\Publishing\Source Documents`. The packaging script combines the readme header and body into `ReadMe.bbcode` for both the ZIP and `Project\Publishing\Current release` upload folder. Keep genuine Markdown documents, plans, and checklists as `.md`. Final release ZIPs in `Project\Publishing\Archive` contain their own readme, changelog, and review; do not retain superseded publishing sources there. Source SVGs for the manual are in `Project\Publishing\Resources`.
 
 For local editing, the VS Code extension **BBCode Preview** (`gimucco.bbcode-preview`) recognises `.bbcode` files and provides a live preview. Its rendering is a convenience, not a substitute for ESOUI's own preview.
 

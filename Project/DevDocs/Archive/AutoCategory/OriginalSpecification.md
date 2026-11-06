@@ -487,7 +487,7 @@ in the implementation plan, not assumed existing APIs.
   texture is unavailable. It preserves the heading's normal rendered color and
   is not the final icon design.
 - Chosen IC source artwork is the white wide-flap satchel with luggage tag,
-  [CategoryIcon/v5](../../../Resources/Art/CategoryIcon/v5); v1-v4 are earlier references.
+  [CategoryIcon/v5](../../../Resources/DesignHistory/CategoryIcon/v5); v1-v4 are earlier references.
   Plain `CategoryIcon.svg` is the heading icon, tinted gold. A whole-group
   heading never shows include/exclude badges.
 - Convert final asset to 64x64 DXT5 `.dds`, preserving alpha and white artwork

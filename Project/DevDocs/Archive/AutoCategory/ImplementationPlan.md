@@ -645,7 +645,7 @@ results in [SpikeResults.md](SpikeResults.md).
   character groups, automatic switching, resets, reload/disable/uninstall,
   edit-while-absent, immutable external entries, new-schema downgrade safety.
 - Check Lua/XML, paths/whitespace, new textures against
-  [ESO-Game-Textures.md](../../../Resources/ESO-Game-Textures.md), and documentation links.
+  [ESO-Game-Textures.md](../../../Resources/Reference/ESO-Game-Textures.md), and documentation links.
   Record version, supported contracts, precise context/platform limits, workload/
   timings and dated offline/ESO results in the spike/results record.
 - Update [UserManual.bbcode](../../../Publishing/Source%20Documents/UserManual.bbcode): participation,

@@ -215,7 +215,7 @@ Change [Tracking/EditPanelGroupsTab.xml](../../../../Tracking/EditPanelGroupsTab
   indicators by 25% from 20 to 25 pixels, retaining the 8-pixel textbox gap.
   The earlier `radioButton_checked.dds` path was invalid and caused the indicator
   to disappear. Use the repository's
-  [ESO-Game-Textures.md](../../../Resources/ESO-Game-Textures.md) as the first
+  [ESO-Game-Textures.md](../../../Resources/Reference/ESO-Game-Textures.md) as the first
   reference for known-good texture paths. Both Bank indicator textures and all
   four CharacterWindow swap states are listed there. XML parsing alone does not
   establish asset existence or correct ESO button-state markup.

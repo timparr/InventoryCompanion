@@ -14,7 +14,7 @@ $savedVariables = Join-Path $savedVariablesDirectory "InventoryCompanion.lua"
 $devSavedVariables = Join-Path $savedVariablesDirectory "InventoryCompanion_DEV.lua"
 $script = Join-Path $devRoot "Project\Publishing\PackageRelease.ps1"
 $manifest = Join-Path $devRoot "InventoryCompanion_DEV.txt"
-$currentRelease = Join-Path $devRoot "Project\Publishing\Packages\Reviewed\Current release"
+$currentRelease = Join-Path $devRoot "Project\Publishing\Current release"
 $reviewPath = Join-Path $currentRelease "ReleaseReview.md"
 $passed = 0
 $explorerFolders = [System.Collections.Generic.List[string]]::new()
@@ -329,22 +329,26 @@ try {
     $devInit = Join-Path $devRoot "Core\Init.lua"
     $devManifestBeforeFinalize = (Get-FileHash -LiteralPath $manifest).Hash
     $devInitBeforeFinalize = (Get-FileHash -LiteralPath $devInit).Hash
+    $archiveDirectory = Join-Path $devRoot "Project\Publishing\Archive"
+    $retainedZip = Join-Path $archiveDirectory "InventoryCompanion-v$version.zip"
+    $null = New-Item -ItemType Directory -Path $archiveDirectory -Force
+    [System.IO.File]::WriteAllText($retainedZip, "Existing release must be preserved.")
+    $existingArchiveHash = (Get-FileHash -LiteralPath $retainedZip).Hash
+    Assert-Fails { & $script -Action Finalize } "Archived release already exists"
+    Assert ((Get-FileHash -LiteralPath $retainedZip).Hash -eq $existingArchiveHash) "Finalization overwrote an existing archived release."
+    Assert (-not (Test-Path -LiteralPath (Join-Path $candidate "Changelog.bbcode"))) "Archive collision changed the staged candidate."
+    Remove-Item -LiteralPath $retainedZip
     $finalizeOutput = @(& $script -Action Finalize)
     $zip = Join-Path $currentRelease "InventoryCompanion-v$version.zip"
     Assert (Test-Path -LiteralPath $zip) "Finalization did not create the ZIP in Current release."
     $zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
-    $handoffDirectory = Join-Path (Join-Path $devRoot "Project\Publishing\Packages\Reviewed") "InventoryCompanion-v$version"
-    Assert (Test-Path -LiteralPath $handoffDirectory -PathType Container) "Finalization did not create the versioned archive folder."
-    $handoffZip = Join-Path $handoffDirectory (Split-Path $zip -Leaf)
-    Assert ((Get-FileHash -LiteralPath $handoffZip -Algorithm SHA256).Hash -eq $zipHash) "Versioned ZIP copy differs from Current release ZIP."
-    foreach ($fileName in @("ReadMe.bbcode", "Changelog.bbcode", "ReleaseReview.md")) {
-        Assert ((Get-FileHash -LiteralPath (Join-Path $handoffDirectory $fileName)).Hash -eq
-            (Get-FileHash -LiteralPath (Join-Path $candidate $fileName)).Hash) "Versioned documentation differs: $fileName"
-    }
-    Assert (-not (Test-Path -LiteralPath (Join-Path $handoffDirectory "UserManual.bbcode"))) "Obsolete manual entered the versioned archive."
+    Assert ((Get-FileHash -LiteralPath $retainedZip -Algorithm SHA256).Hash -eq $zipHash) "Retained ZIP copy differs from Current release ZIP."
+    $retainedFiles = @(Get-ChildItem -LiteralPath $archiveDirectory -Force)
+    Assert ($retainedFiles.Count -eq 1 -and $retainedFiles[0].Name -eq (Split-Path $zip -Leaf)) "Archive must contain only the final ZIP, with no loose documents or versioned folder."
+    Assert (-not (Test-Path -LiteralPath (Join-Path $devRoot "Project\Publishing\Packages"))) "Finalization recreated the obsolete Packages hierarchy."
     Assert ($finalizeOutput -contains "Archive SHA256: $zipHash") "Finalization did not report the archive hash."
     Assert ($finalizeOutput -contains "Candidate file-set SHA256: $candidateHash") "Finalization did not report the staged candidate hash."
-    Assert ($explorerFolders.Count -eq 1 -and $explorerFolders[0] -eq $handoffDirectory) "Finalization did not open the versioned archive folder."
+    Assert ($explorerFolders.Count -eq 1 -and $explorerFolders[0] -eq $currentRelease) "Finalization did not open Current release for upload."
     Assert ((Get-FileHash -LiteralPath $manifest).Hash -eq $devManifestBeforeFinalize) "Finalization changed DEV manifest metadata."
     Assert ((Get-FileHash -LiteralPath $devInit).Hash -eq $devInitBeforeFinalize) "Finalization changed DEV runtime metadata."
     Assert ((Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json).Completed) "Finalization did not mark the test complete."

@@ -9,6 +9,10 @@ with supporting plans and evidence in the
 [AutoCategory archive](../DevDocs/Archive/AutoCategory). It is no longer a
 pending roadmap item.
 
+Unapproved designs are kept in [Proposals](Proposals), including the
+[settings/editor UI mockup](Proposals/SettingsUIUXMockup.md). They are discussion
+material, not approved implementation scope.
+
 ## Section A: 🛠️ In Progress & Immediate Tasks
 
 ---

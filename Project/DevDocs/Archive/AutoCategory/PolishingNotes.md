@@ -68,12 +68,12 @@ the account wide, per character and copy tools need to move into the main settin
 
 
 ## Reference Images
-![alt text](../../../Resources/AutoCategoryIntegration/image-1.png)
+![alt text](../../../Resources/Screenshots/AutoCategory/image-1.png)
 use character list, import from and the other controls that pop up from that interaction move to the settings panel:
 
-![alt text](../../../Resources/AutoCategoryIntegration/image-2.png)
+![alt text](../../../Resources/Screenshots/AutoCategory/image-2.png)
 
-![alt text](../../../Resources/AutoCategoryIntegration/image.png)
+![alt text](../../../Resources/Screenshots/AutoCategory/image.png)
 
 ## Main settings panel how has this structure:
 

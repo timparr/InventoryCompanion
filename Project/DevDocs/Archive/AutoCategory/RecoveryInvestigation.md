@@ -1,5 +1,11 @@
 # AutoCategory mismatch: what happens
 
+**Historical investigation.** Retained for failure analysis and recovery design
+decisions. Schema examples, proposed controls, and pending-work statements below
+describe the investigation period, not current requirements or outstanding work.
+Use the [master feature specification](../../FeatureSpecs/AutoCategoryIntegration.md)
+for current synchronization and recovery behavior.
+
 This explains the repeated error for an IC-owned AutoCategory assignment such as
 `custom_273124205`, and why it can return after `/reloadui`. The examples are
 sanitized fragments, not copies of anyone's live saved variables. The AutoCategory
@@ -202,12 +208,12 @@ remains intact and reconciliation retries when the active profile changes.
 
 ## Code paths
 
-- [AutoCategoryIntegration.lua](../../Tracking/AutoCategoryIntegration.lua): builds
+- [AutoCategoryIntegration.lua](../../../../Tracking/AutoCategoryIntegration.lua): builds
   definitions, pauses on active-profile mismatches without changing saved
   assignments or order, and projects saved order when profiles align.
-- [ItemDatabase.lua](../../Tracking/ItemDatabase.lua): selects the active IC
+- [ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua): selects the active IC
   profile and builds runtime rules.
-- [Init.lua](../../Core/Init.lua): schema version and `/iclistbackup` command.
+- [Init.lua](../../../../Core/Init.lua): schema version and `/iclistbackup` command.
 
 ## Assignment preservation and diagnostics
 
@@ -239,7 +245,7 @@ build.
 
 The agreed ownership model, all four profile combinations, worked examples,
 mode-switch behavior and implementation requirements have moved to
-[the master feature document](../DevDocs/FeatureSpecs/AutoCategoryIntegration.md#profile-ownership-and-synchronization).
+[the master feature document](../../FeatureSpecs/AutoCategoryIntegration.md#profile-ownership-and-synchronization).
 This document retains the mismatch investigation and recovery-work evidence.
 
 ## Planned failure recovery and settings UX
@@ -595,4 +601,4 @@ editor; re-enabling must still use the initial setup dialog.
 
 
 Final profile setup and copying behavior is documented in
-[the master feature document](../DevDocs/FeatureSpecs/AutoCategoryIntegration.md#main-settings-and-full-profiles).
+[the master feature document](../../FeatureSpecs/AutoCategoryIntegration.md#main-settings-and-full-profiles).

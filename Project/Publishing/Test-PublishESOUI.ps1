@@ -53,30 +53,56 @@ function Read-Host {
     return ConvertTo-SecureString "synthetic-token" -AsPlainText -Force
 }
 
+function Write-FixtureArchive {
+    param([string]$Path, [string]$Omit = "", [string]$Duplicate = "")
+    $archive = [System.IO.Compression.ZipFile]::Open($Path, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        foreach ($name in $documents.Keys) {
+            if ($name -eq $Omit) { continue }
+            $copies = if ($name -eq $Duplicate) { 2 } else { 1 }
+            for ($index = 0; $index -lt $copies; $index++) {
+                $entry = $archive.CreateEntry("InventoryCompanion/$name")
+                $stream = $entry.Open()
+                try {
+                    $bytes = [System.IO.File]::ReadAllBytes((Join-Path $current $name))
+                    $stream.Write($bytes, 0, $bytes.Length)
+                } finally {
+                    $stream.Dispose()
+                }
+            }
+        }
+    } finally {
+        $archive.Dispose()
+    }
+}
+
 try {
     $null = New-Item -ItemType Directory -Path $fixture
     $env:LOCALAPPDATA = $fixture
     $scriptPath = Join-Path $fixture "Publish-ESOUI.ps1"
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Publish-ESOUI.ps1") -Destination $scriptPath
     $stateRoot = Join-Path $fixture ".release-test"
-    $current = Join-Path $fixture "Packages\Reviewed\Current release"
-    $handoff = Join-Path $fixture "Packages\Reviewed\InventoryCompanion-v1.2.3"
-    foreach ($directory in @($stateRoot, $current, $handoff)) {
+    $current = Join-Path $fixture "Current release"
+    $archiveRoot = Join-Path $fixture "Archive"
+    foreach ($directory in @($stateRoot, $current, $archiveRoot)) {
         $null = New-Item -ItemType Directory -Path $directory -Force
     }
     $statePath = Join-Path $stateRoot "state.json"
     '{"Completed":true,"Version":"1.2.3"}' | Set-Content -LiteralPath $statePath
     $documents = @{
-        "InventoryCompanion-v1.2.3.zip" = "synthetic archive"
         "ReadMe.bbcode" = "[b]Synthetic description[/b]"
         "Changelog.bbcode" = "[b]Synthetic changes[/b]"
         "ReleaseReview.md" = "Status: [Approved for Release]`nRelease version: 1.2.3"
     }
     foreach ($name in $documents.Keys) {
-        foreach ($directory in @($current, $handoff)) {
-            $documents[$name] | Set-Content -LiteralPath (Join-Path $directory $name)
-        }
+        $documents[$name] | Set-Content -LiteralPath (Join-Path $current $name)
     }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $currentZip = Join-Path $current "InventoryCompanion-v1.2.3.zip"
+    $retainedZip = Join-Path $archiveRoot "InventoryCompanion-v1.2.3.zip"
+    Write-FixtureArchive $retainedZip
+    Copy-Item -LiteralPath $retainedZip -Destination $currentZip
+    $originalZip = [System.IO.File]::ReadAllBytes($retainedZip)
     $env:ESOUI_TOKEN = "synthetic-token"
     $arguments = @{ Id = 123; Compatible = "12.1.6"; Confirm = $false }
 
@@ -144,12 +170,30 @@ try {
     '{"Completed":false,"Version":"1.2.3"}' | Set-Content -LiteralPath $statePath
     Assert-Fails { & $scriptPath @arguments } "Finalize"
     '{"Completed":true,"Version":"1.2.3"}' | Set-Content -LiteralPath $statePath
-    "changed" | Set-Content -LiteralPath (Join-Path $handoff "ReadMe.bbcode")
-    Assert-Fails { & $scriptPath @arguments } "differs"
-    Copy-Item -LiteralPath (Join-Path $current "ReadMe.bbcode") -Destination (Join-Path $handoff "ReadMe.bbcode")
-    foreach ($directory in @($current, $handoff)) {
-        "Status: [Not Approved]`nRelease version: 1.2.3" | Set-Content -LiteralPath (Join-Path $directory "ReleaseReview.md")
+    "changed ZIP" | Set-Content -LiteralPath $currentZip
+    Assert-Fails { & $scriptPath @arguments } "ZIP differs"
+    Copy-Item -LiteralPath $retainedZip -Destination $currentZip
+    foreach ($name in $documents.Keys) {
+        "changed" | Set-Content -LiteralPath (Join-Path $current $name)
+        Assert-Fails { & $scriptPath @arguments } "documentation differs"
+        $documents[$name] | Set-Content -LiteralPath (Join-Path $current $name)
     }
+    foreach ($variant in @("missing", "duplicate")) {
+        Remove-Item -LiteralPath $retainedZip
+        if ($variant -eq "missing") {
+            Write-FixtureArchive $retainedZip -Omit "ReadMe.bbcode"
+        } else {
+            Write-FixtureArchive $retainedZip -Duplicate "ReadMe.bbcode"
+        }
+        Copy-Item -LiteralPath $retainedZip -Destination $currentZip
+        Assert-Fails { & $scriptPath @arguments } "exactly one"
+    }
+    [System.IO.File]::WriteAllBytes($retainedZip, $originalZip)
+    Copy-Item -LiteralPath $retainedZip -Destination $currentZip
+    "Status: [Not Approved]`nRelease version: 1.2.3" | Set-Content -LiteralPath (Join-Path $current "ReleaseReview.md")
+    Remove-Item -LiteralPath $retainedZip
+    Write-FixtureArchive $retainedZip
+    Copy-Item -LiteralPath $retainedZip -Destination $currentZip
     Assert-Fails { & $scriptPath @arguments } "must approve"
     Assert-Fails { & $scriptPath -Confirm:$false } "require -Id"
     Assert ($requests.Count -eq 0) "Local validation failures must not contact ESOUI."

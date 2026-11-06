@@ -103,15 +103,36 @@ if ($Action -in @("Test", "Publish")) {
         throw "Finalize the approved package before uploading."
     }
     $version = $state.Version
-    $reviewedRoot = Join-Path $PSScriptRoot "Packages\Reviewed"
-    $handoff = Join-Path $reviewedRoot "InventoryCompanion-v$version"
+    $handoff = Join-Path $PSScriptRoot "Current release"
     $archiveName = "InventoryCompanion-v$version.zip"
-    foreach ($name in @($archiveName, "ReadMe.bbcode", "Changelog.bbcode", "ReleaseReview.md")) {
-        $hash = (Get-FileHash -LiteralPath (Join-Path $handoff $name) -Algorithm SHA256).Hash
-        $currentHash = (Get-FileHash -LiteralPath (Join-Path $reviewedRoot "Current release\$name") -Algorithm SHA256).Hash
-        if ($hash -ne $currentHash) {
-            throw "Finalized handoff differs from Current release: $name"
+    $retainedArchive = Join-Path (Join-Path $PSScriptRoot "Archive") $archiveName
+    $currentArchive = Join-Path $handoff $archiveName
+    $archiveHash = (Get-FileHash -LiteralPath $retainedArchive -Algorithm SHA256).Hash
+    if ($archiveHash -ne (Get-FileHash -LiteralPath $currentArchive -Algorithm SHA256).Hash) {
+        throw "Archived release ZIP differs from Current release: $archiveName"
+    }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($retainedArchive)
+    try {
+        foreach ($name in @("ReadMe.bbcode", "Changelog.bbcode", "ReleaseReview.md")) {
+            $entries = @($archive.Entries | Where-Object { $_.FullName -ceq "InventoryCompanion/$name" })
+            if ($entries.Count -ne 1) {
+                throw "Archived release ZIP must contain exactly one InventoryCompanion/$name."
+            }
+            $stream = $entries[0].Open()
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try {
+                $hash = [System.BitConverter]::ToString($sha.ComputeHash($stream)).Replace("-", "")
+            } finally {
+                $sha.Dispose()
+                $stream.Dispose()
+            }
+            if ($hash -ne (Get-FileHash -LiteralPath (Join-Path $handoff $name) -Algorithm SHA256).Hash) {
+                throw "Archived release documentation differs from Current release: $name"
+            }
         }
+    } finally {
+        $archive.Dispose()
     }
     $review = Get-Content -LiteralPath (Join-Path $handoff "ReleaseReview.md") -Raw
     if ($review -notmatch '(?m)^Status: \[Approved for Release\]\s*$' -or

@@ -6,7 +6,9 @@
 - [Archive](Archive) groups historical specifications, implementation plans, decision records, dependency findings, and test evidence by feature. Use the [completed-work index](Archive/CompletedWork.md) to find them. These records remain useful for understanding decisions and avoiding failed approaches; they are not current requirements or outstanding tasks.
 - [Historical AutoCategory prompts](Archive/AutoCategory/HistoricalPrompts) are retained for context, not as executable instructions or current permissions.
 - Active work belongs in the [project task list](../Tasks/TODO.md), not a separate DevDocs task folder. Reconcile historical material against the implementation before promoting it into FeatureSpecs.
-- The [release checklist](../Publishing/ReleaseChecklist.md) owns release process and evidence requirements. When moving documentation, update inbound references and rebase its relative links; preserve frozen release packages and numbered archives.
+- Unapproved designs live in [Tasks/Proposals](../Tasks/Proposals); their presence does not authorize implementation.
+- Shared project resources are separated into [Reference](../Resources/Reference), [DesignHistory](../Resources/DesignHistory), and [Screenshots](../Resources/Screenshots). Icon iterations and historical screenshots are not runtime assets. Publishing-specific illustrations remain in [Publishing/Resources](../Publishing/Resources).
+- The [release checklist](../Publishing/ReleaseChecklist.md) owns release process and evidence requirements. [Publishing/Current release](<../Publishing/Current release>) holds working review/upload files; [Publishing/Archive](../Publishing/Archive) retains only final ZIPs, containing their own readme, changelog, and review. When moving documentation, update inbound references and rebase its relative links; preserve frozen release ZIPs.
 
 ## Development and release installations
 

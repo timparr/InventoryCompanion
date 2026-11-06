@@ -15,7 +15,7 @@ $candidateRoot = Join-Path (Split-Path $addonRoot -Parent) "InventoryCompanion"
 $manifestPath = Join-Path $addonRoot "InventoryCompanion_DEV.txt"
 $stateDirectory = Join-Path $PSScriptRoot ".release-test"
 $statePath = Join-Path $stateDirectory "state.json"
-$currentReleaseRoot = Join-Path $PSScriptRoot "Packages\Reviewed\Current release"
+$currentReleaseRoot = Join-Path $PSScriptRoot "Current release"
 $reviewPath = Join-Path $currentReleaseRoot "ReleaseReview.md"
 $readmePath = Join-Path $currentReleaseRoot "ReadMe.bbcode"
 $changelogPath = Join-Path $currentReleaseRoot "Changelog.bbcode"
@@ -516,9 +516,10 @@ $archivePath = Join-Path $currentReleaseRoot $archiveName
 if (Test-Path -LiteralPath $archivePath) {
     throw "Package already exists: $archivePath. Preserve it and prepare a clean Current release folder before another release."
 }
-$handoffDirectory = Join-Path (Join-Path $PSScriptRoot "Packages\Reviewed") "InventoryCompanion-v$version"
-if (Test-Path -LiteralPath $handoffDirectory) {
-    throw "Release handoff folder already exists: $handoffDirectory. Do not overwrite a prior handoff."
+$archiveDirectory = Join-Path $PSScriptRoot "Archive"
+$retainedArchive = Join-Path $archiveDirectory $archiveName
+if (Test-Path -LiteralPath $retainedArchive) {
+    throw "Archived release already exists: $retainedArchive. Do not overwrite a prior release."
 }
 $packagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("InventoryCompanion-package-" + [guid]::NewGuid().ToString("N"))
 $temporaryArchive = Join-Path ([System.IO.Path]::GetTempPath()) ("InventoryCompanion-" + [guid]::NewGuid().ToString("N") + ".zip")
@@ -615,22 +616,27 @@ $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash
 Write-Output "Created verified release package: $archivePath"
 Write-Output "Archive SHA256: $archiveHash"
 Write-Output "Candidate file-set SHA256: $candidateHash"
-$handoffCreated = $false
+$retainedArchiveCreated = $false
 try {
-    $null = New-Item -ItemType Directory -Path $handoffDirectory
-    $handoffCreated = $true
-    $handoffArchive = Join-Path $handoffDirectory $archiveName
-    Copy-Item -LiteralPath $archivePath -Destination $handoffArchive
-    if ((Get-FileHash -LiteralPath $handoffArchive -Algorithm SHA256).Hash -ne $archiveHash) {
-        throw "The handoff ZIP copy does not match the finalized archive."
+    $null = New-Item -ItemType Directory -Path $archiveDirectory -Force
+    $retainedStream = [System.IO.File]::Open($retainedArchive, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write)
+    $retainedArchiveCreated = $true
+    try {
+        $sourceStream = [System.IO.File]::OpenRead($archivePath)
+        try {
+            $sourceStream.CopyTo($retainedStream)
+        } finally {
+            $sourceStream.Dispose()
+        }
+    } finally {
+        $retainedStream.Dispose()
     }
-    foreach ($relativePath in @("ReadMe.bbcode", "Changelog.bbcode")) {
-        Copy-Item -LiteralPath (Join-Path $candidateRoot $relativePath) -Destination (Join-Path $handoffDirectory $relativePath)
+    if ((Get-FileHash -LiteralPath $retainedArchive -Algorithm SHA256).Hash -ne $archiveHash) {
+        throw "The retained ZIP copy does not match the finalized package."
     }
-    Copy-Item -LiteralPath (Join-Path $candidateRoot "ReleaseReview.md") -Destination (Join-Path $handoffDirectory "ReleaseReview.md")
 } catch {
-    if ($handoffCreated -and (Test-Path -LiteralPath $handoffDirectory)) {
-        Remove-Item -LiteralPath $handoffDirectory -Recurse -Force
+    if ($retainedArchiveCreated -and (Test-Path -LiteralPath $retainedArchive)) {
+        Remove-Item -LiteralPath $retainedArchive
     }
     [System.IO.File]::WriteAllBytes($candidateReadmePath, $originalReadme)
     foreach ($relativePath in @("Changelog.bbcode", "ReleaseReview.md")) {
@@ -642,7 +648,7 @@ try {
     if ($archiveCreated -and (Test-Path -LiteralPath $archivePath)) {
         Remove-Item -LiteralPath $archivePath
     }
-    throw "The ZIP was verified at '$archivePath', but preparing its upload handoff failed: $($_.Exception.Message)"
+    throw "The ZIP was verified at '$archivePath', but retaining its archive copy failed: $($_.Exception.Message)"
 }
 try {
     $state.Completed = $true
@@ -651,5 +657,6 @@ try {
     throw "Package verified at '$archivePath' (archive SHA256: $archiveHash), but completion-state recording failed: $($_.Exception.Message) Do not overwrite or re-finalize the package; repair the managed completion state before further release actions."
 }
 Write-Output "Release installation retained for gameplay. Use your add-on profiles to select release OR development."
-Write-Output "Prepared upload handoff folder: $handoffDirectory"
-Start-Process explorer.exe -ArgumentList ('"' + $handoffDirectory + '"')
+Write-Output "Retained release ZIP: $retainedArchive"
+Write-Output "Prepared upload handoff folder: $currentReleaseRoot"
+Start-Process explorer.exe -ArgumentList ('"' + $currentReleaseRoot + '"')

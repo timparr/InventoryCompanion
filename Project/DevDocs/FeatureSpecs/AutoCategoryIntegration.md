@@ -21,7 +21,7 @@ candidate testing follow the [release checklist](../../Publishing/ReleaseCheckli
 ## Documentation handoff
 
 Use this specification when updating the [user manual](../../Publishing/Source%20Documents/UserManual.bbcode)
-and archived [feature overview](../../Publishing/Archive/Legacy%20Sources/Features.md).
+and current [listing body](../../Publishing/Source%20Documents/ReadMe-Body.bbcode).
 
 - **Feature overview:** optional reuse of IC group filters in AutoCategory,
   independent per-area Display/Priority orders, Hide/Show participation, movable
@@ -461,6 +461,7 @@ area selector. Archived checklists do not reopen completed work.
 - [Original implementation plan](<../Archive/AutoCategory/ImplementationPlan.md>)
 - [Ordering redesign](<../Archive/AutoCategory/OrderingFix.md>)
 - [Profile synchronization fix and baseline evidence](<../Archive/AutoCategory/ProfileSynchronizationFix.md>)
+- [Earlier mismatch investigation and recovery design](../Archive/AutoCategory/RecoveryInvestigation.md)
 - [Implementation report](<../Archive/AutoCategory/ImplementationReport.md>)
 - [Spike results, dependency contracts and failed approaches](<../Archive/AutoCategory/SpikeResults.md>)
 - [Original spec/plan review](<../Archive/AutoCategory/IntegrationReview.md>)
