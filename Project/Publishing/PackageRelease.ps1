@@ -1,10 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet("Stage", "Finalize", "Cancel", "Backup")]
-    [string]$Action = "Stage",
-    [string]$OutputDirectory = "Project\Publishing\Packages",
-    [string]$TestResults,
-    [switch]$Force
+    [string]$Action = "Stage"
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,10 +15,18 @@ $candidateRoot = Join-Path (Split-Path $addonRoot -Parent) "InventoryCompanion"
 $manifestPath = Join-Path $addonRoot "InventoryCompanion_DEV.txt"
 $stateDirectory = Join-Path $PSScriptRoot ".release-test"
 $statePath = Join-Path $stateDirectory "state.json"
-$reviewPath = Join-Path $addonRoot "ReleaseReview.md"
-$releaseDocuments = [ordered]@{
-    "readme.bbcode" = "readme.bbcode"
-    "Changelog.bbcode" = "Project\Publishing\Packages\Reviewed\Current Documentation\Changelog.bbcode"
+$currentReleaseRoot = Join-Path $PSScriptRoot "Packages\Reviewed\Current release"
+$reviewPath = Join-Path $currentReleaseRoot "ReleaseReview.md"
+$readmePath = Join-Path $currentReleaseRoot "ReadMe.bbcode"
+$changelogPath = Join-Path $currentReleaseRoot "Changelog.bbcode"
+$sourceDocumentPaths = @(
+    "Project\Publishing\Source Documents\ReadMe-Header.bbcode"
+    "Project\Publishing\Source Documents\ReadMe-Body.bbcode"
+    "Project\Publishing\Source Documents\Changelog.bbcode"
+)
+$finalReleaseDocuments = [ordered]@{
+    "ReadMe.bbcode" = $readmePath
+    "Changelog.bbcode" = $changelogPath
 }
 
 function Backup-SavedVariables {
@@ -104,19 +109,25 @@ function Set-DevelopmentVersion([string]$Version) {
     $initPath = Join-Path $addonRoot "Core\Init.lua"
     $manifest = Get-Content -LiteralPath $manifestPath -Raw
     $init = Get-Content -LiteralPath $initPath -Raw
-    if ([regex]::Matches($manifest, '(?m)^## Version: .+$').Count -ne 1 -or
-        [regex]::Matches($manifest, '(?m)^## AddOnVersion: .+$').Count -ne 1 -or
+    $manifestBytes = [System.IO.File]::ReadAllBytes($manifestPath)
+    $initBytes = [System.IO.File]::ReadAllBytes($initPath)
+    if ([regex]::Matches($manifest, '(?m)^## Version: [^\r\n]*').Count -ne 1 -or
+        [regex]::Matches($manifest, '(?m)^## AddOnVersion: [^\r\n]*').Count -ne 1 -or
         [regex]::Matches($init, '(?m)^    Version = .+,\r?$').Count -ne 1) {
         throw "Cannot update development version: expected one manifest Version, AddOnVersion, and runtime version."
     }
-    $updatedManifest = [regex]::Replace($manifest, '(?m)^## Version: .+$', "## Version: $Version")
-    $updatedManifest = [regex]::Replace($updatedManifest, '(?m)^## AddOnVersion: .+$', "## AddOnVersion: $integerVersion")
+    $updatedManifest = [regex]::Replace($manifest, '(?m)^## Version: [^\r\n]*', "## Version: $Version")
+    $updatedManifest = [regex]::Replace($updatedManifest, '(?m)^## AddOnVersion: [^\r\n]*', "## AddOnVersion: $integerVersion")
     try {
-        Set-Content -LiteralPath $manifestPath -Value $updatedManifest -NoNewline -Encoding UTF8
-        Set-Content -LiteralPath $initPath -Value ([regex]::Replace($init, '(?m)^    Version = .+,\r?$', "    Version = `"$Version`",")) -NoNewline -Encoding UTF8
+        $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
+        [System.IO.File]::WriteAllText($manifestPath, $updatedManifest, $utf8WithoutBom)
+        [System.IO.File]::WriteAllText(
+            $initPath, ([regex]::Replace($init, '(?m)^    Version = [^\r\n]*', "    Version = `"$Version`",")),
+            $utf8WithoutBom
+        )
     } catch {
-        Set-Content -LiteralPath $manifestPath -Value $manifest -NoNewline -Encoding UTF8
-        Set-Content -LiteralPath $initPath -Value $init -NoNewline -Encoding UTF8
+        [System.IO.File]::WriteAllBytes($manifestPath, $manifestBytes)
+        [System.IO.File]::WriteAllBytes($initPath, $initBytes)
         throw
     }
     Write-Output "Development version is now $Version"
@@ -148,6 +159,112 @@ function Read-TestState {
         Assert-NoLinks $candidateRoot
     }
     return $state
+}
+
+function Assert-ReleaseReview([string]$Content, [string]$Version, [string]$CandidateHash, [bool]$RequireCandidateHash) {
+    foreach ($field in @("Reviewer", "Add-on", "Reviewed source")) {
+        $fieldMatch = [regex]::Match($Content, "(?m)^$([regex]::Escape($field)): (.+?)\s*$")
+        if (-not $fieldMatch.Success -or $fieldMatch.Groups[1].Value -match '^(<|TODO|TBD)') {
+            throw "Release review must identify '$field'."
+        }
+    }
+    $reviewedAtMatch = [regex]::Match($Content, '(?m)^Reviewed \(UTC\): (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\s*$')
+    $reviewedAt = [datetime]::MinValue
+    if (-not $reviewedAtMatch.Success -or -not [datetime]::TryParseExact(
+        $reviewedAtMatch.Groups[1].Value, "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        [System.Globalization.CultureInfo]::InvariantCulture,
+        [System.Globalization.DateTimeStyles]::AssumeUniversal, [ref]$reviewedAt
+    )) {
+        throw "Release review must contain a valid 'Reviewed (UTC): YYYY-MM-DDTHH:mm:ssZ'."
+    }
+    if ($Content -notmatch "(?m)^Release version: $([regex]::Escape($Version))\s*$") {
+        throw "Release review must identify the agreed version ($Version)."
+    }
+    if ($RequireCandidateHash -and $Content -notmatch "(?m)^Candidate SHA256: $([regex]::Escape($CandidateHash))\s*$") {
+        throw "Release review must identify the frozen candidate with 'Candidate SHA256: $CandidateHash'."
+    }
+    if (-not $RequireCandidateHash -and $Content -notmatch '(?m)^Candidate SHA256: <filled after staging>\s*$') {
+        throw "Release review must contain the Candidate SHA256 placeholder before staging."
+    }
+    if ($Content -notmatch '(?m)^Review status: COMPLETE - no findings\s*$') {
+        throw "Release review must be complete with no unresolved findings before this release action."
+    }
+    $modeMatch = [regex]::Match($Content, '(?m)^Review mode: (DELTA|FULL)\s*$')
+    if (-not $modeMatch.Success) {
+        throw "Release review must specify Review mode as DELTA or FULL."
+    }
+    $baselineMatch = [regex]::Match($Content, '(?m)^Baseline review: ([^\r\n]+)')
+    $baseline = if ($baselineMatch.Success) { $baselineMatch.Groups[1].Value.Trim() } else { "" }
+    if (-not $baseline -or $baseline -match '^(<|TODO|TBD)' -or
+        ($modeMatch.Groups[1].Value -eq "DELTA" -and $baseline -match '^NONE\b')) {
+        throw "Release review must identify its approved Baseline review (or NONE for FULL)."
+    }
+    foreach ($section in @(
+        "Review scope", "Checks performed and results", "Test results", "Summary",
+        "Findings", "Documentation review", "Version recommendation", "Changes reviewed"
+    )) {
+        if ($Content -notmatch "(?m)^#{1,3} $([regex]::Escape($section))\s*$") {
+            throw "Release review is incomplete: $section"
+        }
+    }
+    if ($Content -match '(?m)^- \[ \] ') {
+        throw "Release review contains unchecked requirements or unresolved/failed checks."
+    }
+    if ($Content -notmatch '(?m)^- \d+/\d+ synthetic tests passed\s*$' -or
+        $Content -notmatch '(?m)^- \d+/\d+ user driven unit tests passed\s*$') {
+        throw "Release review must record synthetic and user-driven unit-test pass/fail rates."
+    }
+    if ($RequireCandidateHash -and
+        ($Content -notmatch '(?m)^- In-game UAT: .+\S' -or $Content -match '(?m)^- In-game UAT: <')) {
+        throw "Release review must record actual in-game UAT results and observations before finalization."
+    }
+    $summaryMatch = [regex]::Match($Content, '(?ms)^### Summary\s*\r?\n(?<body>.*?)(?=^### |\z)')
+    $findingsMatch = [regex]::Match($Content, '(?ms)^### Findings\s*\r?\n(?<body>.*?)(?=^### |\z)')
+    $changesMatch = [regex]::Match($Content, '(?ms)^### Changes reviewed\s*\r?\n(?<body>.*?)(?=^### |\z)')
+    $versionMatch = [regex]::Match($Content, '(?ms)^### Version recommendation\s*\r?\n(?<body>.*?)(?=^### |\z)')
+    $incompleteSections = [System.Collections.Generic.List[string]]::new()
+    if (-not $summaryMatch.Success -or
+        [string]::IsNullOrWhiteSpace($summaryMatch.Groups["body"].Value.Trim()) -or
+        $summaryMatch.Groups["body"].Value -match '<Summary of the report\.>') {
+        $incompleteSections.Add("Summary")
+    }
+    $findingLines = @($findingsMatch.Groups["body"].Value -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if (-not $findingsMatch.Success -or $findingLines.Count -ne 1 -or
+        $findingLines[0] -ne "- No findings identified in the assessed scope.") {
+        $incompleteSections.Add("Findings")
+    }
+    if (-not $changesMatch.Success -or $changesMatch.Groups["body"].Value -match 'List the examined') {
+        $incompleteSections.Add("Changes reviewed")
+    }
+    if (-not $versionMatch.Success -or
+        [string]::IsNullOrWhiteSpace($versionMatch.Groups["body"].Value.Trim()) -or
+        $versionMatch.Groups["body"].Value -match '<Recommend the next') {
+        $incompleteSections.Add("Version recommendation")
+    }
+    if ($incompleteSections.Count) {
+        throw "Release review must complete these sections: $($incompleteSections -join ', ')."
+    }
+    $checkSection = [regex]::Match($Content, '(?ms)^### Checks performed and results\s*\r?\n(?<body>.*?)(?=^### |\z)')
+    $checkRows = @($checkSection.Groups["body"].Value -split '\r?\n' | Where-Object { $_ -match '^\| .+ \|$' -and $_ -notmatch '^\|[-| ]+\|$' })
+    foreach ($row in $checkRows | Select-Object -Skip 1) {
+        $cells = @($row.Trim('|').Split('|') | ForEach-Object { $_.Trim() })
+        if ($cells.Count -ne 3 -or $cells[1] -notin @("Yes", "No") -or
+            $cells[2] -notmatch '^(PASS|FAIL|UNRESOLVED|N/A)(?:\s|:|$)') {
+            throw "Release review has an incomplete row in Checks performed and results: $row"
+        }
+        if ($cells[2] -match '^(FAIL|UNRESOLVED)(?:\s|:|$)') {
+            throw "Release review contains an unresolved/failed check: $row"
+        }
+    }
+    $documentationSection = [regex]::Match($Content, '(?ms)^### Documentation review\s*\r?\n(?<body>.*?)(?=^### |\z)')
+    $documentationRows = @($documentationSection.Groups["body"].Value -split '\r?\n' |
+        Where-Object { $_ -match '^\| .+ \|$' -and $_ -notmatch '^\|[-| ]+\|$' })
+    foreach ($row in $documentationRows | Select-Object -Skip 1) {
+        $cells = @($row.Trim('|').Split('|') | ForEach-Object { $_.Trim() })
+        if ($cells.Count -ne 3 -or $cells[2] -notmatch '^PASS(?:\s|:|$)') {
+            throw "Release review has an incomplete row in Documentation review: $row"
+        }
+    }
 }
 
 function Remove-Candidate {
@@ -182,9 +299,6 @@ if ($Action -eq "Stage") {
     }
 } else {
     $state = Read-TestState
-    if ([string]::IsNullOrWhiteSpace($TestResults)) {
-        throw "Finalize requires -TestResults describing the human-run in-game tests and their results."
-    }
 }
 
 if ($Action -eq "Stage") {
@@ -237,19 +351,30 @@ if ($manifestFiles.Count -eq 0 -or -not $manifestFiles.Contains("Core\Developmen
     throw "The development manifest must include runtime files and Core/Development.lua."
 }
 $runtimeFiles = @($manifestFiles | Where-Object { $_ -ne "Core\Development.lua" })
-foreach ($relativePath in $releaseDocuments.Values) {
+foreach ($relativePath in $sourceDocumentPaths) {
     $documentPath = Join-Path $addonRoot $relativePath
     if (-not (Test-Path -LiteralPath $documentPath -PathType Leaf) -or
-        [string]::IsNullOrWhiteSpace((Get-Content -LiteralPath $documentPath -Raw))) {
-        throw "Prepare nonempty release documentation before staging: $relativePath"
+        (Get-Item -LiteralPath $documentPath).Length -eq 0) {
+        throw "Prepare nonempty release source files before staging: $relativePath"
+    }
+    if ([string]::IsNullOrWhiteSpace([System.IO.File]::ReadAllText($documentPath))) {
+        throw "Prepare nonempty release source files before staging: $relativePath"
     }
 }
+foreach ($requiredReleaseFile in @($readmePath, $changelogPath, $reviewPath)) {
+    if (-not (Test-Path -LiteralPath $requiredReleaseFile -PathType Leaf) -or
+        [string]::IsNullOrWhiteSpace([System.IO.File]::ReadAllText($requiredReleaseFile))) {
+        throw "Prepare the current release report, combined readme, and changelog before staging: $requiredReleaseFile"
+    }
+}
+$initialReviewContent = [System.IO.File]::ReadAllText($reviewPath)
+Assert-ReleaseReview $initialReviewContent $version "" $false
 $sourcePaths = @(
     "InventoryCompanion_DEV.txt"
     "Project\Publishing\ReleaseChecklist.md"
     "Project\Publishing\ReleaseReviewTemplate.md"
     "Project\Publishing\PackageRelease.ps1"
-) + @($releaseDocuments.Values) + @($manifestFiles)
+) + $sourceDocumentPaths + @($manifestFiles)
 $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
     $path = if ($relativePath -eq "InventoryCompanion_DEV.txt") { $sourceManifestPath } else { Join-Path $addonRoot $relativePath }
     Get-FileRecord $path $relativePath
@@ -264,13 +389,34 @@ $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
     $null = New-Item -ItemType Directory -Path $stateDirectory -Force
     $null = New-Item -ItemType Directory -Path $candidateRoot
     try {
-        Set-Content -LiteralPath (Join-Path $candidateRoot "InventoryCompanion.txt") -Value $releaseManifest -Encoding UTF8
-        foreach ($relativePath in @($runtimeFiles) + @($releaseDocuments.Keys)) {
+        [System.IO.File]::WriteAllLines(
+            (Join-Path $candidateRoot "InventoryCompanion.txt"),
+            [string[]]$releaseManifest,
+            [System.Text.UTF8Encoding]::new($false)
+        )
+        foreach ($relativePath in $runtimeFiles) {
             $destination = Join-Path $candidateRoot $relativePath
             $null = New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force
-            $sourcePath = if ($releaseDocuments.Contains($relativePath)) { $releaseDocuments[$relativePath] } else { $relativePath }
-            Copy-Item -LiteralPath (Join-Path $addonRoot $sourcePath) -Destination $destination
+            Copy-Item -LiteralPath (Join-Path $addonRoot $relativePath) -Destination $destination
         }
+        Copy-Item -LiteralPath $readmePath -Destination (Join-Path $candidateRoot "ReadMe.bbcode")
+        $candidateRecords = @(Get-CandidateRecords)
+        $candidateIdentity = (@($candidateRecords | ForEach-Object { "$($_.Path)|$($_.Hash)" } | Sort-Object) -join "`n")
+        $identitySha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $candidateHash = [System.BitConverter]::ToString(
+                $identitySha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($candidateIdentity))
+            ).Replace("-", "")
+        } finally {
+            $identitySha.Dispose()
+        }
+        $reviewContent = $initialReviewContent
+        if ($reviewContent -notmatch '(?m)^Candidate SHA256: <filled after staging>\s*$') {
+            throw "Release review template must contain the Candidate SHA256 placeholder."
+        }
+        $reviewContent = [regex]::Replace($reviewContent, '(?m)^Release version: <agreed major\.minor\.patch version>\s*$', "Release version: $version")
+        $reviewContent = [regex]::Replace($reviewContent, '(?m)^Candidate SHA256: <filled after staging>\s*$', "Candidate SHA256: $candidateHash")
+        [System.IO.File]::WriteAllText($reviewPath, $reviewContent, [System.Text.UTF8Encoding]::new($false))
         $state = [ordered]@{
             Schema = 1
             Completed = $false
@@ -279,7 +425,7 @@ $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
             Version = $version
             StagedAt = [datetime]::UtcNow.ToString("o")
             Sources = $sourceRecords
-            Candidate = @(Get-CandidateRecords)
+            Candidate = $candidateRecords
         }
         $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath -Encoding UTF8
         Set-DevelopmentVersion $nextPatchVersion
@@ -287,14 +433,15 @@ $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
         # Do not leave an unrecorded candidate after failed staging.
         Remove-Item -LiteralPath $candidateRoot -Recurse -Force
         if (Test-Path -LiteralPath $statePath) { Remove-Item -LiteralPath $statePath }
+        [System.IO.File]::WriteAllText($reviewPath, $initialReviewContent, [System.Text.UTF8Encoding]::new($false))
         throw
     }
     Write-Output "Staged release $version at $candidateRoot"
-    Write-Output "Staging finished. The worktree must be clean and intended changes committed before review; ESOUI criteria review and full DEV tests must be complete before staging. If runtime source changed after them, cancel and complete the affected checks before staging a replacement."
+    Write-Output "Staging finished. Only runtime files and the prepared combined ReadMe.bbcode were copied into the test installation."
     Write-Output "Select only InventoryCompanion in your release-test add-on profile, then reload the UI. Verify Installation=InventoryCompanion, runtime version=$version, DEV=false, AddOnVersion=$integerVersion, and no enabled DEV copy."
-    Write-Output "Verify the candidate identity and staged files against the reviewed/tested DEV source, accounting for staging-only version metadata changes, then perform a brief load/function smoke. Do not repeat the full suite unless a mismatch or specific finding warrants it."
+    Write-Output "Verify the candidate identity, then run the agreed in-game diagnostics, feature/transfer checks, and brief load/function smoke. Record actual results; do not infer success from staging."
     Write-Output "Both versions share saved variables. Any automatic backup is only the last-on-disk snapshot."
-    Write-Output "After DEV review/testing and the candidate smoke, complete ReleaseReview.md, then run -Action Finalize -TestResults '<DEV test evidence and candidate smoke results>'. ESO may remain open during finalization."
+    Write-Output "After UAT, update the Current release documents and report. Finalize copies the approved documents and report into the test installation and packages its files."
     Write-Output "To remove this installation, run -Action Cancel without reloading during removal; then select DEV only and reload."
     return
 }
@@ -309,121 +456,50 @@ try {
 } finally {
     $sha.Dispose()
 }
-foreach ($comparison in @(
-    @{ Name = "candidate files"; Expected = @($state.Candidate); Actual = @(Get-CandidateRecords | Where-Object { $_.Path -ne "ReleaseReview.md" }) }
-)) {
-    $expected = @($comparison.Expected | ForEach-Object { "$($_.Path)|$($_.Hash)" } | Sort-Object)
-    $actual = @($comparison.Actual | ForEach-Object { "$($_.Path)|$($_.Hash)" } | Sort-Object)
-    if (@(Compare-Object $expected $actual).Count -gt 0) {
-        throw "Release $($comparison.Name) changed since staging. Cancel and stage a fresh candidate for testing."
-    }
+$expectedCandidate = @($state.Candidate | ForEach-Object { "$($_.Path)|$($_.Hash)" } | Sort-Object)
+$actualCandidate = @(Get-CandidateRecords | ForEach-Object { "$($_.Path)|$($_.Hash)" } | Sort-Object)
+if (@(Compare-Object $expectedCandidate $actualCandidate).Count -gt 0) {
+    throw "Release candidate files changed since staging. Cancel and stage a fresh candidate for testing."
 }
-
 if (-not (Test-Path -LiteralPath $reviewPath -PathType Leaf)) {
     throw "Complete ReleaseReview.md from ReleaseReviewTemplate.md before finalizing."
 }
-$reviewContent = Get-Content -LiteralPath $reviewPath -Raw
-if ($reviewContent -notmatch "(?m)^Candidate SHA256: $candidateHash\s*$") {
-    throw "Release review must identify the frozen candidate with 'Candidate SHA256: $candidateHash'."
-}
-$reviewedAtMatch = [regex]::Match($reviewContent, '(?m)^Reviewed \(UTC\): (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\s*$')
-$reviewedAt = [datetime]::MinValue
-if (-not $reviewedAtMatch.Success -or -not [datetime]::TryParseExact(
-    $reviewedAtMatch.Groups[1].Value, "yyyy-MM-dd'T'HH:mm:ss'Z'",
-    [System.Globalization.CultureInfo]::InvariantCulture,
-    [System.Globalization.DateTimeStyles]::AssumeUniversal, [ref]$reviewedAt
-)) {
-    throw "Release review must contain a valid 'Reviewed (UTC): YYYY-MM-DDTHH:mm:ssZ'."
-}
-$reviewedAt = $reviewedAt.ToUniversalTime()
-foreach ($field in @("Reviewer", "Checked by")) {
-    $match = [regex]::Match($reviewContent, "(?m)^$([regex]::Escape($field)): (.+?)\s*$")
-    if (-not $match.Success -or $match.Groups[1].Value -match '^(<|TODO|TBD|Name here)') {
-        throw "Release review must identify '$field'."
-    }
-}
-if ($reviewContent -notmatch "(?m)^Release version: $([regex]::Escape($version))\s*$" -or
-    $reviewContent -notmatch '(?m)^Review status: APPROVED\s*$') {
-    throw "Release review must approve the current version ($version)."
-}
-$formatMatch = [regex]::Match($reviewContent, '(?m)^Review format: ([^\r\n]*)')
-if ($formatMatch.Success) {
-    if ($formatMatch.Groups[1].Value.Trim() -ne "compact-v1") {
-        throw "Release review has an unsupported Review format."
-    }
-    $modeMatch = [regex]::Match($reviewContent, '(?m)^Review mode: (DELTA|FULL)\s*$')
-    if (-not $modeMatch.Success) {
-        throw "Release review must specify 'Review mode: DELTA' or 'Review mode: FULL'."
-    }
-    $baselineMatch = [regex]::Match($reviewContent, '(?m)^Baseline review: ([^\r\n]+)')
-    $baseline = $baselineMatch.Groups[1].Value.Trim()
-    if (-not $baselineMatch.Success -or -not $baseline -or $baseline -match '^(<|TODO|TBD)' -or
-        ($modeMatch.Groups[1].Value -eq "DELTA" -and $baseline -match '^NONE\b')) {
-        throw "Release review must identify its approved Baseline review (or NONE for FULL)."
-    }
-    $requiredReviewSections = [ordered]@{
-        "Review scope" = 1
-        "Changes reviewed" = 1
-        "Release checks" = 1
-        "Test evidence" = 1
-        "Findings and decision" = 1
-    }
-} else {
-    # Keep previously completed detailed reports valid.
-    $requiredReviewSections = [ordered]@{
-        "Release process" = 1
-        "Package and installation" = 4
-        "Listing, rights, and uploader certifications" = 7
-        "Supported functionality" = 8
-        "Manifest and dependencies" = 6
-        "Test discovery and coverage" = 2
-        "Initialization, naming, and saved data" = 3
-        "Core behavior and correctness" = 2
-        "Events and lifecycle" = 2
-        "User interface and configuration" = 2
-        "Performance and queued operations" = 3
-        "Human in-game testing" = 5
-    }
-}
-foreach ($section in $requiredReviewSections.Keys) {
-    $sectionMatch = [regex]::Match($reviewContent, "(?ms)^#{2,3} $([regex]::Escape($section))\r?\n(?<body>.*?)(?=^#{1,3} |\z)")
-    $completedCount = [regex]::Matches($sectionMatch.Groups["body"].Value, '(?m)^- \[x\] ').Count
-    if (-not $sectionMatch.Success -or $completedCount -lt $requiredReviewSections[$section]) {
-        throw "Release review is incomplete: $section"
-    }
-}
-if ($reviewContent -match '(?m)^- \[ \] ') {
-    throw "Release review contains unchecked requirements."
-}
-$nowUtc = [datetime]::UtcNow
+$reviewContent = [System.IO.File]::ReadAllText($reviewPath)
+Assert-ReleaseReview $reviewContent $version $candidateHash $true
 
-if ([System.IO.Path]::IsPathRooted($OutputDirectory)) {
-    $resolvedOutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
-} else {
-    $resolvedOutputDirectory = [System.IO.Path]::GetFullPath((Join-Path $addonRoot $OutputDirectory))
-}
-if ($resolvedOutputDirectory -eq $candidateRoot -or $resolvedOutputDirectory.StartsWith("$candidateRoot\", [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "Package output must be outside the staged installation."
-}
 $archiveName = "InventoryCompanion-v$version.zip"
-$archivePath = Join-Path $resolvedOutputDirectory $archiveName
-if ((Test-Path -LiteralPath $archivePath) -and -not $Force) {
-    throw "Package already exists: $archivePath. Use -Force to replace it."
+$archivePath = Join-Path $currentReleaseRoot $archiveName
+if (Test-Path -LiteralPath $archivePath) {
+    throw "Package already exists: $archivePath. Preserve it and prepare a clean Current release folder before another release."
 }
-$null = New-Item -ItemType Directory -Path $resolvedOutputDirectory -Force
-$finalReview = $reviewContent.TrimEnd() + "`r`n`r`n## Staged release test confirmation`r`n`r`n" +
-    "Staged (UTC): $($state.StagedAt)`r`nConfirmed (UTC): $($nowUtc.ToString('o'))`r`n`r`n$TestResults`r`n"
-$packageRecords = @($state.Candidate) + @(
-    [pscustomobject]@{ Path = "ReleaseReview.md"; Hash = "" }
-)
+$handoffDirectory = Join-Path (Join-Path $PSScriptRoot "Packages\Reviewed") "InventoryCompanion-v$version"
+if (Test-Path -LiteralPath $handoffDirectory) {
+    throw "Release handoff folder already exists: $handoffDirectory. Do not overwrite a prior handoff."
+}
 $packagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("InventoryCompanion-package-" + [guid]::NewGuid().ToString("N"))
 $temporaryArchive = Join-Path ([System.IO.Path]::GetTempPath()) ("InventoryCompanion-" + [guid]::NewGuid().ToString("N") + ".zip")
+$candidateReadmePath = Join-Path $candidateRoot "ReadMe.bbcode"
+$originalReadme = [System.IO.File]::ReadAllBytes($candidateReadmePath)
+$candidateDocumentsApplied = $false
+$archiveCreated = $false
 try {
     $null = New-Item -ItemType Directory -Path $packagingRoot
     $packagingAddon = Join-Path $packagingRoot "InventoryCompanion"
     Copy-Item -LiteralPath $candidateRoot -Destination $packagingAddon -Recurse
-    Set-Content -LiteralPath (Join-Path $packagingAddon "ReleaseReview.md") -Value $finalReview -Encoding UTF8
-    $packageRecords[-1] = Get-FileRecord (Join-Path $packagingAddon "ReleaseReview.md") "ReleaseReview.md"
+    foreach ($relativePath in $finalReleaseDocuments.Keys) {
+        $source = $finalReleaseDocuments[$relativePath]
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf) -or
+            [string]::IsNullOrWhiteSpace([System.IO.File]::ReadAllText($source))) {
+            throw "Prepare nonempty final release documentation before finalization: $source"
+        }
+        Copy-Item -LiteralPath $source -Destination (Join-Path $packagingAddon $relativePath) -Force
+    }
+    [System.IO.File]::WriteAllText(
+        (Join-Path $packagingAddon "ReleaseReview.md"), $reviewContent, [System.Text.UTF8Encoding]::new($false)
+    )
+    $packageRecords = @(Get-ChildItem -LiteralPath $packagingAddon -File -Recurse -Force | ForEach-Object {
+        Get-FileRecord $_.FullName $_.FullName.Substring($packagingAddon.Length + 1)
+    })
     Compress-Archive -LiteralPath $packagingAddon -DestinationPath $temporaryArchive -CompressionLevel Optimal
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [System.IO.Compression.ZipFile]::OpenRead($temporaryArchive)
@@ -450,13 +526,39 @@ try {
             $expectedEntries.Remove($entry.FullName)
         }
         if ($expectedEntries.Count -gt 0) {
-            throw "ZIP is missing candidate files."
+            throw "ZIP is missing finalized release files."
         }
     } finally {
         $archive.Dispose()
     }
-    Copy-Item -LiteralPath (Join-Path $packagingAddon "ReleaseReview.md") -Destination $reviewPath
-    Move-Item -LiteralPath $temporaryArchive -Destination $archivePath -Force:$Force
+    $candidateDocumentsApplied = $true
+    foreach ($relativePath in $finalReleaseDocuments.Keys) {
+        Copy-Item -LiteralPath $finalReleaseDocuments[$relativePath] `
+            -Destination (Join-Path $candidateRoot $relativePath) -Force
+    }
+    Copy-Item -LiteralPath $reviewPath -Destination (Join-Path $candidateRoot "ReleaseReview.md")
+    $candidateFinalRecords = @(Get-CandidateRecords)
+    $expectedFinalRecords = @($packageRecords | ForEach-Object { "$($_.Path)|$($_.Hash)" } | Sort-Object)
+    $actualFinalRecords = @($candidateFinalRecords | ForEach-Object { "$($_.Path)|$($_.Hash)" } | Sort-Object)
+    if (@(Compare-Object $expectedFinalRecords $actualFinalRecords).Count -gt 0) {
+        throw "Finalized test-installation files differ from the verified package."
+    }
+    Move-Item -LiteralPath $temporaryArchive -Destination $archivePath
+    $archiveCreated = $true
+} catch {
+    if ($candidateDocumentsApplied) {
+        [System.IO.File]::WriteAllBytes($candidateReadmePath, $originalReadme)
+        foreach ($relativePath in @("Changelog.bbcode", "ReleaseReview.md")) {
+            $candidateDocumentPath = Join-Path $candidateRoot $relativePath
+            if (Test-Path -LiteralPath $candidateDocumentPath) {
+                Remove-Item -LiteralPath $candidateDocumentPath
+            }
+        }
+    }
+    if ($archiveCreated -and (Test-Path -LiteralPath $archivePath)) {
+        Remove-Item -LiteralPath $archivePath
+    }
+    throw
 } finally {
     if (Test-Path -LiteralPath $temporaryArchive) {
         Remove-Item -LiteralPath $temporaryArchive
@@ -469,6 +571,35 @@ $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash
 Write-Output "Created verified release package: $archivePath"
 Write-Output "Archive SHA256: $archiveHash"
 Write-Output "Candidate file-set SHA256: $candidateHash"
+$handoffCreated = $false
+try {
+    $null = New-Item -ItemType Directory -Path $handoffDirectory
+    $handoffCreated = $true
+    $handoffArchive = Join-Path $handoffDirectory $archiveName
+    Copy-Item -LiteralPath $archivePath -Destination $handoffArchive
+    if ((Get-FileHash -LiteralPath $handoffArchive -Algorithm SHA256).Hash -ne $archiveHash) {
+        throw "The handoff ZIP copy does not match the finalized archive."
+    }
+    foreach ($relativePath in @("ReadMe.bbcode", "Changelog.bbcode")) {
+        Copy-Item -LiteralPath (Join-Path $candidateRoot $relativePath) -Destination (Join-Path $handoffDirectory $relativePath)
+    }
+    Copy-Item -LiteralPath (Join-Path $candidateRoot "ReleaseReview.md") -Destination (Join-Path $handoffDirectory "ReleaseReview.md")
+} catch {
+    if ($handoffCreated -and (Test-Path -LiteralPath $handoffDirectory)) {
+        Remove-Item -LiteralPath $handoffDirectory -Recurse -Force
+    }
+    [System.IO.File]::WriteAllBytes($candidateReadmePath, $originalReadme)
+    foreach ($relativePath in @("Changelog.bbcode", "ReleaseReview.md")) {
+        $candidateDocumentPath = Join-Path $candidateRoot $relativePath
+        if (Test-Path -LiteralPath $candidateDocumentPath) {
+            Remove-Item -LiteralPath $candidateDocumentPath
+        }
+    }
+    if ($archiveCreated -and (Test-Path -LiteralPath $archivePath)) {
+        Remove-Item -LiteralPath $archivePath
+    }
+    throw "The ZIP was verified at '$archivePath', but preparing its upload handoff failed: $($_.Exception.Message)"
+}
 try {
     $state.Completed = $true
     $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath -Encoding UTF8
@@ -476,4 +607,5 @@ try {
     throw "Package verified at '$archivePath' (archive SHA256: $archiveHash), but completion-state recording failed: $($_.Exception.Message) Do not overwrite or re-finalize the package; repair the managed completion state before further release actions."
 }
 Write-Output "Release installation retained for gameplay. Use your add-on profiles to select release OR development."
-Start-Process explorer.exe -ArgumentList ('"' + $resolvedOutputDirectory + '"')
+Write-Output "Prepared upload handoff folder: $handoffDirectory"
+Start-Process explorer.exe -ArgumentList ('"' + $handoffDirectory + '"')

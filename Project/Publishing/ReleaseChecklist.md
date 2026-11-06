@@ -2,148 +2,82 @@
 
 Use this workflow before every new upload or update. The [release review template](ReleaseReviewTemplate.md) is the authoritative, self-contained set of review checks and evidence requirements.
 
-The template is reusable for any ESO add-on. This checklist supplies InventoryCompanion-specific release tooling and author evidence. The [reviewer reference](ReviewerReference.md) maps test access, coverage, version differences, and review hotspots to speed evidence discovery; verify it against the frozen candidate. Do not copy project assumptions into the generic template.
+The template is reusable for any ESO add-on. This checklist supplies InventoryCompanion-specific release steps. The [reviewer reference](ReviewerReference.md) maps test access, coverage, version differences, and review hotspots to speed evidence discovery; verify it against the frozen candidate.
 
-Use the author-supplied [ESOUI formatting reference](ESOUIFormatting.md) when preparing readme, manual, changelog, or listing text for ESOUI's formatted text fields. Publishing text documents in Current Documentation use BBCode with `.bbcode` filenames; preserve that format in future edits. Genuine Markdown plans and checklists retain `.md`, and historical release snapshots retain their original names. For changelog entries, use BBCode version headings and lists, not Markdown headings or bullets. Replace the manual's local schematic URLs with hosted URLs before online publication.
+The authoritative publishing documents live in `Project\Publishing\Source Documents`: `ReadMe-Header.bbcode`, `ReadMe-Body.bbcode`, `UserManual.bbcode`, and `Changelog.bbcode`. The manual's schematic source files live in `Project\Publishing\Resources`. Use the author-supplied [ESOUI formatting reference](ESOUIFormatting.md) when editing publishing text.
 
-## Release process at a glance
 
-1. **Check the worktree.** If it is dirty, commit only intended release changes; resolve unrelated changes separately. Confirm it is clean before review.
-2. **Review in DEV.** Review the committed code against the ESOUI criteria. Record findings, proposed feature/changelog wording, and a proposed version in `ReleaseReview.md`; resolve material findings before continuing.
-3. **Discuss and agree on document changes.** After the review, discuss the proposed feature/changelog wording and version recommendation with the user. Agree on the wording, then update both documents; lead the changelog with the user-facing impact and follow with supporting technical detail. Confirm the version from the updated changelog, record the exact agreed wording and number in the review report, finalize the version metadata, and have the user check both documents.
-4. **Test in DEV.** Run the relevant offline suite, full in-game diagnostic and feature tests, and applicable transfer check. Fix issues in DEV, then repeat the affected review, document discussion, and tests.
-5. **Stage the release candidate.**
-   - **5a. Prepare:** Confirm the previous verified ZIP is available for rollback. If a managed release is installed, get confirmation before canceling/removing it.
-   - **5b. Run Stage:** Run `.\Project\Publishing\PackageRelease.ps1 -Action Stage`. It backs up any saved-variable files found, creates a managed release installation from the DEV manifest and release documents (excluding DEV-only files), records the candidate identity, and advances DEV to the next patch version.
-   - **5c. Activate:** In ESO, select only the release `InventoryCompanion` in the release-test add-on profile, then reload the UI.
-6. **Verify the candidate.** Check candidate identity and installation metadata against the reviewed and tested commit.
-7. **Smoke-test the candidate.** Request only a brief load/function check. Do not repeat full tests on the candidate unless a specific issue warrants it.
-8. **Approve, tag, and finalize.** Record DEV test results separately from candidate smoke results. Have the user check the completed `ReleaseReview.md`; after approval, tag the exact reviewed/tested commit, then complete package verification and the release handoff.
-
-## Review baseline
-
-The release-guidance research has been consolidated into the template. Release review assesses the candidate against those recorded requirements; it does not fetch policy pages, search for precedent, or repeat the research. A material question not settled by the baseline requires a documented author-supplied decision before approval. Updating the policy baseline is separate maintenance, not a per-release fetch requirement.
-
-## Before uploading
-
-- AI assistants may perform the source and policy review and prepare `ReleaseReview.md` in the development add-on root, beside `InventoryCompanion_DEV.txt`. Identify the assistant and model when available; do not guess a model that the session does not expose. Name the human author/checker separately. Tim-P has authorized this standing assertion: "The author asserts that, to the best of their knowledge, the submitted files contain no malicious code or stolen material, and that they own the material or have permission to submit it." Reference it in the consolidated declaration as author evidence, not independent AI verification; investigate contradictions and ask one grouped confirmation for remaining facts. In-game results must still be supplied, not inferred.
-- Use the template's compact report and AI/TEST/HUMAN assignments, not a completed copy of every reference checkbox. Retain one complete diagnostic report; name relevant cases for changed or risky behavior in the test-evidence summary rather than repeating them across sections.
-- Before staging, confirm the worktree is clean; commit intended release changes if it is not, and resolve unexpected changes separately. Review the committed code against the ESOUI criteria, then run the full relevant offline suite and one `/ictest verbose copy` report on DEV; perform the short transfer check there as well. After staging, verify candidate identity and installation metadata, then do only a brief load/function smoke check. Do not repeat the full suite or routine transfer check on the candidate unless a mismatch, finding, or reported problem warrants it.
-- Default to ESO Plus enabled and no PTS testing unless the tester or diagnostic evidence says otherwise. Ask the tester to mention only exceptions: ESO Plus was not enabled, or PTS was tested. Record these as reporting defaults when not explicitly confirmed, not independently verified facts. PTS is not required for approval; do not claim PTS compatibility without evidence. Discovery supplies running API/build and enabled dependency integer versions, not newest published versions; compare locally with manifests. For an older frozen suite, record missing diagnostics without changing its bytes solely to add them.
-- Retain one complete diagnostic report and reference its cases across review sections. The copyable Lua error window is intentional even on success. Preserve timing-only FAIL results and investigate/repeat outliers; use the frozen suite's limits and document any accepted performance exception rather than imposing new DEV targets retroactively.
-
-## Upload package and listing
-
-- [ ] **Candidate approved:** review and essential test evidence apply to the frozen candidate's version/hash. Complete `ReleaseReview.md` from the generic template, identifying reviewer and human checker. Approval covers those runtime bytes, not a future archive or automatic publication.
-- [ ] **Package verified:** finalize with `.\Project\Publishing\PackageRelease.ps1 -Action Finalize -TestResults '<actual results>'`. Confirm successful archive verification and retain the ZIP path and archive SHA-256 separately from the candidate file-set hash. The ZIP contains one `InventoryCompanion` folder with the reviewed manifest/runtime files, staged `readme.bbcode` and `Changelog.bbcode`, plus the completed report.
-- [ ] **Ready to upload:** confirm package verification, no unresolved material findings, and the final listing, changelog, release version/type, and required image are ready. Assemble the single release handoff folder described below, open it in Windows Explorer, and give the user a clickable absolute folder link in the completion message, identifying the ZIP and any accepted limitations. Submit through ESOUI Upload & Update as a separate action; neither packaging nor a Git push publishes a release. Monitor private messages after submission.
-
-### Single-folder handoff
-
-The `Project\Publishing\Packages\Reviewed` folder is organized as follows:
-
-- `Current Documentation` holds the shared, editable publishing resources, not a historical release snapshot. Its `Changelog.bbcode` is the authoritative working changelog: create/update it there at the start of every review, and copy it from there into the version folder at handoff. Do not create a second root changelog or edit a historical snapshot for the next release. Before handoff, reconcile its readme, manual, and feature/listing text with the working root copies; do not silently overwrite differing author edits. Prepare the agreed current text in the intended publishing format. A local image shortcut is a convenience only, not a portable upload image.
-- `InventoryCompanion-v<version>` holds each release's ZIP and publishing-resource snapshot. Keep historical folders unchanged.
-- The legacy v1.01 archive is now at `InventoryCompanion-v1.1.0\InventoryCompanion-v1.01.zip`. The folder label does not change the archive's embedded version or recorded identity; use version 1.01 when citing that approved baseline.
-
-Immediately after Finalize creates and verifies the ZIP, create `Project\Publishing\Packages\Reviewed\InventoryCompanion-v<version>` as the release's handoff folder. Copy the verified ZIP into it and verify that the copy's SHA-256 matches the finalized archive. From `Current Documentation`, combine the full contents of `readme.bbcode` followed by `Features.bbcode`, separated by a blank line, into one BBCode document named `Readme_Features.bbcode` in the release folder. Keep the two source documents separate in Current Documentation; do not include separate readme or features documents alongside the ZIP. This combination is a handoff operation only and does not change document names or contents inside the frozen ZIP. Copy the current user manual, release changelog, upload screenshot, and all images referenced by the manual into the same folder, along with the completed review. Copy actual image files, not shortcuts. These are snapshots of the publishing resources at handoff time; the ZIP retains its separately reviewed, frozen contents. Preserve relative image links. Do not move the working originals, change the verified ZIP, overwrite an earlier release folder, or refresh historical resource snapshots from later DEV files unless the author explicitly requests a handoff update.
-
-For the already approved v1.2.1 candidate, the author explicitly waived adding readme/changelog files inside the ZIP. Finalize its original recorded file set without restaging; include the current documents alongside the ZIP in its versioned handoff folder instead. Future staged candidates include the documents as described below.
-
-Check that all resources and manual image links resolve before marking the handoff ready. Open the assembled versioned handoff folder in Windows Explorer, even if Finalize already opened its ZIP output folder, and provide a persistent clickable link to that versioned folder in the final response so the user can reopen it. Complete this handoff as soon as review approval and ZIP verification are complete, without waiting for another prompt. Do not claim the folder is ready until the ZIP copy has been verified and the resources have actually been gathered there.
 
 ## Preparation and review sequence
+0. **STOP!** Outline what the steps are going to be to the user. Wait for a go!
+1. **Prepare the working release folder.** Create `Project\Publishing\Packages\Reviewed\Current release` if it does not exist. If it exists, confirm the prior numbered archive is retained, then empty only this working folder. Create `ReleaseReview.md` in it from `ReleaseReviewTemplate.md`; create the combined `ReadMe.bbcode` from the authoritative header and body, and copy the authoritative `Changelog.bbcode` into the folder.
+2. **Diff the baseline and agree on the change summary.**
+   - **Baseline diff:** Establish the committed DEV source identity and compare the code with the last approved review.
+   - **Draft the report entry:** Use the diff to draft the **Changes reviewed** section. Distinguish what changed from what was merely inspected.
+   - **Propose the level of detail:** Present the changed files and methods, relevant behavior or call paths, and a proposed summary. Use a file-and-method list for specific changes, a concise feature-level summary for cohesive broad changes, or an overview with supporting details when both are useful.
+   - **Stop for agreement:** Do not assess review standards or run tests yet. Present what changed and agree the entry's scope and wording with the author before continuing. Do not imply that review or tests have been completed.
+3. **Review the code against the standards.** After agreeing the change summary, fill in the report header and standards grid: inspect each applicable criterion, trace changed paths and affected callers/integrations, mark whether its area changed, and record the result rationale and evidence. Unchanged areas may rely only on a cited prior PASS where code and behavior remain unchanged.
+4. **Run relevant synthetic tests.** After source inspection, run the relevant safe synthetic/offline tests. Record only the pass/fail rate in the report's test-results field; do not use test results as a substitute for standards review.
+5. **Complete the documentation review and report.** Review the prepared header, body, and changelog against the report's documentation checks; fill in the version recommendation, summary, and findings.
+6. **Present findings and agree next steps.** Present the completed report and pause for discussion. Agree the next version number. If there are problems, change only the authorized issues and perform a focused review of those changes, with relevant synthetic tests; update and present the report again. If there are no unresolved problems, obtain the separate explicit **GO to stage**.
+7. **Stage the test installation.** Run `.\Project\Publishing\PackageRelease.ps1 -Action Stage` to copy only the program files and the prepared combined `ReadMe.bbcode` into the release test installation. The script records the candidate identity and advances DEV's patch number. Before changing an existing managed installation, confirm its verified ZIP is retained and get authorization to remove it. Select only the release add-on in the test profile and reload the UI.
+8. **Run user testing.** Obtain the separate explicit **GO for UAT**. Run the agreed user-driven unit and in-game checks against the staged installation. Record their actual pass/fail rate and observations; any failure or unexpected behavior returns to the findings/discussion gate.
+9. **Finalize documentation and release files.**
+   - **Update documents:** After user testing, update and verify the release `ReadMe.bbcode` and `Changelog.bbcode` in `Current release`. Complete the review report with user-test results and final findings.
+   - **Prepare the test installation:** Copy the finalized documentation and review report into the test installation.
+   - **Create the release ZIP:** Create `InventoryCompanion-v<version>.zip` from the test installation in `Current release`.
+   - **Archive and verify:** Copy the ZIP and review/documentation archive into `Project\Publishing\Packages\Reviewed\InventoryCompanion-v<version>`. Verify both ZIP hashes match.
+   - **Present for approval:** Present the package for approval before upload or handoff.
 
-1. **Establish a clean committed worktree.** Check `git status` before review. If the worktree is dirty, identify the intended release changes and commit them; do not include unexpected or unrelated changes. Confirm the worktree is clean before continuing. Do not switch branches.
-2. **Review the committed code against ESOUI criteria.** Review the actual delta from the last approved baseline, affected callers/data flows, manifest/dependencies, and all applicable criteria in the generic review template. Record findings and proposed feature/changelog wording and version in `ReleaseReview.md`; fix material issues, commit the fixes, and repeat the affected review until no material issue remains. Use a full source review for a first baseline, unavailable/unverifiable baseline, broad architectural changes, or a specific concern requiring it; record the reason. Do not proceed with unresolved material findings.
-3. **Discuss and agree on document changes.** After the code review, discuss the proposed feature changes, changelog wording, and version recommendation with the user. Put the proposals in the `Proposed changes to documents` section of `ReleaseReview.md`. Derive both documents from the reviewed changes: update the feature document for current capabilities, then make the changelog a self-contained account for current users, leading with the user-facing impact and following with supporting technical detail. Establish the last author-confirmed published version and include all cumulative unreleased changes, including changes carried through failed, cancelled, or superseded candidates that remain in the current code. Preserve author edits and history. Agree on the wording before editing. Then update both `Packages\Reviewed\Current Documentation\Features.bbcode` and `Changelog.bbcode`; use a temporary BBCode `Unreleased` heading if the version is not yet decided. Review the updated authoritative changelog and use it to confirm or revise the proposed build/patch or minor version, with a brief reason. Assess combined unreleased changes, not merely fixes since the previous candidate or skipped version numbers; recommend major only for incompatible changes. Discuss and agree on the version with the user, then record the exact agreed wording and number in the `Agreed wording and version` section of the review report. Replace the temporary heading with that version and a literal `[unreleased]` marker, then synchronize version metadata before staging. Have the user check the updated documents. Keep the readme current. The readme and changelog must be nonempty; staging copies existing documents rather than inventing release notes. Stage reads the changelog from Current Documentation and places its frozen copy beside the candidate manifest as `Changelog.bbcode`; the handoff also copies it from Current Documentation.
-4. **Test the reviewed commit in DEV.** Run relevant safe offline checks and the full relevant in-game diagnostic/feature tests on DEV, including the short transfer check below where applicable. Record the tested commit, DEV version, tester, and results. If a test exposes an issue, fix and commit it, return to step 2, then repeat the document discussion/update in step 3 if the release content changed and rerun affected tests. Once review and tests pass, do not change runtime source before staging; any change requires a new commit and repeating the affected review and tests.
-5. **Confirm recovery and stage.** Before removing an existing managed release, identify its previous verified ZIP and check it is available as a rollback package; if unavailable, stop and agree a recovery plan. Confirm removal with the user, then cancel/stage through the script, which backs up the last-on-disk saved variables during staging. ESO may remain open; do not reload the UI or change characters until file changes finish. ZIP rollback restores files, not inventory or saved-data changes. Staging freezes the tested source files, records a new identity, and increments DEV's build.
-6. **Verify the frozen candidate.** Verify its identity once, confirm the manifest, dependencies, and staged files match the reviewed/tested commit, and account for version metadata changed by staging. Review only staging-specific differences; do not repeat the source review on unchanged runtime code. If a mismatch or source issue is found, cancel the candidate, fix and review/test DEV, then stage a replacement with a new version and identity.
-7. **Send one concise candidate smoke handoff.** Include candidate version/hash and installation to enable (release only), and request a brief load/function smoke check. Full `/ictest verbose copy`, feature tests, and the short transfer check belong on DEV before staging; do not ask for them again on the candidate without a specific mismatch, finding, or reported problem. The reviewer supplies candidate identity and uses diagnostic metadata rather than asking the tester to reproduce it. Group any remaining author confirmations separately from gameplay testing. Request Live testing only; record any volunteered PTS testing separately.
-8. **Approve, tag, and finalize.** Preserve reported failures, limitations, and performance investigations. If the candidate smoke check finds a source, behavior, or document issue, cancel it, fix/update and commit DEV, repeat the review and document discussion as applicable, rerun affected tests, then stage a replacement candidate with a new identity. Record DEV test evidence and candidate smoke separately in `ReleaseReview.md`, explaining why the tested DEV commit applies to the frozen candidate. Have the user check the completed report and approve it. Only then create the release tag on the exact reviewed/tested commit containing the approved document changes; do not tag a failed or superseded candidate. The reviewer must assess the evidence: the script checks document structure, declared approval, and hashes, not the truth or adequacy of the review. Do not mistake checked boxes or nonempty test text for substantive approval. Finalize and complete the handoff after the approved candidate is tagged.
+## How to carry out the sequence
 
-## Short human transfer check
+### Prepare the report and release documents (steps 1, 5, and 9)
 
-Use this tester-facing request after obtaining the diagnostic report:
+- At the start of each new release, ask whether the previous release was published. Use the answer when deciding which changes are still unreleased.
+- Use the review template as-is for report structure and checks. Do not add report sections or duplicate its standards in this checklist.
+- Build `ReadMe.bbcode` by placing `ReadMe-Header.bbcode` before `ReadMe-Body.bbcode`. Keep the dependency and any applicable AI disclosure in the header. Keep the changelog's newest release first.
+- Keep working copies in `Packages\Reviewed\Current release`; preserve existing numbered archive folders.
+- Use BBCode for ESOUI publishing text and follow the formatting reference.
+- Review the listing header, body, and changelog for accurate current-version, dependency, feature, and change information. Do not include the old manual in the test installation or ZIP; it may remain in `Current release` as a reference.
+
+### Compare and review the source (steps 2–3)
+
+- Establish the committed DEV source identity and use the last approved source review as the comparison baseline. Use the reviewer reference to locate relevant tests and code paths, then verify those against the actual candidate/source.
+- Step 2 is a discussion gate: present the proposed **Changes reviewed** entry and wait for agreement before starting the standards review.
+- In the standards review, assess each applicable template check against the actual changed code and publishing materials. Cite prior review evidence only for areas whose code and behavior have not changed.
+
+### Run tests and discuss findings (steps 4–6 and 8)
+
+- Run only relevant safe synthetic/offline tests after the source review. The repository's rule suite is `python Project\Tests\Run-RuleTests.py`; focused options and additional test commands are documented in the project's development instructions.
+- Before UAT, run `.\Project\Publishing\PackageRelease.ps1 -Action Backup` to make and verify a timestamped backup of the existing ESO SavedVariables files. Stage already makes a backup, but this separate backup is taken immediately before user testing. The script stores private copies under the DEV add-on's `SavedVariables` folder; do not include them in the release. These are on-disk snapshots, not unsaved in-memory settings. If no source files are found, the script warns; resolve that before proceeding with UAT.
+- Run UAT only after the separate GO. The in-game diagnostic command is `/ictest [verbose] [veryverbose] [copy]`; perform the agreed feature and transfer checks against the staged installation. Use the tester prompt below for the normal transfer check; expand testing only when the source review, a reported issue, or test evidence calls for it.
+- Record only the synthetic pass/fail rate where the sequence specifies it. Record actual UAT results and observations; do not infer test success or coverage.
+- Retain the complete diagnostic output as test evidence and report actual results in the template's existing test-evidence area. Do not add report sections for diagnostics or tester details.
+- Present findings and wait at the discussion gate. Make only changes the author authorizes, then review and test those changes before presenting the updated report.
+
+#### UAT transfer prompt
+
+After obtaining the diagnostic report, ask the tester:
 
 > Please perform a few normal transfers between your bank and bag, involving the craft bag if available, and between your bag and house chests. Use items you intend to move and the game's supported transfer paths; no exhaustive storage-pair or item-type matrix is needed.
 >
 > Did you encounter any problems? Mention any unavailable storage you could not try. State only if ESO Plus was **not enabled**, or if you **did test on PTS**; otherwise we'll use ESO Plus enabled and no PTS testing as the reporting defaults.
 
-Record the tester's actual response, applying only the ESO Plus/PTS reporting defaults above when omitted; do not infer transfer success or storage coverage from silence. Explicit observations and diagnostic evidence take precedence over defaults. Unavailable craft-bag or house-chest access is a disclosed limitation, not a reason to require a subscription, new storage, or another test profile. Separate settings, rendering, reload/persistence, interruption, or compatibility tests are conditional on a specific source-review finding, relevant change, or reported problem; they are not routine release prerequisites.
+Record the tester's actual response. Do not infer transfer success or storage coverage from silence. An unavailable craft bag or house chest is a disclosed limitation, not a reason to require a subscription, new storage, or another test profile. The ESO Plus and PTS defaults are reporting assumptions, not verified facts; do not claim PTS compatibility without evidence. Test settings, rendering, persistence, interruption, or compatibility when a relevant change, finding, or reported problem makes them applicable.
 
-## Packaging script
+### Agree version and stage the candidate (steps 5–7)
 
-### Version numbering
+- Base the version recommendation on the cumulative changes since the last author-confirmed release, including changes carried forward from cancelled or superseded candidates. As a guide, patches are for fixes/maintenance, minors for backward-compatible features, and majors for incompatible changes.
+- Draft user-facing feature and changelog wording from the cumulative changes. Lead the changelog with user impact and add relevant technical detail. Agree wording and version with the author rather than choosing a version to justify prewritten notes.
+- Mark numbered but unpublished changelog entries `[unreleased]`. A review, approval, or ZIP does not prove publication; do not remove the marker until publication is confirmed.
+- After upload, ask whether publication is confirmed. Once confirmed, remove the marker from the working changelog; do not change frozen packages or historical archives.
+- Agree the release wording and version before changing version metadata. Keep the manifest's `Version` and `AddOnVersion` consistent with the runtime version in `Core\Init.lua`.
+- Stage only after the separate GO. Run the Stage command from the development checkout and follow the sequence's scope: only program files and the prepared combined README go into the test installation.
+- Before testing, select the release installation rather than the DEV installation, reload the UI, and verify the candidate's version and identity. Although the add-ons have different names, both manifests declare the same `SavedVariables` global, `InventoryCompanion_SavedVariables`, and both builds initialize `ZO_SavedVars` with that name. They therefore use the same saved-variable data. Preserve the current data before UAT and do not restore an older copy over newer data.
 
-Use `major.minor.patch`, not a four-number version:
+### Complete and verify the package (step 9)
 
-- **Patch (default):** bug fixes and maintenance, for example `1.5.0` to `1.5.1`.
-- **Minor (deliberate):** new backward-compatible features, for example `1.5.1` to `1.6.0`.
-- **Major (deliberate):** incompatible changes, for example `1.6.2` to `2.0.0`.
-
-During the document proposal and agreement step:
-
-1. Establish the last author-confirmed published version and inspect the actual cumulative changes since that version. Draft proposed feature and changelog wording plus a version recommendation in `ReleaseReview.md`; include changes carried through failed, cancelled, or superseded candidates that remain in current code. Preserve author edits and historical entries.
-2. Discuss the proposed feature changes, wording, and version recommendation with the user. The changelog must stand on its own for current users: lead with the user-facing impact, then provide relevant supporting technical detail.
-3. After the wording is agreed, update the authoritative working `Packages\Reviewed\Current Documentation\Features.bbcode` and `Changelog.bbcode`. Use a temporary BBCode `Unreleased` heading if the version is not yet decided. Review the updated changelog for clarity and accuracy, then confirm or revise the version recommendation against the combined unreleased changes, not merely fixes since the previous candidate or skipped version numbers; recommend major only for incompatible changes. Resolve any disagreement conversationally.
-4. Once the number is agreed, record the exact agreed wording and version in the `Agreed wording and version` section of `ReleaseReview.md`. Replace the temporary heading with the agreed version plus a literal `[unreleased]` marker, for example `[SIZE="2"][B]1.5.1 [unreleased][/B][/SIZE]`, and synchronize version metadata before staging. Have the user check the updated documents. Keep the readme current; the readme and changelog must be nonempty.
-
-Keep an `[Unreleased]` marker on numbered versions that have not been published, including candidates that fail review or are superseded. Approval, finalization, and a ZIP do not establish publication. Remove the marker from the published version in the working changelog only after the author confirms publication; do not modify frozen packages or historical snapshots to change their markers. Superseded unpublished candidates retain only their version heading and marker, without change bullets; move their applicable changes into the eventual release entry so delivered changes are listed once. Do not infer historical publication status from a version heading or archive alone.
-
-Do not choose the version first and write the changelog to justify it afterwards.
-
-Before Stage, confirm the intended version. For a deliberate minor/major bump, update `InventoryCompanion_DEV.txt` Version and AddOnVersion together with `Core/Init.lua` Version. Do not renumber an already frozen or finalized candidate. Stage reserves the next patch for DEV; Finalize never changes DEV versions. Patch numbers may be skipped after cancelled candidates; do not reuse them by rolling DEV backwards. A patch overflow requires an explicit new minor series, not an automatic rollover.
-
-The permanent Git checkout and VS Code workspace live in `live\AddOns\InventoryCompanion_DEV`. The development manifest loads a small development-only bootstrap; staging removes that entry and the `[DEV]` title marker. The remaining runtime files are copied unchanged into the sibling `InventoryCompanion` installation. The global namespace, controls, keybindings, and saved-variable name remain shared.
-
-**Release staging backs up `live\SavedVariables\InventoryCompanion.lua` and `InventoryCompanion_DEV.lua` automatically when present.** ESO names these files after the installation/manifest, not the `InventoryCompanion_SavedVariables` global table declared inside them. The script infers both filenames and the profile directory from the release/development installation paths. It creates separate timestamped copies under the ignored `SavedVariables` folder in the development add-on and verifies their SHA-256 before creating the candidate installation. This is the last-on-disk snapshot, not necessarily the running game's current in-memory settings. Keep those private backups for recovery; they are not included in the release package. If neither source exists, staging warns and continues without a backup; investigate the active profile before treating that as expected. Run `.\Project\Publishing\PackageRelease.ps1 -Action Backup` to make verified backups without restaging or changing versions. If recovery is needed, exit ESO and restore the chosen backup to its corresponding original filename under `live\SavedVariables`; do not overwrite newer data without first preserving it.
-
-Release tests use your real settings and inventory; cancellation does not undo in-game changes. Select exactly one installation through your add-on profiles. Both builds check for an existing namespace before any other add-on files load; if detected, they print a red warning and show an error alert on player activation. This is a reminder, not a loading guard: a double-loaded session may be broken and requires correcting the profile and reloading the UI.
-
-ESO may remain open for Stage, Cancel, and Finalize. Do not reload the UI or change characters during Stage/Cancel because installed files are being changed. Wait for successful completion before selecting the intended installation and reloading; already loaded code does not change just because disk files changed. Finalization uses a temporary copy and leaves the installed candidate untouched. Run from the development root:
-
-```powershell
-.\Project\Publishing\PackageRelease.ps1 -Action Stage
-```
-
-Staging refuses to overwrite an existing `InventoryCompanion` folder. It creates the release manifest, its runtime files, and root-level `readme.bbcode` and `Changelog.bbcode`, and records all their SHA-256 hashes in ignored `.release-test\state.json`. Missing or whitespace-only release documents stop staging before installation changes. The documents are not manifest entries and are not executed by ESO. Once staged, their bytes are frozen with the candidate; later DEV document edits do not enter its ZIP. It never disables development or changes your add-on profiles. It validates `AddOnVersion = major * 10000 + minor * 100 + patch`, copies the current full `major.minor.patch` version and integer into the candidate, then increments the DEV patch in both manifest fields and runtime metadata. Minor/patch components are limited to 0-99 and the integer must fit a positive 32-bit value; an invalid pair or unencodable next patch stops staging before installation changes. Numbers are not zero-padded: cut `1.5.0` (`10500`), leaving DEV at `1.5.1` (`10501`). Cancellation does not roll back that patch increment.
-
-1. Before staging, run the full relevant checks on DEV and save the complete `/ictest verbose copy` report. After staging, select **InventoryCompanion**, not **InventoryCompanion [DEV]**, in your release-test profile and reload the UI (or start ESO if closed). Keep your development profile selecting only **InventoryCompanion [DEV]**.
-2. Verify the candidate's installation/runtime version, DEV=false, integer AddOnVersion, dependencies, and disk hashes against the staged manifest and identity; confirm no DEV copy is enabled. Diagnostics report runtime metadata but do not prove disk identity. Do not accept an older still-loaded release merely because DEV=false. Perform only a brief candidate load/function smoke check; record actual results and do not infer success from staging.
-3. Finish and approve `ReleaseReview.md` using the candidate's version and SHA-256 identity. Include the DEV test report and explain its applicability to the staged source, then record the candidate smoke separately. Delegate final ZIP verification to finalization. DEV work may continue independently, but changes do not enter the frozen candidate. Replacement candidates follow the impact-based retesting rules above. Obtain the identity with:
-
-   ```powershell
-   $state = Get-Content .\Project\Publishing\.release-test\state.json -Raw | ConvertFrom-Json
-   $identity = (@($state.Candidate | ForEach-Object { "$($_.Path)|$($_.Hash)" } | Sort-Object) -join "`n")
-   $sha = [System.Security.Cryptography.SHA256]::Create()
-   try {
-       [System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($identity))).Replace("-", "")
-   } finally { $sha.Dispose() }
-   ```
-4. Finalize:
-
-   ```powershell
-   .\Project\Publishing\PackageRelease.ps1 -Action Finalize -TestResults 'Actual in-game results and manual checks'
-   ```
-
-Package after approval while the candidate remains unchanged; elapsed time alone does not invalidate it. Finalization verifies candidate hashes, the review's identity, declared approval and supplied test text, and packages a temporary copy with the review document added. Every archive entry, including the staged readme and changelog, is checked for its expected path and SHA-256 hash. No DEV runtime or document files are release inputs at finalization. Older candidates retain their recorded file set: upgrading the packaging script does not add documents to an already frozen candidate. Follow the agreed replacement-candidate process to add them; never silently patch its files or state. The installed candidate remains untouched. The completed review is saved back to the checkout and completion state prevents accidental re-finalization. Finalization leaves DEV version metadata unchanged: releasing `1.5.0` normally leaves the `1.5.1` already reserved by staging, and preserves any deliberate later DEV version choice. The legacy `1.01` label is retained for that older candidate.
-
-Finalization prints the verified ZIP path, archive SHA-256, and candidate file-set SHA-256 before recording completion state. If that recording fails, the error explicitly identifies the already verified package and required recovery; it does not mean ZIP verification failed. Do not blindly retry Finalize or overwrite that ZIP. Repair completion state and confirm it before the next stage. An accepted package remains independently verified, but disclose the recording failure in the handoff. Finalization no longer performs DEV version housekeeping.
-
-By default, the ZIP is written to `Project\Publishing\Packages`. Use `-OutputDirectory` to choose another destination and `-Force` to replace an existing package. Successful finalization opens the output folder in Windows Explorer. Failed finalization retains the candidate for inspection/retry. Packaging never automatically approves a review.
-
-To abandon a test, or explicitly remove the script-owned installed release before staging the next version, run Cancel without reloading or changing characters during removal. If not immediately staging a replacement, select DEV only after cancellation finishes, then reload the UI:
-
-```powershell
-.\Project\Publishing\PackageRelease.ps1 -Action Cancel
-```
-
-Cancellation removes the managed release installation, not its ZIP or any development files. Do not manually move or replace the candidate or state file. If cleanup is interrupted, retry `-Action Cancel`. An interruption before staging records its state may require manually inspecting/removing the partial candidate; the script will not overwrite it.
-
-Safe packaging regression tests run entirely in a temporary fixture, without changing the live installation or saved variables:
-
-```powershell
-.\Project\Publishing\Test-PackageRelease.ps1
-```
+- After UAT, update the combined README and changelog, then put the finalized documents and review report into the test installation as specified in the sequence.
+- Run `.\Project\Publishing\PackageRelease.ps1 -Action Finalize` after the report records actual UAT results and has no unresolved findings. It copies the finalized README, changelog, and review into the test installation, verifies the candidate files, creates the ZIP in `Current release`, and copies the ZIP plus those documents into the versioned `Reviewed` folder. It refuses to overwrite an existing archive or versioned folder.
+- Verify the ZIP and copied archive hashes before presenting the package. Finalize does not upload or confirm publication; do not replace historical versioned archives.
+- Once the author confirms they are satisfied with the completed documents, continue through the remaining sequence while preserving its separate GO gates and package-approval step. After package approval, perform the ESOUI upload. Upload alone does not confirm publication; ask the author whether publication is confirmed before removing the working changelog marker.
