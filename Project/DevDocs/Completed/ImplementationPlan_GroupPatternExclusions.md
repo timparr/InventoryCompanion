@@ -247,7 +247,7 @@ Change [Tracking/EditPanelGroupsTab.xml](../../../Tracking/EditPanelGroupsTab.xm
 
 ## 4. Documentation and completion checks
 
-- Update [UserManual.bbcode](../../../UserManual.bbcode) with the visible
+- Update [UserManual.bbcode](../../Publishing/Source%20Documents/UserManual.bbcode) with the visible
   Include/Exclude behavior, group-local veto semantics, and a Treasure Maps /
   Cyrodiil example. Do not document the internal suffix as user syntax.
 - At implementation start, update the authoritative working changelog from

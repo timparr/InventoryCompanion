@@ -9,9 +9,9 @@ as a separate source of feature requirements or workflow permissions.
 
 Read [AGENTS.md](../../../../AGENTS.md), then the three authoritative documents:
 
-1. [SPEC](todo_plan_autocategoryIntegration.md): required behavior and explicit
+1. [SPEC](../../Completed/AutoCategory%20Integration/todo_plan_autocategoryIntegration.md): required behavior and explicit
    Q1-Q5 / D1-D3 open-question and decision register.
-2. [IMPLEMENTATION PLAN](todo_implementation_autocategoryIntegration.md):
+2. [IMPLEMENTATION PLAN](../../Completed/AutoCategory%20Integration/todo_implementation_autocategoryIntegration.md):
    dependencies and stage 1 ordering blockers; no runtime/editor implementation
    is authorized by this testing prompt.
 3. [SPIKE RESULTS](AutoCategorySpikeResults.md): current gates, dated evidence,

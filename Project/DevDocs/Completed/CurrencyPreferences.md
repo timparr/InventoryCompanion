@@ -5,7 +5,7 @@
 This specification preserves the delivered feature's design and historical
 planning assumptions. References to unreleased behavior describe the original
 implementation period, not the current release status. Deferred improvement
-ideas are tracked in the [master TODO, Section F](../TODO.md#section-f-tweaks-and-improvement-ideas).
+ideas are tracked in the [master TODO, Section F](../../Tasks/TODO.md#section-f-tweaks-and-improvement-ideas).
 
 ## 1. Goal
 
@@ -122,7 +122,7 @@ Requirements:
 ## 9. Product Decisions Deferred Beyond Phase 1
 
 Combined character-plus-bank totals and configurable grid columns remain
-improvement ideas in the [master TODO, Section F](../TODO.md#section-f-tweaks-and-improvement-ideas),
+improvement ideas in the [master TODO, Section F](../../Tasks/TODO.md#section-f-tweaks-and-improvement-ideas),
 not incomplete release requirements. Standalone progress bars remain independent
 movable windows with separately saved positions. Compact-grid entries use
 move-up/move-down ordering in IN; OUT entries are alphabetical and return to the

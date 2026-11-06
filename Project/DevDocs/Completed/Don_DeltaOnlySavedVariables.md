@@ -32,7 +32,7 @@ No branch switch was made. The initial workflow warning recommended a separate b
 The checkpoint committed pre-existing changes in:
 
 - [COMPLETED.md](COMPLETED.md).
-- [TODO.md](../TODO.md).
+- [TODO.md](../../Tasks/TODO.md).
 - [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md).
 
 The breakdown commit changed only [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md), adding subtasks 0-4 and the initial work-log section.
@@ -269,8 +269,8 @@ All addon Lua syntax checks and `git diff --check` passed. Native ESO focus/even
 | [Project/Tests/GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) | Restricted the deterministic group-creation clock override to the relevant test. |
 | [Project/Tests/RulePersistenceTests.lua](../../Tests/RulePersistenceTests.lua) | New serialized reload and actual clear-command tests in a separate Lua state. |
 | [Project/Tests/Run-RuleTests.py](../../Tests/Run-RuleTests.py) | Added real monotonic timing, ordered suite collection, persistence-state setup, and performance detail output. |
-| [UserManual.bbcode](../../../UserManual.bbcode) | Documented default inheritance and Reset; Reset wording was subsequently corrected. |
-| [TODO.md](../TODO.md) | Changed the outstanding task from implementation to in-game acceptance. |
+| [UserManual.bbcode](../../Publishing/Source%20Documents/UserManual.bbcode) | Documented default inheritance and Reset; Reset wording was subsequently corrected. |
+| [TODO.md](../../Tasks/TODO.md) | Changed the outstanding task from implementation to in-game acceptance. |
 | [COMPLETED.md](COMPLETED.md) | Recorded implementation; release verification later moved it into verified work. |
 | [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) | Added the storage contract, test commands, downgrade warning, final results, and client acceptance checklist. |
 
@@ -332,7 +332,7 @@ In particular, Reset must not unhide a hidden group.
 | [Tracking/EditPanelGroupsTab.lua](../../../Tracking/EditPanelGroupsTab.lua) | Used that query for Reset visibility and corrected the confirmation. |
 | [Core/RuleTests.lua](../../../Core/RuleTests.lua) | Verified every display flag, repeated reset, cache invalidation, pruning, and active-profile isolation. |
 | [Project/Tests/GroupEditorTests.lua](../../Tests/GroupEditorTests.lua) | Verified the actual Reset handler preserves notification/hidden settings and no longer offers Reset for display-only overrides. |
-| [UserManual.bbcode](../../../UserManual.bbcode) | Corrected user-facing Reset behavior. |
+| [UserManual.bbcode](../../Publishing/Source%20Documents/UserManual.bbcode) | Corrected user-facing Reset behavior. |
 | [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) | Corrected the contract/checklist and appended the correction log. |
 
 ### Current methods and behavior
@@ -460,7 +460,7 @@ Source verified during implementation: [ZOS saved-variable implementation](https
 ### Subtask 2 completed - documentation and final validation
 
 - Subtask 1 implementation/tests committed as `a862f50`; the pre-work plan was committed as `306dfca`.
-- [UserManual.bbcode](../../../UserManual.bbcode) explains the settings-preserving upgrade, inactive-profile scope, compatibility error, lack of automatic backup, and the need to restore a backup when reverting to builds without the guard.
+- [UserManual.bbcode](../../Publishing/Source%20Documents/UserManual.bbcode) explains the settings-preserving upgrade, inactive-profile scope, compatibility error, lack of automatic backup, and the need to restore a backup when reverting to builds without the guard.
 - [DeltaOnlySavedVariables.md](DeltaOnlySavedVariables.md) now records the current versioned startup policy, future migration requirements, updated test inventory, and disposable-profile client acceptance checks. Earlier decisions here are explicitly marked superseded rather than silently rewritten as though they were original choices.
 - Final verification also made the supported upgrade pair explicitly version 1 to 2, rather than allowing a version-1 conversion to stamp any future expected version. A tenth startup test raises the expected version to 3 and verifies refusal until that migration is implemented.
 - Final validation: 39/39 isolated cases passed; addon Lua 5.1 syntax checks passed; 187 isolated packaging assertions passed without touching the live installation or saved variables. Whitespace and relative documentation links were checked.

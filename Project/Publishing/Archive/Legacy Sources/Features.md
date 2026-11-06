@@ -1,6 +1,6 @@
 # Inventory Companion Features
 
-This overview describes features implemented in the current addon. For setup and step-by-step instructions, see [UserManual.bbcode](./UserManual.bbcode).
+This overview describes features implemented in the current addon. For setup and step-by-step instructions, see [UserManual.bbcode](../../Source%20Documents/UserManual.bbcode).
 
 ## AutoCategory integration
 

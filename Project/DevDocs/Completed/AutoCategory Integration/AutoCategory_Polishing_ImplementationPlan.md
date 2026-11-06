@@ -98,7 +98,7 @@ The remaining release-visibility decision does not block development.
   existing integration baseline.
 - [Current exclusion/Other implementation document](AutocategoryTweaks_hideICNotDelete.md)
   owns the preceding change and its outstanding acceptance.
-- [Archived spike results and dependency contracts](AutoCategorySpikeResults.md)
+- [Archived spike results and dependency contracts](../../Archive/AutoCategory%20Integration/AutoCategorySpikeResults.md)
   retain prior load-order and dependency evidence. Their historical designs
   are not new requirements.
 

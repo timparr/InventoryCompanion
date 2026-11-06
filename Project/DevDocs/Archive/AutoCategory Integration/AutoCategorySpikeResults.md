@@ -11,8 +11,8 @@ retains dated spike evidence; see the
 and test status.
 
 This is the authoritative evidence record and reusable dependency-learnings
-document. Read the [spec](todo_plan_autocategoryIntegration.md) for requirements
-and the [implementation plan](todo_implementation_autocategoryIntegration.md)
+document. Read the [spec](../../Completed/AutoCategory%20Integration/todo_plan_autocategoryIntegration.md) for requirements
+and the [implementation plan](../../Completed/AutoCategory%20Integration/todo_implementation_autocategoryIntegration.md)
 for work sequencing. Failed attempts below are historical, not current guidance.
 Keep dated command/result evidence here; update the other documents' blockers
 and decisions when evidence changes them, rather than duplicating the log.
@@ -38,7 +38,7 @@ inspection, and user visual confirmation are different kinds of evidence.
 
 ## Open questions, decisions, and deferred coverage
 
-IDs match the [spec's open-question register](todo_plan_autocategoryIntegration.md#open-questions-and-decisions).
+IDs match the [spec's open-question register](../../Completed/AutoCategory%20Integration/todo_plan_autocategoryIntegration.md#open-questions-and-decisions).
 
 - **Q1 - POST-IMPLEMENTATION ACCEPTANCE:** verify safe top-heading mapping without changing external
   entries for the final general contract. Sampled prefix top placement, appearance,

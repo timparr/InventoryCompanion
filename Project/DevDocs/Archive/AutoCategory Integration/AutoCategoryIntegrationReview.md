@@ -4,8 +4,8 @@
 [master feature document](../../FeatureSpecs/AutoCategoryIntegration.md).
 
 Review dated 2026-10-31. This is a reference assessment of the
-[spec](todo_plan_autocategoryIntegration.md),
-[implementation plan](todo_implementation_autocategoryIntegration.md), and
+[spec](../../Completed/AutoCategory%20Integration/todo_plan_autocategoryIntegration.md),
+[implementation plan](../../Completed/AutoCategory%20Integration/todo_implementation_autocategoryIntegration.md), and
 [spike evidence](AutoCategorySpikeResults.md), grounded in the current IC code.
 It is a review, not an authorization to implement or a claim that the feature
 has passed acceptance.
@@ -37,7 +37,7 @@ classification/rendering.
 
 The spec requires the editor order to control both the winning classification
 and visible heading order, while preserving AutoCategory's native behavior and
-leaving external entries unchanged ([spec: Classification and visible order](todo_plan_autocategoryIntegration.md#classification-and-visible-order)).
+leaving external entries unchanged ([spec: Classification and visible order](../../Completed/AutoCategory%20Integration/todo_plan_autocategoryIntegration.md#classification-and-visible-order)).
 That contract is not proven generally.
 
 **Proven behavior**

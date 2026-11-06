@@ -208,7 +208,7 @@ real user preferences when exercising its synthetic scenarios.
 6. Reload retains flags but not an open popup; existing profile data and
    saved expansion choices survive.
 
-Update [UserManual.bbcode](../../../UserManual.bbcode) and the authoritative
+Update [UserManual.bbcode](../../Publishing/Source%20Documents/UserManual.bbcode) and the authoritative
 working changelog from actual changes. These records are archived in Completed;
 the acceptance checklist above records the verified scope. Follow the
 [release checklist](../../Publishing/ReleaseChecklist.md) before staging;
@@ -221,4 +221,4 @@ Saved flag interpretation precedes count/delivery and editor writes. Presentatio
 and lifecycle ship together. Documentation/tests follow implementation.
 AutoCategory registration, partition ownership, ordering, and optional-addon
 compatibility remain governed by its separate
-[plan](<../Archive/AutoCategory Integration/todo_plan_autocategoryIntegration.md>).
+[plan](<AutoCategory%20Integration/todo_plan_autocategoryIntegration.md>).

@@ -4,8 +4,9 @@ info panels - how to guide built into the addon - instead of the manual. - (i) b
 # InventoryCompanion - Letter-Numbered Master To-Do List
 
 Completed AutoCategory and settings/editor work is documented in the
-[master feature specification](FeatureSpecs/AutoCategoryIntegration.md), with
-supporting plans and screenshots archived. It is no longer a pending roadmap item.
+[master feature specification](../DevDocs/FeatureSpecs/AutoCategoryIntegration.md),
+with supporting plans in `Project/DevDocs/Completed/AutoCategory Integration`
+and source evidence archived. It is no longer a pending roadmap item.
 
 ## Section A: 🛠️ In Progress & Immediate Tasks
 
@@ -123,6 +124,6 @@ They may be refined or discarded during future triage.
   window position separately for each character while keeping other settings
   account-wide.
 
-Source design history: [Currency Preferences](Completed/CurrencyPreferences.md)
-and [Currency Panel Implementation Plan](Completed/CurrencyPanelImplementationPlan.md),
-plus [Adaptive Tracker Sizing](Completed/ImplementationPlan_TrackerPanelHeightConstraints.md).
+Source design history: [Currency Preferences](../DevDocs/Completed/CurrencyPreferences.md)
+and [Currency Panel Implementation Plan](../DevDocs/Completed/CurrencyPanelImplementationPlan.md),
+plus [Adaptive Tracker Sizing](../DevDocs/Completed/ImplementationPlan_TrackerPanelHeightConstraints.md).

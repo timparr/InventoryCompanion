@@ -5,11 +5,11 @@ use the [master feature specification](../../FeatureSpecs/AutoCategoryIntegratio
 
 Updated 2026-11-01. **Implemented; automated tests pass, but post-implementation
 compatibility acceptance is incomplete.** See the
-[implementation report](AutoCategoryImplementationReport.md) for delivered
+[implementation report](../../Archive/AutoCategory%20Integration/AutoCategoryImplementationReport.md) for delivered
 work, verification, deviations and remaining gates.
 The [spec](todo_plan_autocategoryIntegration.md) owns required behavior and open
-decisions; the [spike results](AutoCategorySpikeResults.md) own completed spike
-evidence, failed approaches and dependency contracts. See the [review](AutoCategoryIntegrationReview.md)
+decisions; the [spike results](../../Archive/AutoCategory%20Integration/AutoCategorySpikeResults.md) own completed spike
+evidence, failed approaches and dependency contracts. See the [review](../../Archive/AutoCategory%20Integration/AutoCategoryIntegrationReview.md)
 for the assessment and concrete recommendations.
 
 Use the [spec terminology](todo_plan_autocategoryIntegration.md#terminology):
@@ -609,7 +609,7 @@ in ESO.
 These are completion gates after the feature and its tests are implemented,
 not work to perform before implementation starts. Do not repeat completed spike
 steps. Use the actual integration adapter and UI; record observed limits and
-results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
+results in [AutoCategorySpikeResults.md](../../Archive/AutoCategory%20Integration/AutoCategorySpikeResults.md).
 
 - **Q1/Q2:** verify the implemented output in top, crowded, heading-anchor, arbitrary
   label and external run/show mismatch cases. Confirm both winning classification
@@ -648,7 +648,7 @@ results in [AutoCategorySpikeResults.md](AutoCategorySpikeResults.md).
   [ESO-Game-Textures.md](../../../Resources/ESO-Game-Textures.md), and documentation links.
   Record version, supported contracts, precise context/platform limits, workload/
   timings and dated offline/ESO results in the spike/results record.
-- Update [UserManual.bbcode](../../../../UserManual.bbcode): participation,
+- Update [UserManual.bbcode](../../../Publishing/Source%20Documents/UserManual.bbcode): participation,
   Master/context inheritance, ranks/cleanup, view/arrows/heading hide/unhide
   and Show-all controls, overlap examples, owned settings moves overwritten,
   collapse residue, uninstall `(!)` rows, active-profile scope, compatibility,
