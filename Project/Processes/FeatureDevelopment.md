@@ -62,6 +62,11 @@ recording feasibility are allowed during planning; coding is a separate gate.
 2. Plan implementation in dependency order with expected results per step.
    Specify representation, validation, migration/downgrade protection, error
    handling, preservation, cleanup/rollback, and verification where applicable.
+   Describe the code's shape without writing implementation code: exact file
+   paths with extensions, methods to create/modify and their contracts, state
+   ownership/data flow, and named callers with execution order. General targets
+   such as "ensure initialization refreshes" are introductions, not substitutes
+   for concrete wiring. Follow the implementation-plan template's per-step fields.
 3. Map every spec acceptance criterion to implementation and tests. Record what
    offline tests can prove and what requires Tim's in-game observations.
 4. Discuss technical options, risks, and open questions with Tim. Keep proposals
@@ -75,7 +80,8 @@ recording feasibility are allowed during planning; coding is a separate gate.
   not have authored the plan it now reviews.
 - Assess spec coverage, correctness of source assumptions, sequencing,
   integration surfaces, saved-data safety, fail-fast contracts, maintainability,
-  and adequacy of the verification strategy. Do not substitute product redesign
+  explicit method contracts/caller wiring, and adequacy of the verification
+  strategy. Do not substitute product redesign
   for assessment of the agreed requirements.
 - Discuss findings with Tim, resolve blocking questions, update documents, and
   repeat focused independent review when relevant changes are made.

@@ -31,15 +31,35 @@ cleanup/rollback, and preservation. Mark irrelevant sections N/A with a reason.>
 
 ## Ordered implementation
 
+Describe the shape of the code, not actual implementation code. An outcome such
+as "ensure initialization refreshes visibility" may introduce a step, but must
+be followed by named methods, contracts, and caller wiring sufficient to implement
+it. Use exact file paths with extensions; distinguish existing methods to modify
+from proposed methods to create. Scale the detail to the change without inventing
+unnecessary helpers or abstractions.
+
 ### Step 1: <Outcome>
 
 - Depends on: <Actual prerequisite, or None>.
 - Spec coverage: <Acceptance criterion IDs>.
-- Files/methods and affected callers: <Exact source locations>.
+- Files/methods and affected callers: <Exact paths including extensions; existing
+  symbols and source locations; proposed new method names and ownership>.
 - Changes: <Complete behavior and wiring, including relevant UI/XML, manifest
   load order, settings, events, profiles, and integrations>.
+- Method contracts:
+  - Create/modify `<method>` in `<path.ext>`: <Responsibility, inputs, outputs,
+    state read/written, validation and failure behavior>.
+  - Create/modify `<other method>` in `<path.ext>`: <Its contract and relationship
+    to the first method; reuse existing helpers where applicable>.
+- Caller wiring and execution order: <Name the existing/new callers, what they
+  pass, which methods they call, and when. Trace relevant initialization, UI
+  callbacks, events, profile changes, rendering, and exit/recovery paths; mark
+  unrelated paths N/A rather than merely saying they must be handled>.
+- State and data flow: <Who owns state, where values originate, how they reach
+  consumers, and how persistence, cleanup or rollback occurs>.
 - Preservation/error handling: <Invariants and failure behavior>.
-- Verification: <Focused tests and observable expected results>.
+- Verification: <Focused tests tied to named methods/contracts and observable
+  expected results>.
 
 <Repeat steps as needed in dependency order, without treating list order alone
 as a dependency.>

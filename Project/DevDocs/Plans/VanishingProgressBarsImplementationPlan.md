@@ -25,25 +25,21 @@ created by D10.1 in Manage HUD; it does not add a second settings surface.
 - [ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) validates every
   profile and copies resource preference tables. [Settings.lua](../../../Core/Settings.lua)
   currently owns the LAM controls that D10.1 moves into Manage HUD.
-- The [D10.1 plan](HUDPositioningImplementationPlan.md) owns session staging,
+- The [D10.1 plan](HUDPositioningImplementationPlan.md) owns persisted snapshots,
   editor controls, position handling, and Done/Cancel/reset behavior.
-
-## Technical options and decisions
-
-| ID | Alternatives and trade-offs | Recommendation | Agreed choice and evidence |
-|---|---|---|---|
-| D1 | Store raw percentages or fractions; store every default or only deviations. | Store a 0-1 fraction and only non-default values in each resource's existing `progressBarPreferences` table. | Recommendation based on existing threshold fields; plan approval pending. |
-| D2 | Change enabled-state queries to mean visible-now, or keep monitoring semantics distinct from rendering. | Keep event predicates based on enabled resources; calculate display visibility in the renderer. | Existing event design; plan approval pending. |
-| D3 | Add polling/hysteresis or use the existing event refresh pipeline. | Exact crossing with existing refresh/debounce only; no polling or extra visibility debounce. | Agreed in spec. |
 
 ## Data, compatibility, and failure contracts
 
-Use the existing account/character profile switch. Proposed stored deviations
+Use the existing account/character profile switch. Agreed stored deviations
 are per-resource `hideBelowThreshold` (fraction, default 0) and `hideWhenEmpty`
 (boolean, default true); missing values inherit defaults. Preserve `showBar`,
 warning/danger thresholds, colors, positions, unknown unrelated fields, and
 other preferences. Include all-profile validation and full-profile-copy coverage.
 Malformed explicit values must be reported at the saved-data boundary.
+Follow the existing storage convention, confirmed by Tim on 2026-11-08:
+store thresholds as 0-1 fractions, display integer percentages in the UI, and
+save only deviations. Omit threshold 0 and empty-hiding true; retain explicit
+`hideWhenEmpty = false`.
 
 Assess whether supported older builds preserve new fields safely. Apply the
 schema-version rule if they do not; plan non-destructive migration and actual
@@ -57,6 +53,10 @@ unrounded fill fraction. A zero/nonpositive cap retains the existing 0%
 calculation. Hidden enabled bars remain subscribed and refreshable. Positioning
 temporarily overrides bar visibility without changing saved preferences and is
 owned by D10.1's session transaction.
+Monitoring is a correctness requirement, confirmed by Tim on 2026-11-08:
+event predicates must use enabled state, not current on-screen visibility.
+Use exact crossing through the existing event/debounce pipeline, as agreed in
+the spec; add no polling, hysteresis, or extra visibility debounce.
 
 ## Ordered implementation
 
@@ -102,7 +102,8 @@ owned by D10.1's session transaction.
   equality visibility. Hide When Empty may share the slider row only if feasible;
   a separate checkbox is acceptable. If hidden above threshold 0, retain its
   saved setting.
-- Route edits through D10.1 staging. Done commits; Cancel/reset/automatic exits
+- Write edits through existing setters under D10.1's persisted snapshot. Done
+  keeps edits; Cancel/reset/automatic exits
   follow its session contract. Positioning reveals actual bars without changing
   showBar or visibility preferences.
 
@@ -113,6 +114,93 @@ owned by D10.1's session transaction.
 - Update the user manual and plan with actual decisions, focused test output, and
   approved in-game crossing, cutscene, profile, and positioning results.
 - No release/version/commit work is authorized.
+
+## Code blueprint for Steps 1-3
+
+#### Step 1: Extend existing preference contracts
+
+- In `Banking\ProgressBarResources.lua`, modify existing
+  `GetProgressBarSettings(resourceKey)` to return `hideBelowThreshold` and
+  `hideWhenEmpty`, resolving missing values to 0 and true. Extend existing
+  `SetProgressBarSetting(resourceKey, setting, value)` accepted keys and
+  validation: threshold is finite 0-1; empty hiding is boolean. Use existing
+  `StoreDeviation` with defaults 0/true; do not let the current danger-threshold
+  `else` branch handle these new keys or modify alert thresholds accidentally.
+  Remove empty resource preference tables exactly as existing setters do.
+- In `Tracking\ItemDatabase.lua`, extend existing local
+  `ValidateResourcePreference(preference, context)`/`PrepareProfilePreferences`
+  for these fields in bar preferences. Validate all profiles before constructors
+  through `PrepareSavedVariables`; extend version/migration gates and
+  `Core\Init.lua.SettingsVersion` if the previous reader cannot preserve them.
+  Existing `CopyItemListProfile` must deep-copy them with `progressBarPreferences`.
+- Extend `Tracking\HUDSettingsSession.lua.ValidateHUDRecoveryRecord` to validate
+  new nested bar fields; its captured `progressBarPreferences` already covers
+  them. `ResetHUDSettingsSection("bars")` removes their overrides so getters
+  restore defaults, while Cancel restores original overrides from the snapshot.
+- Add `Project\Tests\ProgressBarVisibilityTests.lua` loading actual resource
+  setters/getters in a stubbed Lua 5.1 runtime; expose
+  `GetProgressBarVisibilityTests()` and add it to the suite tuple in
+  `Project\Tests\Run-RuleTests.py`, loading dependencies in manifest order.
+  Extend `SavedVariablesTests.lua` for inactive profiles, explicit false,
+  malformed fractions/types, copying, record validation and older-reader refusal.
+
+#### Step 2: Rendering and all refresh callers
+
+- Keep one local `UpdateProgressBar(resource, control, settings)` in
+  `Banking\ResourceProgressBars.lua`; no new cross-module visibility predicate.
+  Obtain external values through existing `GetProgressBarResourceValues`, retain
+  unavailable-value hiding, compute unrounded fraction once, update fill/color/
+  label, then set whole-control visibility from cutscene, positioning override,
+  showBar, threshold and zero-amount policy. Positioning overrides enable/threshold/
+  empty hiding only, never unavailable values or cutscene suppression.
+- Existing `InitResourceProgressBars` and `RefreshResourceProgressBars` call
+  `UpdateProgressBar` with resolved settings; keep their control reuse/anchors.
+  Modify existing `SetProgressBarsHidden(hidden)` to store cutscene state and
+  call `UpdateProgressBar` for each existing control on both entry and return.
+  Do not reveal a below-threshold control solely because the cutscene ended.
+- Preserve enabled-state semantics of `HasVisibleProgressBars`,
+  `IsProgressBarVisible`, `HasVisibleCurrencyProgressBars`,
+  `IsCurrencyProgressBarVisible`, and `HasVisibleCappedProgressBars`.
+  Their names are historical; document their monitoring contract rather than
+  rename all callers for this ticket.
+- In `Core\Events.lua`, trace `ShouldListenSlotUpdate`,
+  `ShouldListenCurrencyUpdates`, `ShouldListenCurrencyCapUpdates`,
+  `ShouldListenBagCapacity` and `ShouldListenBankCapacity` to those enabled-state
+  APIs. Existing `OnInventorySlotUpdate`, `OnCurrencyUpdate` and
+  `OnCapacityChanged` retain their 500ms Enqueue refreshes.
+  `OnCurrencyCapsChanged` calls existing `RefreshProgressBarResourceDiscovery`;
+  its inspected definition rebuilds discovery and calls
+  `RefreshResourceProgressBars`; the event callback then calls
+  `UpdateEventRegistry`. Keep this chain so a cap change can reveal a hidden bar.
+- Caller chains: initialization -> `InitResourceProgressBars` -> local updater;
+  profile refresh -> `InitializeProgressBarResources` ->
+  `RefreshResourceProgressBars` -> updater; amount/capacity events -> Enqueue ->
+  refresh -> updater; cutscene ticker -> `SetProgressBarsHidden` -> updater;
+  editor setting/reset/exit -> `RefreshHUDSettingsPresentation` -> refresh -> updater.
+- Test actual controls' hidden state at 74/100, 75/100, 76/100, 749/1000,
+  0/100, over-cap, zero cap and unavailable values. Invoke actual event handlers
+  with tracker/summary/notifications off and prove listeners still refresh
+  hidden enabled bars; do not test only a standalone percentage helper.
+
+#### Step 3: Activate placeholders, callbacks and reset
+
+- In `Tracking\HUDSettingsPanel.lua.BuildBarsSection`, activate the existing
+  Hide Below and Hide When Empty controls. Slider callback converts integer
+  percent to fraction -> `SetProgressBarSetting(key, "hideBelowThreshold", value)`
+  -> `RefreshHUDSettingsPresentation` -> `RefreshHUDSettingsPanel`.
+  Checkbox callback follows the same chain with `hideWhenEmpty`.
+- `RefreshHUDSettingsPanel` reads `GetProgressBarSettings` for slider/checkbox
+  values and disabled state. Existing showBar checkbox and resource-label click
+  use one toggle callback; test each toggles exactly once and retains visibility
+  preferences. If the optional hide-empty row is hidden above zero, its value
+  is untouched. Final presentation is evaluated in the visual trial.
+- All callbacks edit the original profile protected by `hudEditRecovery`;
+  `FinishHUDSettingsSession("cancel")` restores the nested preference snapshot.
+  Reset uses the D10.1 reset chain, not a second transaction implementation.
+- Run `python Project\Tests\Run-RuleTests.py --test-filter
+  "ProgressBarVisibility|HUDSession|HUDRecovery"` with named production-method
+  tests; extend runner stubs/XML assertions only for newly exercised APIs.
+  Offline results and real event/UI observations remain PENDING.
 
 ## Verification and acceptance mapping
 

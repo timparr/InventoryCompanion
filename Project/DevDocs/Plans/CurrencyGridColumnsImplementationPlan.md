@@ -27,21 +27,16 @@ preference, and refresh paths rather than creating a second editor/settings path
 - [SavedVariablesTests.lua](../../Tests/SavedVariablesTests.lua) and
   [Core tests](../../../Core/Tests.lua): existing profile and grid cases.
 
-## Technical options and decisions
-
-| ID | Alternatives and trade-offs | Recommendation | Agreed choice |
-|---|---|---|---|
-| D1 | Single profile scalar versus a new layout table. | `currencyGridColumns` scalar; no new abstraction. | PENDING |
-| D2 | Arbitrary column widths versus count-sized width array. | Initialize widths for the validated selected limit; reuse existing sizing. | PENDING |
-
 ## Data, compatibility, and failure contracts
 
 After D10.1, Manage HUD has Done/Cancel and per-section reset. Column changes
-render live but participate in the editor session staging:
+render live through the original profile protected by D10.1's persisted snapshot:
 Cancel restores the starting column preference; Done keeps edits. Reset currency
 section restores 3 columns and is itself reversible with Cancel. Coordinate
-transaction handling with the shared editor; do not persist independently of it.
+transaction handling with the shared editor; do not create another commit path.
 
+Store `currencyGridColumns` directly in the existing profile, confirmed by Tim
+on 2026-11-08; do not introduce a layout table or reorganize existing settings.
 Agreed: positive finite integer, missing legacy value defaults to 3. Slider maximum
 is the available resource-cell count before visibility/zero filtering, using normal
 combined-cell grouping, and at least 3. Do not enforce that dynamic count as a
@@ -74,6 +69,11 @@ manifest addition is expected.
 - Depends on: Step 1.
 - Coverage: CG1-CG5.
 - Replace fixed-count layout math and width table in RefreshCurrencyPanel.
+  Preserve existing measured, variable-width columns: initialize a width array
+  for the effective column count, measure visible cells, and size each column
+  to its widest cell. Use only occupied columns in the final dimensions. Do not
+  introduce uniform or fixed widths; neither provides a demonstrated benefit
+  for this work (discussion with Tim, 2026-11-08).
   Wire the existing Manage HUD currency-section slider with available-resource
   maximum and immediate preview; preserve range/choice across filtering and
   handle discovery shrinkage without overwriting saved choices. Finalize the
@@ -91,6 +91,91 @@ manifest addition is expected.
   implementation; record actual focused tests and obtain approved in-game checks.
 - No release/version/commit work is authorized.
 
+## Code blueprint for Steps 1-2
+
+#### Step 1: Saved scalar and recovery coverage
+
+- Add `currencyGridColumns = 3` to `Core\Constants.lua.defaultsAccount` and
+  `Tracking\ItemDatabase.lua.preferenceDefaults`; append the key to existing
+  `preferenceFields`. Modify `PrepareProfilePreferences(profile, source)` to
+  assert a finite positive integer without a discovery-based upper limit.
+  Missing fields use the documented default through existing profile preparation.
+- Existing `CopyItemListProfile(source, destination)` copies this scalar via
+  `preferenceFields`; `SetUseCharacterItemList` and `RefreshProfileSettings`
+  apply the selected profile through existing paths. Do not add separate
+  character ownership or store it in `currencyPreferences`.
+- Extend `Tracking\HUDSettingsSession.lua` snapshot inventory and recovery
+  validation to include the scalar; extend
+  `ResetHUDSettingsSection("currency")` to restore 3 with all currency-section
+  defaults. Preserve original valid values above the current discovery maximum.
+- Extend `PrepareSavedVariables` migration gates and
+  `Core\Init.lua.SettingsVersion` if required by the previous release's reader.
+  Assess actual `CopyItemListProfile` behavior in that reader: a field omitted
+  from its copy list is not proven safe merely because normal load preserves it.
+- Add scalar/migration/recovery/copy tests to
+  `Project\Tests\SavedVariablesTests.lua` and `HUDSettingsSessionTests.lua`.
+  Test nil, 1, 3, a valid above-current-maximum integer, 0, fractions, infinity,
+  NaN and wrong types; bad inactive profiles stop before any migration publishes.
+
+#### Step 2: Column accessors, row-major geometry and editor callback
+
+Create these methods in existing `Tracking\CurrencyPanel.lua`:
+
+- `GetCurrencyGridColumnMaximum()` returns `max(3, availableCellCount)`.
+  Count groups using existing `GetResourceEntries` and
+  `GetResourceSettingsRows` grouping before visibility/zero/location filtering;
+  character/bank entries of one currency use normal combined-cell grouping.
+  Verify capacity groups match the actual rendered-cell model. Do not base the
+  maximum on `GetVisibleGridEntries`, which would change it with filtering.
+- `GetCurrencyGridColumns()` returns the effective integer
+  `min(profile.currencyGridColumns, GetCurrencyGridColumnMaximum())`;
+  rely on load validation and do not overwrite the retained saved value.
+- `SetCurrencyGridColumns(columns)` asserts an integer within the current
+  selectable range and writes `GetSettingsProfile().currencyGridColumns`.
+  Refresh is the UI caller's responsibility; this setter adds no reload, scene
+  transition, or automatic anchor fitting.
+
+Modify existing `RefreshCurrencyPanel()` to call `GetCurrencyGridColumns` once
+per refresh, initialize a zero width entry for each effective column, and use
+that count in both measuring and anchoring passes. The measuring pass uses
+`GetOrCreateCell` and existing `GetEntryText`; column index is
+`(index - 1) % effectiveColumns + 1`. The anchor pass uses the same index/count,
+row `floor((index - 1) / effectiveColumns)` and accumulated prior widths/gaps.
+Use only `min(effectiveColumns, visibleCellCount)` occupied columns for panel
+width and `ceil(visibleCellCount / effectiveColumns)` rows for height. Retain
+current padding, fonts, ordering, pooled-cell cleanup and zero-entry hiding.
+Do not clear or replace the top-level panel anchor when choosing columns.
+
+In `Tracking\HUDSettingsPanel.lua.BuildCurrencySection`, activate the existing
+columns placeholder. Slider callback -> `SetCurrencyGridColumns` ->
+`RefreshHUDSettingsPresentation` -> `RefreshHUDSettingsPanel`.
+The panel refresh sets slider range from `GetCurrencyGridColumnMaximum` and
+display value from the effective getter, without invoking its change callback.
+If saved count exceeds current maximum, display the effective capped value
+with a tooltip explaining the retained saved choice; this presentation proposal
+needs confirmation during the layout trial. Refresh must not clamp-write.
+Reset callback follows D10.1's reset/presentation chain; Done clears recovery,
+Cancel restores original scalar and positions. No standalone LAM slider.
+
+Existing amount/location/ordering/profile refreshes already call
+`RefreshCurrencyPanel`; each automatically uses the new count. Discovery changes
+also refresh the editor's range if open. Trace
+`Core\Events.lua.OnCurrencyCapsChanged`/`RefreshProgressBarResourceDiscovery`
+and profile refresh to both HUD reflow and editor-value refresh without recursion.
+
+Add `Project\Tests\CurrencyGridColumnsTests.lua` using actual
+`RefreshCurrencyPanel` with measured-label/control stubs; register it in
+`Project\Tests\Run-RuleTests.py` via a new `GetCurrencyGridColumnsTests()` suite
+in an isolated Lua 5.1 runtime, loading actual session/currency dependencies.
+For 0/1/7 cells and every supported count, assert exact
+anchors, row counts, accumulated widths/gaps, unchanged top-left anchor,
+hidden unused controls and combined-cell order. Exercise scalar setters,
+discovery shrinkage without writes, filtering-independent range,
+slider refresh without callbacks, and reset/Cancel/Done through real session
+methods. Run `python Project\Tests\Run-RuleTests.py --test-filter
+"CurrencyGridColumns|HUDSession|HUDRecovery"` plus relevant saved-variable
+selectors once named. These are planned tests, not completed geometry evidence.
+
 ## Verification and acceptance mapping
 
 | Criteria | Step | Test / command | Required evidence | Actual result |
@@ -104,8 +189,10 @@ release-process migration safeguards. Offline geometry does not prove readabilit
 
 ## Open questions and risks
 
-- Spec range and Reset Panel policy agreed: reset columns to 3, disclose in reset
-  text, preserve position and standalone bars.
+- Spec range and Reset Section policy agreed: reset columns to 3 and all currency
+  section settings/position to defaults; disclose this in reset text. Leave
+  tracker and standalone bars unchanged. Position reset supersedes the earlier
+  position-preserving policy (Tim, 2026-11-08).
 - Older-reader preservation/schema decision: PENDING; blocks coding.
 - Wide layouts can extend off-screen: disclosed non-goal, not automatic movement.
 

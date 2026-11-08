@@ -3,7 +3,7 @@
 Status: Approved to Implementation
 TODO items: [D10.1 positioning, D10.2 vanishing bars, D10.3 currency columns](../../Tasks/TODO.md)
 Owner: Copilot (draft author)
-Updated: 2026-11-06
+Updated: 2026-11-08
 Implementation plans: [D10.1 HUD positioning](../Plans/HUDPositioningImplementationPlan.md),
 [D10.2 vanishing bars](../Plans/VanishingProgressBarsImplementationPlan.md), and
 [D10.3 currency columns](../Plans/CurrencyGridColumnsImplementationPlan.md)
@@ -247,9 +247,9 @@ These details remain proposals transferred from the initial F1 draft:
   overlap management and individually positioned cells are out of scope.
 - Follow the existing account/character profile switch and full-profile copying.
   Missing legacy preference defaults to 3; validate explicit values in every profile.
-- Resetting the currency section restores 3 columns along with the existing
-  currency-panel resource defaults, disclosing this in its reset text; retain
-  position and standalone bars. Apply the reset in the editor session, not as a
+- Resetting the currency section restores all its defaults, including 3 columns,
+  currency-panel resource preferences and position, disclosing this in its reset
+  text; leave tracker and standalone bars unchanged. Apply the reset in the editor session, not as a
   permanent change until Done. This changes the existing Currency Panel Reset
   Panel button behavior: its reset is reversible by Cancel and commits only on
   Done.
@@ -270,12 +270,18 @@ Edits, dragging and resets preview live within the session; only Done commits
 them. Cancel and automatic exits restore the session's starting HUD settings and
 positions. Reset Section applies that section's documented addon defaults in the
 session, not its session-start values; Cancel can undo it. No whole-HUD reset is
-proposed. Currency section reset restores three columns and currency-panel
-resource defaults while preserving position and standalone bars.
+proposed. Currency section reset restores three columns, currency-panel resource
+defaults and its default position while leaving other sections unchanged.
 Agreed by Tim, 2026-11-06: Reset Section restores that section's settings to
 their documented addon defaults, not session-start values. Cancel restores
-session-start values. Record exact field/default coverage in the plan; retain the
-currency reset's already-agreed position/standalone-bar exclusions.
+session-start values. Record exact field/default coverage in the plan.
+Updated agreement by Tim, 2026-11-08: every section resets all its settings and
+positions to addon defaults. This supersedes the earlier currency position
+exclusion. Tracker resets its settings and position; currency resets its
+settings, resource preferences, columns and position; bars resets all resources'
+settings/positions and shared alert colors. Reset only affects the selected
+section, never other sections or unrelated profile data. Cancel undoes the reset;
+Done keeps it.
 Agreed by Tim, 2026-11-06: automatic exit acts as Cancel, restoring the session's
 starting HUD settings and positions. Cancel the originating profile's session
 before switching profiles; never restore its snapshot into the new profile.
@@ -350,14 +356,14 @@ unrelated saved data; verify migration, copy, reset and older-reader safety.
 | AC3 | At 100 only a full-or-over-cap enabled bar appears; disabled bars never appear; unavailable values hide the bar. | Offline boundary and external-data fixtures. |
 | AC4 | A hidden enabled bar reappears after an amount or cap change without toggling settings; falling below hides it again. | Offline event-registry/handler tests with other consumers off; in-game backpack, bank, currency. |
 | AC5 | Cutscene exit and setting changes apply current threshold/values. Profile changes cancel any positioning session, restore its starting positions/settings in the originating profile, and apply the new profile without cross-profile writes. | Offline lifecycle tests and in-game checks. |
-| AC6 | Summary cells, notifications, colors and other bars remain unchanged. Currency Reset Panel retains its resource/position scope; its session and commit behavior is specified by AC13. | Offline assertions and in-game observations. |
+| AC6 | Bar visibility changes leave summary cells, notifications, colors and other bars unchanged. Section resets are the explicit exception for the selected section and follow AC13; other sections remain unchanged. | Offline assertions and in-game observations. |
 | AC7 | Reload/copy/migration preserve each resource's preference and unrelated data; malformed values are reported; incompatible older builds refuse without mutation. | Offline profile/data tests and backed-up older-schema UAT. |
 | AC8 | Settings, slash and keybinding enter the same positioning mode; settings closes; on-screen Done exits without opening settings. | Offline entry-point tests and in-game controls/keybinding checks. |
 | AC9 | Positioning uses actual HUD controls and real current data only; empty/unavailable elements receive no dummy entries, fabricated values or substitute geometry. | Offline empty/nonempty fixtures and in-game sizing/drag checks. |
 | AC10 | Done commits session-edited positions/settings; Cancel and automatic exits restore the starting state. Merely entering/exiting without edits changes no saved preferences, and no dummy data is created. | Offline saved-state assertions for Done/Cancel/automatic exit and in-game edit/exit checks. |
 | AC12 | One independently movable Manage HUD panel contains the agreed bar, currency and tracker settings; addon settings provides Manage HUD navigation rather than duplicates; slash/hotkey use the same editor. Edits are live previews, not committed until Done. | Offline control/setter/navigation/session tests and in-game layout/edit checks. |
 | AC11 | Hide When Empty defaults on per bar. At threshold 0 with it on, amount 0 is hidden and amount 1 with a positive cap is visible even below 1% fill. At a positive threshold both the nonempty and percentage requirements apply. Positioning temporarily overrides this checkbox without saving changes. | Offline zero/one, combined-threshold, profile/copy and positioning tests; in-game transmute checks. |
-| AC13 | Reset Section applies documented defaults only to that section within the session; Cancel restores pre-session values and Done commits the reset. Currency reset restores three columns and currency-panel resource defaults while preserving position and standalone bars; the existing Currency Panel Reset Panel action follows this session behavior. | Offline reset/session-field assertions and in-game reset, Cancel and Done checks. |
+| AC13 | Reset Section restores all settings and positions owned by that section to documented defaults; Cancel restores pre-session values and Done keeps the reset. Currency reset includes three columns, resource preferences and default position; bars reset includes every resource's settings/position and shared alert colors. Other sections and unrelated data remain unchanged. The existing Currency Panel Reset Panel action follows this policy. | Offline reset/session-field assertions and in-game reset, Cancel and Done checks for every section. |
 | CG1 | Default/migrated profiles retain the existing three-column layout. | Offline geometry and in-game baseline. |
 | CG2 | Every selectable integer from 1 to the available-resource-cell count (at least 3) reflows immediately; N visible cells use `ceil(N / columns)` rows in unchanged order without overlaps. One column gives a vertical list and the maximum allows a horizontal strip. If discovery shrinks the maximum below the saved setting, the effective setting is capped at the new maximum when read. | Offline anchors/dimensions across the range and in-game endpoints/intermediate settings. |
 | CG3 | Zero, one and fewer-than-limit cells create no phantom columns; hidden/reordered resources reflow correctly. | Offline cases and in-game filtering/ordering. |
@@ -376,7 +382,7 @@ unrelated saved data; verify migration, copy, reset and older-reader safety.
 | D5 | Existing account/character settings switch versus separate threshold ownership. | Follow the existing switch. | AGREED by Tim, 2026-11-06: per-character when Use Character Settings is on; shared account-wide when off. |
 | D6 | Add to existing advanced settings versus a new UI surface. | Hide Below slider first in each bar's Advanced Settings, as shown above. | AGREED by Tim, 2026-11-06: ASCII settings layout approved. |
 | D7 | Fixed arbitrary limit versus resource-based column range. | 1 through available resource cells (at least 3), default 3; filtering does not alter the range or saved choice. | AGREED by Tim, 2026-11-06: support horizontal strips and vertical columns, without the arbitrary six-column limit. |
-| D8 | Reset Panel restores three columns versus preserves layout like position. | Restore three and disclose in reset text. | AGREED by Tim, 2026-11-06: reset columns with other panel preferences; preserve position and standalone bars. |
+| D8 | Restore every section-owned default, including position, versus preserve selected layout values. | Consistent full-section defaults, disclosed in reset text. | AGREED by Tim, 2026-11-08: all sections reset everything they own, including positions; other sections remain unchanged. Supersedes the 2026-11-06 currency position exception. |
 | D9 | Keep positioning active through context changes versus automatically exit. | Exit on profile changes, reload and cutscene/interaction entry. | AGREED by Tim, 2026-11-06: Q4 yes. Combat is covered by D10. |
 | D10 | Permit positioning in combat versus exit/block it. | Exit on combat entry and block entry while in combat. | AGREED by Tim, 2026-11-06: Q8 yes. Applies to every entry point. |
 | D11 | Overload threshold 0 versus independent empty-resource hiding. | Per-bar Hide When Empty checkbox; threshold 0 retains its percentage meaning. | AGREED by Tim, 2026-11-06: defaults are 0 and ticked, superseding the earlier default-off choice. Empty enabled bars hide by default; unticking restores always-show at 0. |
