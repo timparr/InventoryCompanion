@@ -80,8 +80,10 @@ material, not approved implementation scope.
   - **D10.2. Vanishing Progress Bars:** Independent per-bar hide-below thresholds.
   - **D10.3. Configurable Currency Grid Columns:** User-selected column count.
     Formerly F1; current layout is fixed at three columns.
-  See the [positioning/bar plan](../DevDocs/Plans/ProgressBarVisibilityImplementationPlan.md)
-  and [currency-grid plan](../DevDocs/Plans/CurrencyGridColumnsImplementationPlan.md).
+  Implementation order and plans:
+  [D10.1 positioning](../DevDocs/Plans/HUDPositioningImplementationPlan.md),
+  [D10.2 vanishing bars](../DevDocs/Plans/VanishingProgressBarsImplementationPlan.md),
+  then [D10.3 currency columns](../DevDocs/Plans/CurrencyGridColumnsImplementationPlan.md).
   Whole-spec review and approvals remain pending; tickets do not authorize coding.
 
 ---

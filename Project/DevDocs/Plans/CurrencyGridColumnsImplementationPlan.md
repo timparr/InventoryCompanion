@@ -4,15 +4,17 @@ Status: PROVISIONAL - not approved; coding not authorized
 TODO item: [D10.3 (formerly F1)](../../Tasks/TODO.md)
 Spec: [Shared HUD layout and visibility specification](../FeatureSpecs/HUDLayoutAndVisibility.md)
 Owner: Copilot (draft author)
-Updated: 2026-11-06
+Updated: 2026-11-08
 
 Follow the [feature development process](../../Processes/FeatureDevelopment.md).
 This plan covers D10.3 only. Criterion references below use the shared spec's
 CG1-CG6 (the former column-only AC1-AC6), not its bar-visibility AC criteria.
-Agreed trial: full Manage HUD editor owns the column control, with LAM navigation
-rather than a duplicate slider. Coordinate relocation with the feature-branch and
-pre-trial checkpoint gate in the positioning plan. Coordinate the shared panel;
-reuse one preference/setter and refresh path across any retained entry surfaces.
+Delivery follows [D10.1 HUD Positioning](HUDPositioningImplementationPlan.md)
+and [D10.2 Vanishing Progress Bars](VanishingProgressBarsImplementationPlan.md).
+The column control is created as a presentation-only placeholder in D10.1's
+Manage HUD currency section; this ticket wires its behavior, removes its
+not-yet-available indication, and extends the section reset. Reuse the shared session,
+preference, and refresh paths rather than creating a second editor/settings path.
 
 ## Current implementation and prior art
 
@@ -34,8 +36,8 @@ reuse one preference/setter and refresh path across any retained entry surfaces.
 
 ## Data, compatibility, and failure contracts
 
-Manage HUD now has Done/Cancel and per-section reset (agreed 2026-11-06).
-Column changes render live but participate in the editor session snapshot:
+After D10.1, Manage HUD has Done/Cancel and per-section reset. Column changes
+render live but participate in the editor session staging:
 Cancel restores the starting column preference; Done keeps edits. Reset currency
 section restores 3 columns and is itself reversible with Cancel. Coordinate
 transaction handling with the shared editor; do not persist independently of it.
@@ -58,7 +60,9 @@ manifest addition is expected.
 
 ### Step 1: Establish the saved-data contract
 
-- Depends on: approved spec/plan and explicit GO.
+- Depends on: D10.1 accepted and implemented; D10.3 plan approved and explicit
+  GO to code. D10.2 precedes this ticket in the requested delivery order but is
+  not a technical prerequisite for column data.
 - Coverage: CG1, CG5, CG6.
 - Update defaults, preference list/range validation, copying and necessary schema
   migration/downgrade gates in Constants, ItemDatabase and initialization surfaces.
@@ -70,11 +74,12 @@ manifest addition is expected.
 - Depends on: Step 1.
 - Coverage: CG1-CG5.
 - Replace fixed-count layout math and width table in RefreshCurrencyPanel.
-  Add LAM slider with available-resource maximum and immediate refresh; preserve
-  range/choice across filtering and handle discovery shrinkage without overwriting
-  saved choices. Finalize LAM representation of a retained above-current-range
-  value during detailed planning. Implement the agreed Reset Panel policy
-  and disclose it in reset text. Preserve anchor and current cell ordering.
+  Wire the existing Manage HUD currency-section slider with available-resource
+  maximum and immediate preview; preserve range/choice across filtering and
+  handle discovery shrinkage without overwriting saved choices. Finalize the
+  editor representation of a retained above-current-range value during detailed
+  planning. Extend the agreed currency Reset Section to restore 3 columns and
+  disclose it in reset text. Preserve anchor and current cell ordering.
 - Add focused grid tests for 0/1/7 cells across all limits, hidden/reordered cells,
   combined locations, widths, row counts, unused controls and profile refresh.
 

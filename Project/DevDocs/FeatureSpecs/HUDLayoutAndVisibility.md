@@ -4,8 +4,9 @@ Status: Approved to Implementation
 TODO items: [D10.1 positioning, D10.2 vanishing bars, D10.3 currency columns](../../Tasks/TODO.md)
 Owner: Copilot (draft author)
 Updated: 2026-11-06
-Implementation plans: [Positioning and bars](../Plans/ProgressBarVisibilityImplementationPlan.md),
-[currency columns](../Plans/CurrencyGridColumnsImplementationPlan.md)
+Implementation plans: [D10.1 HUD positioning](../Plans/HUDPositioningImplementationPlan.md),
+[D10.2 vanishing bars](../Plans/VanishingProgressBarsImplementationPlan.md), and
+[D10.3 currency columns](../Plans/CurrencyGridColumnsImplementationPlan.md)
 
 Follow the [feature development process](../../Processes/FeatureDevelopment.md).
 Behavior below is proposed except where explicitly recorded as agreed.
@@ -21,13 +22,12 @@ One product spec covers three separately tracked implementation tickets:
 | D10.3 (formerly F1) | Choose currency-grid columns. | CG1-CG6 |
 
 Agreed by Tim, 2026-11-06: combine these in one spec, with separate tickets.
-This spec defines the complete product behavior across all three tickets; the
-tickets may be implemented in any order. Shared profile, editor-session and
-lifecycle behavior must stay consistent across them. UI staging, including
-whether any controls are initially placeholders, belongs in the implementation
-plan and does not change the required final behavior. Global HUD show/hide
-context-menu work (D5) remains separate, not implicitly included in
-threshold-based bar visibility.
+This spec defines the complete product behavior across all three tickets. The
+requested delivery order is D10.1, then D10.2, then D10.3. Shared profile,
+editor-session and lifecycle behavior must stay consistent across them. UI
+staging belongs in the implementation plans and does not change the required
+final behavior. Global HUD show/hide context-menu work (D5) remains separate,
+not implicitly included in threshold-based bar visibility.
 
 ## Problem and intended outcome
 
