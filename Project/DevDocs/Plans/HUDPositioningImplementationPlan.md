@@ -661,7 +661,34 @@ Reviewed plan/spec revision and source identity: PENDING
 
 ## Implementation record and deviations
 
-None - planning only.
+### Exploratory HUD inspector prototypes (2026-11-10)
+
+These are local experiments against the approved D10.1 design, not accepted
+feature implementations. The shared D10.1 checkpoint is
+`feature/hud-positioning` at `acbafef`.
+
+- `feature/hud-inspector-fixed` at `27c6ca6` tests one fixed-position bar
+  inspector: clicking a progress bar updates the settings shown in the same
+  editor. This bars-only prototype still has the Done/Cancel shell separate
+  from the editor. Done is inert; Cancel restores the opening state. Currency
+  and tracker configuration are omitted. Offline validation passed 220/220;
+  independent review found no actionable issues. It has not been tested in
+  game.
+- `feature/hud-inspector-contextual` started at `37c9e2a` as a bars-only
+  inspector positioned beside the selected bar. Commit `4b45541` expands it
+  into a floating, single-panel POC: the controls change for the selected bar
+  or currency panel, with Done/Cancel in the same fixed footer. Done remains
+  inert and Cancel restores the opening state. Currency configuration reuses
+  the existing currency/capacity resource settings and adds the zero-balance
+  toggle. Offline validation passed 221/221. Independent review found that an
+  empty currency panel is hidden and cannot be selected. Tim approved a future
+  follow-up: keep it selectable only during Manage HUD and show a truthful
+  “No visible currency or capacity entries” cue, without fabricated resource
+  data; that behavior is not implemented in `4b45541`.
+- Neither prototype has had in-game visual testing, been copied to PTS, pushed,
+  or merged. DEV was returned to `main` at `6d4a28c` for Tim to consider the
+  alternatives. The fixed-versus-contextual interaction and final D10.1
+  acceptance remain undecided.
 
 ## Independent code review and verification
 
