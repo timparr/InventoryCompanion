@@ -138,7 +138,7 @@ this.preLoadedRulesets = {
             "Bast",
             "Clean Pelt",
             "Alchemical Resin",
-            "Decorative",
+            "Decorative Wax",
             "Ochre",
         },
         display = { show = false, notify = false, bank = false, group = true, isExpanded = true, isHidden = false }
