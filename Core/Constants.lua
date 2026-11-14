@@ -21,7 +21,7 @@ this.constants = {
 this.preLoadedRulesets = {
     ["treasure_maps"] = { 
         displayName = "Treasure Maps", 
-        patterns = { "*treasure map *" }, 
+        patterns = { "*treasure map*" },
         display = { show = true, notify = true, bank = false, group = true, isExpanded = true, isHidden = false } 
     },
     ["surveys"] = { 
@@ -128,6 +128,20 @@ this.preLoadedRulesets = {
             "*platinum ounce","* ingot","sanded *","*silk","*leather"
         },
         display = { show = true, notify = true, bank = false, group = true, isExpanded = true, isHidden = false } 
+    },
+    ["furniture_materials"] = {
+        displayName = "Furniture Materials",
+        patterns = {
+            "Mundane Rune",
+            "Heartwood",
+            "Regulus",
+            "Bast",
+            "Clean Pelt",
+            "Alchemical Resin",
+            "Decorative",
+            "Ochre",
+        },
+        display = { show = false, notify = false, bank = false, group = true, isExpanded = true, isHidden = false }
     },
     ["boosts"] = {
         displayName = "Boosts",
