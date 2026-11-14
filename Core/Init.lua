@@ -192,5 +192,5 @@ end
 -- Debug Key
 ------------------------------------------------------------------
 function this.Debug()
-    this.RunTests("verbose copy")
+    this.RunTests("verbose copy autocategory")
 end

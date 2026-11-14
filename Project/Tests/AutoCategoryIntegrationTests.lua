@@ -323,6 +323,36 @@ end
 function this.GetAutoCategoryIntegrationTests()
     return {
         {
+            name = "AutoCategory debug report identifies duplicate saved and runtime group names",
+            run = function()
+                NewFixture()
+                this.accountWide.trackedRules.custom_alpha = {
+                    displayName = "Alpha",
+                    patterns = { "custom alpha" },
+                }
+                this.InvalidateRuleCache()
+
+                local report = integration.BuildDebugReport()
+                assert(report:find("Duplicate profile group name: Alpha [alpha, custom_alpha]", 1, true))
+                assert(report:find("Duplicate runtime group name: Alpha [alpha, custom_alpha]", 1, true))
+                assert(report:find("Active IC profile: account-wide", 1, true))
+                assert(report:find("Category collision preflight: incomplete;", 1, true))
+                local saved = this.accountWide.trackedRules.custom_alpha
+                assert(saved.displayName == "Alpha" and saved.patterns[1] == "custom alpha"
+                    and saved.addedPatterns == nil,
+                    "Diagnostic collection must not normalize or otherwise change saved rules")
+            end,
+        },
+        {
+            name = "AutoCategory debug report never reports a clear collision preflight before initialization",
+            run = function()
+                NewFixture()
+                local report = integration.BuildDebugReport()
+                assert(report:find("Category collision preflight: incomplete;", 1, true))
+                assert(not report:find("Category collision preflight: clear.", 1, true))
+            end,
+        },
+        {
             name = "Group undo removes newly generated definitions without changing native assignments",
             run = function()
                 PrepareActive({ alpha = { autoCategoryEnabled = true } })

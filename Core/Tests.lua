@@ -742,8 +742,9 @@ local function RunTests(arguments)
 
     local options = {}
     for option in tostring(arguments or ""):lower():gmatch("%S+") do
-        if option ~= "verbose" and option ~= "veryverbose" and option ~= "copy" then
-            d("[InventoryCompanion tests] Usage: /ictest [verbose] [veryverbose] [copy]")
+        if option ~= "verbose" and option ~= "veryverbose" and option ~= "copy"
+            and option ~= "autocategory" then
+            d("[InventoryCompanion tests] Usage: /ictest [verbose] [veryverbose] [copy] [autocategory]")
             return
         end
         options[option] = true
@@ -2384,6 +2385,17 @@ local function RunTests(arguments)
     end
     for _, result in ipairs(results) do
         table.insert(reportLines, "[InventoryCompanion tests] " .. result)
+    end
+    if options.autocategory then
+        local ok, diagnostic = pcall(this.AutoCategoryIntegration.BuildDebugReport)
+        if ok then
+            for line in (diagnostic .. "\n"):gmatch("(.-)\n") do
+                table.insert(reportLines, line)
+            end
+        else
+            table.insert(reportLines,
+                "[InventoryCompanion AutoCategory diagnostics] Collection failed: " .. tostring(diagnostic))
+        end
     end
 
     local hasFailures = passed < total
