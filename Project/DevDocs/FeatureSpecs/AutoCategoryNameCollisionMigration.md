@@ -1,5 +1,10 @@
 # Built-in Group Name Collision Repair
 
+- **Status:** Implemented and accepted (2026-11-15)
+- **TODO item:** B5
+- **Updated:** 2026-11-15
+- **Implementation plan:** [archived plan](../Archive/AutoCategory/BuiltInNameCollisionRepairImplementationPlan.md)
+
 ## Goal
 
 When an IC custom group has the exact display name of an ordinary built-in
@@ -28,3 +33,12 @@ Avoid keeping two IC identities for the same exact name.
 - The migration runs whether AutoCategory is installed, enabled, or absent.
 - Built-in/virtual name clashes are fatal; virtual groups are never promoted.
 - Keep the existing SavedVariables schema and version.
+
+## Delivery and acceptance
+
+- Implemented in commit `6d3e4e9`; the full offline Lua 5.1 suite passed
+  220/220 tests.
+- In-game validation on 2026-11-15 confirmed exact-name promotion, retained
+  craft-bag placement and test-pattern behavior, and showed the complete
+  built-in material list after Reset to defaults. A subsequent UI reload
+  persisted the reset state.

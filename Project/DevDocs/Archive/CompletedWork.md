@@ -36,6 +36,13 @@ specifications live in [FeatureSpecs](../FeatureSpecs); active work lives in the
   [AutoCategory archive](<AutoCategory>).
   Release approval and candidate evidence follow the publishing checklist
   separately; historical pending checks do not reopen this implementation.
+- **AutoCategory built-in name collision repair (B5):** Promotes exact-case IC
+  custom groups to ordinary built-ins while preserving effective patterns,
+  display settings, and IC-owned AutoCategory order. Built-in/virtual name
+  clashes fail before saved data is changed; AutoCategory-owned data is never
+  migrated. The 220-test offline suite and 2026-11-15 in-game acceptance passed.
+  See the current [feature specification](../FeatureSpecs/AutoCategoryNameCollisionMigration.md)
+  and archived [implementation plan](AutoCategory/BuiltInNameCollisionRepairImplementationPlan.md).
 
 - **Item tracker flags / row options (C4):** Implemented and archived at the
   user's request on 2026-10-31. Aligned two-line Show/Notify controls open compact

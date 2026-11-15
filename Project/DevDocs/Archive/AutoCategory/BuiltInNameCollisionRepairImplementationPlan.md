@@ -1,5 +1,8 @@
 # Built-in Group Name Collision Repair — Implementation Plan
 
+**ARCHIVED 2026-11-15.** Historical plan, not current work instructions. Use
+the current [feature specification](../../FeatureSpecs/AutoCategoryNameCollisionMigration.md).
+
 ## Flow
 
 Method-like names in the pseudocode, such as `ValidateSavedVariablesFile()`
@@ -265,4 +268,4 @@ change `ic:custom_242230065`; the separate collision-repair process does that.
 - Temporarily commenting out the built-in caused startup validation to reject
   an existing `ic:furniture_materials` order reference before migration; the
   built-in was restored before the successful in-game test.
-- No commit or release was made.
+- Committed as `6d3e4e9` on 2026-11-15; not pushed or released.
