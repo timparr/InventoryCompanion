@@ -10,7 +10,7 @@ Updated: 2026-11-15
 
 | ID | Question | What is needed to resolve it |
 |---|---|---|
-| Q12 | Can the repeated tracker interaction-placement behavior be replaced outright without losing necessary corrective behavior? | **In-game investigation:** suspend only repeated positioning after initial scene placement; verify the panel stays put and becomes freely movable. Test protocol below; result PENDING. |
+| Q12 | Does entry-only tracker positioning preserve behavior outside the tested bank interaction? | **In-game investigation:** bank placement, dragging without snap-back, and close/reopen behavior confirmed by Tim; inventory-update behavior and other supported interactions remain unverified. Protocol and evidence below. |
 
 Use the [feature development process](../../Processes/FeatureDevelopment.md).
 The spec is authoritative for product behavior. This plan groups technical work
@@ -62,8 +62,8 @@ with a 20 px down-and-right stagger so panels can be grabbed independently.
 Clamp to the screen if no clear fit remains, accepting unavoidable ZOS overlap;
 for oversized panels keep the top-left accessible. Do not add elaborate
 overlap minimization or packing. The in-game stagger test below will verify
-20 px and try 40 px if needed; that is pending verification, not an open
-fallback-policy question.
+20 px was confirmed easy to separate in Tim's in-game trial; 40 px was not
+needed. This is a rare recovery layout, not an attractive normal arrangement.
 
 **Discovery timing - Tim, 2026-11-15:** use the existing initialization-time
 currency discovery. Compute the selectable maximum from that session's grouped
@@ -916,7 +916,7 @@ after offline safety checks:
     check side stacks for all normally visible panel types
     resize/change columns while open; confirm no automatic repositioning
     drag, close/reopen, reload/logout and change character; verify ownership
-    perform the pending 20 px untangling check and record actual results
+    retain the reported 20 px untangling result; check delivered fallback in UAT
     leave acceptance/review approvals pending until explicitly given
 ```
 
@@ -938,12 +938,22 @@ pending separate approval.
 
 ### In-game investigation: repeated tracker positioning
 
-Status: PENDING - protocol recorded; no timer or addon code changed.
+Status: BANK CHECK PASSED - Tim's observations recorded 2026-11-15.
+Other interaction/inventory-update checks and temporary-code cleanup PENDING.
+
+Checkpoint before the experiment: `b9eee0e` on `main`. The temporary change in
+`Tracking\ItemTrackerPanel.lua` remembers the last successfully positioned raw
+interaction scene, skips repeat anchor adjustments in that scene, and clears
+the marker on normal-position restoration. Direct transitions to a different
+interaction still get initial placement. The existing ticker and its visibility
+logic are unchanged. Revert this experiment after the observations; it is not
+the feature implementation or approval to code it.
 
 - Purpose: determine whether another live-client path pushes the tracker back
   and whether repeated positioning serves any necessary corrective function.
-- Controlled change: retain the initial interaction placement, then suspend
-  only the timer's repeated call to `AdjustTrackerPositionForInteraction()`.
+- Controlled change: retain the initial interaction placement, then suppress
+  repeated anchor adjustments inside `AdjustTrackerPositionForInteraction()`.
+  The timer continues calling the helper so existing observation is unchanged.
   Keep visibility checks and exit restoration active. Do not unregister the
   entire `_HideCheck` update: it also manages currency/bar visibility and
   cutscene hiding, which would confound this experiment.
@@ -963,13 +973,45 @@ Status: PENDING - protocol recorded; no timer or addon code changed.
   Record any unexpected movement, timing, or visibility changes explicitly.
 - Cleanup: restore temporary instrumentation and the pre-test position/settings;
   verify the ordinary ticker behavior is restored before concluding the test.
-- Result and evidence: PENDING. If confirmed, follow the conditional replacement
-  direction above; if not, discuss the observed dependency before designing the
-  replacement.
+- Result and evidence, Tim, 2026-11-15: opening the bank moved the tracker beside
+  the bank normally; it was draggable and did not snap back. Closing and
+  reopening the bank returned it to the original automatically chosen place,
+  as expected for this experiment without saved scene positions. This supports
+  replacing repeated anchor forcing with entry-only placement for the bank.
+  An inventory-update refresh, other interactions, direct transitions and exact
+  non-scene restoration were not separately reported; do not mark those passed.
+- Offline setup verification, 2026-11-15: 34/34 tracker tests passed via
+  `python Project\Tests\Run-RuleTests.py --test-filter 'Tracker'`, including
+  Lua 5.1 compilation. A separate isolated Lua 5.1 execution of the actual
+  tracker source verified delayed-window retry, initial placement, 20 repeated
+  calls without snap-back, direct scene transition, restoration, re-entry and
+  hidden-tracker behavior. These do not establish client behavior.
+- Safety: a disk SavedVariables snapshot was copied to the session's files
+  directory and SHA-256 verified before client testing. It does not include
+  unsaved in-memory game changes. Do not restore it while a character is logged
+  in; use the normal logged-out/character-select safeguards if recovery is needed.
 
 ### In-game investigation: overlapping-panel stagger
 
-Status: PENDING - protocol recorded; no panels moved or addon code changed.
+Status: 20 PX SEPARATION PASSED - Tim's observations recorded 2026-11-15.
+Temporary unstack action errored; cleanup/revert remains pending.
+
+On the testing branch, the Debug Key temporarily calls
+`TogglePanelStaggerTest()` instead of diagnostics (`/ictest` remains available).
+First press shows tracker, currency and every discovered resource bar at
+(500,200), then successive 20 px down-right offsets. Move-stop saving is
+temporarily disabled for those controls; the second press stops movement,
+restores original anchors/visibility/handlers, and resumes the ordinary ticker.
+Visibility ticking is suspended only while this separate stagger test is on;
+bar refreshes retain test anchors. Turn it off before the Q12 interaction test.
+No preference enabling or position writes are required to show the stack.
+
+The actual DEV disk backup is now
+`SavedVariables\InventoryCompanion_DEV.lua.before-Q12-stagger-20261115-232402.bak`
+in the Git-ignored workspace backup collection. It was restored to the live DEV
+file after Tim confirmed character select/closed, with SHA-256 equality verified.
+The earlier release-named snapshot and other loose manual backups were also
+moved into that collection. Both snapshots capture disk, not unsaved memory.
 
 - Purpose: check whether a proposed 20 px down-and-right stagger leaves
   overlapping panels easy to identify, grab, and move apart.
@@ -988,8 +1030,12 @@ Status: PENDING - protocol recorded; no panels moved or addon code changed.
   changed by dragging after each trial; do not save the test stack as a layout.
   Temporary instrumentation requires separate execution authorization and must
   not enter delivered runtime code.
-- Result: PENDING. Verify the agreed fallback's initial 20 px stagger and
-  discuss an adjustment to 40 px if the test shows it is needed.
+- Result, Tim, 2026-11-15: the stacked panels looked bad but were easy to
+  separate. Retain the 20 px offset for the rare insufficient-space fallback;
+  no 40 px retest is needed from this observation. Unstack threw an error;
+  Tim explicitly requested no fix to the disposable test code. This verifies
+  separation usability only, not successful automatic unstack/restoration.
+  DEV SavedVariables were restored from the verified backup afterward.
 
 ## Verification risks
 
@@ -1014,7 +1060,7 @@ Reviewed source: working-tree spec/plan on `main`, HEAD
 | Stale appendix left shared/per-tab editor layouts undecided. | Fix authorized; appendix now specifies one `Layout_EditorScene` for all tabs. | PENDING |
 | Placement pseudocode lacked deterministic advancement, fit and fallback rules. | Fix authorized; Task 3 now defines trials, blocker advancement, atomic side selection, fallback anchors and clamps. | PENDING |
 | Meaning of tracker placeholder for visibility needed clarification. | Tim confirmed placeholders count: preserve normal no-scene visibility, not stricter emptiness filtering. Spec and controller pseudocode updated. | PENDING |
-| Q12 repeated-positioning client evidence unavailable. | Keep the in-game investigation pending; no result or execution approval inferred. | PENDING client investigation |
+| Q12 repeated-positioning client evidence unavailable. | Bank initial placement, drag without snap-back and close/reopen behavior now confirmed by Tim; remaining interaction/refresh coverage is still pending. | PARTIAL client evidence |
 
 Reviewer reported no findings in migration/downgrade, copy/reset, slider/grid,
 or shared visibility integration. These are design assessments, not runtime
@@ -1028,8 +1074,10 @@ verification. Final independent review and overall approvals remain PENDING.
 
 ## Implementation record and deviations
 
-Planning only. No addon code, tests, migration, or in-game behavior has been
-changed or verified.
+Feature implementation remains unauthorized. The separately authorized,
+temporary Q12 experiment above changes only interaction-positioning repetition
+on its testing branch; offline setup checks passed and in-game results remain
+pending. No feature migration or schema change has been implemented.
 
 ## Independent code review and verification
 
