@@ -15,7 +15,7 @@ approve unrelated product or implementation changes.
 ## Documents and templates
 
 - [Feature-spec template](Templates/FeatureSpec.md): copy into
-  [DevDocs/FeatureSpecs](../DevDocs/FeatureSpecs) as `<Feature>.md`.
+  [DevDocs/FeatureSpecs](../DevDocs/FeatureSpecs) as `<Feature>FeatureSpec.md`.
 - [Implementation-plan template](Templates/ImplementationPlan.md): copy into
   [DevDocs/Plans](../DevDocs/Plans) as `<Feature>ImplementationPlan.md`.
 - [Release-review template](Templates/ReleaseReview.md): copy into

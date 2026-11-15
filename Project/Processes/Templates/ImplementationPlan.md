@@ -1,16 +1,38 @@
 # <Feature name>: implementation plan
 
+Save this document as `<Feature>ImplementationPlan.md` in `Project\DevDocs\Plans`.
+
 Status: PROVISIONAL - not approved; coding not authorized
 TODO item: <ID and link>
 Spec: <relative link and approved revision when available>
 Owner: <author>
 Updated: <date>
 
+## Open questions
+
+List only genuinely open, unanswered questions, including choices to be made
+and matters requiring investigation. When a question is resolved, incorporate
+the answer into the relevant spec or plan section and remove it from this list.
+Do not retain answered questions, resolution notes, or question history here.
+Remove this section when no open questions remain.
+
+| ID | Question | Blocking phase and why |
+|---|---|---|
+| Q1 | <Unanswered question> | <Plan / coding / acceptance> |
+
 Use the [feature development process](../FeatureDevelopment.md). Keep this plan
 aligned with the spec during discussion, but do not silently change requirements.
 When copied into DevDocs/Plans, change this process link to
 `../../Processes/FeatureDevelopment.md` and set the spec link to
-`../FeatureSpecs/<Feature>.md`.
+`../FeatureSpecs/<Feature>FeatureSpec.md`.
+
+The spec is authoritative for product behavior. Reference its requirements and
+acceptance criteria instead of repeating settled behavior, wireframes, or product
+decisions; include only the context needed to explain a technical choice.
+Organize implementation into meaningful tasks based on the work: a task may
+cover one requirement, several related requirements, or part of a larger one.
+Record actual dependencies rather than assuming a one-to-one mapping or that
+list order establishes dependencies. Keep detail proportionate to the work.
 
 ## Current implementation and prior art
 
@@ -23,22 +45,36 @@ historical decisions. Distinguish inspected facts from assumptions/questions.>
 |---|---|---|---|
 | D1 | <Feasibility, preservation, complexity, risk> | <Proposal> | PENDING |
 
+## SavedVariables changes and migration
+
+<State whether this work changes SavedVariables and whether migration or a
+schema-version bump is needed, with evidence from the current and previous
+supported readers. Mark the assessment PENDING until investigated; if no
+change or migration is needed, say so and explain why.>
+
+<Show a concise before-and-after structure, or the relevant proposed fields
+and ownership when no equivalent structure exists. Identify added, changed,
+removed, or retained data without including real user data. Mark unsettled
+representation choices as provisional. Explain migration, preservation, and
+downgrade protection, or link to their detailed contracts below.>
+
 ## Data, compatibility, and failure contracts
 
-<Representation and ownership; boundary validation; migration of all profiles;
-schema/downgrade impact; internal fail-fast assumptions; external failures,
-cleanup/rollback, and preservation. Mark irrelevant sections N/A with a reason.>
+<Boundary validation; migration of all profiles; schema/downgrade safeguards;
+internal fail-fast assumptions; external failures, cleanup/rollback, and
+preservation. Refer to the SavedVariables section rather than repeating its
+structure. Mark irrelevant sections N/A with a reason.>
 
-## Ordered implementation
+## Implementation tasks
 
 Describe the shape of the code, not actual implementation code. An outcome such
-as "ensure initialization refreshes visibility" may introduce a step, but must
+as "ensure initialization refreshes visibility" may introduce a task, but must
 be followed by named methods, contracts, and caller wiring sufficient to implement
 it. Use exact file paths with extensions; distinguish existing methods to modify
 from proposed methods to create. Scale the detail to the change without inventing
 unnecessary helpers or abstractions.
 
-### Step 1: <Outcome>
+### Task 1: <Outcome>
 
 - Depends on: <Actual prerequisite, or None>.
 - Spec coverage: <Acceptance criterion IDs>.
@@ -61,24 +97,18 @@ unnecessary helpers or abstractions.
 - Verification: <Focused tests tied to named methods/contracts and observable
   expected results>.
 
-<Repeat steps as needed in dependency order, without treating list order alone
-as a dependency.>
+<Repeat tasks as needed. Group related work and record real prerequisites; do
+not add one task per requirement mechanically or treat list order as a dependency.>
 
 ## Verification and acceptance mapping
 
-| Spec criterion | Implementation step | Test / command | Required evidence | Actual result |
+| Spec criterion | Implementation task | Test / command | Required evidence | Actual result |
 |---|---|---|---|---|
-| AC1 | <Step> | <Existing runner / new regression / in-game action> | <Expected shape, threshold, or observation> | PENDING |
+| AC1 | <Task> | <Existing runner / new regression / in-game action> | <Expected shape, threshold, or observation> | PENDING |
 
 <Separate offline safety checks from approved in-game tests; record required
 backups, migration/downgrade checks, and what synthetic tests cannot establish.
 Never use normal saved-data/inventory mutation for synthetic tests.>
-
-## Open questions and risks
-
-| ID | Question / risk | Blocking phase and mitigation | Resolution |
-|---|---|---|---|
-| Q1 | <Question, or None when resolved> | <Dependency or approval needed> | PENDING |
 
 ## Independent plan review
 

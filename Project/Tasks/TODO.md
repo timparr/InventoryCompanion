@@ -71,20 +71,16 @@ material, not approved implementation scope.
   Miscellaneous virtual group before implementation and reuse or extend its
   behavior where appropriate. Consider renaming the Currency Panel to Summary
   Panel if it includes broader item/group summaries.
-- **D10. HUD Layout and Visibility:** One
-  [shared draft spec](../DevDocs/FeatureSpecs/HUDLayoutAndVisibility.md), with
-  separate implementation tickets:
-  - **D10.1. HUD Positioning:** Settings, slash command and hotkey enter a
-    temporary positioning mode; on-screen Done restores normal visibility.
-  - **D10.2. Vanishing Progress Bars:** Independent per-bar hide-below thresholds.
-  - **D10.3. Configurable Currency Grid Columns:** User-selected column count.
-    Formerly F1; current layout is fixed at three columns.
-  Implementation order and plans:
-  [D10.1 positioning](../DevDocs/Plans/HUDPositioningImplementationPlan.md),
-  [D10.2 vanishing bars](../DevDocs/Plans/VanishingProgressBarsImplementationPlan.md),
-  then [D10.3 currency columns](../DevDocs/Plans/CurrencyGridColumnsImplementationPlan.md).
-  Whole-spec review and approvals remain pending; tickets do not authorize coding.
-
+- **D10.3. Standalone Configurable Currency Grid Columns (formerly F1):**
+  Choose the currency-grid column count in the existing Currency Summary Panel
+  settings, with immediate persistence and its existing position-preserving
+  Reset Panel behavior. Include resource-discovery-driven slider range updates
+  and temporary panel visibility/repositioning around the settings window.
+  This is independent of the abandoned D10.1 HUD editor and D10.2 bar-visibility
+  work. The active draft
+  [implementation plan](../DevDocs/Plans/CurrencyGridColumnsStandaloneImplementationPlan.md)
+  and [spec](../DevDocs/FeatureSpecs/CurrencyGridColumnsFeatureSpec.md) remain unapproved;
+  no code is authorized.
 ---
 
 ## Section E: 🏗️ Post-V1 Refactoring Tickets
@@ -118,18 +114,19 @@ tasks. Superseded approaches and closed proposals are not carried forward.
 Entries are self-contained so useful ideas survive removal of the old plans.
 They may be refined or discarded during future triage.
 
-- **F1. Configurable Currency Grid Columns:** Moved to D10.3 under HUD Layout
-  and Visibility; not completed.
+- **F1. Configurable Currency Grid Columns:** Promoted to active standalone
+  task D10.3 after a fresh discussion; the integrated HUD-editor path remains
+  abandoned.
 - **F2. Summed Character and Bank Currency Balances:** Offer a combined total
   for currencies held in both locations, distinct from the existing combined
   cell that displays the two balances separately.
 - **F3. Dedicated Resource Editor Tab:** Consider configuring currencies and
   capacity resources in a dedicated Resources tab in the custom editor rather
   than only through LibAddonMenu.
-- **F4. Currency Panel Overlap and Visibility:** Consider temporarily moving
-  the currency panel to avoid covering settings or editors, and configurable
-  visibility during inventory, bank, and cutscene interactions. Preserve its
-  saved position when a temporary adjustment ends.
+- **F4. Currency Panel Overlap and Visibility:** Broader panel repositioning
+  and mode-specific visibility remain shelved beyond D10.3's settings-open
+  overlay. Any additional behavior needs a fresh discussion. See the
+  [D10 archive](../DevDocs/Archive/HUDLayoutAndVisibility/README.md).
 - **F5. Currency Storage-Location Badges:** Explore small character/bank badges
   over currency icons, provided they remain readable at the compact grid size.
 - **F6. Tracker Pickup Highlighting:** Briefly highlight the tracked item or
@@ -166,3 +163,12 @@ They may be refined or discarded during future triage.
 Source design history: [Currency Preferences](../DevDocs/Archive/CurrencyPanel/CurrencyPreferences.md)
 and [Currency Panel Implementation Plan](../DevDocs/Archive/CurrencyPanel/ImplementationPlan.md),
 plus [Adaptive Tracker Sizing](../DevDocs/Archive/ItemTracker/AdaptiveSizingImplementation.md).
+
+## Section G: Abandoned / Not Pursuing
+
+- **D10. HUD Layout and Visibility:** D10.1 positioning, D10.2 bar visibility,
+  and the integrated HUD-editor-dependent D10.3 approach were abandoned
+  2026-11-15. Standalone D10.3 currency columns have since resumed as an active
+  draft, separate from that HUD work. Historical documents remain in the
+  [D10 archive](../DevDocs/Archive/HUDLayoutAndVisibility/README.md); the active
+  standalone plan and spec are linked under D10.3 above.
