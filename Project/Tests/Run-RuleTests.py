@@ -221,6 +221,9 @@ for field, relative in (
         ["git", "--no-pager", "show", f"{legacy_saved_variables_commit}:{relative}"], cwd=root
     ).decode("utf-8-sig")
 saved_variables_lua.execute((root / "Project\\Tests\\SavedVariablesTests.lua").read_text(encoding="utf-8-sig"))
+saved_variables_lua.execute(
+    (root / "Project\\Tests\\ScenePlacementInvestigationTests.lua").read_text(encoding="utf-8-sig")
+)
 for field, relative in (
     ("Schema5InitSource", "Core/Init.lua"),
     ("Schema5DatabaseSource", "Tracking/ItemDatabase.lua"),
@@ -261,6 +264,24 @@ for field, relative in (
     saved_variables_lua.globals()[field] = subprocess.check_output(
         ["git", "--no-pager", "show", f"b04cf78:{relative}"], cwd=root
     ).decode("utf-8-sig")
+# Pin the released schema-10 reader independently of the mutable installed addon.
+schema10_release_commit = "9a1bb7d3cdc76185f56ad2ee821ff2806960fee0"
+for field, relative in (
+    ("Schema10ReleaseInitSource", "Core/Init.lua"),
+    ("Schema10ReleaseConstantsSource", "Core/Constants.lua"),
+    ("Schema10ReleaseDatabaseSource", "Tracking/ItemDatabase.lua"),
+    ("Schema10ReleaseIntegrationSource", "Tracking/AutoCategoryIntegration.lua"),
+):
+    saved_variables_lua.globals()[field] = subprocess.check_output(
+        ["git", "--no-pager", "show", f"{schema10_release_commit}:{relative}"], cwd=root
+    ).decode("utf-8-sig")
+currency_discovery_lua = LuaRuntime(unpack_returned_tuples=True)
+currency_discovery_lua.globals().CurrencyDiscoveryHelperSource = (
+    root / "Banking\\CurrencyHelper.lua"
+).read_text(encoding="utf-8-sig")
+currency_discovery_lua.execute(
+    (root / "Project\\Tests\\CurrencyDiscoveryInvestigationTests.lua").read_text(encoding="utf-8-sig")
+)
 tracker_lua = LuaRuntime(unpack_returned_tuples=True)
 tracker_lua.execute("SLASH_COMMANDS = {}; EVENT_MANAGER = { RegisterForEvent = function() end }")
 tracker_lua.globals().GetGameTimeMilliseconds = lambda: int(perf_counter() * 1000)
@@ -320,6 +341,8 @@ if not args.item_editor_only:
         lua.globals().InventoryCompanion.GetGroupEditorTests(),
         persistence_lua.globals().InventoryCompanion.GetRulePersistenceTests(),
         saved_variables_lua.globals().GetSavedVariablesTests(),
+        saved_variables_lua.globals().GetScenePlacementInvestigationTests(),
+        currency_discovery_lua.globals().GetCurrencyDiscoveryInvestigationTests(),
         tracker_lua.globals().InventoryCompanion.GetTrackerPanelTests(),
         autocategory_lua.globals().InventoryCompanion.GetAutoCategoryIntegrationTests(),
         autocategory_lua.globals().InventoryCompanion.GetAutoCategoryEditorTests(),

@@ -16,9 +16,11 @@ the answer into the relevant spec or plan section and remove it from this list.
 Do not retain answered questions, resolution notes, or question history here.
 Remove this section when no open questions remain.
 
-| ID | Question | Blocking phase and why |
+Bold the investigation and decision labels so the type of work is easy to scan.
+
+| ID | Question | What is needed to resolve it |
 |---|---|---|
-| Q1 | <Unanswered question> | <Plan / coding / acceptance> |
+| Q1 | <Unanswered question> | **Investigation** / **Behavior decision** / **Logic/data-design decision:** <Specify the evidence or choice needed, including a sequence where necessary, not the blocking phase.> |
 
 Use the [feature development process](../FeatureDevelopment.md). Keep this plan
 aligned with the spec during discussion, but do not silently change requirements.

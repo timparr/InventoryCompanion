@@ -160,6 +160,11 @@ They may be refined or discarded during future triage.
   whether suppressed notifications are discarded or summarized afterward.
   Separate future idea, not part of D10's current implementation scope.
 
+- **F14. Whole-Addon Gamepad Review:** Test the entire addon in gamepad mode,
+  including scene visibility, panel positioning, settings/editors, and banking
+  interactions. Identify and discuss fixes as separate follow-up work. D10.3
+  preserves existing gamepad behavior; it does not add or repair gamepad support.
+
 Source design history: [Currency Preferences](../DevDocs/Archive/CurrencyPanel/CurrencyPreferences.md)
 and [Currency Panel Implementation Plan](../DevDocs/Archive/CurrencyPanel/ImplementationPlan.md),
 plus [Adaptive Tracker Sizing](../DevDocs/Archive/ItemTracker/AdaptiveSizingImplementation.md).

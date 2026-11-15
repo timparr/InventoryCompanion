@@ -1,4 +1,4 @@
-local function LoadAddon(saved)
+local function LoadAddon(saved, releaseReader)
     function GetDisplayName() return "account" end
     local calls = { constructors = 0, modules = 0, strings = 0, warnings = {} }
     EVENT_ADD_ON_LOADED = 1
@@ -9,12 +9,12 @@ local function LoadAddon(saved)
     SLASH_COMMANDS = {}
     ZO_CreateStringId = function() calls.strings = calls.strings + 1 end
     d = function(message) calls.warnings[#calls.warnings + 1] = message end
-    assert(loadstring(SavedVariablesInitSource))()
-    assert(loadstring(SavedVariablesConstantsSource))()
+    assert(loadstring(releaseReader and Schema10ReleaseInitSource or SavedVariablesInitSource))()
+    assert(loadstring(releaseReader and Schema10ReleaseConstantsSource or SavedVariablesConstantsSource))()
     local addon = InventoryCompanion
     _G[addon.SettingsName] = saved
-    assert(loadstring(SavedVariablesDatabaseSource))()
-    assert(loadstring(SavedVariablesIntegrationSource))()
+    assert(loadstring(releaseReader and Schema10ReleaseDatabaseSource or SavedVariablesDatabaseSource))()
+    assert(loadstring(releaseReader and Schema10ReleaseIntegrationSource or SavedVariablesIntegrationSource))()
     addon.preLoadedRulesets = {
         builtin = {
             displayName = "Built-in", patterns = { "a", "b" },
@@ -114,6 +114,55 @@ end
 
 function GetSavedVariablesTests()
     return {
+        {
+            name = "Released schema 10 rejects schema 11 profiles before initialization without mutation",
+            run = function()
+                for _, location in ipairs({ "$AccountWide", "inactive", "otherAccount" }) do
+                    local newer = { version = 11, itemListInitialized = true, currencyGridColumns = 5,
+                        scenePositions = { characterA = { inventory = { tracker = { x = 70, y = 90 } } } },
+                        unrelated = { keep = true } }
+                    local saved = { Default = { account = {
+                        ["$AccountWide"] = { version = 9, trackedRules = { builtin = {} } },
+                    } } }
+                    if location == "otherAccount" then
+                        saved.Default.other = { inactive = newer }
+                    else
+                        saved.Default.account[location] = newer
+                    end
+                    local addon, calls = LoadAddon(saved, true)
+                    local before = addon.CopySavedValue(saved)
+                    AssertStopped(addon, calls, "supports version 10")
+                    assert(addon.SavedValuesEqual(saved, before),
+                        "Released reader must not modify any saved data before rejecting a newer schema")
+                end
+            end,
+        },
+        {
+            name = "Released schema 10 profile copy does not copy unknown feature fields",
+            run = function()
+                local source = { version = 10, itemListInitialized = true, trackedRules = {}, trackedItems = {},
+                    currencyGridColumns = 6, scenePositions = { sourceCharacter = { inventory = { x = 7 } } } }
+                local destination = { version = 10, itemListInitialized = true, useCharacterItemList = true,
+                    trackedRules = {}, trackedItems = {}, currencyGridColumns = 2,
+                    scenePositions = { destinationCharacter = { inventory = { x = 19 } } } }
+                local addon, calls = LoadAddon({ Default = { account = {
+                    ["$AccountWide"] = source, character = destination,
+                } } }, true)
+                calls.initialize()
+                assert(addon.CopyProfile("$AccountWide"))
+                assert(destination.currencyGridColumns == 2 and destination.scenePositions.destinationCharacter
+                    and destination.scenePositions.sourceCharacter == nil,
+                    "Unknown source fields are not copied or used to replace destination fields")
+                local firstUseAddon, firstUseCalls = LoadAddon({ Default = { account = {
+                    ["$AccountWide"] = source,
+                } } }, true)
+                firstUseCalls.initialize()
+                firstUseAddon.SetUseCharacterItemList(true)
+                assert(firstUseAddon.character.currencyGridColumns == nil
+                    and firstUseAddon.character.scenePositions == nil,
+                    "First-use character initialization also omits unknown account fields")
+            end,
+        },
         {
             name = "Full profile copy replaces every preference map and preserves destination metadata and account controls",
             run = function()
