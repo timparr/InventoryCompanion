@@ -1,7 +1,9 @@
 # Built-in Group Name Collision Repair — Implementation Plan
 
 **ARCHIVED 2026-11-15.** Historical plan, not current work instructions. Use
-the current [feature specification](../../FeatureSpecs/AutoCategoryNameCollisionMigration.md).
+the current [feature specification](../../FeatureSpecs/AutoCategoryNameCollisionMigration.md)
+and [Addon Load Behaviour](../../RuntimeProcesses/AddonLoadBehaviour.md) for
+the general runtime sequence and candidate/publish semantics.
 
 ## Flow
 
@@ -17,13 +19,21 @@ Keep `PrepareSavedVariables()` before any SavedVariables constructors or
 AutoCategory registration:
 
 ```text
+ESO loads the addon's manifest files in order
+after the addon's files have loaded:
+    OnAddOnLoaded(eventCode, name)
+        if name == this.Name:
+            unregister this addon's load-event handler
+            Initialize()
+
 Initialize()
-    PrepareSavedVariables()                 # first
-    register ESO keybind names               # existing
-    load SavedVariables and validate the selected profiles
-    AutoCategoryIntegration.Initialize()    # only after preparation
-        RegisterPlugin() with prepared definitions
-    initialize remaining modules
+    PrepareSavedVariables()                          # first
+    register keybind display names
+    create ZO_SavedVars account/character objects
+    validate runtime settings and saved rule profiles
+    AutoCategoryIntegration.Initialize()
+    initialize helpers, panels, settings, and event handlers
+    mark the addon loaded
 ```
 
 AutoCategory's display and priority lists are reconciled later, after its
@@ -33,21 +43,29 @@ initialization. They must only receive definitions built from prepared IC data.
 
 ```text
 PrepareSavedVariables()
-    fail hard if a built-in group has the same name as a virtual group  # new
+    validate built-in/virtual name separation
+    validate the loaded SavedVariables root and every profile/version
+    retain each original profile-table reference
 
-    ValidateSavedVariablesFile()                 # validation process
-    NormalizeAutoCategoryOrders()                # normalization process
+    for every profile:
+        validate saved fields and AutoCategory references
+        prepare a separate normalized order table
+        prepare the supported schema migration only if the profile is older
+        make a shallow per-profile candidate and fill required defaults
+        if initialized:
+            resolve exact custom-name / built-in-name collisions on the candidate
+        prepare and validate any saved-list-backup conversion
+        validate the candidate
 
-    for each initialized temporary profile copy and each saved-list backup:
-        find exact custom-name / built-in-name collisions                # new
-        for each collision:
-            resolve it using the steps below
-
-    validate all temporary profile copies
-    publish their prepared IC data only after all copies pass
+    only after every profile and conversion passes:
+        assign prepared fields onto the original profile tables
+        update current-version and initialized-state fields
 ```
 
 ### Process: `ValidateSavedVariablesFile()`
+
+This is a conceptual validation process within `PrepareSavedVariables()`, not
+a separate method and not a physical file-copy operation.
 
 ```text
 For every saved account and profile:
@@ -59,30 +77,39 @@ For every saved account and profile:
 
     Check version
         reject unsupported or newer versions before preparing any copies
-        create a temporary in-memory copy of each profile to be prepared
-        create a temporary backup copy only if migration or collision repair
-            needs to change it
+        retain a reference to the existing profile table
         if the version is older than the current version:
-            run only the already-supported schema migration on its copy
+            prepare only the already-supported schema migration
         if the version is already current (version 10):
             do not run a schema-version migration
-            continue preparing the copy
+            continue validation and preparation
 
-    Fill documented missing profile defaults on the copy where needed
-
-    keep the loaded SavedVariables unchanged while validating and preparing
-    the copies; return the copies without publishing them
+    keep original profile tables unchanged during validation and conversion
+    prepare shallow per-profile candidates and separate mutable order/rule
+        structures as needed
+    fill documented missing profile defaults on the candidates
+    after all candidates pass, assign prepared fields to the original profiles
 ```
 
 For a complete, already-normalized version-10 profile, this preparation leaves
 its existing values unchanged. It can still fill missing defaults.
+
+### Candidate copies are not whole-profile replacement
+
+`CopyValues()` makes a shallow top-level copy of one profile, not a deep copy
+of the SavedVariables root or file. `NormalizeAutoCategoryOrder()` creates a
+separate order table. Collision repair deep-copies the rule and order
+structures it changes, and converts a saved-list backup separately when
+needed. Once all profiles pass, the code assigns selected prepared fields to
+the original profile tables; it neither replaces those tables wholesale nor
+replays the transformations against them.
 
 ### Process: `NormalizeAutoCategoryOrders()`
 
 See Appendix 1 for before-and-after examples of these order-shape changes.
 
 ```text
-For every temporary profile copy whose AutoCategory order passed validation:
+For every profile with a validated candidate AutoCategory order:
     if autoCategoryOrder is absent:
         create an empty order for every supported context, with empty display,
             matching, hidden, and displayPositions fields
@@ -105,7 +132,7 @@ For each legacy saved-list backup being migrated:
 ```
 
 For a complete, already-normalized version-10 profile, normalization preserves
-its existing order values. Collision repair below runs on the temporary copies
+its existing order values. Collision repair below runs on prepared candidates
 after normalization and before publication.
 
 ### Resolve a clash
@@ -145,10 +172,10 @@ For each collision in an affected profile:
 
 Apply the same rule and reference conversion to the saved-list backup when
 present. If a collision or conversion is ambiguous or malformed, fail before
-publishing any prepared data. Validate all affected temporary profile copies
-before publishing them together. This AC-settings step concerns IC-owned saved
-data only; it does not authorize reading or changing AutoCategory's own
-SavedVariables.
+publishing any prepared data. Validate all affected profile candidates before
+assigning their prepared fields to the originals. This AC-settings step
+concerns IC-owned saved data only; it does not authorize reading or changing
+AutoCategory's own SavedVariables.
 
 ## Code touchpoints
 
