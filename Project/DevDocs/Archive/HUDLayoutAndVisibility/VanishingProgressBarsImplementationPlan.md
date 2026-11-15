@@ -1,12 +1,13 @@
 # Vanishing progress bars: implementation plan
 
-Status: PROVISIONAL - not approved; coding not authorized
-TODO item: [D10.2 Vanishing Progress Bars](../../Tasks/TODO.md)
-Spec: [Shared HUD layout and visibility specification](../FeatureSpecs/HUDLayoutAndVisibility.md)
+Status: ARCHIVED - ABANDONED 2026-11-15; no longer pursuing
+TODO item: [D10.2 Vanishing Progress Bars](../../../Tasks/TODO.md)
+Spec: [Shared HUD layout and visibility specification](HUDLayoutAndVisibility.md)
+Archive index: [HUD layout and visibility archive](README.md)
 Owner: Copilot (draft author)
 Updated: 2026-11-08
 
-Follow the [feature development process](../../Processes/FeatureDevelopment.md).
+Follow the [feature development process](../../../Processes/FeatureDevelopment.md).
 Implement after [D10.1 HUD Positioning](HUDPositioningImplementationPlan.md)
 and before [D10.3 Currency Grid Columns](CurrencyGridColumnsImplementationPlan.md).
 D10.2 wires threshold-based visibility into the presentation-only controls
@@ -14,16 +15,16 @@ created by D10.1 in Manage HUD; it does not add a second settings surface.
 
 ## Current implementation and prior art
 
-- [ProgressBarResources.lua](../../../Banking/ProgressBarResources.lua) owns
+- [ProgressBarResources.lua](../../../../Banking/ProgressBarResources.lua) owns
   resource discovery, profile preferences, defaults, and setting accessors.
-- [ResourceProgressBars.lua](../../../Banking/ResourceProgressBars.lua) owns
+- [ResourceProgressBars.lua](../../../../Banking/ResourceProgressBars.lua) owns
   bar creation, rendering, position saves, and cutscene visibility. Its current
   `UpdateProgressBar` hides only for missing values, disabled bars, or cutscenes.
-- [Events.lua](../../../Core/Events.lua) registers currency/capacity/inventory
+- [Events.lua](../../../../Core/Events.lua) registers currency/capacity/inventory
   listeners according to enabled resources and refreshes bars through existing
   debounced handlers. Below-threshold bars must remain monitored.
-- [ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) validates every
-  profile and copies resource preference tables. [Settings.lua](../../../Core/Settings.lua)
+- [ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua) validates every
+  profile and copies resource preference tables. [Settings.lua](../../../../Core/Settings.lua)
   currently owns the LAM controls that D10.1 moves into Manage HUD.
 - The [D10.1 plan](HUDPositioningImplementationPlan.md) owns persisted snapshots,
   editor controls, position handling, and Done/Cancel/reset behavior.

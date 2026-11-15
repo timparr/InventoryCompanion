@@ -1,15 +1,27 @@
 # HUD layout and visibility
 
-Status: Approved to Implementation
-TODO items: [D10.1 positioning, D10.2 vanishing bars, D10.3 currency columns](../../Tasks/TODO.md)
+Status: ARCHIVED - historical shared proposal; standalone D10.3 resumed for active planning
+TODO items: [D10.1 positioning, D10.2 vanishing bars, D10.3 currency columns](../../../Tasks/TODO.md)
 Owner: Copilot (draft author)
-Updated: 2026-11-08
-Implementation plans: [D10.1 HUD positioning](../Plans/HUDPositioningImplementationPlan.md),
-[D10.2 vanishing bars](../Plans/VanishingProgressBarsImplementationPlan.md), and
-[D10.3 currency columns](../Plans/CurrencyGridColumnsImplementationPlan.md)
+Updated: 2026-11-15
+Archive index: [HUD layout and visibility archive](README.md)
+Implementation plans: [D10.1 HUD positioning](HUDPositioningImplementationPlan.md),
+[D10.2 vanishing bars](VanishingProgressBarsImplementationPlan.md), and
+[D10.3 currency columns without HUD positioning](../../Plans/CurrencyGridColumnsStandaloneImplementationPlan.md).
+The [integrated D10.3 plan](CurrencyGridColumnsImplementationPlan.md) is retained
+as historical material, not as an active alternative. Only the standalone
+D10.3 plan has resumed; D10.1, D10.2, and the integrated approach remain
+abandoned. The current D10.3 draft spec is
+[here](../../FeatureSpecs/CurrencyGridColumnsFeatureSpec.md).
 
-Follow the [feature development process](../../Processes/FeatureDevelopment.md).
-Behavior below is proposed except where explicitly recorded as agreed.
+Follow the [feature development process](../../../Processes/FeatureDevelopment.md).
+Behavior below is historical and is not a current approved specification.
+D10.3 standalone settings/reset choices and the settings-panel visibility
+exception were discussed on 2026-11-15, but the amendment was not approved.
+Tim later said he did not like the HUD behavior and did not expect the broader
+work to proceed. Standalone D10.3 has since resumed as a planning draft; its
+requirements need current spec review and approval. Nothing here authorizes
+implementation.
 
 ## Tickets and delivery boundaries
 
@@ -19,15 +31,18 @@ One product spec covers three separately tracked implementation tickets:
 |---|---|---|
 | D10.1 | Provide the shared HUD positioning and configuration experience. | AC8-AC10, AC12-AC13 |
 | D10.2 | Hide each enabled bar below its configured threshold, optionally also when empty. | AC1-AC7, AC11 |
-| D10.3 (formerly F1) | Choose currency-grid columns. | CG1-CG6 |
+| D10.3 (formerly F1) | Choose currency-grid columns and preview the HUD in settings. | CG1-CG7, AC14-AC15 |
 
 Agreed by Tim, 2026-11-06: combine these in one spec, with separate tickets.
-This spec defines the complete product behavior across all three tickets. The
-requested delivery order is D10.1, then D10.2, then D10.3. Shared profile,
-editor-session and lifecycle behavior must stay consistent across them. UI
-staging belongs in the implementation plans and does not change the required
-final behavior. Global HUD show/hide context-menu work (D5) remains separate,
-not implicitly included in threshold-based bar visibility.
+This spec defines the product behavior across all three tickets. D10.3 may be
+delivered independently of D10.1/D10.2 through the existing Currency Summary
+Panel settings; the standalone slider persists immediately and its Reset Panel
+action retains the current position-preserving behavior (agreed 2026-11-15).
+This exception does not change the session behavior of a future Manage HUD
+editor. Before D10.1 implementation, reconcile the standalone control with that
+editor so users do not receive duplicate Grid Columns controls. Global HUD
+show/hide context-menu work (D5) remains separate, not implicitly included in
+threshold-based bar visibility.
 
 ## Problem and intended outcome
 
@@ -48,10 +63,16 @@ although this is convenience rather than a reported usability defect.
   panel, and standalone bars, with settings, slash and keybinding entry points.
 - In scope: configurable currency-summary grid columns, tracked separately as D10.3.
 - In scope (Tim requested, 2026-11-06): live configuration during HUD positioning:
-  bar enable/visibility controls, currency column count, and tracker maximum rows.
-  Configuration-pane layout and relocation of existing addon settings remain open.
-- Out of scope: normal-operation summary-grid hiding or tracker behavior changes, animations, bar stacking,
-  automatic repositioning, notifications, and bank-transfer milestone messages.
+  bar enable/visibility controls and tracker maximum rows. D10.3 Grid Columns
+  uses the existing Currency Summary Panel settings as a standalone exception.
+- In scope (Tim requested, 2026-11-15): while the InventoryCompanion settings
+  panel is open, keep actual HUD panels visible despite scene-transition hiding
+  and temporarily move any that overlap the settings panel. Restore their prior
+  positions and ordinary visibility when the settings panel closes.
+- Out of scope: normal-operation summary-grid hiding or tracker behavior changes,
+  animations, bar stacking, general automatic repositioning (except the
+  settings-panel overlay behavior above), notifications, and bank-transfer
+  milestone messages.
 
 ## User experience and behavior
 
@@ -107,8 +128,11 @@ although this is convenience rather than a reported usability defect.
 
 The settings-location examples below predate the live HUD configuration proposal.
 They specify control behavior/layout trials, not a settled requirement to duplicate
-controls in both addon settings and the HUD editor. The agreed Manage HUD panel
-below owns enable/visibility, column and max-row controls without LAM duplicates.
+controls in both addon settings and the HUD editor. The D10.1 Manage HUD panel
+owns bar enable/visibility and tracker max-row controls. D10.3 Grid Columns
+remains in the existing Currency Summary Panel settings and commits immediately.
+Do not add a duplicate Grid Columns control to Manage HUD; any later relocation
+must be decided and specified before D10.1 implementation.
 
 Latest UI direction (Tim, 2026-11-06): treat each resource as a list item.
 Evaluate both layouts below; the developer should choose the best-fitting option.
@@ -224,35 +248,36 @@ Command name and keybinding label remain proposals.
 
 ### Currency grid columns (D10.3)
 
-These details remain proposals transferred from the initial F1 draft:
+Standalone D10.3 choices agreed by Tim, 2026-11-15:
 
-- Add a "Grid Columns" integer slider to the Manage HUD Currency Summary section:
-  agreed range 1 through the number of available resource cells, default 3.
+- Add a "Grid Columns" integer slider to the existing Currency Summary Panel
+  settings submenu and commit each change immediately; D10.3 does not require
+  D10.1, a HUD editing session, or Done/Cancel.
+- The slider range is 1 through `max(3, available resource cells)`, default 3.
   Available means before visibility/zero filtering, using normal combined-cell
   grouping, not the currently displayed count. Keep the range large enough to
-  represent the default 3. One column makes a vertical list; the maximum permits
-  a horizontal strip. Reflow immediately without reload; commit the choice only
-  when the positioning session is completed with Done.
-  Visibility filtering must not alter the slider range or saved column choice.
-  If resource discovery later yields fewer cells than a saved valid choice, cap
-  the effective column count to the new maximum when the setting is read. Do not
-  treat the previously valid saved choice as malformed.
+  represent the default 3. Grow the slider maximum when resource discovery adds
+  cells; filtering does not affect the range or saved choice. One column makes a
+  vertical list; the maximum permits a horizontal strip. Reflow immediately
+  without reload.
+- Extend the existing immediate Reset Panel action to restore columns to 3 with
+  currency/capacity preferences and ordering, while preserving the currency
+  panel's current position and standalone bars.
+- If resource discovery later yields fewer cells than a saved valid choice, cap
+  the effective column count to the new maximum when read. Do not treat the
+  previously valid saved choice as malformed or overwrite it.
 - Preserve resource order, selected locations, combined-location cells, formatting,
   zero filtering, measured cell widths and spacing. Fill left-to-right, then
   top-to-bottom. Use only occupied columns when fewer cells exist; no cells
   means hidden during normal operation.
 - Seven cells produce seven rows at 1 column, three rows (3/3/1) at 3 columns,
   and two rows (6/1) at 6 columns.
-- Preserve the saved top-left anchor when reflowing. Automatic screen-edge fitting,
-  overlap management and individually positioned cells are out of scope.
+- Preserve the saved top-left anchor during grid reflow. General screen-edge
+  fitting and overlap management are out of scope; the separate settings-panel
+  visibility exception below temporarily moves overlapping panels without
+  changing saved positions.
 - Follow the existing account/character profile switch and full-profile copying.
   Missing legacy preference defaults to 3; validate explicit values in every profile.
-- Resetting the currency section restores all its defaults, including 3 columns,
-  currency-panel resource preferences and position, disclosing this in its reset
-  text; leave tracker and standalone bars unchanged. Apply the reset in the editor session, not as a
-  permanent change until Done. This changes the existing Currency Panel Reset
-  Panel button behavior: its reset is reversible by Cancel and commits only on
-  Done.
 - Positioning uses this same configured grid layout with real entries only.
 
 ### Live HUD configuration
@@ -264,37 +289,55 @@ Configuration sections remain accessible regardless of whether the corresponding
 HUD currently has content. Empty/unavailable elements retain their real rendering;
 do not manufacture geometry to make them draggable.
 
+Agreed by Tim, 2026-11-15: opening the InventoryCompanion settings panel is an
+exception to scene-transition hiding. Keep actual tracker, currency-summary and
+standalone-bar panels visible while that panel is open, but do not override saved
+show/enable settings, empty-content behavior, or any other ordinary visibility
+rule. Do not fabricate data or geometry. Temporarily move any visible panel whose
+bounds overlap the settings panel to an on-screen location that is not obscured;
+restore its original position and normal scene-driven visibility when the
+InventoryCompanion settings panel closes. This must not write saved positions.
+
+Use the bank interaction behavior as the positioning precedent. The existing
+tracker path snapshots its original anchor, uses `AdjustTrackerPositionForEditor`
+to avoid an interaction window, and restores through `RestoreTrackerPosition`;
+generalize that temporary, non-persisted behavior to all HUD panels for the
+settings-panel overlay. Avoid mutual panel overlap where screen space permits.
+
 Updated agreement, 2026-11-06: provide **Done and Cancel**, plus a **Reset Section**
 button in every HUD configuration section, including tracker, currency and bars.
 Edits, dragging and resets preview live within the session; only Done commits
 them. Cancel and automatic exits restore the session's starting HUD settings and
 positions. Reset Section applies that section's documented addon defaults in the
 session, not its session-start values; Cancel can undo it. No whole-HUD reset is
-proposed. Currency section reset restores three columns, currency-panel resource
-defaults and its default position while leaving other sections unchanged.
+proposed. The 2026-11-06 proposal had the currency section reset restore three
+columns, currency-panel resource defaults and its default position; the
+standalone D10.3 reset behavior is superseded by the 2026-11-15 decision below.
 Agreed by Tim, 2026-11-06: Reset Section restores that section's settings to
 their documented addon defaults, not session-start values. Cancel restores
 session-start values. Record exact field/default coverage in the plan.
 Updated agreement by Tim, 2026-11-08: every section resets all its settings and
 positions to addon defaults. This supersedes the earlier currency position
-exclusion. Tracker resets its settings and position; currency resets its
-settings, resource preferences, columns and position; bars resets all resources'
+exclusion. Tracker resets its settings and position; the D10.1 currency section
+resets its settings, resource preferences and position; bars resets all resources'
 settings/positions and shared alert colors. Reset only affects the selected
-section, never other sections or unrelated profile data. Cancel undoes the reset;
-Done keeps it.
+section, never other sections or unrelated profile data. The standalone D10.3
+Grid Columns preference is outside the HUD session/reset and is reset by the
+existing Currency Panel Reset Panel action. Cancel undoes session resets; Done
+keeps them.
 Agreed by Tim, 2026-11-06: automatic exit acts as Cancel, restoring the session's
 starting HUD settings and positions. Cancel the originating profile's session
 before switching profiles; never restore its snapshot into the new profile.
-Only Done commits session edits. This applies to the existing Currency Panel
-Reset Panel button as well: reset changes are session-local and reversible by
-Cancel, rather than immediately changing saved preferences.
+Only Done commits session edits. The standalone D10.3 slider and Currency Panel
+Reset Panel remain immediate settings-page actions outside that transaction.
 
-Expose bar enable/visibility controls, currency-grid columns and tracker maximum
-rows while positioning (requested by Tim, 2026-11-06). Setting edits apply to the
-live session but are not committed to saved variables until Done; merely entering
-the mode changes no saved preferences. Done exits the editor and restores normal
-rendering with the chosen values. Configuration controls must not change the
-measured bounds of the HUD elements.
+Expose bar enable/visibility controls and tracker maximum rows while positioning
+(requested by Tim, 2026-11-06). Setting edits apply to the live session but are
+not committed to saved variables until Done; merely entering the mode changes
+no saved preferences. Done exits the editor and restores normal rendering with
+the chosen values. Configuration controls must not change the measured bounds of
+the HUD elements. D10.3 Grid Columns remains in the existing settings submenu
+and persists immediately, as agreed on 2026-11-15.
 
 Pane arrangement is settled: one independently movable shared panel, not panes
 following individual elements. Its control scope is reopened by Tim, 2026-11-06:
@@ -316,8 +359,10 @@ Agreed by Tim, 2026-11-06: one independently movable shared **Manage HUD** panel
 with sections for bars, currency summary and tracker, plus an on-screen Done.
 Use a Manage HUD button in addon settings as the entry point, like existing
 item/group management; slash and hotkey open the same editor. Move the agreed
-HUD settings here rather than duplicating them in addon settings, including bar
-colors/enable/visibility, currency selection/ordering/layout and tracker appearance.
+D10.1 HUD settings here rather than duplicating them in addon settings, including
+bar colors/enable/visibility, currency selection/ordering and tracker appearance.
+The standalone D10.3 Grid Columns control remains in Currency Summary Panel
+settings; if later integrated, replace or relocate it rather than duplicating it.
 Enumerate the exact existing controls during detailed planning to avoid omissions;
 unrelated banking, notifications and rule/group management are not moved implicitly.
 
@@ -327,7 +372,7 @@ unrelated banking, notifications and rule/group management are not moved implici
 | [x] Transmutes  [slider] 75% |
 | ...                         |
 | Currency Panel              |
-| Columns         [slider] 3  |
+| Resource preferences        |
 | Item Tracker                |
 | Maximum Rows   [slider] 20  |
 |                     [ Done ]|
@@ -360,16 +405,19 @@ unrelated saved data; verify migration, copy, reset and older-reader safety.
 | AC7 | Reload/copy/migration preserve each resource's preference and unrelated data; malformed values are reported; incompatible older builds refuse without mutation. | Offline profile/data tests and backed-up older-schema UAT. |
 | AC8 | Settings, slash and keybinding enter the same positioning mode; settings closes; on-screen Done exits without opening settings. | Offline entry-point tests and in-game controls/keybinding checks. |
 | AC9 | Positioning uses actual HUD controls and real current data only; empty/unavailable elements receive no dummy entries, fabricated values or substitute geometry. | Offline empty/nonempty fixtures and in-game sizing/drag checks. |
-| AC10 | Done commits session-edited positions/settings; Cancel and automatic exits restore the starting state. Merely entering/exiting without edits changes no saved preferences, and no dummy data is created. | Offline saved-state assertions for Done/Cancel/automatic exit and in-game edit/exit checks. |
-| AC12 | One independently movable Manage HUD panel contains the agreed bar, currency and tracker settings; addon settings provides Manage HUD navigation rather than duplicates; slash/hotkey use the same editor. Edits are live previews, not committed until Done. | Offline control/setter/navigation/session tests and in-game layout/edit checks. |
+| AC10 | Done commits session-edited positions/settings; Cancel and automatic exits restore the starting state. Merely entering/exiting without edits changes no saved preferences, and no dummy data is created. D10.3 Grid Columns and Reset Panel remain immediate settings-page actions outside the HUD session. | Offline saved-state assertions for Done/Cancel/automatic exit and in-game edit/exit checks. |
+| AC12 | One independently movable Manage HUD panel contains the D10.1 bar, currency and tracker settings; addon settings provides Manage HUD navigation rather than duplicates; slash/hotkey use the same editor. D10.3 Grid Columns remains in the Currency Summary Panel settings and is not duplicated in Manage HUD. Edits are live previews, not committed until Done. | Offline control/setter/navigation/session tests and in-game layout/edit checks. |
 | AC11 | Hide When Empty defaults on per bar. At threshold 0 with it on, amount 0 is hidden and amount 1 with a positive cap is visible even below 1% fill. At a positive threshold both the nonempty and percentage requirements apply. Positioning temporarily overrides this checkbox without saving changes. | Offline zero/one, combined-threshold, profile/copy and positioning tests; in-game transmute checks. |
-| AC13 | Reset Section restores all settings and positions owned by that section to documented defaults; Cancel restores pre-session values and Done keeps the reset. Currency reset includes three columns, resource preferences and default position; bars reset includes every resource's settings/position and shared alert colors. Other sections and unrelated data remain unchanged. The existing Currency Panel Reset Panel action follows this policy. | Offline reset/session-field assertions and in-game reset, Cancel and Done checks for every section. |
+| AC13 | Reset Section restores all settings and positions owned by that section to documented defaults; Cancel restores pre-session values and Done keeps the reset. The D10.1 currency section resets its resource preferences and position, not standalone D10.3 Grid Columns. Bars reset includes every resource's settings/position and shared alert colors. Other sections and unrelated data remain unchanged. | Offline reset/session-field assertions and in-game reset, Cancel and Done checks for every section. |
 | CG1 | Default/migrated profiles retain the existing three-column layout. | Offline geometry and in-game baseline. |
-| CG2 | Every selectable integer from 1 to the available-resource-cell count (at least 3) reflows immediately; N visible cells use `ceil(N / columns)` rows in unchanged order without overlaps. One column gives a vertical list and the maximum allows a horizontal strip. If discovery shrinks the maximum below the saved setting, the effective setting is capped at the new maximum when read. | Offline anchors/dimensions across the range and in-game endpoints/intermediate settings. |
+| CG2 | Every selectable integer from 1 to `max(3, available-resource-cell count)` reflows immediately; the maximum grows when resource discovery adds cells. N visible cells use `ceil(N / columns)` rows in unchanged order without overlaps. One column gives a vertical list and the maximum allows a horizontal strip. If discovery shrinks the maximum below the saved setting, the effective setting is capped at the new maximum when read without overwriting the saved value. | Offline anchors/dimensions and range changes across discovery/filtering; in-game endpoints/intermediate settings. |
 | CG3 | Zero, one and fewer-than-limit cells create no phantom columns; hidden/reordered resources reflow correctly. | Offline cases and in-game filtering/ordering. |
 | CG4 | Anchor, formatting, combined cells and standalone bars remain unchanged by column selection; positioning uses the same layout. | Offline state/geometry and in-game checks. |
-| CG5 | Reload, profile switching, full copy and Reset Panel obey the agreed ownership/reset rules. | Offline profile tests and approved UAT. |
+| CG5 | Reload, profile switching, full copy and the immediate Reset Panel obey the agreed ownership/reset rules; reset sets columns to 3 and preserves currency-panel position. | Offline profile tests and approved UAT. |
 | CG6 | Malformed columns fail explicitly; migration preserves unrelated data; unsafe older readers refuse without mutation. | Offline saved-data/actual older-build checks and backed-up migration UAT. |
+| CG7 | The existing settings slider immediately reflows the visible currency panel while InventoryCompanion settings is open; it does not depend on HUD-session Done/Cancel. | Offline production-method/settings-callback tests and in-game settings preview. |
+| AC14 | Opening the InventoryCompanion settings panel overrides only scene-transition hiding for actual HUD panels. Saved-disabled bars/panels, empty content and other ordinary visibility conditions remain in effect; no dummy content or geometry is created. | Offline scene/settings-state tests and in-game checks with empty, disabled and populated panels. |
+| AC15 | At settings-panel open, snapshot the normal anchor of each HUD panel that is enabled and has real content, including panels hidden only by the scene transition. Temporarily reveal those panels; move any that overlap the settings panel to an on-screen, unobscured location. A qualifying panel created while settings remain open joins before first display. Closing restores each exact pre-overlay anchor without invoking saved-position writers, then normal scene-driven visibility. Avoid panel-to-panel overlap where space permits. | Offline anchor snapshot/restore and bounds tests, including a dynamically created bar; in-game overlap, close and scene-transition checks. |
 
 ## Options and product decisions
 
@@ -381,32 +429,37 @@ unrelated saved data; verify migration, copy, reset and older-reader safety.
 | D4 | Change thresholds to position hidden bars versus temporary HUD positioning. | Dedicated temporary mode using actual controls and real data only. | AGREED by Tim, 2026-11-06: use HUD positioning with settings/slash/hotkey entry and on-screen Done; real data only, with no dummy entries or fabricated values. |
 | D5 | Existing account/character settings switch versus separate threshold ownership. | Follow the existing switch. | AGREED by Tim, 2026-11-06: per-character when Use Character Settings is on; shared account-wide when off. |
 | D6 | Add to existing advanced settings versus a new UI surface. | Hide Below slider first in each bar's Advanced Settings, as shown above. | AGREED by Tim, 2026-11-06: ASCII settings layout approved. |
-| D7 | Fixed arbitrary limit versus resource-based column range. | 1 through available resource cells (at least 3), default 3; filtering does not alter the range or saved choice. | AGREED by Tim, 2026-11-06: support horizontal strips and vertical columns, without the arbitrary six-column limit. |
-| D8 | Restore every section-owned default, including position, versus preserve selected layout values. | Consistent full-section defaults, disclosed in reset text. | AGREED by Tim, 2026-11-08: all sections reset everything they own, including positions; other sections remain unchanged. Supersedes the 2026-11-06 currency position exception. |
+| D7 | Fixed arbitrary limit versus resource-based column range. | 1 through `max(3, available resource cells)`; filtering does not alter range or saved choice. | AGREED by Tim, 2026-11-06: support horizontal strips and vertical columns, without the arbitrary six-column limit. Confirmed 2026-11-15: slider maximum can grow as resources are discovered. |
+| D8 | Restore every section-owned default, including position, versus preserve selected layout values. | Consistent full-section defaults, disclosed in reset text. | AGREED by Tim, 2026-11-08: D10.1 sections reset everything they own, including positions; other sections remain unchanged. The standalone D10.3 Reset Panel action has the separate 2026-11-15 behavior recorded below. |
 | D9 | Keep positioning active through context changes versus automatically exit. | Exit on profile changes, reload and cutscene/interaction entry. | AGREED by Tim, 2026-11-06: Q4 yes. Combat is covered by D10. |
 | D10 | Permit positioning in combat versus exit/block it. | Exit on combat entry and block entry while in combat. | AGREED by Tim, 2026-11-06: Q8 yes. Applies to every entry point. |
 | D11 | Overload threshold 0 versus independent empty-resource hiding. | Per-bar Hide When Empty checkbox; threshold 0 retains its percentage meaning. | AGREED by Tim, 2026-11-06: defaults are 0 and ticked, superseding the earlier default-off choice. Empty enabled bars hide by default; unticking restores always-show at 0. |
 | D12 | Standard separate checkbox versus combined slider/checkbox row. | If feasible, checkbox right of slider and invisible above 0, retaining its value. | Tim's agreed WANT, 2026-11-06; not a required acceptance condition. Separate checkbox is an acceptable fallback. |
-| D14 | Per-element panes versus shared movable configuration; duplicate LAM controls versus navigation. | One movable Manage HUD panel and addon-settings navigation, with slash/hotkey entry. | AGREED by Tim, 2026-11-06: shared pane and wireframe; no duplicates for agreed controls. |
+| D14 | Per-element panes versus shared movable configuration; duplicate LAM controls versus navigation. | One movable Manage HUD panel and addon-settings navigation, with slash/hotkey entry. | AGREED by Tim, 2026-11-06: shared pane and wireframe; no duplicates for agreed controls. D10.3 Grid Columns remains in the existing submenu pending any separately approved future relocation. |
 | D13 | Separate labelled master switch versus compact enable/threshold row. | Unlabelled checkbox with resource-specific tooltip beside slider; slider disabled when unchecked. | Agreed UI direction by Tim, 2026-11-06; disabled-slider behavior confirmed. Final threshold label and layout feasibility remain to be settled. |
+| D15 | Keep HUD panels hidden during the settings scene versus expose them for live preview; persist or temporarily adjust overlapping positions. | Snapshot normal anchors for enabled panels with real content, including those hidden only by the scene transition; temporarily move only overlapping panels and restore exact anchors without saved-position writes. | AGREED by Tim, 2026-11-15: all actual panels visible as an exception to the scene transition; use bank-open reposition/restore behavior as the template. |
+| D16 | Deliver D10.3 only through the future Manage HUD session or independently in current settings. | Add an immediate Grid Columns slider to the existing Currency Summary Panel settings. | AGREED by Tim, 2026-11-15: standalone D10.3 settings path (plan D1=A). |
+| D17 | Reset currency columns and position together in a HUD session, or preserve existing Reset Panel position behavior. | Existing Reset Panel resets columns to 3 while preserving current currency-panel position and standalone bars. | AGREED by Tim, 2026-11-15: standalone D10.3 Reset Panel path (plan D2=A). |
 
 ## Feasibility notes
 
-[ResourceProgressBars](../../../Banking/ResourceProgressBars.lua) centralizes
+[ResourceProgressBars](../../../../Banking/ResourceProgressBars.lua) centralizes
 rendering, but its cutscene-exit path currently bypasses value-based visibility.
-[Events](../../../Core/Events.lua) uses visibility-named helpers to decide whether
+[Events](../../../../Core/Events.lua) uses visibility-named helpers to decide whether
 to listen and refresh. Those helpers currently mean "enabled": changing them to
 mean "currently on screen" would strand hidden bars. Preserve monitoring intent
 separately from rendering. This is the main risk, not the percentage comparison.
 
-[CurrencyPanel](../../../Tracking/CurrencyPanel.lua) uses a fixed column constant
+[CurrencyPanel](../../../../Tracking/CurrencyPanel.lua) uses a fixed column constant
 and three-element width table. Column work is localized, but profile validation,
 copying and saved-data safety are part of D10.3 rather than just replacing a constant.
 
 ## Independent spec review
 
-Reviewer: PENDING
-Reviewed document revision/source identity: PENDING
+Reviewer: Independent Copilot rubber-duck review and focused re-reviews, 2026-11-15
+Reviewed document revision/source identity: Uncommitted working-tree revision
+after the 2026-11-15 D10.3/settings-overlay amendments; related addon sources
+and installed LibAddonMenu-2.0 source.
 
 Preliminary review findings (2026-11-06; direct review, not the required
 independent review):
@@ -435,7 +488,9 @@ independent review):
    choice may exceed the current slider maximum after resource discovery shrinks.
    Define how the Manage HUD slider represents that retained value.
 
-These are review findings, not decisions. Tim's decisions/resolutions: PENDING.
+These are historical review findings, not current decisions. D10.3 standalone
+choices and the settings-panel visibility exception are recorded in the
+2026-11-15 entries below.
 Required independent spec review: PENDING.
 
 ## Patch Review
@@ -464,12 +519,29 @@ Tim's responses and resulting spec updates, 2026-11-06:
 5. **Currency-column range:** The agreed dynamic range is unchanged. If discovery
    reduces its maximum below the saved setting, cap the effective column count at
    the new maximum when read; the saved value is not malformed.
+6. **Standalone D10.3:** On 2026-11-15, Tim agreed to an immediate Grid Columns
+   slider in the existing Currency Summary Panel settings, Reset Panel to 3
+   columns while retaining its current position, and a range maximum that grows
+   with discovered resources. The standalone plan records the technical details.
+7. **Settings-panel HUD visibility:** On 2026-11-15, Tim requested that all actual
+   HUD panels remain visible when the InventoryCompanion settings panel is open,
+   with overlapping panels temporarily moved and restored by adapting the bank
+   interaction positioning pattern. The spec now preserves ordinary disabled
+   and empty-content behavior and prohibits saved-position writes.
 
-Required independent spec review and explicit spec approval remain pending.
+Independent review found no remaining blocking product decisions or
+high-confidence contradictions. Plan-level technical verification remains
+before code: previous-reader schema/copy behavior, runtime slider-range refresh,
+the LAM settings-window bounds, and overlay lifecycle integration. The focused
+re-review confirmed the documented snapshot/restore, placement fallback,
+older-reader safety gate, and Reset Panel test coverage; LAM runtime checks
+remain pending. Explicit spec approval remains pending.
 
 ## Approvals and acceptance
 
-- Product discussion agreement: PENDING
+- Product discussion agreement: Partial (D10.3 standalone behavior and the
+  settings-panel visibility exception recorded 2026-11-15; remaining decisions
+  and independent review pending)
 - Explicit spec approval: PENDING
 - Feature acceptance and actual evidence: PENDING
 

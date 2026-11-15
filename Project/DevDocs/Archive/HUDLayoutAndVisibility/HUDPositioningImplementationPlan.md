@@ -1,12 +1,13 @@
 # HUD positioning and configuration: implementation plan
 
-Status: PROVISIONAL - not approved; coding not authorized
-TODO item: [D10.1 HUD Positioning](../../Tasks/TODO.md)
-Spec: [Shared HUD layout and visibility specification](../FeatureSpecs/HUDLayoutAndVisibility.md)
+Status: ARCHIVED - ABANDONED 2026-11-15; no longer pursuing
+TODO item: [D10.1 HUD Positioning](../../../Tasks/TODO.md)
+Spec: [Shared HUD layout and visibility specification](HUDLayoutAndVisibility.md)
+Archive index: [HUD layout and visibility archive](README.md)
 Owner: Copilot (draft author)
 Updated: 2026-11-08
 
-Follow the [feature development process](../../Processes/FeatureDevelopment.md).
+Follow the [feature development process](../../../Processes/FeatureDevelopment.md).
 Delivery order is D10.1, then [D10.2](VanishingProgressBarsImplementationPlan.md),
 then [D10.3](CurrencyGridColumnsImplementationPlan.md). This plan covers the
 shared editor, session behavior, existing HUD settings, and presentation-only
@@ -15,20 +16,20 @@ grid-column behavior into these controls.
 
 ## Current implementation and prior art
 
-- [Settings.lua](../../../Core/Settings.lua) owns the LAM tracker and bar
+- [Settings.lua](../../../../Core/Settings.lua) owns the LAM tracker and bar
   controls, plus settings navigation. Its callbacks write preferences directly.
-- [CurrencyPanel.lua](../../../Tracking/CurrencyPanel.lua) owns currency and
+- [CurrencyPanel.lua](../../../../Tracking/CurrencyPanel.lua) owns currency and
   capacity selection, ordering, notifications, location toggles, the custom
   resource list, and Reset Panel. Reset currently writes preferences directly.
-- [ItemTrackerPanel.lua](../../../Tracking/ItemTrackerPanel.lua) owns tracker
+- [ItemTrackerPanel.lua](../../../../Tracking/ItemTrackerPanel.lua) owns tracker
   rendering and `trackerOffsetX/Y` position saves. The tracker settings are
   currently defined in Settings.lua.
-- [ResourceProgressBars.lua](../../../Banking/ResourceProgressBars.lua) owns
+- [ResourceProgressBars.lua](../../../../Banking/ResourceProgressBars.lua) owns
   standalone bar rendering and `offsetX/offsetY` saves for each resource.
-- [Init.lua](../../../Core/Init.lua), [Bindings.xml](../../../Bindings.xml), and
-  [Events.lua](../../../Core/Events.lua) provide initialization, keybinding and
+- [Init.lua](../../../../Core/Init.lua), [Bindings.xml](../../../../Bindings.xml), and
+  [Events.lua](../../../../Core/Events.lua) provide initialization, keybinding and
   slash-command registration patterns, plus cutscene/interaction refresh logic.
-- [ItemDatabase.lua](../../../Tracking/ItemDatabase.lua) owns profile defaults,
+- [ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua) owns profile defaults,
   preference copying, and profile validation. The DEV manifest controls load
   order; XML templates must load before their Lua consumers.
 
@@ -92,19 +93,19 @@ remain inert. Verify exact reset coverage against `preferenceDefaults`,
 
 Source inspection, not a dump of live saved data:
 
-- [PrepareSavedVariables](../../../Tracking/ItemDatabase.lua#L772) validates
+- [PrepareSavedVariables](../../../../Tracking/ItemDatabase.lua#L772) validates
   profiles under `InventoryCompanion_SavedVariables.Default[account][profile]`.
   `$AccountWide` and character-ID profiles share this outer namespace.
-- [GetSettingsProfile](../../../Tracking/ItemDatabase.lua#L563) selects the
+- [GetSettingsProfile](../../../../Tracking/ItemDatabase.lua#L563) selects the
   character profile when `character.useCharacterItemList` is true, otherwise
   the account-wide profile. It returns a profile, not a HUD-specific section.
-- [Profile preference fields/defaults](../../../Tracking/ItemDatabase.lua#L548)
-  and [account defaults](../../../Core/Constants.lua#L209) place HUD fields
+- [Profile preference fields/defaults](../../../../Tracking/ItemDatabase.lua#L548)
+  and [account defaults](../../../../Core/Constants.lua#L209) place HUD fields
   alongside tracking/editor data. The groups in the sketch below are conceptual;
   they are not existing container tables. Current schema version is 10.
-- [Currency preferences](../../../Tracking/CurrencyPanel.lua#L79) have nested
+- [Currency preferences](../../../../Tracking/CurrencyPanel.lua#L79) have nested
   location tables, and currency/capacity preferences also hold notification
-  choices. [Bar settings](../../../Banking/ProgressBarResources.lua#L204)
+  choices. [Bar settings](../../../../Banking/ProgressBarResources.lua#L204)
   resolve defaults from per-resource preference deviations.
 
 Legend: `*` identifies existing fields involved in the HUD work; `+` identifies
@@ -260,7 +261,7 @@ approve the implementation plan or authorize coding.
 
 #### Synthetic prototype evidence
 
-[HUDSessionFeasibilityPrototype.lua](../../Tests/HUDSessionFeasibilityPrototype.lua)
+[HUDSessionFeasibilityPrototype.lua](../../../Tests/HUDSessionFeasibilityPrototype.lua)
 defines isolated account and character profiles with nested currency/location
 preferences, notification flags, bars, tracking data, and unrelated account
 settings. It exercises:
@@ -297,7 +298,7 @@ These are synthetic table tests only. They neither load addon code nor access
 live inventory or SavedVariables. The save-boundary model follows Tim's
 confirmation that ESO saves SavedVariables together on logout and `/reloadui`,
 and does not save process changes on a crash/forced termination. The fixture
-does not independently verify ZOS serialization. [AutoCategorySpikeTests.lua](../../Tests/AutoCategorySpikeTests.lua)
+does not independently verify ZOS serialization. [AutoCategorySpikeTests.lua](../../../Tests/AutoCategorySpikeTests.lua)
 models `ZO_SavedVars` interfaces as empty forwarding proxies, which demonstrates
 why B's root-profile copy semantics need explicit treatment. Startup recovery
 prompt timing and handling still require implementation and in-game validation.

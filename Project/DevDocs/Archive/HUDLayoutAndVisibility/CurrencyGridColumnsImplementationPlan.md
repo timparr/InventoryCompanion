@@ -1,12 +1,13 @@
 # Configurable currency grid columns: implementation plan
 
-Status: PROVISIONAL - not approved; coding not authorized
-TODO item: [D10.3 (formerly F1)](../../Tasks/TODO.md)
-Spec: [Shared HUD layout and visibility specification](../FeatureSpecs/HUDLayoutAndVisibility.md)
+Status: ARCHIVED - ABANDONED 2026-11-15; no longer pursuing
+TODO item: [D10.3 (formerly F1)](../../../Tasks/TODO.md)
+Spec: [Shared HUD layout and visibility specification](HUDLayoutAndVisibility.md)
+Archive index: [HUD layout and visibility archive](README.md)
 Owner: Copilot (draft author)
 Updated: 2026-11-08
 
-Follow the [feature development process](../../Processes/FeatureDevelopment.md).
+Follow the [feature development process](../../../Processes/FeatureDevelopment.md).
 This plan covers D10.3 only. Criterion references below use the shared spec's
 CG1-CG6 (the former column-only AC1-AC6), not its bar-visibility AC criteria.
 Delivery follows [D10.1 HUD Positioning](HUDPositioningImplementationPlan.md)
@@ -18,14 +19,14 @@ preference, and refresh paths rather than creating a second editor/settings path
 
 ## Current implementation and prior art
 
-- [CurrencyPanel.lua](../../../Tracking/CurrencyPanel.lua): fixed column constant,
+- [CurrencyPanel.lua](../../../../Tracking/CurrencyPanel.lua): fixed column constant,
   width accumulation and row-major anchors in RefreshCurrencyPanel;
   GetCurrencyPanelSettingsControls and ResetCurrencyPanelPreferences own its UI.
-- [ItemDatabase.lua](../../../Tracking/ItemDatabase.lua): preferenceFields,
+- [ItemDatabase.lua](../../../../Tracking/ItemDatabase.lua): preferenceFields,
   preferenceDefaults, PrepareProfilePreferences, full copy, RefreshProfileSettings.
-- [Constants.lua](../../../Core/Constants.lua): account defaults.
-- [SavedVariablesTests.lua](../../Tests/SavedVariablesTests.lua) and
-  [Core tests](../../../Core/Tests.lua): existing profile and grid cases.
+- [Constants.lua](../../../../Core/Constants.lua): account defaults.
+- [SavedVariablesTests.lua](../../../Tests/SavedVariablesTests.lua) and
+  [Core tests](../../../../Core/Tests.lua): existing profile and grid cases.
 
 ## Data, compatibility, and failure contracts
 
@@ -87,7 +88,7 @@ manifest addition is expected.
 
 - Depends on: Step 2.
 - Coverage: all criteria.
-- Update the [manual](../../Publishing/Source%20Documents/UserManual.bbcode) after
+- Update the [manual](../../../Publishing/Source%20Documents/UserManual.bbcode) after
   implementation; record actual focused tests and obtain approved in-game checks.
 - No release/version/commit work is authorized.
 
