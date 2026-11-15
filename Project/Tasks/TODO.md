@@ -33,6 +33,15 @@ material, not approved implementation scope.
   newly initialized character profiles without reapplying a preset over
   existing choices. Include saved-schema/downgrade protection and migration
   tests if the stored contract changes.
+- **B5. AutoCategory Built-In Name Collision Repair:** When a custom group
+  exactly matches a built-in group's display name, promote it to that built-in
+  override while preserving effective patterns, display settings, and
+  AutoCategory placement. Clean stale target-slug references only in collided
+  profiles; repair all initialized IC account and character profiles
+  transactionally without changing the current SavedVariables schema. Built-in
+  names that collide with any virtual group must stop startup. See the
+  [collision repair spec](../DevDocs/FeatureSpecs/AutoCategoryNameCollisionMigration.md)
+  and [implementation plan](../DevDocs/Plans/AutoCategoryNameCollisionMigrationImplementationPlan.md).
 
 ---
 

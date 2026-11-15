@@ -434,13 +434,22 @@ local function CheckDefinitionCollision(ac, definitions)
             "IC AutoCategory category name collision: " .. definition.name)
         desiredNames[definition.name] = true
     end
-    local sources = {
-        ac.RulesW.ruleList,
-        ac.predefinedRules,
-        ac.default_rules and ac.default_rules.rules,
-        ac.acctRules and ac.acctRules.rules,
-    }
-    for _, profile in ipairs({ ac.acctSaved, ac.charSaved, ac.saved }) do
+    local sources = {}
+    local function AddSource(source)
+        if source ~= nil then sources[#sources + 1] = source end
+    end
+    AddSource(ac.RulesW.ruleList)
+    AddSource(ac.predefinedRules)
+    AddSource(ac.default_rules and ac.default_rules.rules)
+    AddSource(ac.acctRules and ac.acctRules.rules)
+    local profiles = {}
+    local function AddProfile(profile)
+        if profile ~= nil then profiles[#profiles + 1] = profile end
+    end
+    AddProfile(ac.acctSaved)
+    AddProfile(ac.charSaved)
+    AddProfile(ac.saved)
+    for _, profile in ipairs(profiles) do
         if profile.rules ~= nil then sources[#sources + 1] = profile.rules end
     end
     for pluginKey, plugin in pairs(ac.Plugins) do
@@ -458,7 +467,7 @@ local function CheckDefinitionCollision(ac, definitions)
                 end
             end
         end
-        for _, profile in ipairs({ ac.acctSaved, ac.charSaved, ac.saved }) do
+        for _, profile in ipairs(profiles) do
             for _, context in ipairs(contexts) do
                 local bag = profile.bags and profile.bags[context.bagType()]
                 if bag ~= nil then
@@ -1111,6 +1120,19 @@ CopySavedValue = function(value, activeTables)
     return copy
 end
 
+local function ValidateAutoCategoryAssignment(assignment, context)
+    assert(type(assignment) == "table" and type(assignment.name) == "string" and assignment.name ~= "",
+        "AutoCategory assignment is malformed in " .. context)
+    assert(assignment.isHidden == nil or type(assignment.isHidden) == "boolean",
+        "AutoCategory hidden setting is invalid in " .. context .. ": " .. assignment.name)
+    assert(type(assignment.runpriority) == "number" and assignment.runpriority == assignment.runpriority
+        and math.abs(assignment.runpriority) < math.huge,
+        "AutoCategory run priority is invalid in " .. context .. ": " .. assignment.name)
+    assert(type(assignment.showpriority) == "number" and assignment.showpriority == assignment.showpriority
+        and math.abs(assignment.showpriority) < math.huge,
+        "AutoCategory display priority is invalid in " .. context .. ": " .. assignment.name)
+end
+
 local function RestoreArchivedAssignments(ac)
     local archive = this.accountWide.debug.autoCategoryRemovedLines
     local restoredContexts = {}
@@ -1356,16 +1378,7 @@ local function BuildContextModel(context, definitions, rules, repairAssignments)
         end
     end
     for _, assignment in ipairs(assignments) do
-        assert(type(assignment) == "table" and type(assignment.name) == "string" and assignment.name ~= "",
-            "AutoCategory assignment is malformed in " .. context.title)
-        assert(assignment.isHidden == nil or type(assignment.isHidden) == "boolean",
-            "AutoCategory hidden setting is invalid in " .. context.title .. ": " .. assignment.name)
-        assert(type(assignment.runpriority) == "number" and assignment.runpriority == assignment.runpriority
-            and math.abs(assignment.runpriority) < math.huge,
-            "AutoCategory run priority is invalid in " .. context.title .. ": " .. assignment.name)
-        assert(type(assignment.showpriority) == "number" and assignment.showpriority == assignment.showpriority
-            and math.abs(assignment.showpriority) < math.huge,
-            "AutoCategory display priority is invalid in " .. context.title .. ": " .. assignment.name)
+        ValidateAutoCategoryAssignment(assignment, context.title)
         local ruleKey = GetManagedRuleKey(assignment, definitionsByName)
         local reference
         if ruleKey then

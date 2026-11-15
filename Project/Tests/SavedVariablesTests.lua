@@ -71,6 +71,47 @@ local function AssertStopped(addon, calls, expectedMessage)
         "Rejected addon must remain unloaded")
 end
 
+local function NewCollisionRules()
+    return {
+        custom_collision = {
+            displayName = "Furniture Materials",
+            patterns = { "Mundane Rune", "*test item *" },
+            autoCategoryEnabled = true,
+            display = {
+                notifyChat = true, notifyHud = true, showBackpack = false, showBank = true,
+                group = false, isExpanded = false,
+            },
+        },
+        furniture_materials = {
+            displayName = "Obsolete built-in data",
+            addedPatterns = { "stale target pattern" },
+            display = { notifyChat = false },
+        },
+        custom_miscellaneous = {
+            displayName = "Miscellaneous",
+            patterns = { "custom miscellaneous item" },
+        },
+        uppercase_collision = {
+            displayName = "FURNITURE MATERIALS",
+            patterns = { "leave me unchanged" },
+        },
+    }
+end
+
+local function NewCollisionOrder()
+    return { contexts = { backpack = {
+        display = {
+            "ic:custom_collision", "ic:furniture_materials", "ic:custom_miscellaneous", "ic:__ic_other",
+        },
+        matching = { "ic:custom_collision", "ic:furniture_materials", "ic:custom_miscellaneous" },
+        hidden = { ["ic:custom_collision"] = true, ["ic:furniture_materials"] = false },
+        displayPositions = {
+            ["ic:custom_collision"] = 7, ["ic:furniture_materials"] = 9,
+            ["ic:custom_miscellaneous"] = 4,
+        },
+    } } }
+end
+
 function GetSavedVariablesTests()
     return {
         {
@@ -102,6 +143,229 @@ function GetSavedVariablesTests()
                 source.progressBarPreferences = { ["capacity:bag"] = { showBar = "yes" } }
                 assert(not pcall(addon.CopyProfile, "source"))
                 assert(addon.SavedValuesEqual(destination, before), "Invalid import must not partially replace any fields")
+            end,
+        },
+        {
+            name = "Built-in names colliding with current or future virtual groups stop before saved data changes",
+            run = function()
+                for _, fixture in ipairs({
+                    { virtualKey = "miscellaneous", name = "Miscellaneous", builtInKey = "new_miscellaneous" },
+                    { virtualKey = "future_virtual", name = "Future Virtual Group", builtInKey = "new_future_group" },
+                }) do
+                    local profile = { version = 10, itemListInitialized = true, trackedRules = {} }
+                    local saved = { Default = { account = { ["$AccountWide"] = profile } } }
+                    local addon, calls = LoadAddon(saved)
+                    local function Rule(displayName, isVirtual)
+                        return {
+                            displayName = displayName, isVirtual = isVirtual,
+                            patterns = {}, display = {
+                                show = true, notify = false, bank = false, group = true,
+                                isExpanded = true, isHidden = false,
+                            },
+                        }
+                    end
+                    addon.preLoadedRulesets = {
+                        [fixture.virtualKey] = Rule(fixture.name, true),
+                        [fixture.builtInKey] = Rule(fixture.name, false),
+                    }
+                    local before = addon.CopySavedValue(saved)
+                    AssertStopped(addon, calls, "collides with virtual group")
+                    assert(addon.SavedValuesEqual(saved, before) and profile.version == 10,
+                        "A built-in/virtual name conflict must not alter any saved data or version")
+                end
+            end,
+        },
+        {
+            name = "Schema 10 repairs exact-name collisions in all initialized profiles and account backup",
+            run = function()
+                local addon = LoadAddon(nil)
+                addon.preLoadedRulesets = {
+                    furniture_materials = {
+                        displayName = "Furniture Materials",
+                        patterns = { "Mundane Rune", "Heartwood", "Regulus", "Bast", "Clean Pelt",
+                            "Alchemical Resin", "Decorative Wax", "Ochre" },
+                        display = {
+                        show = false, notify = false, bank = false, group = true,
+                            isExpanded = true, isHidden = false,
+                        },
+                    },
+                    miscellaneous = {
+                        displayName = "Miscellaneous", patterns = {},
+                        isVirtual = true,
+                        display = {
+                            show = true, notify = false, bank = false, group = true,
+                            isExpanded = true, isHidden = false,
+                        },
+                    },
+                }
+                local function Profile(useCharacter)
+                    return {
+                        version = 10, itemListInitialized = true, useCharacterItemList = useCharacter,
+                        trackedRules = NewCollisionRules(), autoCategoryOrder = NewCollisionOrder(),
+                    }
+                end
+                local account = Profile(false)
+                local character = Profile(true)
+                local inactive = Profile(true)
+                local otherAccount = Profile(false)
+                local caseOnly = {
+                    version = 10, itemListInitialized = true,
+                    trackedRules = { uppercase_collision = {
+                        displayName = "FURNITURE MATERIALS", patterns = { "leave me unchanged" },
+                    } },
+                }
+                account.accountWideListBackup = {
+                    formatVersion = 1, trackedRules = NewCollisionRules(), trackedItems = {},
+                    autoCategoryOrder = NewCollisionOrder(),
+                }
+                local caseOnlyRules = caseOnly.trackedRules
+                local saved = { Default = {
+                    account = { ["$AccountWide"] = account, character = character, inactive = inactive, caseOnly = caseOnly },
+                    other = { ["$AccountWide"] = otherAccount },
+                } }
+                _G.InventoryCompanion_SavedVariables = saved
+                addon.PrepareSavedVariables()
+                assert(account.version == 10 and character.version == 10 and inactive.version == 10
+                    and otherAccount.version == 10 and caseOnly.version == 10)
+                for _, profile in ipairs({ account, character, inactive, otherAccount }) do
+                    local rules = profile.trackedRules
+                    local promoted = rules.furniture_materials
+                    assert(promoted and promoted.displayName == nil and promoted.autoCategoryEnabled == true
+                        and rules.custom_collision == nil and rules.uppercase_collision.displayName == "FURNITURE MATERIALS"
+                        and rules.custom_miscellaneous.displayName == "Miscellaneous"
+                        and rules.custom_miscellaneous.patterns[1] == "custom miscellaneous item")
+                    assert(table.concat(promoted.addedPatterns, ",") == "*test item *"
+                        and table.concat(promoted.removedPatterns, ",") ==
+                            "Alchemical Resin,Bast,Clean Pelt,Decorative Wax,Heartwood,Ochre,Regulus")
+                    local resolved = addon.GetRuntimeRules(rules).furniture_materials
+                    assert(table.concat(resolved.patterns, ",") == "*test item *,Mundane Rune")
+                    assert(resolved.display.notifyChat and resolved.display.notifyHud
+                        and not resolved.display.showBackpack and resolved.display.showBank
+                        and not resolved.display.group and not resolved.display.isExpanded
+                        and resolved.display.isHidden == false)
+                    local order = profile.autoCategoryOrder.contexts.backpack
+                    assert(table.concat(order.display, ",")
+                            == "ic:furniture_materials,ic:custom_miscellaneous,ic:__ic_other"
+                        and table.concat(order.matching, ",")
+                            == "ic:furniture_materials,ic:custom_miscellaneous")
+                    assert(order.hidden["ic:furniture_materials"] == true
+                        and order.hidden["ic:custom_collision"] == nil
+                        and order.displayPositions["ic:furniture_materials"] == 7
+                        and order.displayPositions["ic:custom_collision"] == nil
+                        and order.displayPositions["ic:custom_miscellaneous"] == 4)
+                end
+                assert(account.accountWideListBackup.trackedRules.custom_collision == nil
+                    and account.accountWideListBackup.trackedRules.furniture_materials.addedPatterns[1] == "*test item *")
+                assert(caseOnly.trackedRules == caseOnlyRules
+                    and caseOnly.trackedRules.uppercase_collision.displayName == "FURNITURE MATERIALS")
+            end,
+        },
+        {
+            name = "Collision promotion keeps the custom order position when the built-in reference comes first",
+            run = function()
+                local addon = LoadAddon(nil)
+                addon.preLoadedRulesets = {
+                    furniture_materials = {
+                        displayName = "Furniture Materials",
+                        patterns = { "Mundane Rune", "Heartwood" },
+                        display = {
+                            show = false, notify = false, bank = false, group = true,
+                            isExpanded = true, isHidden = false,
+                        },
+                    },
+                }
+                local profile = {
+                    version = 10, itemListInitialized = true, useCharacterItemList = false,
+                    trackedRules = NewCollisionRules(), autoCategoryOrder = NewCollisionOrder(),
+                }
+                local order = profile.autoCategoryOrder.contexts.backpack
+                order.display = {
+                    "ic:custom_miscellaneous", "ic:furniture_materials", "ic:custom_collision", "ic:__ic_other",
+                }
+                order.matching = {
+                    "ic:custom_miscellaneous", "ic:furniture_materials", "ic:custom_collision",
+                }
+                profile.autoCategoryOrder.contexts.bank = {
+                    display = { "ic:furniture_materials" },
+                    matching = { "ic:furniture_materials" },
+                    hidden = { ["ic:furniture_materials"] = false },
+                    displayPositions = { ["ic:furniture_materials"] = 9 },
+                }
+                profile.autoCategoryOrder.contexts.guild_bank = {
+                    display = { "ic:custom_collision" },
+                    matching = { "ic:custom_collision" },
+                    hidden = { ["ic:custom_collision"] = false },
+                    displayPositions = { ["ic:custom_collision"] = 11 },
+                }
+                _G.InventoryCompanion_SavedVariables = {
+                    Default = { account = { ["$AccountWide"] = profile } },
+                }
+
+                addon.PrepareSavedVariables()
+
+                local promotedOrder = profile.autoCategoryOrder.contexts.backpack
+                local displayed = table.concat(promotedOrder.display, ",")
+                local matching = table.concat(promotedOrder.matching, ",")
+                assert(displayed == "ic:custom_miscellaneous,ic:furniture_materials,ic:__ic_other"
+                    and matching == "ic:custom_miscellaneous,ic:furniture_materials",
+                    "Unexpected remapped order: display=" .. displayed .. "; matching=" .. matching)
+                assert(promotedOrder.hidden["ic:furniture_materials"] == true
+                    and promotedOrder.hidden["ic:custom_collision"] == nil
+                    and promotedOrder.displayPositions["ic:furniture_materials"] == 7
+                    and promotedOrder.displayPositions["ic:custom_collision"] == nil)
+                local targetOnly = profile.autoCategoryOrder.contexts.bank
+                assert(targetOnly.hidden["ic:furniture_materials"] == false
+                    and targetOnly.displayPositions["ic:furniture_materials"] == 9)
+                local sourceOnly = profile.autoCategoryOrder.contexts.guild_bank
+                assert(sourceOnly.hidden["ic:furniture_materials"] == false
+                    and sourceOnly.hidden["ic:custom_collision"] == nil
+                    and sourceOnly.displayPositions["ic:furniture_materials"] == 11
+                    and sourceOnly.displayPositions["ic:custom_collision"] == nil)
+            end,
+        },
+        {
+            name = "Ambiguous exact-name collisions fail before publishing any profile migration",
+            run = function()
+                local addon = LoadAddon(nil)
+                addon.preLoadedRulesets = {
+                    furniture_materials = {
+                        displayName = "Furniture Materials",
+                        patterns = { "Mundane Rune", "Heartwood" },
+                        display = {
+                            show = false, notify = false, bank = false, group = true,
+                            isExpanded = true, isHidden = false,
+                        },
+                    },
+                    miscellaneous = {
+                        displayName = "Miscellaneous", patterns = {},
+                        isVirtual = true,
+                        display = {
+                            show = true, notify = false, bank = false, group = true,
+                            isExpanded = true, isHidden = false,
+                        },
+                    },
+                }
+                local colliding = {
+                    version = 10, itemListInitialized = true,
+                    trackedRules = NewCollisionRules(), autoCategoryOrder = NewCollisionOrder(),
+                }
+                colliding.trackedRules.second_collision = {
+                    displayName = "Furniture Materials", patterns = { "second" },
+                }
+                local other = {
+                    version = 10, itemListInitialized = true,
+                    trackedRules = NewCollisionRules(), autoCategoryOrder = NewCollisionOrder(),
+                }
+                local savedRules, savedOrder = colliding.trackedRules, colliding.autoCategoryOrder
+                local otherRules, otherOrder = other.trackedRules, other.autoCategoryOrder
+                _G.InventoryCompanion_SavedVariables = { Default = { account = {
+                    ["$AccountWide"] = colliding, inactive = other,
+                } } }
+                local ok, failure = pcall(addon.PrepareSavedVariables)
+                assert(not ok and tostring(failure):find("multiple custom groups named Furniture Materials", 1, true))
+                assert(colliding.version == 10 and colliding.trackedRules == savedRules
+                    and colliding.autoCategoryOrder == savedOrder and other.version == 10
+                    and other.trackedRules == otherRules and other.autoCategoryOrder == otherOrder)
             end,
         },
         {
@@ -895,7 +1159,7 @@ function GetSavedVariablesTests()
                 for _, location in ipairs({ "$AccountWide", "character", "inactive", "otherAccount" }) do
                     local originalRules = { builtin = { patterns = { "b", "c" }, display = { show = true } } }
                     local legacy = { version = 1, trackedRules = originalRules }
-                    local future = { version = 11, trackedRules = { unknownFutureSchema = true }, keep = true }
+                    local future = { version = 12, trackedRules = { unknownFutureSchema = true }, keep = true }
                     local saved = { Default = { account = { legacy = legacy } } }
                     if location == "otherAccount" then
                         saved.Default.otherAccount = { ["$AccountWide"] = future }
@@ -904,7 +1168,7 @@ function GetSavedVariablesTests()
                     end
                     local addon, calls = LoadAddon(saved)
                     AssertStopped(addon, calls, "supports version 10")
-                    assert(future.version == 11 and future.keep and future.trackedRules.unknownFutureSchema)
+                    assert(future.version == 12 and future.keep and future.trackedRules.unknownFutureSchema)
                     assert(legacy.version == 1 and legacy.trackedRules == originalRules and originalRules.builtin.patterns[1] == "b")
                     assert(originalRules.builtin.display.show, "Downgrade refusal must not partially normalize old data")
                 end
@@ -925,8 +1189,8 @@ function GetSavedVariablesTests()
             run = function()
                 local profile = { version = 1, trackedRules = { custom = { patterns = { "Keep*" } } } }
                 local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
-                addon.SettingsVersion = 11
-                AssertStopped(addon, calls, "no supported migration from version 1 to version 11")
+                addon.SettingsVersion = 12
+                AssertStopped(addon, calls, "no supported migration from version 1 to version 12")
                 assert(profile.version == 1 and profile.trackedRules.custom.patterns[1] == "Keep*")
             end,
         },

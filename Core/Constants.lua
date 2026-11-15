@@ -193,6 +193,7 @@ this.preLoadedRulesets = {
     },
     ["miscellaneous"] = { 
         displayName = "Miscellaneous",
+        isVirtual = true,
         patterns = {}, 
         display = { show = true, notify = false, bank = false, group = true, isExpanded = true, isHidden = false } 
     },	

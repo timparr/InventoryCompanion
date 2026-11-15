@@ -545,6 +545,155 @@ end
 
 this.CopySavedValue = CopySavedValue
 
+local function FindBuiltInNameCollisions(rules, context)
+    if rules == nil then return {} end
+    local builtInsByName = {}
+    for ruleKey, base in pairs(this.preLoadedRulesets) do
+        if base.isVirtual ~= true then
+            local keys = builtInsByName[base.displayName]
+            if keys == nil then
+                keys = {}
+                builtInsByName[base.displayName] = keys
+            end
+            keys[#keys + 1] = ruleKey
+        end
+    end
+
+    local sourcesByTarget = {}
+    for ruleKey, saved in pairs(rules) do
+        if this.preLoadedRulesets[ruleKey] == nil then
+            local displayName = saved.displayName or ruleKey
+            local targets = builtInsByName[displayName]
+            if targets ~= nil then
+                assert(#targets == 1, context .. " matches multiple built-in groups named " .. displayName)
+                local targetKey = targets[1]
+                local sources = sourcesByTarget[targetKey]
+                if sources == nil then
+                    sources = {}
+                    sourcesByTarget[targetKey] = sources
+                end
+                sources[#sources + 1] = ruleKey
+            end
+        end
+    end
+
+    local collisions = {}
+    for targetKey, sources in pairs(sourcesByTarget) do
+        assert(#sources == 1,
+            context .. " has multiple custom groups named " .. this.preLoadedRulesets[targetKey].displayName)
+        collisions[#collisions + 1] = { sourceKey = sources[1], targetKey = targetKey }
+    end
+    table.sort(collisions, function(left, right) return left.targetKey < right.targetKey end)
+    return collisions
+end
+
+local function ValidateBuiltInVirtualNameCollisions()
+    assert(type(this.preLoadedRulesets) == "table", "Built-in rules are unavailable")
+    for builtInKey, builtIn in pairs(this.preLoadedRulesets) do
+        assert(type(builtIn.displayName) == "string" and builtIn.displayName ~= "",
+            "Built-in rule " .. tostring(builtInKey) .. " must have a display name")
+        assert(builtIn.isVirtual == nil or type(builtIn.isVirtual) == "boolean",
+            "Built-in rule " .. tostring(builtInKey) .. ".isVirtual must be boolean")
+        if builtIn.isVirtual ~= true then
+            for virtualKey, virtual in pairs(this.preLoadedRulesets) do
+                assert(type(virtual.displayName) == "string" and virtual.displayName ~= "",
+                    "Built-in rule " .. tostring(virtualKey) .. " must have a display name")
+                assert(virtual.isVirtual == nil or type(virtual.isVirtual) == "boolean",
+                    "Built-in rule " .. tostring(virtualKey) .. ".isVirtual must be boolean")
+                if virtual.isVirtual == true and builtIn.displayName == virtual.displayName then
+                    error(string.format(
+                        "Built-in group '%s' (%s) collides with virtual group '%s' (%s); "
+                            .. "initialization stopped before SavedVariables were changed.",
+                        builtIn.displayName, builtInKey, virtual.displayName, virtualKey), 2)
+                end
+            end
+        end
+    end
+end
+
+local function GetEffectiveRuleDisplay(saved, base)
+    local defaults = GetDisplayDefaults(base)
+    local display = CopyValues(defaults)
+    for key, value in pairs(saved.display or {}) do display[key] = value end
+    for flag in pairs(extendedDisplayFlags) do
+        if display[flag] == nil then
+            display[flag] = GetExtendedDefault(defaults, saved.display, flag)
+        end
+    end
+    return this.ResolveItemDisplay(display)
+end
+
+local function RemapAutoCategoryOrder(order, sourceKey, targetKey, context)
+    assert(type(order) == "table" and type(order.contexts) == "table",
+        context .. ".autoCategoryOrder must contain contexts")
+    local sourceReference, targetReference = "ic:" .. sourceKey, "ic:" .. targetKey
+    for contextKey, contextOrder in pairs(order.contexts) do
+        for _, mode in ipairs({ "display", "matching" }) do
+            local sequence = contextOrder[mode]
+            assert(type(sequence) == "table", context .. ".autoCategoryOrder." .. contextKey .. "." .. mode
+                .. " must be a table")
+            local hasSourceReference = false
+            for _, reference in ipairs(sequence) do
+                if reference == sourceReference then
+                    hasSourceReference = true
+                    break
+                end
+            end
+            local remapped, seen = {}, {}
+            for _, reference in ipairs(sequence) do
+                -- Keep the custom group's position when both slugs are present.
+                if reference ~= targetReference or not hasSourceReference then
+                    if reference == sourceReference then reference = targetReference end
+                    assert(not seen[reference], context .. ".autoCategoryOrder." .. contextKey .. "." .. mode
+                        .. " contains a duplicate after collision promotion")
+                    seen[reference] = true
+                    remapped[#remapped + 1] = reference
+                end
+            end
+            contextOrder[mode] = remapped
+        end
+        for _, field in ipairs({ "hidden", "displayPositions" }) do
+            local values = contextOrder[field]
+            assert(type(values) == "table", context .. ".autoCategoryOrder." .. contextKey .. "." .. field
+                .. " must be a table")
+            local sourceValue = values[sourceReference]
+            if sourceValue ~= nil then values[targetReference] = sourceValue end
+            values[sourceReference] = nil
+        end
+    end
+end
+
+local function PromoteBuiltInNameCollisions(profile, context)
+    local collisions = FindBuiltInNameCollisions(profile.trackedRules, context .. ".trackedRules")
+    if #collisions == 0 then return false end
+
+    CheckAutoCategoryOrder(profile.autoCategoryOrder, context .. ".autoCategoryOrder", profile.trackedRules)
+    profile.trackedRules = CopySavedValue(profile.trackedRules)
+    profile.autoCategoryOrder = CopySavedValue(profile.autoCategoryOrder)
+    for _, collision in ipairs(collisions) do
+        local source = CopySavedValue(profile.trackedRules[collision.sourceKey])
+        local sourceRules = { [collision.sourceKey] = source }
+        NormalizeRule(sourceRules, collision.sourceKey)
+        source = sourceRules[collision.sourceKey] or {}
+        local patterns = GetPatternList(nil, source)
+        local display = GetEffectiveRuleDisplay(source, nil)
+        local promoted = source
+        promoted.display = {}
+        for flag in pairs(customDisplayDefaults) do promoted.display[flag] = display[flag] end
+        for flag in pairs(extendedDisplayFlags) do promoted.display[flag] = display[flag] end
+
+        profile.trackedRules[collision.targetKey] = nil
+        profile.trackedRules[collision.sourceKey] = nil
+        ReconcilePatterns(GetBaseline(collision.targetKey), promoted, patterns)
+        profile.trackedRules[collision.targetKey] = promoted
+        NormalizeRule(profile.trackedRules, collision.targetKey)
+        RemapAutoCategoryOrder(profile.autoCategoryOrder, collision.sourceKey, collision.targetKey, context)
+    end
+    ValidateSavedRules(profile.trackedRules, context .. ".trackedRules")
+    CheckAutoCategoryOrder(profile.autoCategoryOrder, context .. ".autoCategoryOrder", profile.trackedRules)
+    return true
+end
+
 local preferenceFields = {
     "showTrackedItemsPanel", "showEmptyTrackedItems", "trackerOffsetX", "trackerOffsetY",
     "wrapTrackedItemNames", "trackerGroupThreshold", "trackerMaxRows", "trackerTitleSize",
@@ -770,6 +919,7 @@ function this.RestoreAccountWideListBackup()
 end
 
 function this.PrepareSavedVariables()
+    ValidateBuiltInVirtualNameCollisions()
     local saved = _G[this.SettingsName]
     if saved == nil then return end
     assert(type(saved) == "table", this.SettingsName .. " must be a table; initialization stopped")
@@ -923,6 +1073,23 @@ function this.PrepareSavedVariables()
                 candidate.autoCategoryIntegrationEnabled = nil
             end
             migration.initialized = candidate.itemListInitialized
+        end
+        if this.SettingsVersion >= 10 then
+            for index, entry in ipairs(profiles) do
+                local migration, candidate = migrations[index], migrations[index].candidate
+                if migration.initialized then
+                    PromoteBuiltInNameCollisions(candidate, entry.context)
+                end
+                local backup = migration.backup
+                if backup == nil and entry.data.accountWideListBackup ~= nil then
+                    backup = CopySavedValue(entry.data.accountWideListBackup)
+                end
+                if backup ~= nil and PromoteBuiltInNameCollisions(backup,
+                    entry.context .. ".accountWideListBackup") then
+                    ValidateAccountWideListBackup(backup, entry.context .. ".accountWideListBackup")
+                    migration.backup = backup
+                end
+            end
         end
     end
 

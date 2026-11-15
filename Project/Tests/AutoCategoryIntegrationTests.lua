@@ -112,6 +112,8 @@ this.NewAutoCategoryTestFixture = NewFixture
 
 local function NewStartupAutoCategory()
     local registry = { ruleList = {}, ruleNames = {}, compiled = {} }
+    local characterBags = {}
+    for _, context in ipairs(contexts) do characterBags[context.bag] = { rules = {} } end
     registry.AddRule = function(self, rule, overwrite)
         local index = self.ruleNames[rule.name]
         if index then
@@ -124,8 +126,8 @@ local function NewStartupAutoCategory()
     local ac = {
         Inited = false,
         saved = AutoCategory.saved,
-        acctSaved = { bags = {}, rules = {} },
-        charSaved = { bags = {}, rules = {} },
+        acctSaved = { bags = AutoCategory.saved.bags, rules = {} },
+        charSaved = { bags = characterBags, rules = {} },
         Plugins = {},
         RulesW = registry,
         RuleList = {},
@@ -159,6 +161,22 @@ local function NewStartupAutoCategory()
     ac.RefreshList = function() end
     AutoCategory = ac
     return ac
+end
+
+local function PrepareCollisionStartup()
+    NewFixture()
+    this.preLoadedRulesets = {
+        furniture_materials = {
+            displayName = "Furniture Materials",
+            patterns = { "Mundane Rune", "Heartwood", "Regulus", "Bast", "Clean Pelt",
+                "Alchemical Resin", "Decorative Wax", "Ochre" },
+            display = { show = false, notify = false, bank = false, group = true, isExpanded = true, isHidden = false },
+        },
+        miscellaneous = this.preLoadedRulesets.miscellaneous,
+    }
+    this.InvalidateRuleCache()
+    this.ValidateSavedRuleProfiles()
+    return NewStartupAutoCategory()
 end
 
 local function PrepareActive(rules)
@@ -2026,6 +2044,56 @@ function this.GetAutoCategoryIntegrationTests()
                 end
                 assert(table.concat(this.accountWide.autoCategoryOrder.contexts.backpack.display, ",") == savedOrder,
                     "A failed projection must not save its proposed order")
+            end,
+        },
+        {
+            name = "Plugin registration leaves AutoCategory collision assignments and templates unchanged",
+            run = function()
+                local ac = PrepareCollisionStartup()
+                local categoryName = "Furniture Materials" .. icCategoryNameMarkupSuffix
+                local snapshots = {}
+                for _, profileName in ipairs({ "acctSaved", "charSaved" }) do
+                    local profile = ac[profileName]
+                    for _, context in ipairs(contexts) do
+                        local bag = profile.bags[context.bag]
+                        local assignment = Assignment(categoryName, 71, 72,
+                            { icOwned = true, icRuleKey = "custom_collision" })
+                        local template = {
+                            name = categoryName, icOwned = true, icRuleKey = "custom_collision",
+                            runpriority = 71, showpriority = 72, isHidden = true,
+                        }
+                        bag.rules[#bag.rules + 1] = assignment
+                        bag.icAssignmentTemplates = bag.icAssignmentTemplates or {}
+                        bag.icAssignmentTemplates.custom_collision = template
+                        snapshots[#snapshots + 1] = {
+                            bag = bag, rules = bag.rules, assignment = assignment,
+                            templates = bag.icAssignmentTemplates, template = template,
+                        }
+                    end
+                end
+
+                integration.Initialize()
+                assert(ac.Plugins["Inventory Companion"] ~= nil and not integration.IsFaulted(),
+                    "Normal plugin registration should not attempt collision migration")
+                for _, snapshot in ipairs(snapshots) do
+                    assert(snapshot.bag.rules == snapshot.rules and snapshot.assignment.icRuleKey == "custom_collision",
+                        "Plugin registration must not rekey AutoCategory assignments")
+                    assert(snapshot.bag.icAssignmentTemplates == snapshot.templates
+                        and snapshot.templates.custom_collision == snapshot.template,
+                        "Plugin registration must not rekey AutoCategory templates")
+                end
+            end,
+        },
+        {
+            name = "AutoCategory collision checking examines later sources after omitted optional sources",
+            run = function()
+                local ac = PrepareCollisionStartup()
+                local categoryName = "Furniture Materials" .. icCategoryNameMarkupSuffix
+                ac.acctRules = { rules = { { name = categoryName } } }
+                local accountRows = ac.saved.bags[1].rules
+                integration.Initialize()
+                assert(integration.IsFaulted() and this.autoCategoryFailure:find("collision", 1, true))
+                assert(ac.Plugins["Inventory Companion"] == nil and ac.saved.bags[1].rules == accountRows)
             end,
         },
         {
