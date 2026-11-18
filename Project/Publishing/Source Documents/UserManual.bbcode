@@ -18,12 +18,20 @@ Inventory Companion is an Elder Scrolls Online addon for inventory transfers, it
 [*]For a currency, use its [B]Character[/B] and [B]Bank[/B] controls to choose which balances appear. Account-wide currencies do not have those location controls.
 [*]Use the row's show/hide button to include or exclude the resource from the panel. Hidden rows appear under [B]Not shown in panel[/B]. Use the up/down arrows to change the order of shown rows.
 [*][B]Show Empty Currencies[/B] keeps currencies with a zero balance in the panel. Turn it off to show only currencies with a positive balance in at least one selected location.
+[*][B]Grid Columns[/B] changes the number of columns immediately without changing resource order. The default is three; the maximum reflects resources available at logon/reload, regardless of filtering. Reset Panel restores three columns and the existing resource defaults without moving panels.
 [*]Drag the currency panel to move it. Right-click it to toggle whether zero-balance currencies are shown.
 [/LIST]
 
 [URL=../Resources/currency-panel-settings.svg]Schematic of Currency Summary Panel settings, including location, Notify, visibility, and ordering controls[/URL]
 
 The Currency Summary Panel and [B]Standalone Progress Bars[/B] are independent. The progress-bar settings let you show or hide a separate bar for backpack space, bank space, or a supported capped currency. Drag a bar to reposition it. Its advanced settings control warning and danger thresholds and the normal bar color; shared alert colors control warning and danger colors.
+
+[B]Panel positions while using other screens[/B]
+The tracker, currency panel and resource bars that normally show remain visible while using keyboard inventory, banks, the furniture vault, merchants, fences, IC editors and the main settings menu. Normal placeholder text also remains visible. Disabled panels stay hidden.
+
+Panels already clear of the screen stay in place. You may arrange IC panels touching or overlapping one another; IC does not move them to enforce spacing. Actual overlap with ZOS UI can trigger correction, but touching its edge does not. Displaced panels stack beside the active window, preferring its right edge, then its left. When finding new positions, IC leaves at least 5 pixels between its panels where space permits. In very tight spaces, panels may overlap with staggered corners so you can drag them apart. Other addons' windows are not considered.
+
+Drag a panel while one of these screens is open to save a position for that screen and character within the selected settings profile. Closing the screen restores its normal position. IC editor tabs share one layout; banks, house banks, guild banks, the furniture vault, inventory, merchants, fences and settings each have separate layouts. Withdrawal and deposit share their interaction's layout. User-chosen positions survive reload/logout. Changes to visible UI or panel sizes can temporarily move obstructed panels, including manually positioned ones, without overwriting saved positions or interrupting dragging. Unobstructed panels stay put; reopening a screen starts from saved positions again. Full-profile copying includes these layouts. Settings-only resets preserve them; panel-position resets also clear the affected panel's scene layouts.
 
 [SIZE="4"][B]What the Notify controls do[/B][/SIZE]
 

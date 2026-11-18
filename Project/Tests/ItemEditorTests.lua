@@ -1,4 +1,5 @@
 local this = InventoryCompanion
+this.PanelLayout = { UpdateContext = function() end }
 local controls = {}
 local editorRefreshes, trackerRefreshes, ruleWrites, registryUpdates = 0, 0, 0, 0
 local inventory = {}

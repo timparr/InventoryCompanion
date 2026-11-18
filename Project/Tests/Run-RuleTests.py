@@ -328,6 +328,14 @@ for relative in (
     "Tracking\\EditPanelAutoCategoryTab.lua",
 ):
     autocategory_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
+panel_layout_lua = LuaRuntime(unpack_returned_tuples=True)
+panel_layout_lua.globals().PanelLayoutSource = (root / "Tracking\\PanelLayout.lua").read_text(encoding="utf-8-sig")
+panel_layout_lua.globals().ProgressBarSource = (root / "Banking\\ProgressBarResources.lua").read_text(encoding="utf-8-sig")
+panel_layout_lua.globals().ResourceBarSource = (root / "Banking\\ResourceProgressBars.lua").read_text(encoding="utf-8-sig")
+panel_layout_lua.execute((root / "Project\\Tests\\PanelLayoutTests.lua").read_text(encoding="utf-8-sig"))
+currency_grid_lua = LuaRuntime(unpack_returned_tuples=True)
+currency_grid_lua.globals().CurrencyGridSource = (root / "Tracking\\CurrencyPanel.lua").read_text(encoding="utf-8-sig")
+currency_grid_lua.execute((root / "Project\\Tests\\CurrencyGridColumnsTests.lua").read_text(encoding="utf-8-sig"))
 tests = []
 suites = (item_editor_lua.globals().InventoryCompanion.GetItemEditorTests(),)
 if not args.item_editor_only:
@@ -336,6 +344,8 @@ if not args.item_editor_only:
     for relative in ("Core\\Utils.lua", "Project\\Tests\\ItemNotificationTests.lua"):
         notification_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
     suites += (
+        panel_layout_lua.globals().GetPanelLayoutTests(),
+        currency_grid_lua.globals().GetCurrencyGridColumnsTests(),
         notification_lua.globals().InventoryCompanion.GetItemNotificationTests(),
         lua.globals().InventoryCompanion.GetRuleTests(),
         lua.globals().InventoryCompanion.GetGroupEditorTests(),

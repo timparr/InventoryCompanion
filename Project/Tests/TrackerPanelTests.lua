@@ -1,6 +1,7 @@
 local this = InventoryCompanion
 local controls, pooled = {}, {}
 local counters, fixture
+local trackerTestDefaults = this.defaultsAccount
 
 TOPLEFT, TOPRIGHT, BOTTOMLEFT, BOTTOMRIGHT = "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT"
 MOUSE_BUTTON_INDEX_LEFT, MOUSE_BUTTON_INDEX_RIGHT = 1, 2
@@ -148,16 +149,29 @@ end
 local function Setup(sizes, budget, expanded, wrapped, length)
     counters = { scans = 0, creations = 0, measurements = 0, rowLayouts = 0, writes = 0 }
     fixture = { index = {}, items = {}, groupIds = {} }
-    this.accountWide = { trackedRules = {}, trackedItems = {}, showTrackedItemsPanel = true,
+    this.accountWide = { trackedRules = {}, trackedItems = {}, PanelSettings = { Tracker = { showTrackedItemsPanel = true,
         showEmptyTrackedItems = false, trackerMaxRows = budget, trackerGroupThreshold = 1,
-        trackerOffsetX = 50, trackerOffsetY = 50, wrapTrackedItemNames = wrapped == true, trackerTitleSize = 20 }
+        Layout_NoScene = { offsetX = 50, offsetY = 50 }, wrapTrackedItemNames = wrapped == true, trackerTitleSize = 20 },
+        Currency = { showEmptyCurrencies = true, currencyGridColumns = 3,
+            currencyPreferences = {}, capacityPreferences = {}, Layout_NoScene = { offsetX = 50, offsetY = 150 } } } }
     this.character = { trackedRules = {}, trackedItems = {}, useCharacterItemList = false }
     _G[this.SettingsName] = { Default = { account = { ["$AccountWide"] = this.accountWide,
         character = this.character } } }
     function GetDisplayName() return "account" end
     GAMEPAD_DIALOGS, SI_DIALOG_CANCEL = { BASIC = 1 }, "Cancel"
     function ZO_Dialogs_RegisterCustomDialog() end
-    this.defaultsAccount = { trackerMaxRows = 20, trackerTitleSize = 20 }
+    this.defaultsAccount = trackerTestDefaults
+    this.PanelLayout = {
+        IsNormalContext = function() return true end,
+        UpdateVisibility = function() end,
+        OnMoveStop = function() end,
+        OnMoveStart = function() end,
+        UpdateContext = function() end,
+        RegisterPanel = function(_, control)
+            control:ClearAnchors()
+            control:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, 50, 50)
+        end,
+    }
     this.preLoadedRulesets = {}
     for index, size in ipairs(sizes) do
         local name = "group" .. index
@@ -237,7 +251,7 @@ function this.GetTrackerPanelTests()
         assert(not Expanded("group1") and Expanded("group2"))
         Equal(#VisibleRows(), 4)
         AddItem("group2")
-        this.accountWide.trackerMaxRows = 10
+        this.accountWide.PanelSettings.Tracker.trackerMaxRows = 10
         this.RefreshItemTrackerPanel("inventory")
         assert(not Expanded("group1") and Expanded("group2"))
         this.SetRuleFlag("group1", "bank", true)
@@ -290,10 +304,10 @@ function this.GetTrackerPanelTests()
         Setup({ 2, 2 }, 6, true, true, 80)
         this.RefreshItemTrackerPanel()
         Equal(#VisibleRows(), 6)
-        assert(Expanded("group1") and Expanded("group2") and this.accountWide.wrapTrackedItemNames)
+        assert(Expanded("group1") and Expanded("group2") and this.accountWide.PanelSettings.Tracker.wrapTrackedItemNames)
         for _, row in ipairs(VisibleRows()) do Equal(row.height, 22) end
         Equal(counters.writes, 0)
-        this.accountWide.trackerMaxRows = 20
+        this.accountWide.PanelSettings.Tracker.trackerMaxRows = 20
         this.RefreshItemTrackerPanel("settings")
         local multiline = false
         for _, row in ipairs(VisibleRows()) do if row.height > 22 then multiline = true end end
@@ -371,7 +385,7 @@ function this.GetTrackerPanelTests()
         CheckRightMargin(true)
         Click("group1")
         CheckRightMargin(false)
-        this.accountWide.wrapTrackedItemNames = true
+        this.accountWide.PanelSettings.Tracker.wrapTrackedItemNames = true
         this.RefreshItemTrackerPanel()
         CheckRightMargin(false)
         Click("group1")
@@ -379,9 +393,9 @@ function this.GetTrackerPanelTests()
         for _, row in ipairs(VisibleRows()) do Equal(row:GetHeight(), 22) end
         Click("group1")
         CheckRightMargin(false)
-        this.accountWide.showTrackedItemsPanel = false
+        this.accountWide.PanelSettings.Tracker.showTrackedItemsPanel = false
         this.RefreshItemTrackerPanel()
-        this.accountWide.showTrackedItemsPanel = true
+        this.accountWide.PanelSettings.Tracker.showTrackedItemsPanel = true
         this.RefreshItemTrackerPanel()
         CheckRightMargin(false)
     end)
@@ -425,7 +439,7 @@ function this.GetTrackerPanelTests()
         assert(SavedExpanded("group1"))
         Click("group1")
         assert(not Expanded("group1") and not SavedExpanded("group1"))
-        this.accountWide.trackerMaxRows = 8
+        this.accountWide.PanelSettings.Tracker.trackerMaxRows = 8
         this.RefreshItemTrackerPanel("settings")
         assert(not Expanded("group1") and Expanded("group2"))
         Equal(counters.writes, 2)
@@ -448,7 +462,7 @@ function this.GetTrackerPanelTests()
         this.SetRuleFlag("group2", "bank", true)
         this.RefreshItemTrackerPanel()
         assert(Expanded("group1") and not Expanded("group2"))
-        this.accountWide.trackerMaxRows = 10
+        this.accountWide.PanelSettings.Tracker.trackerMaxRows = 10
         this.RefreshItemTrackerPanel("settings")
         assert(Expanded("group1") and Expanded("group2"))
     end)
@@ -462,7 +476,7 @@ function this.GetTrackerPanelTests()
         this.RefreshItemTrackerPanel()
         assert(not Expanded("group1") and not Expanded("group2") and not Expanded("group3"))
         Equal(#VisibleRows(), 3)
-        this.accountWide.trackerMaxRows = 11
+        this.accountWide.PanelSettings.Tracker.trackerMaxRows = 11
         this.RefreshItemTrackerPanel("settings")
         assert(Expanded("group1") and not Expanded("group2") and Expanded("group3"))
         assert(not SavedExpanded("group2"))
@@ -600,7 +614,7 @@ function this.GetTrackerPanelTests()
         this.RefreshItemTrackerPanel()
         Equal(#VisibleRows(), 6)
         assert(child.height > rows.height)
-        this.accountWide.trackerGroupThreshold = 30
+        this.accountWide.PanelSettings.Tracker.trackerGroupThreshold = 30
         this.RefreshItemTrackerPanel("settings")
         Equal(#VisibleRows(), 12)
         assert(child.height > rows.height)
@@ -698,7 +712,7 @@ function this.GetTrackerPanelTests()
         this.RefreshItemTrackerPanel()
         assert(not Expanded("group1") and not Expanded("group2"))
         assert(SavedExpanded("group1") and SavedExpanded("group2"))
-        this.accountWide.trackerMaxRows = 8
+        this.accountWide.PanelSettings.Tracker.trackerMaxRows = 8
         this.RefreshItemTrackerPanel("settings")
         assert(Expanded("group1") and Expanded("group2"))
         Click("group1")
@@ -750,68 +764,39 @@ function this.GetTrackerPanelTests()
         assert(not Expanded("group1") and not Expanded("group2"))
     end)
 
-    Add("Tracker toggle stays hidden across interaction and editor visibility ticks", function()
+    Add("Tracker visibility ticker delegates to the single shared layout owner", function()
         Setup({ 2 }, 20, false)
-        this.RefreshItemTrackerPanel()
         local tick
         EVENT_MANAGER.RegisterForUpdate = function(_, _, _, callback) tick = callback end
-        ZO_CompassFrame = Control("compass", GuiRoot)
-        InventoryCompanion_TrackedItemsWindow = Control("itemsEditor", GuiRoot)
-        InventoryCompanion_GroupsWindow = Control("groupsEditor", GuiRoot)
-        InventoryCompanion_CurrencyFloat = Control("currency", GuiRoot)
-        local interaction = false
-        this.Utils.IsItemInteractionActive = function() return interaction end
-        this.HasVisibleCurrencyResources = function() return false end
-        this.SetProgressBarsHidden = function() end
-        local adjust, restore = this.AdjustTrackerPositionForInteraction, this.RestoreTrackerPosition
-        local adjustments = 0
-        this.AdjustTrackerPositionForInteraction = function() adjustments = adjustments + 1 end
-        this.RestoreTrackerPosition = function() end
+        assert(loadstring(TrackerEventSource))()
+        local updates = 0
+        this.PanelLayout.UpdateContext = function() updates = updates + 1 end
         this.InitCutsceneTicker()
-
-        for _, context in ipairs({ "world", "interaction", "items", "groups" }) do
-            interaction = context == "interaction"
-            InventoryCompanion_TrackedItemsWindow:SetHidden(context ~= "items")
-            InventoryCompanion_GroupsWindow:SetHidden(context ~= "groups")
-            this.SetItemTrackerPanelVisible(false)
-            local before = adjustments
-            tick()
-            tick()
-            assert(InventoryCompanion_ItemTrackerFloat:IsHidden(), context .. " forced hidden tracker visible")
-            Equal(adjustments, before)
-            this.ToggleItemTrackerPanel()
-            tick()
-            assert(not InventoryCompanion_ItemTrackerFloat:IsHidden(), context .. " did not restore tracker")
-            Equal(adjustments, before + (interaction and 1 or 0))
-        end
-        InventoryCompanion_TrackedItemsWindow:SetHidden(true)
-        InventoryCompanion_GroupsWindow:SetHidden(true)
-        ZO_CompassFrame:SetHidden(true)
         tick()
-        assert(InventoryCompanion_ItemTrackerFloat:IsHidden(), "Cutscene suppression must remain active")
-        this.AdjustTrackerPositionForInteraction, this.RestoreTrackerPosition = adjust, restore
+        tick()
+        Equal(updates, 2)
     end)
 
     Add("Tracker row preference validates defaults and malformed external input", function()
         Setup({}, 20, false)
-        this.accountWide.trackerMaxRows = nil
+        this.accountWide.PanelSettings.Tracker.trackerMaxRows = nil
         this.ValidateTrackerSettings()
-        Equal(this.accountWide.trackerMaxRows, 20)
+        Equal(this.accountWide.PanelSettings.Tracker.trackerMaxRows, 20)
         for _, value in ipairs({ "20", true, {}, 0, 4, 51, 5.5, math.huge, 0 / 0 }) do
-            this.accountWide.trackerMaxRows = value
+            this.accountWide.PanelSettings.Tracker.trackerMaxRows = value
             assert(not pcall(this.ValidateTrackerSettings), "Malformed row budget must fail")
         end
         for _, value in ipairs({ 5, 20, 50 }) do
-            this.accountWide.trackerMaxRows = value
+            this.accountWide.PanelSettings.Tracker.trackerMaxRows = value
             this.ValidateTrackerSettings()
-            Equal(this.accountWide.trackerMaxRows, value)
+            Equal(this.accountWide.PanelSettings.Tracker.trackerMaxRows, value)
         end
     end)
 
     Add("Tracker title uses adjustable regular font and matching icon without changing rows", function()
         Setup({ 2 }, 20, false)
         for _, size in ipairs({ 16, 20, 28 }) do
-            this.accountWide.trackerTitleSize = size
+            this.accountWide.PanelSettings.Tracker.trackerTitleSize = size
             this.RefreshItemTrackerPanel()
             Equal(InventoryCompanion_ItemTrackerFloatTitle.font, "regular-font|" .. size .. "|soft-shadow-thin")
             Equal(InventoryCompanion_ItemTrackerFloatEditIcon.width, size)
@@ -820,11 +805,11 @@ function this.GetTrackerPanelTests()
             Equal(InventoryCompanion_ItemTrackerFloatSettingsIcon.height, size)
             for _, row in ipairs(VisibleRows()) do Equal(row.height, 22) end
         end
-        this.accountWide.trackerTitleSize = nil
+        this.accountWide.PanelSettings.Tracker.trackerTitleSize = nil
         this.ValidateTrackerSettings()
-        Equal(this.accountWide.trackerTitleSize, 20)
+        Equal(this.accountWide.PanelSettings.Tracker.trackerTitleSize, 20)
         for _, value in ipairs({ "20", true, {}, 15, 29, 20.5, math.huge, 0 / 0 }) do
-            this.accountWide.trackerTitleSize = value
+            this.accountWide.PanelSettings.Tracker.trackerTitleSize = value
             assert(not pcall(this.ValidateTrackerSettings))
         end
     end)
@@ -852,24 +837,24 @@ function this.GetTrackerPanelTests()
         this.UpdateEventRegistry = function() updates = updates + 1 end
         local scans = counters.scans
         this.ToggleItemTrackerPanel()
-        assert(this.accountWide.showTrackedItemsPanel == false)
+        assert(this.accountWide.PanelSettings.Tracker.showTrackedItemsPanel == false)
         assert(InventoryCompanion_ItemTrackerFloat:IsHidden())
         Equal(counters.scans, scans)
         Equal(updates, 1)
         this.ToggleItemTrackerPanel()
-        assert(this.accountWide.showTrackedItemsPanel == true)
+        assert(this.accountWide.PanelSettings.Tracker.showTrackedItemsPanel == true)
         assert(not InventoryCompanion_ItemTrackerFloat:IsHidden())
         Equal(counters.scans, scans + 1)
         Equal(updates, 2)
-        this.accountWide.showTrackedItemsPanel = nil
+        this.accountWide.PanelSettings.Tracker.showTrackedItemsPanel = nil
         this.ToggleItemTrackerPanel()
-        assert(this.accountWide.showTrackedItemsPanel == false, "Missing optional visibility means shown, so toggle must hide")
+        assert(this.accountWide.PanelSettings.Tracker.showTrackedItemsPanel == false, "Missing optional visibility means shown, so toggle must hide")
         this.UpdateEventRegistry = registry
     end)
 
     Add("Main addon settings expose AutoCategory recovery navigation and open the item editor", function()
         Setup({ 2 }, 20, false)
-        this.accountWide.showTrackedItemsPanel = false
+        this.accountWide.PanelSettings.Tracker.showTrackedItemsPanel = false
         this.defaultsCharacter = {}
         this.Utils.DisplayName = function() return "Inventory Companion" end
         this.GetCurrencyPanelSettingsControls = function() return {} end
@@ -1008,8 +993,8 @@ function this.GetTrackerPanelTests()
         button.handlers.OnClicked()
         Equal(current, "InventoryCompanion_TrackedItemsScene")
         Equal(refreshes, 2)
-        assert(this.accountWide.showTrackedItemsPanel == false, "Opening the editor must not change saved HUD visibility")
-        this.accountWide.showTrackedItemsPanel = true
+        assert(this.accountWide.PanelSettings.Tracker.showTrackedItemsPanel == false, "Opening the editor must not change saved HUD visibility")
+        this.accountWide.PanelSettings.Tracker.showTrackedItemsPanel = true
         this.InitItemTrackerPanel()
         InventoryCompanion_ItemTrackerFloatSettingsIcon.handlers.OnClicked()
         Equal(openedPanel, settingsPanel)
@@ -1099,7 +1084,7 @@ function this.GetTrackerPanelTests()
         Equal(Count("miscellaneous"), "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 7")
         Click("miscellaneous")
         Equal(GetControl(VisibleRows()[2], "Count").text, "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 7")
-        this.accountWide.trackerGroupThreshold = 8
+        this.accountWide.PanelSettings.Tracker.trackerGroupThreshold = 8
         this.RefreshItemTrackerPanel()
         Equal(GetControl(VisibleRows()[1], "Count").text, "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 7")
         this.UpdateRuleFlag("group1", "showBank", false)

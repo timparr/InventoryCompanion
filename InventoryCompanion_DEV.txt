@@ -37,6 +37,7 @@ Tracking/EditPanelAutoCategoryTab.xml
 Tracking/CurrencyPanel.xml
 
 Tracking/ItemDatabase.lua
+Tracking/PanelLayout.lua
 Tracking/AutoCategoryIntegration.lua
 Tracking/EditPanelTabManager.lua
 Tracking/EditPanelItemsTab.lua

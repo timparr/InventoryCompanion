@@ -22,18 +22,36 @@ local function LoadAddon(saved, releaseReader)
         },
     }
     addon.defaultsAccount = { trackedRules = {}, debug = {}, bankItemDelay = 100, guildBankPartialWithdrawEnabled = true,
-        trackerMaxRows = 20, trackerTitleSize = 20,
+        PanelSettings = {
+            Tracker = {
+                showTrackedItemsPanel = true, showEmptyTrackedItems = true, wrapTrackedItemNames = false,
+                trackerGroupThreshold = 8, trackerMaxRows = 20, trackerTitleSize = 20,
+                Layout_NoScene = { offsetX = 50, offsetY = 50 },
+            },
+            Currency = {
+                showEmptyCurrencies = true, currencyGridColumns = 3,
+                currencyPreferences = {}, capacityPreferences = {},
+                Layout_NoScene = { offsetX = 50, offsetY = 150 },
+            },
+        },
         autoCategoryTimingThresholdMs = 500 }
     addon.defaultsCharacter = { itemListInitialized = false, useCharacterItemList = false }
     for _, method in ipairs({
         "InitCutsceneTicker", "InitContextMenus", "InitializeCurrencyHelper", "InitializeProgressBarResources",
-        "InitResourceProgressBars", "InitItemTrackerPanel", "InitCurrencyPanel", "CreateSettingsPanel", "UpdateEventRegistry",
+        "InitializeCurrencyGridColumns", "InitResourceProgressBars", "InitItemTrackerPanel", "InitCurrencyPanel",
+        "CreateSettingsPanel", "UpdateEventRegistry",
     }) do
         addon[method] = function() calls.modules = calls.modules + 1 end
     end
+    addon.PanelLayout = {
+        Initialize = function() end,
+        CompleteInitialization = function() end,
+        OnProfileChanged = function() end,
+    }
     local function NewProfile(_, name, version, namespace, defaults, key)
         calls.constructors = calls.constructors + 1
-        assert(namespace == nil and version == 10, "Constructors must request schema version 10 without a namespace")
+        assert(namespace == nil and version == addon.SettingsVersion,
+            "Constructors must request the active schema version without a namespace")
         local root = _G[name]
         if root == nil then root = {}; _G[name] = root end
         root.Default = root.Default or {}
@@ -46,7 +64,9 @@ local function LoadAddon(saved, releaseReader)
         end
         profile.version = version
         for field, value in pairs(defaults) do
-            if profile[field] == nil then profile[field] = type(value) == "table" and {} or value end
+            if profile[field] == nil then
+                profile[field] = type(value) == "table" and addon.CopySavedValue(value) or value
+            end
         end
         return profile
     end
@@ -64,7 +84,8 @@ end
 
 local function AssertStopped(addon, calls, expectedMessage)
     local ok, message = pcall(calls.initialize)
-    assert(not ok and tostring(message):find(expectedMessage, 1, true), "Expected initialization error: " .. tostring(message))
+    assert(not ok and (expectedMessage == nil or tostring(message):find(expectedMessage, 1, true)),
+        "Expected initialization error: " .. tostring(message))
     assert(calls.constructors == 0 and calls.modules == 0 and calls.strings == 0,
         "Rejected data must stop initialization before constructors, modules, or UI setup")
     assert(not addon.state.isLoaded and addon.accountWide == nil and addon.character == nil,
@@ -166,32 +187,267 @@ function GetSavedVariablesTests()
         {
             name = "Full profile copy replaces every preference map and preserves destination metadata and account controls",
             run = function()
-                local source = { version = 10, itemListInitialized = true, trackedRules = { source = {} },
-                    trackedItems = {}, trackerOffsetX = 77, currencyPreferences = {},
+                local source = { version = 11, itemListInitialized = true, trackedRules = { source = {} },
+                    trackedItems = {}, PanelSettings = {
+                        Tracker = { trackerMaxRows = 24, Layout_NoScene = { offsetX = 77, offsetY = 50 },
+                            Layout_FurnitureVaultScene = { sourceCharacter = { offsetX = 31, offsetY = 42 } },
+                            Layout_BankScene = { sourceCharacter = { offsetX = 71, offsetY = 82 } } },
+                        Currency = { currencyPreferences = {}, capacityPreferences = {},
+                            Layout_NoScene = { offsetX = 50, offsetY = 150 } },
+                        ["capacity:bag"] = { showBar = true,
+                            Layout_NoScene = { offsetX = 50, offsetY = 90 } },
+                    },
                     bankItemDelay = 999, autoCategoryIntegrationEnabled = true }
-                local destination = { version = 10, useCharacterItemList = true, itemListInitialized = true,
-                    trackedRules = { destination = {} }, trackedItems = {},
-                    currencyPreferences = { [2] = { showCompact = false } },
-                    progressBarPreferences = { ["capacity:bank"] = { showBar = false } },
+                local destination = { version = 11, useCharacterItemList = true, itemListInitialized = true,
+                    trackedRules = { destination = {} }, trackedItems = {}, PanelSettings = {
+                        Tracker = { Layout_NoScene = { offsetX = 9, offsetY = 8 },
+                            Layout_BankScene = { destinationCharacter = { offsetX = 19, offsetY = 18 } } },
+                        Currency = { currencyPreferences = { [2] = { showCompact = false } },
+                            capacityPreferences = {}, Layout_NoScene = { offsetX = 20, offsetY = 30 } },
+                        ["capacity:bank"] = { showBar = false,
+                            Layout_NoScene = { offsetX = 50, offsetY = 130 } },
+                    },
                     ["$LastCharacterName"] = "Destination", unrelated = { keep = true } }
-                local account = { version = 10, bankItemDelay = 321, autoCategoryIntegrationEnabled = false }
+                local account = { version = 11, bankItemDelay = 321, autoCategoryIntegrationEnabled = false }
                 local addon, calls = LoadAddon({ Default = { account = {
                     ["$AccountWide"] = account, character = destination, source = source,
                 } } })
                 calls.initialize()
+                source.PanelSettings.Currency.currencyGridColumns = nil
+                local sourceBefore = addon.CopySavedValue(source)
                 assert(addon.CopyProfile("source"))
+                assert(addon.SavedValuesEqual(source, sourceBefore),
+                    "Defaulting copied preferences must not mutate the source")
+                assert(destination.PanelSettings.Currency.currencyGridColumns == 3,
+                    "Copying a profile must default a missing column count")
+                assert(destination.PanelSettings.Tracker.Layout_FurnitureVaultScene.sourceCharacter.offsetX == 31,
+                    "Full copying must preserve character-owned vault positions")
                 assert(destination.trackedRules.source and not destination.trackedRules.destination
-                    and next(destination.currencyPreferences) == nil and next(destination.progressBarPreferences) == nil)
-                assert(destination.trackerOffsetX == 77 and destination["$LastCharacterName"] == "Destination"
-                    and destination.version == 10 and destination.useCharacterItemList and destination.unrelated.keep)
+                    and next(destination.PanelSettings.Currency.currencyPreferences) == nil
+                    and destination.PanelSettings["capacity:bank"] == nil
+                    and destination.PanelSettings["capacity:bag"].showBar)
+                assert(destination.PanelSettings.Tracker.Layout_NoScene.offsetX == 77
+                    and destination.PanelSettings.Tracker.Layout_BankScene.sourceCharacter.offsetX == 71
+                    and destination.PanelSettings.Tracker.Layout_BankScene.destinationCharacter == nil
+                    and destination["$LastCharacterName"] == "Destination"
+                    and destination.version == 11 and destination.useCharacterItemList and destination.unrelated.keep)
                 assert(destination.bankItemDelay == nil and destination.autoCategoryIntegrationEnabled == nil
                     and account.bankItemDelay == 321 and account.autoCategoryIntegrationEnabled == false)
-                source.currencyPreferences[1] = { showCompact = false }
-                assert(destination.currencyPreferences[1] == nil)
+                source.PanelSettings.Currency.currencyPreferences[1] = { showCompact = false }
+                assert(destination.PanelSettings.Currency.currencyPreferences[1] == nil)
                 local before = addon.CopySavedValue(destination)
-                source.progressBarPreferences = { ["capacity:bag"] = { showBar = "yes" } }
+                source.PanelSettings["capacity:bag"].showBar = "yes"
+                sourceBefore = addon.CopySavedValue(source)
                 assert(not pcall(addon.CopyProfile, "source"))
                 assert(addon.SavedValuesEqual(destination, before), "Invalid import must not partially replace any fields")
+                assert(addon.SavedValuesEqual(source, sourceBefore),
+                    "A rejected copy must leave its source unchanged")
+            end,
+        },
+        {
+            name = "Schema 11 profile preparation defaults missing columns and rejects explicit invalid values",
+            run = function()
+                local addon = LoadAddon(nil)
+                local profile = { PanelSettings = { Currency = {} } }
+                addon.PrepareProfilePreferences(profile)
+                assert(profile.PanelSettings.Currency.currencyGridColumns == 3)
+                assert(profile.PanelSettings.Tracker.Layout_NoScene)
+                profile.PanelSettings.Currency.currencyGridColumns = 99
+                addon.PrepareProfilePreferences(profile)
+                assert(profile.PanelSettings.Currency.currencyGridColumns == 99,
+                    "Preparation must preserve explicit above-cap choices")
+                for _, invalid in ipairs({ 0, -1, 1.5, "3", math.huge }) do
+                    profile.PanelSettings.Currency.currencyGridColumns = invalid
+                    assert(not pcall(addon.PrepareProfilePreferences, profile),
+                        "Explicit invalid column counts must not be defaulted")
+                end
+            end,
+        },
+        {
+            name = "Schema 10 migration maps panel fields and preserves sparse resource state",
+            run = function()
+                local currencyPreferences = {
+                    [1] = {
+                        showCompact = false,
+                        order = 4,
+                        locations = { [2] = { hidden = true, showCompact = false, notify = false } },
+                    },
+                }
+                local capacityPreferences = { backpack = { showBar = true, order = 3 } }
+                local alertColors = {
+                    warning = { r = 0.9, g = 0.6, b = 0.2, a = 1 },
+                    danger = { r = 0.8, g = 0.1, b = 0.1, a = 1 },
+                }
+                local account = {
+                    version = 10, itemListInitialized = true, trackedRules = {}, trackedItems = {},
+                    showTrackedItemsPanel = false, showEmptyTrackedItems = false, wrapTrackedItemNames = true,
+                    trackerGroupThreshold = 6, trackerMaxRows = 31, trackerTitleSize = 24,
+                    trackerOffsetX = -45.5, trackerOffsetY = 220.25,
+                    showEmptyCurrencies = false, currencyGridColumns = 5,
+                    currencyOffsetX = -20.5, currencyOffsetY = 180.25,
+                    currencyPreferences = currencyPreferences, capacityPreferences = capacityPreferences,
+                    progressBarPreferences = {
+                        ["capacity:bag"] = {
+                            showBar = false, warningThreshold = 0.96, dangerThreshold = 0.8,
+                            offsetX = 17.5, normalColor = { r = 0.1, g = 0.2, b = 0.3, a = 1 },
+                            customSetting = { preserve = true },
+                        },
+                        ["currency:42"] = { showBar = false, offsetY = 240.5, customFlag = "keep" },
+                    },
+                    progressBarAlertColors = alertColors,
+                    currencyNamesById = { [1] = "Known Currency" },
+                    filterShow = false, filterNotify = false, filterCraftbag = true,
+                    filterMute = false, filterUntracked = true,
+                    unrelatedMetadata = { preserve = true },
+                }
+                local inactive = {
+                    version = 10, itemListInitialized = true, useCharacterItemList = false,
+                    trackedRules = {}, trackedItems = {}, trackerOffsetX = 99,
+                    currencyPreferences = { [2] = { showCompact = false } },
+                }
+                local saved = { Default = { account = {
+                    ["$AccountWide"] = account, inactive = inactive,
+                }, otherAccount = { ["$AccountWide"] = { version = 10, itemListInitialized = true,
+                    trackedRules = {}, trackedItems = {}, trackerOffsetY = 71 } } } }
+                local addon = LoadAddon(saved)
+                addon.PrepareSavedVariables()
+
+                assert(account.version == 11 and inactive.version == 11
+                    and saved.Default.otherAccount["$AccountWide"].version == 11)
+                assert(account.PanelSettings.Tracker.showTrackedItemsPanel == false
+                    and account.PanelSettings.Tracker.showEmptyTrackedItems == false
+                    and account.PanelSettings.Tracker.wrapTrackedItemNames
+                    and account.PanelSettings.Tracker.trackerGroupThreshold == 6
+                    and account.PanelSettings.Tracker.trackerMaxRows == 31
+                    and account.PanelSettings.Tracker.trackerTitleSize == 24)
+                assert(account.PanelSettings.Tracker.Layout_NoScene.offsetX == -45.5
+                    and account.PanelSettings.Tracker.Layout_NoScene.offsetY == 220.25)
+                assert(account.PanelSettings.Currency.showEmptyCurrencies == false
+                    and account.PanelSettings.Currency.currencyGridColumns == 5
+                    and account.PanelSettings.Currency.Layout_NoScene.offsetX == -20.5
+                    and account.PanelSettings.Currency.Layout_NoScene.offsetY == 180.25)
+                assert(account.PanelSettings.Currency.currencyPreferences ~= currencyPreferences
+                    and account.PanelSettings.Currency.currencyPreferences[1] ~= currencyPreferences[1]
+                    and account.PanelSettings.Currency.currencyPreferences[1].locations[2].notify == false)
+                assert(account.PanelSettings.Currency.capacityPreferences ~= capacityPreferences
+                    and account.PanelSettings.Currency.capacityPreferences.backpack.order == 3)
+                local bag = account.PanelSettings["capacity:bag"]
+                assert(bag.showBar == false and bag.warningThreshold == 0.75 and bag.dangerThreshold == 0.90
+                    and bag.Layout_NoScene.offsetX == 17.5 and bag.Layout_NoScene.offsetY == nil
+                    and bag.normalColor.r == 0.1 and bag.customSetting.preserve)
+                local currencyBar = account.PanelSettings["currency:42"]
+                assert(currencyBar.showBar == false and currencyBar.Layout_NoScene.offsetX == nil
+                    and currencyBar.Layout_NoScene.offsetY == 240.5 and currencyBar.customFlag == "keep")
+                assert(account.progressBarAlertColors == alertColors
+                    and account.currencyNamesById[1] == "Known Currency"
+                    and not account.filterShow and not account.filterNotify and account.filterCraftbag
+                    and not account.filterMute and account.filterUntracked
+                    and account.unrelatedMetadata.preserve)
+                assert(inactive.PanelSettings.Tracker.Layout_NoScene.offsetX == 99
+                    and inactive.PanelSettings.Tracker.Layout_NoScene.offsetY == 50)
+                assert(account.trackerOffsetX == nil and account.progressBarPreferences == nil
+                    and account.currencyPreferences == nil and account.capacityPreferences == nil
+                    and account.currencyOffsetX == nil and account.currencyGridColumns == nil)
+                local first = addon.CopySavedValue(account.PanelSettings)
+                addon.PrepareSavedVariables()
+                assert(addon.SavedValuesEqual(account.PanelSettings, first),
+                    "Schema-11 preparation must preserve the complete converted panel tree")
+            end,
+        },
+        {
+            name = "Schema 11 panel layout helpers preserve sparse scenes and reset only known layouts",
+            run = function()
+                local profile = {
+                    version = 11, itemListInitialized = true, trackedRules = {}, trackedItems = {},
+                    PanelSettings = {
+                        Tracker = {
+                            trackerMaxRows = 20,
+                            Layout_NoScene = { offsetX = -123.5, offsetY = 800.25 },
+                            Layout_BankScene = { characterA = { offsetX = -50.5, offsetY = 5000 } },
+                            Layout_Custom = { retain = true },
+                        },
+                        Currency = { Layout_NoScene = { offsetX = 12.5, offsetY = 250.25 } },
+                        FuturePanel = { futureSetting = { preserve = true } },
+                    },
+                }
+                local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
+                calls.initialize()
+
+                local absent = addon.GetPanelLayout("Tracker", "Layout_SettingsScene", "current-character")
+                assert(absent == nil and profile.PanelSettings.Tracker.Layout_SettingsScene == nil,
+                    "Reading an absent scene layout must not create it")
+                addon.SavePanelLayout("Tracker", "Layout_BankScene", "characterB", -8.25, 3900.5)
+                assert(addon.GetPanelLayout("Tracker", "Layout_BankScene", "characterA").offsetX == -50.5
+                    and addon.GetPanelLayout("Tracker", "Layout_BankScene", "characterB").offsetY == 3900.5
+                    and addon.GetPanelLayout("Tracker", "Layout_NoScene").offsetX == -123.5)
+                addon.SavePanelLayout("Currency", "Layout_NoScene", nil, -44.25, 901.5)
+                addon.SavePanelLayout("Tracker", "Layout_FurnitureVaultScene", "characterA", 600, 300)
+                addon.SavePanelLayout("Currency", "Layout_FurnitureVaultScene", "characterB", 650, 400)
+                addon.PrepareSavedVariables()
+                assert(addon.GetPanelLayout("Tracker", "Layout_FurnitureVaultScene", "characterA").offsetX == 600,
+                    "Same-schema preparation must preserve vault positions")
+                assert(addon.GetPanelLayout("Currency", "Layout_NoScene").offsetX == -44.25)
+                assert(not pcall(addon.GetPanelSettings, "FuturePanel"))
+                assert(not pcall(addon.GetPanelLayout, "Tracker", "Layout_BankScene", ""))
+                assert(not pcall(addon.SavePanelLayout, "Tracker", "Layout_BankScene", "characterC", 1, nil))
+
+                addon.ResetPanelLayouts("Tracker")
+                assert(addon.GetPanelLayout("Tracker", "Layout_NoScene").offsetX == 50
+                    and addon.GetPanelLayout("Tracker", "Layout_NoScene").offsetY == 50
+                    and addon.GetPanelLayout("Tracker", "Layout_BankScene", "characterA") == nil
+                    and addon.GetPanelLayout("Tracker", "Layout_BankScene", "characterB") == nil
+                    and addon.GetPanelLayout("Tracker", "Layout_FurnitureVaultScene", "characterA") == nil
+                    and addon.GetPanelLayout("Currency", "Layout_FurnitureVaultScene", "characterB").offsetX == 650
+                    and profile.PanelSettings.Tracker.Layout_Custom.retain)
+            end,
+        },
+        {
+            name = "Malformed schema-11 scenes abort every account migration without mutation",
+            run = function()
+                local malformedTrees = {
+                    { Tracker = { Layout_FurnitureVaultScene = { characterA = { offsetX = 10 } } } },
+                    { Tracker = { Layout_BankScene = { characterA = { offsetX = 10 } } } },
+                    { Tracker = { Layout_BankScene = { [42] = { offsetX = 10, offsetY = 20 } } } },
+                    { Tracker = { Layout_SettingsScene = { characterA = { offsetX = math.huge, offsetY = 20 } } } },
+                    { Currency = { Layout_NoScene = { offsetX = math.huge, offsetY = 20 } } },
+                    { ["capacity:bag"] = { Layout_NoScene = { offsetX = -1, offsetY = 20 } } },
+                    { Tracker = false },
+                }
+                for caseIndex, panelSettings in ipairs(malformedTrees) do
+                    local legacy = {
+                        version = 10, itemListInitialized = true, trackedRules = {}, trackerOffsetX = 75,
+                    }
+                    local invalid = {
+                        version = 11, itemListInitialized = true, trackedRules = {},
+                        PanelSettings = panelSettings,
+                    }
+                    local saved = { Default = { account = {
+                        ["$AccountWide"] = legacy, inactive = invalid,
+                    } } }
+                    local addon = LoadAddon(saved)
+                    local before = addon.CopySavedValue(saved)
+                    local ok = pcall(addon.PrepareSavedVariables)
+                    assert(not ok and addon.SavedValuesEqual(saved, before),
+                        "Malformed layout case " .. tostring(caseIndex)
+                            .. " must not partially publish another profile's schema migration")
+                end
+            end,
+        },
+        {
+            name = "Schema boundary rejects overlapping old and new panel fields without mutation",
+            run = function()
+                for _, fixture in ipairs({
+                    { version = 10, itemListInitialized = true, trackedRules = {}, trackerOffsetX = 12,
+                        PanelSettings = { FuturePanel = { preserve = true } } },
+                    { version = 11, itemListInitialized = true, trackedRules = {}, trackerOffsetX = 12 },
+                }) do
+                    local saved = { Default = { account = { ["$AccountWide"] = fixture } } }
+                    local addon = LoadAddon(saved)
+                    local before = addon.CopySavedValue(saved)
+                    assert(not pcall(addon.PrepareSavedVariables)
+                        and addon.SavedValuesEqual(saved, before),
+                        "A schema collision must not overwrite data or partially publish a migration")
+                end
             end,
         },
         {
@@ -201,7 +457,7 @@ function GetSavedVariablesTests()
                     { virtualKey = "miscellaneous", name = "Miscellaneous", builtInKey = "new_miscellaneous" },
                     { virtualKey = "future_virtual", name = "Future Virtual Group", builtInKey = "new_future_group" },
                 }) do
-                    local profile = { version = 10, itemListInitialized = true, trackedRules = {} }
+                    local profile = { version = 11, itemListInitialized = true, trackedRules = {} }
                     local saved = { Default = { account = { ["$AccountWide"] = profile } } }
                     local addon, calls = LoadAddon(saved)
                     local function Rule(displayName, isVirtual)
@@ -219,13 +475,13 @@ function GetSavedVariablesTests()
                     }
                     local before = addon.CopySavedValue(saved)
                     AssertStopped(addon, calls, "collides with virtual group")
-                    assert(addon.SavedValuesEqual(saved, before) and profile.version == 10,
+                    assert(addon.SavedValuesEqual(saved, before) and profile.version == 11,
                         "A built-in/virtual name conflict must not alter any saved data or version")
                 end
             end,
         },
         {
-            name = "Schema 10 repairs exact-name collisions in all initialized profiles and account backup",
+            name = "Schema 11 repairs exact-name collisions in all initialized profiles and account backup",
             run = function()
                 local addon = LoadAddon(nil)
                 addon.preLoadedRulesets = {
@@ -249,7 +505,7 @@ function GetSavedVariablesTests()
                 }
                 local function Profile(useCharacter)
                     return {
-                        version = 10, itemListInitialized = true, useCharacterItemList = useCharacter,
+                        version = 11, itemListInitialized = true, useCharacterItemList = useCharacter,
                         trackedRules = NewCollisionRules(), autoCategoryOrder = NewCollisionOrder(),
                     }
                 end
@@ -258,7 +514,7 @@ function GetSavedVariablesTests()
                 local inactive = Profile(true)
                 local otherAccount = Profile(false)
                 local caseOnly = {
-                    version = 10, itemListInitialized = true,
+                    version = 11, itemListInitialized = true,
                     trackedRules = { uppercase_collision = {
                         displayName = "FURNITURE MATERIALS", patterns = { "leave me unchanged" },
                     } },
@@ -274,8 +530,8 @@ function GetSavedVariablesTests()
                 } }
                 _G.InventoryCompanion_SavedVariables = saved
                 addon.PrepareSavedVariables()
-                assert(account.version == 10 and character.version == 10 and inactive.version == 10
-                    and otherAccount.version == 10 and caseOnly.version == 10)
+                assert(account.version == 11 and character.version == 11 and inactive.version == 11
+                    and otherAccount.version == 11 and caseOnly.version == 11)
                 for _, profile in ipairs({ account, character, inactive, otherAccount }) do
                     local rules = profile.trackedRules
                     local promoted = rules.furniture_materials
@@ -324,7 +580,7 @@ function GetSavedVariablesTests()
                     },
                 }
                 local profile = {
-                    version = 10, itemListInitialized = true, useCharacterItemList = false,
+                    version = 11, itemListInitialized = true, useCharacterItemList = false,
                     trackedRules = NewCollisionRules(), autoCategoryOrder = NewCollisionOrder(),
                 }
                 local order = profile.autoCategoryOrder.contexts.backpack
@@ -395,14 +651,14 @@ function GetSavedVariablesTests()
                     },
                 }
                 local colliding = {
-                    version = 10, itemListInitialized = true,
+                    version = 11, itemListInitialized = true,
                     trackedRules = NewCollisionRules(), autoCategoryOrder = NewCollisionOrder(),
                 }
                 colliding.trackedRules.second_collision = {
                     displayName = "Furniture Materials", patterns = { "second" },
                 }
                 local other = {
-                    version = 10, itemListInitialized = true,
+                    version = 11, itemListInitialized = true,
                     trackedRules = NewCollisionRules(), autoCategoryOrder = NewCollisionOrder(),
                 }
                 local savedRules, savedOrder = colliding.trackedRules, colliding.autoCategoryOrder
@@ -412,32 +668,32 @@ function GetSavedVariablesTests()
                 } } }
                 local ok, failure = pcall(addon.PrepareSavedVariables)
                 assert(not ok and tostring(failure):find("multiple custom groups named Furniture Materials", 1, true))
-                assert(colliding.version == 10 and colliding.trackedRules == savedRules
-                    and colliding.autoCategoryOrder == savedOrder and other.version == 10
+                assert(colliding.version == 11 and colliding.trackedRules == savedRules
+                    and colliding.autoCategoryOrder == savedOrder and other.version == 11
                     and other.trackedRules == otherRules and other.autoCategoryOrder == otherOrder)
             end,
         },
         {
             name = "Guild-bank partial withdrawal setting defaults on and validates saved booleans before constructors",
             run = function()
-                local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = { version = 10 } } } })
+                local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = { version = 11 } } } })
                 calls.initialize()
                 assert(addon.accountWide.guildBankPartialWithdrawEnabled == true)
 
                 local disabledAddon, disabledCalls = LoadAddon({ Default = { account = {
-                    ["$AccountWide"] = { version = 10, guildBankPartialWithdrawEnabled = false },
+                    ["$AccountWide"] = { version = 11, guildBankPartialWithdrawEnabled = false },
                 } } })
                 disabledCalls.initialize()
                 assert(disabledAddon.accountWide.guildBankPartialWithdrawEnabled == false)
 
                 local invalidAddon, invalidCalls = LoadAddon({ Default = { account = {
-                    ["$AccountWide"] = { version = 10, guildBankPartialWithdrawEnabled = "yes" },
+                    ["$AccountWide"] = { version = 11, guildBankPartialWithdrawEnabled = "yes" },
                 } } })
                 AssertStopped(invalidAddon, invalidCalls, "guildBankPartialWithdrawEnabled must be boolean")
             end,
         },
         {
-            name = "Schema 10 upgrades every supported source and clears unused character profiles only once",
+            name = "Schema 11 upgrades every supported source and preserves settings on unused character stubs",
             run = function()
                 for version = 1, 9 do
                     local account = { version = version, trackerOffsetX = 87, trackedRules = { shared = {} },
@@ -450,18 +706,22 @@ function GetSavedVariablesTests()
                         ["$AccountWide"] = account, character = active, unused = unused,
                     } } })
                     addon.PrepareSavedVariables()
-                    assert(account.version == 10 and active.version == 10 and unused.version == 10)
+                    assert(account.version == 11 and active.version == 11 and unused.version == 11)
                     assert(active.itemListInitialized and active.trackedRules.personal
-                        and active.trackerOffsetX == 87 and active.trackerOffsetY == 63)
-                    assert(active.currencyPreferences ~= account.currencyPreferences
-                        and active.currencyPreferences[1] ~= account.currencyPreferences[1])
+                        and active.PanelSettings.Tracker.Layout_NoScene.offsetX == 87
+                        and active.PanelSettings.Tracker.Layout_NoScene.offsetY == 63)
+                    assert(active.PanelSettings.Currency.currencyPreferences ~= account.PanelSettings.Currency.currencyPreferences
+                        and active.PanelSettings.Currency.currencyPreferences[1]
+                            ~= account.PanelSettings.Currency.currencyPreferences[1])
                     assert(unused.trackedRules == nil and unused.trackerOffsetX == nil
+                        and unused.PanelSettings.Tracker.Layout_NoScene.offsetX == 91
                         and unused.itemListInitialized == false and unused.unrelated == "keep")
                     unused.itemListInitialized, unused.trackedRules, unused.trackedItems = true, { retained = {} }, {}
-                    unused.trackerOffsetX = 92
+                    unused.PanelSettings.Tracker.Layout_NoScene.offsetX = 92
                     addon.PrepareSavedVariables()
-                    assert(unused.itemListInitialized and unused.trackedRules.retained and unused.trackerOffsetX == 92,
-                        "A later reload must retain initialized inactive schema-10 content")
+                    assert(unused.itemListInitialized and unused.trackedRules.retained
+                        and unused.PanelSettings.Tracker.Layout_NoScene.offsetX == 92,
+                        "A later reload must retain initialized inactive schema-11 content")
                 end
             end,
         },
@@ -475,17 +735,20 @@ function GetSavedVariablesTests()
                 calls.initialize()
                 addon.SetUseCharacterItemList(true)
                 local character = addon.character
-                assert(character.itemListInitialized and character.trackerOffsetX == 72
+                assert(character.itemListInitialized
+                    and character.PanelSettings.Tracker.Layout_NoScene.offsetX == 72
                     and character.bankItemDelay == nil and character.autoCategoryIntegrationEnabled == nil)
-                character.trackerOffsetX = 99
-                character.currencyPreferences[1].locations[1].hidden = false
+                character.PanelSettings.Tracker.Layout_NoScene.offsetX = 99
+                character.PanelSettings.Currency.currencyPreferences[1].locations[1].hidden = false
                 addon.SetUseCharacterItemList(false)
-                assert(addon.GetSettingsProfile() == account and account.trackerOffsetX == 72
-                    and account.currencyPreferences[1].locations[1].hidden)
-                account.trackerOffsetX = 120
+                assert(addon.GetSettingsProfile() == account
+                    and account.PanelSettings.Tracker.Layout_NoScene.offsetX == 72
+                    and account.PanelSettings.Currency.currencyPreferences[1].locations[1].hidden)
+                account.PanelSettings.Tracker.Layout_NoScene.offsetX = 120
                 addon.SetUseCharacterItemList(true)
-                assert(addon.GetSettingsProfile() == character and character.trackerOffsetX == 99
-                    and character.currencyPreferences[1].locations[1].hidden == false)
+                assert(addon.GetSettingsProfile() == character
+                    and character.PanelSettings.Tracker.Layout_NoScene.offsetX == 99
+                    and character.PanelSettings.Currency.currencyPreferences[1].locations[1].hidden == false)
                 assert(account.bankItemDelay == 321 and account.autoCategoryIntegrationEnabled == false)
             end,
         },
@@ -503,7 +766,7 @@ function GetSavedVariablesTests()
                     local saved = { Default = { account = { ["$AccountWide"] = account, inactive = bad } } }
                     local addon, calls = LoadAddon(saved)
                     local rules = account.trackedRules
-                    AssertStopped(addon, calls, "Saved profile.")
+                    AssertStopped(addon, calls)
                     assert(account.version == 1 and account.trackedRules == rules
                         and rules.builtin.patterns[1] == "b" and bad.version == 10)
                 end
@@ -566,7 +829,7 @@ function GetSavedVariablesTests()
                 addon.PrepareSavedVariables()
                 assert(calls.constructors == 0 and account.trackedRules == rules and account.unrelated == unrelated)
                 for _, profile in ipairs({ account, character, inactive }) do
-                    assert(profile.version == 10)
+                    assert(profile.version == 11)
                     for _, context in ipairs(addon.AutoCategoryIntegration.GetContexts()) do
                         local order = profile.autoCategoryOrder.contexts[context.key]
                         assert(not order.hidden["ic:custom"] and order.hidden["ic:dormant"] and order.hidden["ic:builtin"])
@@ -652,7 +915,7 @@ function GetSavedVariablesTests()
                     addon.PrepareSavedVariables()
                     assert(addon.AutoCategoryIntegration.IsFaulted() and calls.constructors == 0)
                     assert(broken.autoCategoryOrder == order and order.contexts.backpack == bad)
-                    assert(broken.version == 10 and valid.version == 10 and valid.unrelated.keep)
+                    assert(broken.version == 11 and valid.version == 11 and valid.unrelated.keep)
                 end
             end,
         },
@@ -755,10 +1018,10 @@ function GetSavedVariablesTests()
                 }, other = { character = ordered } } })
                 local rules = configured.trackedRules
                 addon.PrepareSavedVariables()
-                assert(configured.version == 10 and configured.autoCategorySetupComplete == true)
-                assert(ordered.version == 10 and ordered.autoCategorySetupComplete == true)
+                assert(configured.version == 11 and configured.autoCategorySetupComplete == true)
+                assert(ordered.version == 11 and ordered.autoCategorySetupComplete == true)
                 assert(configured.trackedRules == rules and configured.unrelated.keep)
-                assert(unused.version == 10 and unused.autoCategorySetupComplete == nil
+                assert(unused.version == 11 and unused.autoCategorySetupComplete == nil
                     and unused.autoCategoryOrder == nil and unused.itemListInitialized == false)
             end,
         },
@@ -861,7 +1124,7 @@ function GetSavedVariablesTests()
                 addon.PrepareSavedVariables()
                 assert(calls.constructors == 0, "Preparation must precede ZOS loading")
                 for _, profile in ipairs({ account, inactive, other }) do
-                    assert(profile.version == 10, "Inactive profiles and accounts must upgrade")
+                    assert(profile.version == 11, "Inactive profiles and accounts must upgrade")
                 end
                 assert(account.trackedRules == rules and account.trackedItems == items,
                     "Version-only migration must preserve saved tables")
@@ -924,7 +1187,7 @@ function GetSavedVariablesTests()
                 local profile = { version = 3, trackedRules = rules, keep = { value = 7 } }
                 local addon = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
                 addon.PrepareSavedVariables()
-                assert(profile.version == 10 and profile.trackedRules == rules and profile.keep.value == 7)
+                assert(profile.version == 11 and profile.trackedRules == rules and profile.keep.value == 7)
                 assert(profile.autoCategorySetupComplete == nil)
                 assert(profile.autoCategoryIntegrationEnabled == nil and profile.autoCategoryOrder.contexts.backpack,
                     "Migration must initialize context order without enabling the integration")
@@ -944,11 +1207,11 @@ function GetSavedVariablesTests()
                 }
                 local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
                 calls.initialize()
-                assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
+                assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 10)
                 assert(addon.AutoCategoryIntegration.IsFaulted() and not addon.GetAutoCategoryState().enabled)
                 assert(calls.warnings[1]:find("WARNING", 1, true)
                     and calls.warnings[1]:find("cannot migrate safely", 1, true))
-                assert(profile.version == 10 and profile.trackedRules == rules
+                assert(profile.version == 11 and profile.trackedRules == rules
                     and profile.autoCategoryOrder == order and profile.unrelated.keep,
                     "Invalid integration settings must be preserved while core schema upgrades safely")
                 assert(addon.GetRuntimeRules().custom, "Core rules must remain usable")
@@ -1016,7 +1279,7 @@ function GetSavedVariablesTests()
                         "Other saved-variable account buckets must be preserved")
 
                     addon.PrepareSavedVariables()
-                    assert(accountProfile.version == 10 and inactiveProfile.version == 10,
+                    assert(accountProfile.version == 11 and inactiveProfile.version == 11,
                         "Cleaned schema-4 profiles should migrate normally on restart")
                     assert(accountProfile.autoCategoryOrder.contexts.backpack
                         and not accountProfile.trackedRules.custom.autoCategoryEnabled)
@@ -1049,7 +1312,7 @@ function GetSavedVariablesTests()
                     calls.initialize()
                     assert(addon.state.isLoaded and calls.constructors == 2)
                     assert(addon.AutoCategoryIntegration.IsFaulted())
-                    assert(broken.version == 10 and untouched.version == 10
+                    assert(broken.version == 11 and untouched.version == 11
                         and untouched.trackedRules.keep.addedPatterns[1] == "Keep*",
                         "Integration errors must not erase unrelated profile data")
                 end
@@ -1063,7 +1326,7 @@ function GetSavedVariablesTests()
                 local addon, calls = LoadAddon(nil)
                 calls.initialize()
                 AutoCategory = previousAutoCategory
-                assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
+                assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 10)
                 assert(addon.AutoCategoryIntegration.IsFaulted() and not addon.GetAutoCategoryState().enabled)
                 assert(calls.warnings[1]:find("AutoCategory", 1, true)
                     and calls.warnings[1]:find("synchronization stopped", 1, true)
@@ -1072,19 +1335,19 @@ function GetSavedVariablesTests()
             end,
         },
         {
-            name = "Fresh installations initialize schema version 10",
+            name = "Fresh installations initialize schema version 11",
             run = function()
                 for _, fixture in ipairs({ {}, { Default = {} }, { Default = { account = {} } } }) do
                     local addon, calls = LoadAddon(fixture)
                     calls.initialize()
-                    assert(addon.SettingsVersion == 10 and addon.accountWide.version == 10 and addon.character.version == 10)
+                    assert(addon.SettingsVersion == 11 and addon.accountWide.version == 11 and addon.character.version == 11)
                     assert(addon.accountWide.autoCategoryOrder.contexts.backpack
                         and addon.character.itemListInitialized == false and addon.character.trackedRules == nil)
-                    assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
+                    assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 10)
                 end
                 local addon, calls = LoadAddon(nil)
                 calls.initialize()
-                assert(addon.state.isLoaded and addon.accountWide.version == 10 and addon.character.version == 10)
+                assert(addon.state.isLoaded and addon.accountWide.version == 11 and addon.character.version == 11)
             end,
         },
         {
@@ -1129,7 +1392,8 @@ function GetSavedVariablesTests()
                 assert(account.trackedItems[123].link == "item")
                 assert(account.autoCategoryIntegrationEnabled and account.autoCategorySetupComplete)
                 assert(account.autoCategoryOrder.contexts.backpack.display[1] == "ic:custom")
-                assert(account.trackerMaxRows == 24 and character.trackedRules.characterOnly.displayName == "Keep"
+                assert(account.PanelSettings.Tracker.trackerMaxRows == 24
+                    and character.trackedRules.characterOnly.displayName == "Keep"
                     and character.trackedItems[456].link == "character item"
                     and character.useCharacterItemList)
                 assert(account.accountWideListBackup == backup,
@@ -1166,9 +1430,9 @@ function GetSavedVariablesTests()
                     otherAccount = { ["$AccountWide"] = otherAccount } }, unrelatedNamespace = { keep = true } }
                 local addon, calls = LoadAddon(saved)
                 calls.initialize()
-                assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
+                assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 10)
                 for _, profile in ipairs({ bank, character, inactive, otherAccount }) do
-                    assert(profile.version == 10, "Every account/character profile must be upgraded")
+                    assert(profile.version == 11, "Every account/character profile must be upgraded")
                 end
                 local rule = bank.trackedRules.builtin
                 assert(rule.patterns == nil and table.concat(rule.addedPatterns, ",") == "c" and table.concat(rule.removedPatterns, ",") == "a")
@@ -1197,7 +1461,7 @@ function GetSavedVariablesTests()
                 } }
                 local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
                 calls.initialize()
-                assert(profile.version == 10 and profile.trackedRules.empty and profile.trackedRules.builtin.display.isHidden)
+                assert(profile.version == 11 and profile.trackedRules.empty and profile.trackedRules.builtin.display.isHidden)
                 assert(table.concat(addon.GetRuntimeRules().builtin.patterns, ",") == "b,c")
                 assert(#addon.GetRuntimeRules().empty.patterns == 0)
             end,
@@ -1216,7 +1480,7 @@ function GetSavedVariablesTests()
                         saved.Default.account[location] = future
                     end
                     local addon, calls = LoadAddon(saved)
-                    AssertStopped(addon, calls, "supports version 10")
+                    AssertStopped(addon, calls, "supports version 11")
                     assert(future.version == 12 and future.keep and future.trackedRules.unknownFutureSchema)
                     assert(legacy.version == 1 and legacy.trackedRules == originalRules and originalRules.builtin.patterns[1] == "b")
                     assert(originalRules.builtin.display.show, "Downgrade refusal must not partially normalize old data")
@@ -1294,7 +1558,7 @@ function GetSavedVariablesTests()
                 local profile = { version = 1, bankItemDelay = 432, keep = true }
                 local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
                 calls.initialize()
-                assert(addon.state.isLoaded and profile.version == 10 and next(profile.trackedRules) == nil)
+                assert(addon.state.isLoaded and profile.version == 11 and next(profile.trackedRules) == nil)
                 assert(profile.bankItemDelay == 432 and profile.keep)
             end,
         },

@@ -235,27 +235,31 @@ this.defaultsAccount = {
     trackedItems = {},
     trackedRules = {},
     
-    -- Item Tracker Overlay
-    showTrackedItemsPanel = true,
-    showEmptyTrackedItems = true,
-    trackerOffsetX = 50,
-    trackerOffsetY = 50,
-    wrapTrackedItemNames = false,
-    trackerGroupThreshold = 8,
-    trackerMaxRows = 20,
-    trackerTitleSize = 20,
+    -- Panel-owned settings and normal layouts
+    PanelSettings = {
+        Tracker = {
+            showTrackedItemsPanel = true,
+            showEmptyTrackedItems = true,
+            wrapTrackedItemNames = false,
+            trackerGroupThreshold = 8,
+            trackerMaxRows = 20,
+            trackerTitleSize = 20,
+            Layout_NoScene = { offsetX = 50, offsetY = 50 },
+        },
+        Currency = {
+            showEmptyCurrencies = true,
+            currencyGridColumns = 3,
+            currencyPreferences = {},
+            capacityPreferences = {},
+            Layout_NoScene = { offsetX = 50, offsetY = 150 },
+        },
+    },
 
-    -- Currency & Capacity Overlay
-    showEmptyCurrencies = true,
-    currencyOffsetX = 50,
-    currencyOffsetY = 150,
+    -- Account-level currency discovery metadata
     currencyNamesById = {},
 
     -- Standalone Progress Bars
-    progressBarPreferences = {},
     progressBarAlertColors = {},
-    currencyPreferences = {},
-    capacityPreferences = {},
     filterShow = true,
     filterNotify = true,
     filterCraftbag = false,

@@ -1,6 +1,6 @@
 # Configurable currency grid columns: feature spec
 
-Status: DRAFT - not approved
+Status: APPROVED - implementation in progress; acceptance pending
 TODO item: [D10.3 (formerly F1)](../../Tasks/TODO.md)
 Owner: Copilot (draft author)
 Updated: 2026-11-15
@@ -82,7 +82,7 @@ available resources; the sketch is illustrative, not a new settings window.
    hidden. This applies to all InventoryCompanion HUD panels: the tracking
    panel, currency panel, and every standalone resource progress bar, for:
    - Inventory, bank, store/merchant, and fence interactions.
-   - House bank and guild bank.
+   - House bank, guild bank, and furniture vault, including withdrawal/deposit tabs.
    - The InventoryCompanion editor.
    - The main settings menu, including InventoryCompanion settings.
 
@@ -103,17 +103,23 @@ available resources; the sketch is illustrative, not a new settings window.
    is using, not as account-wide positions, even when the profile is shared.
    Positions are remembered by screen/interaction type, not by individual
    visit or underlying ZOS scene name. The IC editor's tabs share one editor
-   position set; inventory, bank, house bank, guild bank, merchant, fence, and
+   position set; inventory, bank, house bank, guild bank, furniture vault, merchant, fence, and
    settings each have their own position set.
    When the scene closes, restore each panel's non-scene position. On a direct
    transition to another supported scene, apply that scene's saved position or
    default placement without changing the non-scene position.
-   Once the user chooses a scene position, leave it alone even if later panel
-   resizing or UI changes cause overlap or an unsuitable fit; the user can
-   move it again. Calculate default positions when the scene opens and leave
-   them unchanged for that visit, even if panel sizes or UI geometry change.
-   Automatic positions are temporary, not persisted; calculate them again
-   the next time the scene opens.
+   Withdrawal and deposit tabs share their interaction's position set.
+   Calculate placement when the scene opens and reconsider it when visible ZOS
+   UI changes or IC panels change size. Move panels only where needed to
+   correct actual ZOS overlap or an unsuitable on-screen fit, including panels with
+   user-saved scene positions. These corrections are temporary and never
+   overwrite saved positions. Do not reposition during a user drag.
+   Leave an unobstructed corrected position alone when space becomes available;
+   the next scene entry starts from the saved scene position, or normal
+   position if none is saved. Automatic positions are not persisted.
+   Existing IC panels may touch or overlap one another by user choice; do not
+   move them merely to enforce spacing, including on scene re-entry or panel
+   growth. Touching a ZOS edge without actual overlap is not an obstruction.
 2. Default panel positions, used until the user chooses a position for that scene.
    - Leave panels in their current positions wherever scene elements do not
      overlap them.
@@ -121,7 +127,8 @@ available resources; the sketch is illustrative, not a new settings window.
      window. Prefer its right edge when space permits, otherwise use its left.
      Apply this shared rule to every supported screen, not just settings.
      If neither side fits, use the insufficient-space fallback below.
-   - Automatic placement must leave at least 5 px between InventoryCompanion
+   - When finding a new position for a displaced panel, automatic placement
+     must leave at least 5 px between InventoryCompanion
      panels when space permits. This spacing follows the same lowest-priority
      constraint as avoiding overlap between our panels when space is insufficient.
    - Avoid overlapping InventoryCompanion panels or ZOS UI elements wherever
@@ -175,21 +182,35 @@ plan.
 | CG3 | Changing columns preserves the panel anchor, resource order, formatting, combined-location cells, standalone bars, and existing filtering behavior. | Offline state and geometry assertions; in-game layout checks. |
 | CG4 | Reload and profile switching preserve the specified ownership. Full-profile copying includes grid columns, panel positions, and saved scene-position variants consistently with existing full-profile replacement behavior. Reset Panel returns columns to three without changing the currency panel position, saved scene positions, or standalone bars. Any panel-position reset also resets that panel's scene positions. | Offline profile/copy/reset tests and backed-up in-game UAT. |
 | CG5 | Malformed saved values are reported at the saved-data boundary, unrelated data is preserved, and an incompatible older build refuses newer saved data without mutation. | Offline saved-data tests, previous-reader inspection, and guarded older-build verification if schema changes. |
-| CG6 | Supported scenes show the tracking panel, currency panel, and standalone bars that would be visible normally, including placeholder content; disabled panels stay hidden. Entry-only default placement retains unobstructed positions and stacks displaced panels beside the active window, right then left then the insufficient-space fallback. Consider only ZOS and IC UI, not third-party UI. Keep at least 5 px between IC panels where space permits; this spacing and IC overlap avoidance have lower priority than on-screen placement and ZOS avoidance. Calculated positions remain unchanged during the visit despite size/geometry changes, are not persisted, and are recalculated on re-entry. Automatic moves never overwrite user positions. | Offline normal-visibility/placeholder, side-stack, spacing, fallback and entry-only tests for all panel types; in-game scene, resize, re-entry and overlap checks. |
+| CG6 | Supported scenes, including bank deposit/withdrawal and furniture vault, show normally visible panels, including placeholders; disabled panels stay hidden. Retain unobstructed positions and stack displaced panels beside the active window, right then left then the insufficient-space fallback. Consider only ZOS and IC UI, not third-party UI. Existing IC panels may touch or overlap; touching ZOS edges or small gaps do not trigger correction. New automatic positions use at least 5 px IC spacing where possible, subject to on-screen placement and ZOS avoidance taking priority. Relevant UI and panel-size changes correct actual ZOS overlap or off-screen placement without repeated movement when unchanged or movement during dragging. Corrections can move saved scene positions temporarily but never overwrite them. | Offline visibility, tab transitions, stacking preservation, edge contact, side-stack, spacing, fallback, geometry-change, drag and persistence tests for all panel types; in-game scene, resize, re-entry and overlap checks. |
 | CG7 | User-chosen scene positions survive reload and logout, remain separate for each character within the profile in use, and are restored on scene re-entry. Closing the scene restores non-scene positions; switching scenes applies the destination scene's saved or default positions. | Offline persistence, character isolation and transition tests; in-game scene re-entry, logout and character-switch checks. |
 
 ## Product decisions
+
+- **Preserve user stacking - Tim, 2026-11-18:** IC-to-IC overlap and proximity
+  do not trigger correction. Use actual ZOS rectangle overlap without padding
+  when deciding whether to move an existing position. Spacing still applies
+  when finding new automatic positions. Tim approved recording and implementing
+  this refinement: "record that and do it".
 
 - **Normal-view visibility - clarified by Tim, 2026-11-15:** supported scenes
   unhide anything that would show in the normal no-scene view. Placeholder
   text counts; this supersedes any stricter empty-panel interpretation.
 
-- **Entry-only automatic placement - agreed by Tim, 2026-11-15:** calculate
+- **Live overlap correction - agreed by Tim, 2026-11-17:** show panels in missing
+  bank-deposit and furniture-vault views. Reconsider placement when the visible
+  UI or panel sizes change, reusing existing observation rather than requiring
+  another listener. Temporary corrections may move manually positioned panels
+  without overwriting their saved positions or interfering during dragging.
+  Separate scene position sets remain; broader inventory/bank layout sharing
+  is not part of this change. This supersedes the following entry-only and
+  user-position-precedence decisions.
+- **Historical entry-only automatic placement - Tim, 2026-11-15; superseded:** calculate
   default scene positions on entry, then leave them alone for that visit.
   Panel-size or UI-geometry changes do not trigger repositioning. Calculate
   afresh on the next entry rather than persisting automatic positions. This
   supersedes the earlier live-recalculation decision.
-- **User-position precedence - agreed by Tim, 2026-11-15:** do not automatically
+- **Historical user-position precedence - Tim, 2026-11-15; superseded:** do not automatically
   correct saved scene positions after obstruction, panel resizing, or other
   geometry changes. Users adjust their own arrangements; automatic placement
   remains responsible only for panels without a user-chosen scene position.
@@ -229,7 +250,8 @@ Reviewed document revision/source identity: PENDING
 
 ## Approvals and acceptance
 
-- Explicit spec approval: PENDING
+- Explicit spec approval: Tim, 2026-11-15, conditional on focused independent
+  review; reviewer confirmed revised spec clear and prior findings resolved.
 - Feature acceptance: PENDING
 - Actual acceptance evidence and disclosed limitations: PENDING
 

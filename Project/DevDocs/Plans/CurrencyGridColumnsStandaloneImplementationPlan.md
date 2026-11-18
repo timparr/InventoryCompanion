@@ -1,10 +1,14 @@
 # Configurable currency columns and scene behavior: implementation plan
 
-Status: PROVISIONAL - not approved; coding not authorized
+Status: APPROVED - implementation in progress; acceptance pending
 TODO item: [D10.3 (formerly F1)](../../Tasks/TODO.md)
 Spec: [Configurable currency grid columns](../FeatureSpecs/CurrencyGridColumnsFeatureSpec.md)
 Owner: Copilot (draft author)
 Updated: 2026-11-15
+
+The approved [post-implementation corrections](CurrencyGridColumnsPostImplementationBugFixes.md)
+supersede this plan's entry-only placement and immutable user-position rules.
+They add furniture-vault support and cover bank deposit/withdrawal detection.
 
 ## Open questions
 
@@ -14,7 +18,7 @@ Updated: 2026-11-15
 
 Use the [feature development process](../../Processes/FeatureDevelopment.md).
 The spec is authoritative for product behavior. This plan groups technical work
-into tasks and is not yet complete for the newer scene requirements. Previous
+into tasks. Previous
 settings-overlay-only assumptions do not override the spec.
 
 ## Current implementation and prior art
@@ -92,12 +96,12 @@ timer investigation below confirms there is no necessary corrective behavior,
 replace the whole existing tracker interaction-placement behavior with the
 shared controller, rather than preserving its repeated forced positioning.
 
-Proposed shape for discussion: one scene-responsive layout controller owns
+Approved shape: one scene-responsive layout controller owns
 context selection, placement and normal-position restoration for all HUD panels.
 The existing ticker, editor callbacks, profile refresh and panel refresh paths
 must delegate to that owner rather than continuing to apply tracker-specific
-anchors independently. Task 3 proposes the file, methods and caller wiring for
-review; this is not approval to add addon code.
+anchors independently. Task 3 defines the file, methods and caller wiring;
+implementation approval is recorded below.
 
 The appendix records source evidence and tested options, not approval of those
 options. Discuss the remaining choices above before completing the task designs.
@@ -116,8 +120,8 @@ gamepad behavior and defer comprehensive review to TODO F14.
 Assessment: a schema bump is required because the released schema-10 reader
 does not copy unknown feature fields when copying profiles. A schema-11 fixture
 is rejected without mutation by that reader in the offline test described in the
-appendix. The following field mapping and data rules complete the Q11 design;
-they remain subject to independent plan review and overall plan approval.
+appendix. The following field mapping and data rules complete the approved Q11
+design.
 
 ### Current structure (schema 10)
 
@@ -429,8 +433,8 @@ checks, not results from an implemented migration.
 
 ## Implementation tasks
 
-All tasks depend on an approved spec, an approved plan, and a separate GO to
-code. The tasks below are planning drafts, not authorization to implement.
+All tasks depend on the spec approval, plan approval, and separate GO recorded
+below. Those gates are satisfied; implementation and verification are in progress.
 Pseudocode describes intended control flow, not addon code to load. New method
 names are proposed implementation names; existing methods are identified below.
 Tasks are work packages, not independently deployable builds: keep intermediate
@@ -629,8 +633,12 @@ before editor/panel Lua callers. It defines methods at load time; it does not
 access controls or saved profiles until initialization. No XML change is needed.
 
 Proposed methods:
-- `Initialize()` registers the tracker/currency control adapters and available
-  bar adapters after their controls/data exist; initializes runtime context.
+- `Initialize()` creates controller state in normal context before module
+  initialization; it does not read panel controls.
+- `RegisterPanel(panelKey, control)` registers each control before its first
+  refresh/display, using its prepared normal layout during startup.
+- `CompleteInitialization()` applies the initial context after all panels and
+  settings surfaces are ready, then enables ordinary context observation.
 - `UpdateContext()` resolves the logical layout and active ZOS/IC window, calls
   `EnterContext(layoutKey, window)` only when the logical context changes, and
   updates visibility. Repeated calls in the same context must not move panels.
@@ -648,10 +656,26 @@ per-visit positions and drag state. None is added to SavedVariables.
 
 #### Wire scene entry, exit, existing refreshes and visibility
 
-In `Core\Init.lua.Initialize()`, preserve preparation/discovery order, create and
-initially render all panels, then call `PanelLayout.Initialize()` before
-`CreateSettingsPanel()`. Start `InitCutsceneTicker()` after controller
-initialization, not before module setup.
+In `Core\Init.lua.Initialize()`, prepare saved profiles and run constructors
+first, then call `PanelLayout.Initialize()` before any module can refresh or
+display a panel. Preserve startup discovery order. Each panel initializer
+registers its control before refreshing it; bar creation does the same before
+display. During startup, refreshes use prepared normal positions and visibility;
+they do not enter a scene or inspect unregistered panels. After panel setup and
+`CreateSettingsPanel()`, call `PanelLayout.CompleteInitialization()` to apply
+the initial context once. Start `InitCutsceneTicker()` afterward. Editor/LAM
+notifications received during setup are deferred until completion.
+
+```text
+PrepareSavedVariables(); construct profiles; validate prepared settings
+PanelLayout.Initialize()
+initialize currency discovery and resource descriptors
+initialize bars, tracker, currency:
+    create/find control; RegisterPanel(key, control); refresh/display
+CreateSettingsPanel()
+PanelLayout.CompleteInitialization()
+InitCutsceneTicker(); UpdateEventRegistry()
+```
 
 Modify the existing ticker in `Core\Events.lua` to delegate to
 `PanelLayout.UpdateContext()` instead of forcing tracker anchors every tick.
@@ -994,7 +1018,8 @@ the feature implementation or approval to code it.
 ### In-game investigation: overlapping-panel stagger
 
 Status: 20 PX SEPARATION PASSED - Tim's observations recorded 2026-11-15.
-Temporary unstack action errored; cleanup/revert remains pending.
+Temporary unstack action errored. The disposable test code was subsequently
+removed and the original SavedVariables restored with checksum verification.
 
 On the testing branch, the Debug Key temporarily calls
 `TogglePanelStaggerTest()` instead of diagnostics (`/ictest` remains available).
@@ -1064,27 +1089,62 @@ Reviewed source: working-tree spec/plan on `main`, HEAD
 
 Reviewer reported no findings in migration/downgrade, copy/reset, slider/grid,
 or shared visibility integration. These are design assessments, not runtime
-verification. Final independent review and overall approvals remain PENDING.
+verification. Focused review confirmed the previous findings resolved. It identified a
+startup-order conflict; Tim authorized correcting it, and an independent
+`startup-plan-check` confirmed the revised Initialize/Register/Complete sequence
+clear before implementation. Overall approvals are recorded below.
 
 ## Approvals
 
-- Explicit spec approval and revision: PENDING
-- Explicit plan approval and revision: PENDING
-- Explicit GO to code: PENDING
+- Explicit spec approval: Tim, 2026-11-15, current spec approved conditional on
+  focused re-review; prior findings resolved by independent review.
+- Explicit plan approval: Tim, 2026-11-15, approved with authorized startup
+  sequencing correction; independent `startup-plan-check` confirmed clear.
+- Explicit GO to code: Tim, 2026-11-15: "push, then branch for the feature work
+  and go"; reconfirmed "carry on" after review and listener clarification.
 
 ## Implementation record and deviations
 
-Feature implementation remains unauthorized. The separately authorized,
-temporary Q12 experiment above changes only interaction-positioning repetition
-on its testing branch; offline setup checks passed and in-game results remain
-pending. No feature migration or schema change has been implemented.
+Implementation authorized and in progress on `feature/currency-grid-scene-layout`.
+Temporary experiments were removed before branching. Non-bank/inventory-refresh
+checks remain part of feature testing by Tim's explicit approval. No new listeners
+or timers are added: reuse the existing ticker and callbacks.
+
+- Implemented schema-11 panel-owned settings, atomic all-profile migration,
+  layout helpers, profile copying and reset integration.
+- Added the startup-bounded Grid Columns slider and variable-column rendering.
+- Added the shared layout controller, deterministic placement, scene-only drag
+  persistence and normal-position restoration; removed competing anchor paths.
+- Updated tracker, currency, bars, settings/editor callbacks and in-game
+  diagnostics for the shared settings/layout contracts.
+- Added isolated production-method tests and updated the user manual.
+- No live SavedVariables files were modified, no client reload was performed,
+  and no release/version work was undertaken.
 
 ## Independent code review and verification
 
-- Reviewer and reviewed diff/source identity: PENDING
-- Findings, agreed corrections, and re-review: PENDING
-- Actual test results and retained evidence: PENDING
-- Unavailable checks and remaining limitations: PENDING
+- Reviewer: independent `panel-feature-review` code-review agent, 2026-11-16;
+  working-tree feature diff against `1e158b0`, including new controller/tests.
+- Findings: Tim authorized fixing both and focused re-review on 2026-11-16.
+  - Medium: preparation/copying of an existing schema-11 Currency settings
+    table does not default a missing `currencyGridColumns`; rendering can
+    subsequently pass nil to `math.min`. Resolved by preparing missing defaults
+    while preserving and validating explicit values.
+  - Medium: merchant/fence obstacle collection includes inventory but omits
+    their related visible ZOS UI surfaces. Resolved by collecting visible store,
+    buyback, repair and menu controls; hidden inventory no longer prevents
+    merchant context detection. Geometry remains fixed for the visit.
+- Focused `panel-corrections-review` found a related source-profile mutation:
+  preparing defaults through a shallow copy changed the source settings.
+  Corrected by deep-copying preference fields before preparation. Tests assert
+  source preservation on both successful and rejected copies.
+- Final independent `profile-copy-correction-check`: no significant issues
+  found in the correction. No reported review findings remain unresolved.
+- Actual test results: 2026-11-16, `python Project\Tests\Run-RuleTests.py`,
+  237/237 isolated tests passed, including Lua 5.1 compilation and XML checks;
+  `git diff --check` passed. Retained acceptance evidence: PENDING.
+- Unavailable checks and remaining limitations: client rendering, actual event
+  delivery, and migration from an actual older-schema backup remain PENDING.
 
 ## Acceptance and handoff
 
