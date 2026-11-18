@@ -37,11 +37,14 @@ local function LoadAddon(saved, releaseReader)
         autoCategoryTimingThresholdMs = 500 }
     addon.defaultsCharacter = { itemListInitialized = false, useCharacterItemList = false }
     for _, method in ipairs({
-        "InitCutsceneTicker", "InitContextMenus", "InitializeCurrencyHelper", "InitializeProgressBarResources",
+        "InitContextMenus", "InitializeCurrencyHelper", "InitializeProgressBarResources",
         "InitializeCurrencyGridColumns", "InitResourceProgressBars", "InitItemTrackerPanel", "InitCurrencyPanel",
         "CreateSettingsPanel", "UpdateEventRegistry",
     }) do
         addon[method] = function() calls.modules = calls.modules + 1 end
+    end
+    if releaseReader then
+        addon.InitCutsceneTicker = function() calls.modules = calls.modules + 1 end
     end
     addon.PanelLayout = {
         Initialize = function() end,
@@ -1207,7 +1210,7 @@ function GetSavedVariablesTests()
                 }
                 local addon, calls = LoadAddon({ Default = { account = { ["$AccountWide"] = profile } } })
                 calls.initialize()
-                assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 10)
+                assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
                 assert(addon.AutoCategoryIntegration.IsFaulted() and not addon.GetAutoCategoryState().enabled)
                 assert(calls.warnings[1]:find("WARNING", 1, true)
                     and calls.warnings[1]:find("cannot migrate safely", 1, true))
@@ -1326,7 +1329,7 @@ function GetSavedVariablesTests()
                 local addon, calls = LoadAddon(nil)
                 calls.initialize()
                 AutoCategory = previousAutoCategory
-                assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 10)
+                assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
                 assert(addon.AutoCategoryIntegration.IsFaulted() and not addon.GetAutoCategoryState().enabled)
                 assert(calls.warnings[1]:find("AutoCategory", 1, true)
                     and calls.warnings[1]:find("synchronization stopped", 1, true)
@@ -1343,7 +1346,7 @@ function GetSavedVariablesTests()
                     assert(addon.SettingsVersion == 11 and addon.accountWide.version == 11 and addon.character.version == 11)
                     assert(addon.accountWide.autoCategoryOrder.contexts.backpack
                         and addon.character.itemListInitialized == false and addon.character.trackedRules == nil)
-                    assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 10)
+                    assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
                 end
                 local addon, calls = LoadAddon(nil)
                 calls.initialize()
@@ -1430,7 +1433,7 @@ function GetSavedVariablesTests()
                     otherAccount = { ["$AccountWide"] = otherAccount } }, unrelatedNamespace = { keep = true } }
                 local addon, calls = LoadAddon(saved)
                 calls.initialize()
-                assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 10)
+                assert(addon.state.isLoaded and calls.constructors == 2 and calls.modules == 9)
                 for _, profile in ipairs({ bank, character, inactive, otherAccount }) do
                     assert(profile.version == 11, "Every account/character profile must be upgraded")
                 end

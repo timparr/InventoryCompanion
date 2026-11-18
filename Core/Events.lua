@@ -3,6 +3,7 @@ InventoryCompanion = InventoryCompanion or {}
 local this = InventoryCompanion
 
 local activeListeners = {}
+local visibilityTickerActive = false
 
 ------------------------------------------------------------------
 -- Debounce Queue System (Local)
@@ -220,8 +221,13 @@ EVENT_MANAGER:RegisterForEvent(this.Name .. "_Event_PlayerActivated", EVENT_PLAY
     end
 end)
 
-function this.InitCutsceneTicker()
-    EVENT_MANAGER:RegisterForUpdate(this.Name .. "_HideCheck", 100, function()
-        this.PanelLayout.UpdateContext()
-    end)
+function this.SetVisibilityTickerNeeded(needed)
+    if needed == visibilityTickerActive then return end
+    local updateName = this.Name .. "_HideCheck"
+    if needed then
+        EVENT_MANAGER:RegisterForUpdate(updateName, 100, this.PanelLayout.UpdateContext)
+    else
+        EVENT_MANAGER:UnregisterForUpdate(updateName)
+    end
+    visibilityTickerActive = needed
 end

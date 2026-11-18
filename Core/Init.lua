@@ -90,7 +90,6 @@ local function Initialize()
     this.InitCurrencyPanel()
     this.CreateSettingsPanel()
     this.PanelLayout.CompleteInitialization()
-    this.InitCutsceneTicker()
     this.UpdateEventRegistry()
 
     this.state.isLoaded = true

@@ -1,5 +1,5 @@
 local function Load()
-    InventoryCompanion = { state = {}, Utils = {} }
+    InventoryCompanion = { state = {}, Utils = {}, SetVisibilityTickerNeeded = function() end }
     IsShiftKeyDown = function() return true end
     assert(loadstring(PanelLayoutSource))()
     return InventoryCompanion, InventoryCompanion.PanelLayout
@@ -59,6 +59,7 @@ local function Fixture(scene)
         state.profile[key].Layout_NoScene = { offsetX = 50, offsetY = 50 }
     end
     addon.IsEditorWindowOpen = function() return false end
+    addon.Utils.IsItemInteractionActive = function() return false end
     addon.GetProgressBarResources = function() return {} end
     addon.HasVisibleCurrencyResources = function() return state.currencyVisible end
     addon.HasVisibleCapacityResources = function() return false end
@@ -71,6 +72,49 @@ end
 
 function GetPanelLayoutTests()
     return {
+        {
+            name = "Panel layout requests the visibility ticker only while a HUD consumer needs it",
+            run = function()
+                local addon, layout, state = Fixture(nil)
+                local needed
+                addon.SetVisibilityTickerNeeded = function(value) needed = value end
+                state.profile.Tracker.showTrackedItemsPanel = false
+                layout.CompleteInitialization()
+                assert(needed == false)
+
+                state.profile.Tracker.showTrackedItemsPanel = true
+                layout.UpdateVisibility()
+                assert(needed and state.tracker:IsHidden(), "A hidden compass must not stop observation")
+                state.currencyVisible = true
+                state.profile.Tracker.showTrackedItemsPanel = false
+                layout.UpdateVisibility()
+                assert(needed, "The currency panel still needs observation")
+                state.currencyVisible = false
+
+                local key = "capacity:bag"
+                local barSettings = { showBar = true, Layout_NoScene = { offsetX = 300, offsetY = 100 } }
+                state.profile[key] = barSettings
+                addon.GetProgressBarSettings = function() return barSettings end
+                addon.GetProgressBarResources = function() return { { key = key } } end
+                addon.GetProgressBarResourceValues = function() return { amount = 5, cap = 10 } end
+                layout.RegisterPanel(key, Control(0, 0, 200, 30))
+                layout.UpdateVisibility()
+                assert(needed, "A standalone bar independently needs observation")
+                barSettings.showBar = false
+                layout.UpdateVisibility()
+                assert(needed == false)
+
+                addon.state.isCurrencySettingsOpen = true
+                layout.UpdateContext()
+                assert(needed and state.currency:IsHidden(), "Observe input mode changes even in keyboard mode")
+                IsInGamepadPreferredMode = function() return true end
+                layout.UpdateContext()
+                assert(needed and not state.currency:IsHidden())
+                addon.state.isCurrencySettingsOpen = false
+                layout.UpdateContext()
+                assert(needed == false and state.currency:IsHidden())
+            end,
+        },
         {
             name = "Panel layout default drop docks and aligns while Shift preserves the exact scene drop",
             run = function()

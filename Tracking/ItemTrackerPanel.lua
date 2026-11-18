@@ -911,6 +911,7 @@ function this.RefreshItemTrackerPanel(reason, targetGroup)
     InventoryCompanion_ItemTrackerFloatSettingsIcon:SetDimensions(titleSize, titleSize)
     if this.GetPanelSettings("Tracker").showTrackedItemsPanel == false then
         InventoryCompanion_ItemTrackerFloat:SetHidden(true)
+        this.PanelLayout.UpdateVisibility()
         return
     end
 

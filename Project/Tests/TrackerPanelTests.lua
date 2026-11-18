@@ -764,15 +764,38 @@ function this.GetTrackerPanelTests()
         assert(not Expanded("group1") and not Expanded("group2"))
     end)
 
-    Add("Tracker visibility ticker delegates to the single shared layout owner", function()
+    Add("Tracker visibility ticker registers once on demand, unregisters, and restarts", function()
         Setup({ 2 }, 20, false)
-        local tick
-        EVENT_MANAGER.RegisterForUpdate = function(_, _, _, callback) tick = callback end
+        EVENT_OPEN_BANK, EVENT_INVENTORY_SINGLE_SLOT_UPDATE, EVENT_CURRENCY_UPDATE = 1, 2, 3
+        EVENT_CURRENCY_CAPS_CHANGED, EVENT_INVENTORY_BAG_CAPACITY_CHANGED = 4, 5
+        EVENT_INVENTORY_BANK_CAPACITY_CHANGED, EVENT_PLAYER_ACTIVATED = 6, 7
+        local tick, starts, stops = nil, 0, 0
+        local updateName = this.Name .. "_HideCheck"
+        EVENT_MANAGER.RegisterForUpdate = function(_, name, delay, callback)
+            Equal(name, updateName)
+            Equal(delay, 100)
+            tick, starts = callback, starts + 1
+        end
+        EVENT_MANAGER.UnregisterForUpdate = function(_, name)
+            Equal(name, updateName)
+            tick, stops = nil, stops + 1
+        end
         assert(loadstring(TrackerEventSource))()
         local updates = 0
         this.PanelLayout.UpdateContext = function() updates = updates + 1 end
-        this.InitCutsceneTicker()
+        this.SetVisibilityTickerNeeded(false)
+        Equal(starts, 0)
+        Equal(stops, 0)
+        this.SetVisibilityTickerNeeded(true)
+        this.SetVisibilityTickerNeeded(true)
+        Equal(starts, 1)
         tick()
+        this.SetVisibilityTickerNeeded(false)
+        this.SetVisibilityTickerNeeded(false)
+        Equal(stops, 1)
+        assert(tick == nil)
+        this.SetVisibilityTickerNeeded(true)
+        Equal(starts, 2)
         tick()
         Equal(updates, 2)
     end)

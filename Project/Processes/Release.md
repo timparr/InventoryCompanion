@@ -109,7 +109,8 @@ Record the tester's actual response. Do not infer transfer success or storage co
 
 ### Clean up, commit, and tag (step 11)
 
-- Check the current branch and all pending changes. Retain technical decisions and investigation history in the appropriate DevDocs feature archive and test evidence under Tests; remove identified superseded publishing copies rather than adding them to the ZIP-only publishing archive. Preserve unrelated work, private SavedVariables backups, and frozen release ZIPs; never add credentials or generated/local-only files to Git.
+- Check the current branch and all pending changes. Move any remaining completed planning and implementation documents for the release to their feature folders under `Project\DevDocs\Archive`. Update inbound links and the [completed-work index](../DevDocs/Archive/CompletedWork.md) before committing. Keep current specifications and unfinished work in place.
+- Retain test evidence under Tests and remove identified superseded publishing copies rather than adding them to the ZIP-only publishing archive. Preserve unrelated work, private SavedVariables backups, and frozen release ZIPs; never add credentials or generated/local-only files to Git.
 - Remove the published version's `[current version]` marker from the authoritative working changelog after the author's publication confirmation. Do not edit frozen package or archive copies.
 - Validate the final release-related changes with the relevant existing tests and `git diff --check`. Stage only the intended release changes and inspect the staged diff before committing.
 - Create the final release commit with the released version in its message and the required co-author trailer. Preserve the DEV version increment performed by Stage; do not roll DEV back to the published version.

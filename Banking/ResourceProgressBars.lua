@@ -131,8 +131,8 @@ function this.RefreshResourceProgressBars()
         if not activeResources[resourceKey] then
             control:SetHidden(true)
         end
-        this.PanelLayout.UpdateVisibility()
     end
+    this.PanelLayout.UpdateVisibility()
 end
 
 function this.InitResourceProgressBars()

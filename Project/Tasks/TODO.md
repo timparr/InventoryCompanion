@@ -165,6 +165,10 @@ They may be refined or discarded during future triage.
   interactions. Identify and discuss fixes as separate follow-up work. D10.3
   preserves existing gamepad behavior; it does not add or repair gamepad support.
 
+- **F15. Currency Summary Panel Master Toggle:** Consider one setting to hide
+  or show the entire panel without changing which currency and capacity cells
+  are selected. Keep standalone resource bars and notifications independent.
+
 Source design history: [Currency Preferences](../DevDocs/Archive/CurrencyPanel/CurrencyPreferences.md)
 and [Currency Panel Implementation Plan](../DevDocs/Archive/CurrencyPanel/ImplementationPlan.md),
 plus [Adaptive Tracker Sizing](../DevDocs/Archive/ItemTracker/AdaptiveSizingImplementation.md).

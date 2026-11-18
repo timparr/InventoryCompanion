@@ -359,8 +359,11 @@ function layout.UpdateVisibility()
     local inCutscene = ZO_CompassFrame and ZO_CompassFrame:IsHidden()
     local supported = activeKey ~= NORMAL
     local gamepad = IsInGamepadPreferredMode()
+    -- Keep observing input mode while the currency settings preview can appear.
+    local needsTicker = this.state.isCurrencySettingsOpen == true
     for _, key in ipairs(order) do
         local visible = NormalVisible(key)
+        needsTicker = needsTicker or visible
         local exception = supported
         if gamepad then
             exception = key == "Tracker" and
@@ -369,6 +372,7 @@ function layout.UpdateVisibility()
         end
         panels[key]:SetHidden(not (visible and (not inCutscene or exception)))
     end
+    this.SetVisibilityTickerNeeded(needsTicker)
 end
 
 function layout.UpdateContext()
