@@ -1,5 +1,6 @@
 local function Load()
     InventoryCompanion = { state = {}, Utils = {} }
+    IsShiftKeyDown = function() return true end
     assert(loadstring(PanelLayoutSource))()
     return InventoryCompanion, InventoryCompanion.PanelLayout
 end
@@ -70,6 +71,103 @@ end
 
 function GetPanelLayoutTests()
     return {
+        {
+            name = "Panel layout default drop docks and aligns while Shift preserves the exact scene drop",
+            run = function()
+                local _, layout, state = Fixture("inventory")
+                ZO_PlayerInventory = Control(800, 0, 200, 700)
+                state.currencyVisible = true
+                state.profile.Currency.Layout_NoScene = { offsetX = 200, offsetY = 100 }
+                layout.CompleteInitialization()
+                local shift = false
+                IsShiftKeyDown = function() return shift end
+                layout.OnMoveStart("Tracker")
+                state.tracker.x, state.tracker.y = 204, 189
+                shift = true
+                layout.OnMoveStop("Tracker")
+                assert(state.tracker.x == 204 and state.tracker.y == 189)
+                layout.OnMoveStart("Tracker")
+                shift = false
+                layout.OnMoveStop("Tracker")
+                assert(state.tracker.x == 200 and state.tracker.y == 185)
+                assert(state.currency.x == 200 and state.currency.y == 100)
+                local saved = state.profile.Tracker.Layout_InventoryScene.character
+                assert(saved.offsetX == 200 and saved.offsetY == 185 and state.saves == 2)
+                state.scene = nil; layout.UpdateContext()
+                assert(state.tracker.x == 50 and state.tracker.y == 50)
+                state.scene = "inventory"; layout.UpdateContext()
+                assert(state.tracker.x == 200 and state.tracker.y == 185)
+                layout.OnMoveStart("Tracker")
+                state.scene = nil; layout.UpdateContext()
+                assert(state.saves == 2, "Canceling a drag must not save")
+            end,
+        },
+        {
+            name = "Panel layout snapping ignores hidden and distant targets and rejects ZOS overlap",
+            run = function()
+                local _, layout, state = Fixture("inventory")
+                ZO_PlayerInventory = Control(200, 185, 600, 515)
+                state.profile.Currency.Layout_NoScene = { offsetX = 200, offsetY = 100 }
+                layout.CompleteInitialization()
+                IsShiftKeyDown = function() return false end
+                local function Drop(x, y)
+                    layout.OnMoveStart("Tracker")
+                    state.tracker.x, state.tracker.y = x, y
+                    layout.OnMoveStop("Tracker")
+                    assert(state.tracker.x == x and state.tracker.y == y)
+                end
+                Drop(204, 189) -- hidden target
+                state.currencyVisible = true
+                layout.UpdateVisibility()
+                Drop(204, 189) -- docking here would overlap ZOS UI
+                Drop(204, 400) -- aligned edge, but target is far away
+                state.scene = nil
+                ZO_CompassFrame.hidden = false
+                layout.UpdateContext()
+                layout.OnMoveStart("Tracker")
+                state.tracker.x, state.tracker.y = 204, 189
+                layout.OnMoveStop("Tracker")
+                local saved = state.profile.Tracker.Layout_NoScene
+                assert(saved.offsetX == 200 and saved.offsetY == 185, "Normal drops must save only the normal layout")
+            end,
+        },
+        {
+            name = "Panel layout full-width bars dock side by side or clear overlap beyond the usual range",
+            run = function()
+                local addon, layout, state = Fixture("inventory")
+                ZO_PlayerInventory = Control(800, 0, 200, 700)
+                state.profile["capacity:bag"] = { Layout_NoScene = { offsetX = 200, offsetY = 100 } }
+                state.profile["capacity:bank"] = { Layout_NoScene = { offsetX = 500, offsetY = 100 } }
+                addon.GetProgressBarResources = function()
+                    return { { key = "capacity:bag" }, { key = "capacity:bank" } }
+                end
+                addon.GetProgressBarSettings = function() return { showBar = true } end
+                addon.GetProgressBarResourceValues = function() return 1 end
+                local target = Control(0, 0, 234, 22)
+                local bar = Control(0, 0, 234, 22)
+                layout.RegisterPanel("capacity:bag", target)
+                layout.RegisterPanel("capacity:bank", bar)
+                layout.CompleteInitialization()
+                local shift = false
+                IsShiftKeyDown = function() return shift end
+                local function Drop(x, y)
+                    layout.OnMoveStart("capacity:bank")
+                    bar.x, bar.y = x, y
+                    layout.OnMoveStop("capacity:bank")
+                end
+                Drop(440, 101)
+                assert(bar.x == target.x + target.width + 5 and bar.y == target.y)
+                Drop(400, 102)
+                assert(bar.x == 400 and bar.y == 127, "Choose the shortest clear move, even beyond 12 px")
+                ZO_PlayerInventory = Control(0, 123, 800, 577)
+                Drop(400, 102)
+                assert(bar.x == 400 and bar.y == 73, "Use the next clear edge if ESO UI blocks the nearest")
+                shift = true
+                Drop(400, 102)
+                assert(bar.x == 400 and bar.y == 102, "Shift preserves an intentional overlap")
+                assert(target.x == 200 and target.y == 100)
+            end,
+        },
         {
             name = "Panel layout resource registration preserves scene anchors across bar refresh and setting changes",
             run = function()
@@ -175,6 +273,7 @@ function GetPanelLayoutTests()
                 TOPLEFT = 1
                 GuiRoot = Control(0, 0, 1000, 700)
                 ZO_PlayerBank = Control(0, 0, 400, 500)
+                ZO_PlayerInventory = nil
                 ZO_CompassFrame = Control(0, 0, 1, 1)
                 local scene, character = "bank", "character-one"
                 SCENE_MANAGER = { IsShowing = function(_, name) return scene == name end }

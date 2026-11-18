@@ -150,6 +150,44 @@ withdrawal/deposit sharing distinct from this broader proposal.
    and `git diff --check`. Update the user manual's entry-only claims.
    Obtain independent code review before requesting client retesting.
 
+## Follow-up trial: Snap on release
+
+Baseline: `523c7ff`. Tim requested a clean-branch prototype on
+`test/shift-snap-on-drop`. After in-game feedback, the follow-up switched to
+snapping by default, Shift for exact positioning, and overlap correction
+beyond the regular snap range. On 2026-11-18 Tim said "this is really good now"
+and authorized committing and merging the result into `main`. This does not
+certify unrelated in-game checks or migration UAT.
+
+- In `Tracking\PanelLayout.lua`, keep `OnMoveStart` and the cancellation
+  path unchanged. In `OnMoveStop`, after validating the drag context, read
+  `IsShiftKeyDown()` once. If held, preserve the raw drop. Otherwise consider
+  only other visible registered panels' actual bounds. In
+  `Banking\ResourceProgressBars.xml`, the bar rectangle now covers the
+  full icon, gap, and track (234 px rather than 228 px).
+- Try matching edges or 5 px docking,
+  optionally aligning the perpendicular edge to the same target. Start with
+  a 12 px maximum Euclidean displacement for the trial. For alignment-only
+  candidates, require the rectangles to be within that distance on the
+  other axis too, so distant panels with matching edges do not attract a
+  drop. Prefer aligned docking, then plain docking, then alignment alone, so
+  a nearby perpendicular edge does not prevent stacking. Within each
+  preference choose the closest valid candidate, breaking target ties by
+  existing panel order. Reject off-screen candidates and actual ZOS overlap
+  by measuring the current scene's visible obstacles at release, not using
+  a potentially stale ticker snapshot. For a drop already overlapping IC,
+  compare the four sides of each overlapped panel without the 12 px cap
+  or secondary-axis realignment. Choose the shortest move that clears all
+  visible panels and ZOS UI while staying on-screen. If none fits, retain the
+  drop. Shift bypasses correction for intentional stacking.
+- Apply the selected position to the dragged control only and save it once
+  through `SavePanelLayout`. No new handler, ticker, persisted option, or
+  schema change.
+- In `Project\Tests\PanelLayoutTests.lua`, cover exact Shift drops, default
+  alignment and docking, overlap beyond the regular snap range, alternate
+  edges when blocked, ineligible targets, canceled drags, and layout saves.
+  The full offline suite passed 246/246, including these snapping tests.
+
 ## Implementation and review
 
 - Addon changes: scene mappings, shared obstacle collection, geometry snapshots,

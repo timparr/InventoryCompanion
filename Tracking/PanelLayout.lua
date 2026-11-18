@@ -25,6 +25,8 @@ local relatedWindows = {
     Layout_SettingsScene = { "LAMAddonSettingsWindow", "ZO_OptionsWindow", "ZO_AddOns", "ZO_GameMenu_InGame" },
 }
 local NORMAL = "Layout_NoScene"
+local SNAP_DISTANCE = 12
+local SNAP_GAP = 5
 
 local function CopyPosition(position)
     return { offsetX = position.offsetX, offsetY = position.offsetY }
@@ -199,6 +201,73 @@ local function CollectObstacles(key, window)
     return obstacles
 end
 
+local function SnapDrop(key, position)
+    local context, window = ResolveContext()
+    if context ~= activeKey then return position end
+    local obstacles = window and CollectObstacles(context, window) or {}
+    local rect = Rectangle(panels[key], position)
+    local width, height = GuiRoot:GetWidth(), GuiRoot:GetHeight()
+    local targets, overlaps = {}, {}
+    for _, other in ipairs(order) do
+        local control = panels[other]
+        if other ~= key and not control:IsHidden() then
+            local target = Rectangle(control, { offsetX = control:GetLeft(), offsetY = control:GetTop() })
+            targets[#targets + 1] = target
+            if Intersects(rect, target, 0) then overlaps[#overlaps + 1] = target end
+        end
+    end
+    local clearingOverlap = #overlaps > 0
+    local best, bestPriority, bestDistance = position, 0, math.huge
+    local function Consider(dx, dy, priority)
+        local distance = dx * dx + dy * dy
+        if (distance == 0 and priority == 1)
+            or (not clearingOverlap and distance > SNAP_DISTANCE ^ 2) or priority < bestPriority
+            or (priority == bestPriority and distance >= bestDistance) then return end
+        local candidate = { x = rect.x + dx, y = rect.y + dy, width = rect.width, height = rect.height }
+        if candidate.x < 0 or candidate.y < 0 or candidate.x + rect.width > width
+            or candidate.y + rect.height > height then return end
+        for _, obstacle in ipairs(obstacles) do
+            if Intersects(candidate, obstacle, 0) then return end
+        end
+        for _, target in ipairs(targets) do
+            if Intersects(candidate, target, 0) then return end
+        end
+        best = distance == 0 and position or { offsetX = candidate.x, offsetY = candidate.y }
+        bestPriority, bestDistance = priority, distance
+    end
+    for _, target in ipairs(clearingOverlap and overlaps or targets) do
+        local x, y = target.x, target.y
+        local right, bottom = x + target.width, y + target.height
+        local dockX = { x - SNAP_GAP - rect.width - rect.x, right + SNAP_GAP - rect.x }
+        local dockY = { y - SNAP_GAP - rect.height - rect.y, bottom + SNAP_GAP - rect.y }
+        if clearingOverlap then
+            -- For an overlapping drop, choose the shortest clear move, without realigning the other axis.
+            for _, dx in ipairs(dockX) do Consider(dx, 0, 1) end
+            for _, dy in ipairs(dockY) do Consider(0, dy, 1) end
+        else
+            local alignX = { x - rect.x, right - rect.x - rect.width }
+            local alignY = { y - rect.y, bottom - rect.y - rect.height }
+            local gapX = math.max(x - rect.x - rect.width, rect.x - right, 0)
+            local gapY = math.max(y - rect.y - rect.height, rect.y - bottom, 0)
+            if gapY <= SNAP_DISTANCE then
+                for _, dx in ipairs(alignX) do Consider(dx, 0, 1) end
+            end
+            if gapX <= SNAP_DISTANCE then
+                for _, dy in ipairs(alignY) do Consider(0, dy, 1) end
+            end
+            for _, dx in ipairs(dockX) do
+                if gapY == 0 then Consider(dx, 0, 2) end
+                for _, dy in ipairs(alignY) do Consider(dx, dy, 3) end
+            end
+            for _, dy in ipairs(dockY) do
+                if gapX == 0 then Consider(0, dy, 2) end
+                for _, dx in ipairs(alignX) do Consider(dx, dy, 3) end
+            end
+        end
+    end
+    return best
+end
+
 local function CaptureGeometry(obstacles)
     local snapshot = { GuiRoot:GetWidth(), GuiRoot:GetHeight() }
     for _, rect in ipairs(obstacles) do
@@ -342,9 +411,12 @@ function layout.OnMoveStop(key)
     assert(drag.key == key and drag.profile == this.GetSettingsProfile() and drag.layout == activeKey,
         "Panel drag context changed")
     local control = panels[key]
-    this.SavePanelLayout(key, activeKey, GetCurrentCharacterId(), control:GetLeft(), control:GetTop())
-    positions[key] = { offsetX = control:GetLeft(), offsetY = control:GetTop() }
+    local dropped = { offsetX = control:GetLeft(), offsetY = control:GetTop() }
+    local position = not IsShiftKeyDown() and SnapDrop(key, dropped) or dropped
+    this.SavePanelLayout(key, activeKey, GetCurrentCharacterId(), position.offsetX, position.offsetY)
+    positions[key] = position
     drag = nil
+    if position ~= dropped then layout.ApplyPanelPosition(key) end
 end
 
 function layout.ResetPanelPosition(key)

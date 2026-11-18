@@ -146,6 +146,21 @@ available resources; the sketch is illustrative, not a new settings window.
 Placement algorithms and panel processing order belong in the implementation
 plan.
 
+## Snap on release
+
+- Drag freely. Releasing normally aligns the panel with a nearby visible
+  InventoryCompanion panel or docks it with a 5 px gap. Hold Shift at release
+  to keep the exact drop, including intentional overlap. Only the dragged
+  panel moves.
+- An overlapping drop can snap farther than the normal range: use the
+  nearest clear side. Keep the exact drop if no suitable position exists.
+  Do not snap to hidden panels or move a panel into ZOS UI or off-screen.
+- Save the resulting drop position through the existing normal/scene rules.
+  Reopening a scene does not run snapping again. No settings toggle, grid, or
+  live preview.
+- Acceptance: ordinary drops align or dock nearby bars, Shift drops preserve
+  exact placement, and reopening inventory restores the saved drop position.
+
 ## Preservation and compatibility
 
 - The selected account-wide or character profile owns the grid-column setting
