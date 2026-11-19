@@ -1,16 +1,16 @@
 # Configurable currency grid columns: feature spec
 
-Status: APPROVED - implementation in progress; acceptance pending
-TODO item: [D10.3 (formerly F1)](../../Tasks/TODO.md)
+Status: IMPLEMENTED AND RELEASED in 1.7.2; accepted 2026-11-19
+Completed work: [Currency grid and scene layouts](../Archive/CompletedWork.md)
 Owner: Copilot (draft author)
-Updated: 2026-11-15
-Implementation plan: [Currency grid columns](../Plans/CurrencyGridColumnsStandaloneImplementationPlan.md)
+Updated: 2026-11-19
+Implementation plan: [Archived implementation plan](../Archive/CurrencyGridAndSceneLayouts/CurrencyGridColumnsStandaloneImplementationPlan.md)
 
 Use the [feature development process](../../Processes/FeatureDevelopment.md).
 
-## Overview / proposed changelog text
+## Overview and released user-facing summary
 
-Draft wording for when the feature is delivered:
+The release describes the feature as follows:
 
 - **Choose your currency-panel layout.** Open IC settings and expand Currency Summary Panel to find the new Grid Columns slider. Use fewer columns for a taller, narrower panel, or more columns for a wider, shorter one. The panel updates immediately without a reload, keeping your resource order and formatting. The default remains three columns, and the maximum grows as more resources become available. Your selected settings profile remembers the choice.
 - **Keep your information visible while using other screens.** The item tracker, currency panel, and resource gauges now remain visible while accessing inventory, banks (including house and guild banks), merchants, fences, the IC editor, and the main settings menu, including IC settings. Panels you have disabled, and panels with nothing to display, remain hidden.
@@ -256,22 +256,22 @@ plan.
 
 ## Independent spec review
 
-Reviewer: PENDING
-Reviewed document revision/source identity: PENDING
-
-| Finding | Evidence | Tim's decision | Resolution / re-review |
-|---|---|---|---|
-| PENDING | PENDING | PENDING | PENDING |
+The independent `scene-amendment-review` reviewed the amended spec and plan on
+2026-11-17 and found no blocking issues. Its optional request to resolve stale
+investigation notes was incorporated in the archived implementation record.
 
 ## Approvals and acceptance
 
 - Explicit spec approval: Tim, 2026-11-15, conditional on focused independent
   review; reviewer confirmed revised spec clear and prior findings resolved.
-- Feature acceptance: PENDING
-- Actual acceptance evidence and disclosed limitations: PENDING
+- Feature acceptance: Tim, 2026-11-19, after 1.7.2 UAT passed.
+- Actual acceptance evidence: `/ictest verbose copy` passed 88/88; Tim confirmed
+  migrated tracked groups, panel settings, and normal positions looked correct
+  after reload, and all normal transfer tests passed. The release review is
+  retained inside the frozen 1.7.2 package.
 
-Spec approval does not authorize coding. Record plan approval and GO to code in
-the implementation plan.
+Spec approval did not authorize coding; subsequent plan approval and GO to code
+are recorded in the archived implementation plan.
 
 ## Historical background
 

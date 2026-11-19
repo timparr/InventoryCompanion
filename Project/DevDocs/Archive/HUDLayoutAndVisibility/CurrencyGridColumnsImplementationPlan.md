@@ -1,7 +1,7 @@
 # Configurable currency grid columns: implementation plan
 
 Status: ARCHIVED - ABANDONED 2026-11-15; no longer pursuing
-TODO item: [D10.3 (formerly F1)](../../../Tasks/TODO.md)
+Related completed work: [Currency grid and scene layouts](../CompletedWork.md)
 Spec: [Shared HUD layout and visibility specification](HUDLayoutAndVisibility.md)
 Archive index: [HUD layout and visibility archive](README.md)
 Owner: Copilot (draft author)

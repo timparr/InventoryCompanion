@@ -1,9 +1,12 @@
 # Post implementation bug fixes
 
-Feature: [Currency grid columns and scene layouts](../FeatureSpecs/CurrencyGridColumnsFeatureSpec.md)
+Feature: [Currency grid columns and scene layouts](../../FeatureSpecs/CurrencyGridColumnsFeatureSpec.md)
 
-Status: IMPLEMENTED - offline validation and independent review clear;
-in-game acceptance pending.
+Status: IMPLEMENTED AND RELEASED in 1.7.2; UAT passed 2026-11-19.
+The release review records `/ictest verbose copy` passing 88/88, successful
+schema-10 migration checks, and the author's confirmation of migrated settings,
+normal positions, and normal transfer tests. The review is retained inside the
+frozen 1.7.2 package.
 This document supersedes the original plan's entry-only placement and immutable
 user-position rules for these corrections.
 

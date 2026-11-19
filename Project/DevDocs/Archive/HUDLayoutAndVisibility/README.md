@@ -1,7 +1,7 @@
 # HUD layout and visibility - archived work
 
 Status: D10.1, D10.2, and integrated D10.3 abandoned, 2026-11-15;
-standalone D10.3 resumed for active planning
+standalone currency-grid and scene-layout work released in 1.7.2
 
 Tim did not like the proposed HUD behavior and does not expect the positioning,
 bar-visibility, or HUD-editor-dependent work to proceed. The standalone
@@ -16,10 +16,10 @@ notes; earlier approvals and agreements do not authorize implementation.
 - [D10.2 vanishing progress bars plan](VanishingProgressBarsImplementationPlan.md)
 - [D10.3 integrated currency columns plan](CurrencyGridColumnsImplementationPlan.md)
 
-The standalone D10.3 plan has moved to
-[active plans](../../Plans/CurrencyGridColumnsStandaloneImplementationPlan.md),
-and its current product draft is in
-[FeatureSpecs](../../FeatureSpecs/CurrencyGridColumnsFeatureSpec.md).
+The standalone proposal was later expanded to cover scene-aware panel layouts
+and released in 1.7.2. See the [current feature spec](../../FeatureSpecs/CurrencyGridColumnsFeatureSpec.md)
+and the archived [implementation and UAT record](../CurrencyGridAndSceneLayouts/CurrencyGridColumnsPostImplementationBugFixes.md).
+The older integrated D10.3 plan remains historical.
 
 ## Historical implementation notes
 

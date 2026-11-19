@@ -763,6 +763,8 @@ local function RunTests(arguments)
 
     local results = {}
     local passed = 0
+    local autoCategory = this.AutoCategoryIntegration
+    local autoCategoryInitiallyFaulted = autoCategory.IsFaulted()
     local discovery = {}
     local discoveryOk, discoveryError = pcall(CollectTestDiscovery, discovery)
     if discoveryOk then
@@ -877,6 +879,8 @@ local function RunTests(arguments)
         getItemLink = _G.GetItemLink,
         isESOPlusSubscriber = _G.IsESOPlusSubscriber,
         userWarning = this.Utils.UserWarning,
+        autoCategoryOnProfileChanged = autoCategory.OnProfileChanged,
+        autoCategoryOnRuleMutation = autoCategory.OnRuleMutation,
     }
 
     local namesByLink = {
@@ -915,8 +919,13 @@ local function RunTests(arguments)
     local ruleCreationLimitMs = 250
     local classificationLimitMs = 100
     local environmentOk, environmentError = pcall(function()
+        -- Synthetic profile and rule changes must not synchronize the live integration.
+        autoCategory.OnProfileChanged = function() end
+        autoCategory.OnRuleMutation = function() end
         this.accountWide = { trackedRules = {} }
         this.character = { useCharacterItemList = false }
+        this.PrepareProfilePreferences(this.accountWide)
+        this.InitializeProgressBarResources()
         this.preLoadedRulesets = {}
         this.Scanning.GetBagContents = function(bagIds, selectFunc)
             local contents = {}
@@ -1569,12 +1578,10 @@ local function RunTests(arguments)
                 name = "Baseline and saved-rule override resolution",
                 run = function()
                     this.preLoadedRulesets = baselineRules
-                    this.accountWide = {
-                        trackedRules = {
-                            default = { displayName = "Renamed", display = { show = false } },
-                            hidden = { display = { isHidden = true } },
-                            custom = { patterns = { "Custom *" } },
-                        },
+                    this.accountWide.trackedRules = {
+                        default = { displayName = "Renamed", display = { show = false } },
+                        hidden = { display = { isHidden = true } },
+                        custom = { patterns = { "Custom *" } },
                     }
 
                     local activeRules = this.GetActiveTrackedRules()
@@ -1592,13 +1599,11 @@ local function RunTests(arguments)
             {
                 name = "Display-flag writes preserve other overrides",
                 run = function()
-                    this.accountWide = {
-                        trackedRules = {
-                            default = {
-                                displayName = "Existing Name",
-                                patterns = { "Existing *" },
-                                display = { notify = false },
-                            },
+                    this.accountWide.trackedRules = {
+                        default = {
+                            displayName = "Existing Name",
+                            patterns = { "Existing *" },
+                            display = { notify = false },
                         },
                     }
 
@@ -1779,14 +1784,17 @@ local function RunTests(arguments)
             {
                 name = "Event listener transitions and refresh debounce",
                 run = function()
+                    local savedAccountWide, savedCharacter = this.accountWide, this.character
                     local liveAccountWide = syntheticOriginal.accountWide
                     local savedAutoMergeChests = liveAccountWide.autoMergeChests
-                    local savedShowTrackedItemsPanel = liveAccountWide.showTrackedItemsPanel
+                    local savedShowTrackedItemsPanel = liveAccountWide.PanelSettings.Tracker.showTrackedItemsPanel
                     -- Isolate settings changes from the live SavedVariables table.
                     local eventTestAccountWide = {}
                     for key, value in pairs(liveAccountWide) do
                         eventTestAccountWide[key] = value
                     end
+                    local tracker = this.CopySavedValue(liveAccountWide.PanelSettings.Tracker)
+                    eventTestAccountWide.PanelSettings = { Tracker = tracker }
 
                     local listenerState = {
                         visibleProgressBars = false,
@@ -1890,7 +1898,7 @@ local function RunTests(arguments)
                     local testOk, testError = pcall(function()
                         this.accountWide = eventTestAccountWide
                         eventTestAccountWide.autoMergeChests = false
-                        eventTestAccountWide.showTrackedItemsPanel = false
+                        tracker.showTrackedItemsPanel = false
                         this.UpdateEventRegistry()
 
                         local function ClearCalls()
@@ -1951,7 +1959,7 @@ local function RunTests(arguments)
                         )
 
                         ClearCalls()
-                        eventTestAccountWide.showTrackedItemsPanel = true
+                        tracker.showTrackedItemsPanel = true
                         this.UpdateEventRegistry()
                         CheckSlotListenersRegistered()
 
@@ -1963,7 +1971,7 @@ local function RunTests(arguments)
 
                         listenerState.capacityNotifications = true
                         this.UpdateEventRegistry()
-                        eventTestAccountWide.showTrackedItemsPanel = false
+                        tracker.showTrackedItemsPanel = false
                         this.UpdateEventRegistry()
                         CheckEqual(#unregistrationCalls, 0, "A shared slot listener should remain while capacity notifications need it")
                         listenerState.capacityNotifications = false
@@ -2102,7 +2110,7 @@ local function RunTests(arguments)
                         this.RefreshResourceProgressBars = function()
                             debounceRefreshes.progress = debounceRefreshes.progress + 1
                         end
-                        eventTestAccountWide.showTrackedItemsPanel = true
+                        tracker.showTrackedItemsPanel = true
                         zo_callLater = function(callback, delay)
                             nextCallbackId = nextCallbackId + 1
                             local callbackId = nextCallbackId
@@ -2154,13 +2162,16 @@ local function RunTests(arguments)
                     zo_callLater = oldCallLater
                     zo_removeCallLater = oldRemoveCallLater
                     this.accountWide = liveAccountWide
+                    this.character = syntheticOriginal.character
 
                     local restoreOk, restoreError = pcall(this.UpdateEventRegistry)
+                    this.accountWide, this.character = savedAccountWide, savedCharacter
                     if not restoreOk then
                         error("Failed to restore live event listeners: " .. tostring(restoreError))
                     end
                     CheckEqual(liveAccountWide.autoMergeChests, savedAutoMergeChests, "Chest-merge setting should be unchanged after the test")
-                    CheckEqual(liveAccountWide.showTrackedItemsPanel, savedShowTrackedItemsPanel, "Tracker visibility setting should be unchanged after the test")
+                    CheckEqual(liveAccountWide.PanelSettings.Tracker.showTrackedItemsPanel, savedShowTrackedItemsPanel,
+                        "Tracker visibility setting should be unchanged after the test")
                     if not testOk then error(testError) end
                 end,
             },
@@ -2329,10 +2340,16 @@ local function RunTests(arguments)
     _G.GetItemLink = syntheticOriginal.getItemLink
     _G.IsESOPlusSubscriber = syntheticOriginal.isESOPlusSubscriber
     this.Utils.UserWarning = syntheticOriginal.userWarning
+    autoCategory.OnProfileChanged = syntheticOriginal.autoCategoryOnProfileChanged
+    autoCategory.OnRuleMutation = syntheticOriginal.autoCategoryOnRuleMutation
     this.InvalidateRuleCache()
 
     if not environmentOk then
         table.insert(results, "FAIL test setup: " .. tostring(environmentError))
+    end
+    if not autoCategoryInitiallyFaulted and autoCategory.IsFaulted() then
+        local _, message = autoCategory.GetStatus()
+        table.insert(results, "FAIL AutoCategory faulted during diagnostics: " .. message)
     end
 
     local total = 0

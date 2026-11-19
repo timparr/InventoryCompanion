@@ -1,27 +1,27 @@
 # HUD layout and visibility
 
-Status: ARCHIVED - historical shared proposal; standalone D10.3 resumed for active planning
-TODO items: [D10.1 positioning, D10.2 vanishing bars, D10.3 currency columns](../../../Tasks/TODO.md)
+Status: D10.1, D10.2, and integrated D10.3 abandoned, 2026-11-15;
+standalone currency-grid and scene-layout work released in 1.7.2
+TODO items: historical D10.1/D10.2 proposals; standalone D10.3 is complete
 Owner: Copilot (draft author)
 Updated: 2026-11-15
 Archive index: [HUD layout and visibility archive](README.md)
 Implementation plans: [D10.1 HUD positioning](HUDPositioningImplementationPlan.md),
 [D10.2 vanishing bars](VanishingProgressBarsImplementationPlan.md), and
-[D10.3 currency columns without HUD positioning](../../Plans/CurrencyGridColumnsStandaloneImplementationPlan.md).
+[D10.3 currency columns without HUD positioning](../CurrencyGridAndSceneLayouts/CurrencyGridColumnsStandaloneImplementationPlan.md).
 The [integrated D10.3 plan](CurrencyGridColumnsImplementationPlan.md) is retained
-as historical material, not as an active alternative. Only the standalone
-D10.3 plan has resumed; D10.1, D10.2, and the integrated approach remain
-abandoned. The current D10.3 draft spec is
-[here](../../FeatureSpecs/CurrencyGridColumnsFeatureSpec.md).
+as historical material, not as an active alternative. The standalone
+currency-grid proposal later expanded to include scene-aware panel visibility
+and positions, and shipped in 1.7.2. Its behavior is in the current
+[feature spec](../../FeatureSpecs/CurrencyGridColumnsFeatureSpec.md), with the
+[implementation and UAT record](../CurrencyGridAndSceneLayouts/CurrencyGridColumnsPostImplementationBugFixes.md)
+archived separately.
 
 Follow the [feature development process](../../../Processes/FeatureDevelopment.md).
-Behavior below is historical and is not a current approved specification.
-D10.3 standalone settings/reset choices and the settings-panel visibility
-exception were discussed on 2026-11-15, but the amendment was not approved.
-Tim later said he did not like the HUD behavior and did not expect the broader
-work to proceed. Standalone D10.3 has since resumed as a planning draft; its
-requirements need current spec review and approval. Nothing here authorizes
-implementation.
+Behavior below is historical and is not a current specification. The abandoned
+HUD editor, bar-threshold work, and integrated currency-settings approach did
+not ship. The separate currency-grid and scene-layout feature is governed by
+the current feature spec linked above.
 
 ## Tickets and delivery boundaries
 

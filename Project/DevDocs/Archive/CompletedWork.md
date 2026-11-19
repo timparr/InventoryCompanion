@@ -87,7 +87,19 @@ specifications live in [FeatureSpecs](../FeatureSpecs); active work lives in the
 - **Item and group editor switching:** Provides dual-layer group management and window switching while preserving geometry and the last-active tab. Implemented in `Tracking/EditPanelTabManager.lua`, `Tracking/EditPanelItemsTab.lua`, and `Tracking/EditPanelGroupsTab.lua`.
 - **Profile selection and full copy:** Main Settings selects retained account/character profiles and replaces complete profile content after confirmation. See the [current profile contract](../FeatureSpecs/AutoCategoryIntegration.md#main-settings-and-full-profiles); this supersedes the earlier item-editor list-copy workflow.
 - **Context menu integration:** Supports tracked-item addition/removal and partial-stack banking transfers. Implemented in `Core/ContextMenus.lua`.
-- **Currency and capacity panel:** Shows configurable ESO currencies and addon-defined capacity resources in a compact panel, with optional standalone progress bars. Implemented in `Tracking/CurrencyPanel.lua` and `Banking/ResourceProgressBars.lua`. See the completed [currency preferences specification](CurrencyPanel/CurrencyPreferences.md) and [implementation plan](CurrencyPanel/ImplementationPlan.md); optional improvements are retained in the [master TODO, Section F](../../Tasks/TODO.md#section-f-tweaks-and-improvement-ideas).
+- **Currency grid columns and scene-aware panel layouts (1.7.2):** Adds
+  configurable currency columns, scene-aware visibility and placement,
+  per-character per-scene positions within the active profile, logout
+  persistence, normal-position restoration, and position-reset/full-profile-copy
+  integration. The 1.7.2 release review records `/ictest verbose copy` passing
+  88/88, successful schema-10 migration checks, and the author's confirmation
+  that migrated settings and positions looked correct and normal transfer tests
+  passed. Tim confirmed Minion downloaded 1.7.2 on 2026-11-19. See the current
+  [feature specification](../FeatureSpecs/CurrencyGridColumnsFeatureSpec.md),
+  archived [implementation plan](CurrencyGridAndSceneLayouts/CurrencyGridColumnsStandaloneImplementationPlan.md),
+  and [implementation corrections and UAT record](CurrencyGridAndSceneLayouts/CurrencyGridColumnsPostImplementationBugFixes.md).
+  The earlier [currency preferences specification](CurrencyPanel/CurrencyPreferences.md)
+  remains the reference for the original currency panel.
 - **Tracker right-click options:** Toggles empty-item visibility and multiline/single-line view from the tracker context menu. Implemented in `Tracking/ItemTrackerPanel.lua`.
 - **Group header quality aggregation:** Colors group headers based on stocked items in the relevant storage locations, so excluded bank items do not affect backpack-only groups. Implemented in `Tracking/ItemTrackerPanel.lua`.
 - **Rule-slug keying:** Stores rule settings by their underlying slugs while allowing display-name overrides. Implemented in `Tracking/ItemDatabase.lua` and `Tracking/EditPanelGroupsTab.lua`.

@@ -163,28 +163,22 @@ function Set-ReviewPendingItems([string]$Content, [string[]]$Items) {
     return ($lines -join "`r`n")
 }
 
-function Set-AllPendingReviewChecksPass([string]$Content) {
-    $lines = $Content -split "\r?\n"
-    $inCheckSection = $false
-    for ($index = 0; $index -lt $lines.Count; $index++) {
-        if ($lines[$index] -eq "### Checks performed and results") {
-            $inCheckSection = $true
-            continue
-        }
-        if ($lines[$index] -match '^### ') {
-            $inCheckSection = $false
-            continue
-        }
-        if ($inCheckSection -and $lines[$index] -match '^\| .+ \|$' -and
-            $lines[$index] -notmatch '^\|[-| ]+\|$') {
-            $cells = @($lines[$index].Trim('|').Split('|') | ForEach-Object { $_.Trim() })
-            if ($cells.Count -eq 3 -and $cells[2] -match '^PENDING(?:\s|:|$)') {
-                $cells[2] = "PASS: synthetic candidate verification"
-                $lines[$index] = "| $($cells[0]) | $($cells[1]) | $($cells[2]) |"
-            }
-        }
-    }
-    return ($lines -join "`r`n")
+function Set-PackageChecksPending([string]$Content) {
+    $pendingItems = @(
+        "- Package and installation (runtime files and archive contents): pending final package verification."
+        "- Package and installation (exclusions): pending final package verification."
+        "- Package and installation (required upload files): pending final package verification."
+    )
+    $Content = Set-ReviewCheckResult $Content `
+        "**Package and installation:** Confirm the intended top-level" `
+        "PENDING: final package verification."
+    $Content = Set-ReviewCheckResult $Content `
+        "**Package and installation:** Exclude executables" `
+        "PENDING: final package verification."
+    $Content = Set-ReviewCheckResult $Content `
+        "**Package and installation:** Required upload files" `
+        "PENDING: final package verification."
+    return Set-ReviewPendingItems $Content $pendingItems
 }
 
 try {
@@ -307,7 +301,8 @@ try {
     [System.IO.File]::WriteAllText($changelogPath, "Final post-UAT changelog.")
     [System.IO.File]::WriteAllText((Join-Path $currentRelease "ReadMe.bbcode"), "Final post-UAT combined readme.")
     Assert-Fails { & $script -Action Finalize } "Release review Status"
-    $review = $stagedReview.Replace("Status: [Approved to Test]", "Status: [Approved for Release]")
+    $review = $stagedReview.Replace("Status: [Approved to Test]", "Status: [Not Approved]")
+    $review = Set-PackageChecksPending $review
     Set-Content -LiteralPath $reviewPath -Value $review -Encoding UTF8
     Assert-Fails { & $script -Action Finalize } "actual in-game UAT results"
     $review = [regex]::Replace($review, '(?m)^- In-game UAT:.*$', "- In-game UAT: Synthetic fixture confirmed the expected behavior; no real in-game test claimed.")
@@ -317,13 +312,25 @@ try {
         "- User-driven in-game tests: PENDING - not performed before stage.",
         "- 1/1 user driven unit tests passed"
     )
+    $review = Set-ReviewCheckResult $review `
+        "**Core behavior and correctness:** Identify the add-on's main responsibilities" `
+        "PENDING: synthetic non-package check."
+    $review = Set-ReviewPendingItems $review @(
+        "- Package and installation (runtime files and archive contents): pending final package verification."
+        "- Package and installation (exclusions): pending final package verification."
+        "- Package and installation (required upload files): pending final package verification."
+        "- Core behavior and correctness: unresolved synthetic check."
+    )
     Set-Content -LiteralPath $reviewPath -Value $review -Encoding UTF8
-    Assert-Fails { & $script -Action Finalize } "pending check before finalization"
-    $review = Set-AllPendingReviewChecksPass $review
-    if ($review -match '(?m)^\| .+ \| PENDING(?:\s|:|$)') {
-        throw "Synthetic finalization fixture still has a pending review check."
-    }
-    $review = Set-ReviewPendingItems $review @("- None.")
+    Assert-Fails { & $script -Action Finalize } "Only the three package-verification checks"
+    $review = Set-ReviewCheckResult $review `
+        "**Core behavior and correctness:** Identify the add-on's main responsibilities" `
+        "PASS: synthetic fixture"
+    $review = Set-PackageChecksPending $review
+    Set-Content -LiteralPath $reviewPath -Value $review -Encoding UTF8
+    $approvedPendingReview = $review.Replace("Status: [Not Approved]", "Status: [Approved for Release]")
+    Set-Content -LiteralPath $reviewPath -Value $approvedPendingReview -Encoding UTF8
+    Assert-Fails { & $script -Action Finalize } "Release review Status must be"
     Set-Content -LiteralPath $reviewPath -Value $review -Encoding UTF8
 
     $devInit = Join-Path $devRoot "Core\Init.lua"
@@ -348,6 +355,7 @@ try {
     Assert (-not (Test-Path -LiteralPath (Join-Path $devRoot "Project\Publishing\Packages"))) "Finalization recreated the obsolete Packages hierarchy."
     Assert ($finalizeOutput -contains "Archive SHA256: $zipHash") "Finalization did not report the archive hash."
     Assert ($finalizeOutput -contains "Candidate file-set SHA256: $candidateHash") "Finalization did not report the staged candidate hash."
+    Assert ($finalizeOutput -contains "Final review: Approved for Release; package checks passed.") "Finalization did not report the completed review status."
     Assert ($explorerFolders.Count -eq 1 -and $explorerFolders[0] -eq $currentRelease) "Finalization did not open Current release for upload."
     Assert ((Get-FileHash -LiteralPath $manifest).Hash -eq $devManifestBeforeFinalize) "Finalization changed DEV manifest metadata."
     Assert ((Get-FileHash -LiteralPath $devInit).Hash -eq $devInitBeforeFinalize) "Finalization changed DEV runtime metadata."
@@ -366,6 +374,13 @@ try {
         Assert ((Get-FileHash -LiteralPath $file.FullName).Hash -eq (Get-FileHash -LiteralPath (Join-Path $candidate $relativePath)).Hash) "ZIP differs from the finalized test file: $relativePath"
     }
     $zipReview = Get-Content -LiteralPath (Join-Path $extractedAddon "ReleaseReview.md") -Raw
+    Assert ($zipReview -match '(?m)^Status: \[Approved for Release\]\s*$') "Final report did not approve the verified package."
+    Assert ($zipReview -match '(?m)^- None\.\s*$') "Final report retained pending items after package verification."
+    Assert ($zipReview -notmatch '(?m)^\| .+ \| PENDING(?:\s|:|$)') "Final report retained a pending check after package verification."
+    $currentReview = Get-Content -LiteralPath $reviewPath -Raw
+    Assert ($currentReview -match '(?m)^Status: \[Approved for Release\]\s*$') "Current release review was not updated after finalization."
+    Assert ($currentReview -match '(?m)^- None\.\s*$') "Current release review still has pending items after finalization."
+    Assert ($currentReview -eq $zipReview) "Current release review differs from the review inside the ZIP."
     Assert ($zipReview -match '(?m)^### Test results\s*$') "Final report lost the existing Test results section."
     Assert ($zipReview -notmatch '(?m)^## User testing\s*$') "Finalization added an extra report section."
     Assert ($zipReview -match 'Synthetic fixture confirmed the expected behavior') "Final report omitted the UAT result."

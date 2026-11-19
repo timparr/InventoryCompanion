@@ -1,22 +1,27 @@
 # Configurable currency columns and scene behavior: implementation plan
 
-Status: APPROVED - implementation in progress; acceptance pending
-TODO item: [D10.3 (formerly F1)](../../Tasks/TODO.md)
-Spec: [Configurable currency grid columns](../FeatureSpecs/CurrencyGridColumnsFeatureSpec.md)
+Status: ARCHIVED - implemented and released in 1.7.2; accepted 2026-11-19
+Completed work: [Currency grid and scene layouts](../CompletedWork.md)
+Spec: [Configurable currency grid columns](../../FeatureSpecs/CurrencyGridColumnsFeatureSpec.md)
 Owner: Copilot (draft author)
-Updated: 2026-11-15
+Updated: 2026-11-19
+
+This approved preimplementation plan is retained as a historical technical
+record. Its planning-time `PENDING` entries are superseded by the acceptance
+record below and the archived implementation corrections.
 
 The approved [post-implementation corrections](CurrencyGridColumnsPostImplementationBugFixes.md)
 supersede this plan's entry-only placement and immutable user-position rules.
 They add furniture-vault support and cover bank deposit/withdrawal detection.
 
-## Open questions
+## Resolved planning question
 
-| ID | Question | What is needed to resolve it |
-|---|---|---|
-| Q12 | Does entry-only tracker positioning preserve behavior outside the tested bank interaction? | **In-game investigation:** bank placement, dragging without snap-back, and close/reopen behavior confirmed by Tim; inventory-update behavior and other supported interactions remain unverified. Protocol and evidence below. |
+- **Q12, entry-only tracker positioning:** Superseded by the approved geometry-
+  change correction. The final implementation and release UAT covered the
+  supported scene behavior; see the archived [implementation corrections and
+  UAT record](CurrencyGridColumnsPostImplementationBugFixes.md).
 
-Use the [feature development process](../../Processes/FeatureDevelopment.md).
+Use the [feature development process](../../../Processes/FeatureDevelopment.md).
 The spec is authoritative for product behavior. This plan groups technical work
 into tasks. Previous
 settings-overlay-only assumptions do not override the spec.
@@ -41,7 +46,7 @@ settings-overlay-only assumptions do not override the spec.
 - The previous settings-overlay work was reviewed provisionally, but the newer
   scene visibility, placement, persistence, transition, and reset requirements
   still need a complete design using the investigation results below. The
-  [historical plans](../Archive/HUDLayoutAndVisibility/README.md) are context,
+  [historical plans](../HUDLayoutAndVisibility/README.md) are context,
   not current requirements or approval.
 
 ## Technical options and decisions
@@ -599,7 +604,8 @@ RefreshCurrencyPanel():
 
 ### Task 3: Coordinate scene visibility and placement
 
-- Depends on: Task 1's panel/layout access and Q12's positioning investigation.
+- Depends on: Task 1's panel/layout access and the now-resolved Q12 positioning
+  investigation.
   Task 2 can be developed independently of this controller.
 - Spec coverage: CG6, CG7.
 - Integration constraint: generalize or replace the existing tracker scene
@@ -613,10 +619,9 @@ RefreshCurrencyPanel():
   `Tracking\ItemTrackerPanel.lua`, `Tracking\CurrencyPanel.lua`, and
   `Banking\ResourceProgressBars.lua`, plus the associated XML and ZOS/LAM
   controls. See the appendix for all-panel lifecycle and external scene mapping.
-- Create the shared controller and wire the entry/exit, visibility and
-  placement paths described below. Keep Q12's client evidence pending; if it
-  exposes a necessary corrective behavior, discuss it before changing this
-  entry-only design.
+- The entry-only design below was superseded by the approved geometry-change
+  corrections recorded in the implementation document. Q12 was resolved during
+  implementation and UAT; no evidence remains pending.
 - Verification: production visibility and geometry tests for scene transitions,
   panel types, normal-view visibility including placeholders, disabled panels,
   unobstructed placement, side-stack spacing,
@@ -877,8 +882,9 @@ the scene is still open.
 - Register focused tests using production methods and ESO stubs; do not mutate
   live inventory or normal SavedVariables. Update user documentation to describe
   delivered behavior without treating unperformed checks as passing.
-- Verification: run the focused selectors below, then separately approved
-  in-game checks with required backups. Keep actual outcomes pending.
+- Verification: the focused selectors below and separately approved in-game
+  checks with required backups were completed during feature acceptance; see
+  the results recorded at the end of this plan.
 
 #### Add production-method tests and run focused verification
 
@@ -941,29 +947,31 @@ after offline safety checks:
     resize/change columns while open; confirm no automatic repositioning
     drag, close/reopen, reload/logout and change character; verify ownership
     retain the reported 20 px untangling result; check delivered fallback in UAT
-    leave acceptance/review approvals pending until explicitly given
+    record actual acceptance after the separately approved UAT
 ```
 
 ## Verification and acceptance mapping
 
 | Spec criterion | Implementation task | Test / evidence | Actual result |
 |---|---|---|---|
-| CG1 | 1, 2, 5 | Default, layout, and settings preview | PENDING |
-| CG2 | 2, 5 | Discovery, filtering, and range tests | PENDING |
-| CG3 | 2, 5 | Layout and preservation tests | PENDING |
-| CG4 | 1, 2, 4, 5 | Profile, copy, and reset tests | PENDING |
-| CG5 | 1, 5 | Saved-data and older-reader safety tests | PENDING |
-| CG6 | 3, 5 | Visibility and placement tests; in-game scene checks | PENDING |
-| CG7 | 1, 3, 4, 5 | Persistence, isolation, transition, and logout tests | PENDING |
+| CG1 | 1, 2, 5 | Default, layout, and settings preview | Accepted in 1.7.2 UAT |
+| CG2 | 2, 5 | Discovery, filtering, and range tests | Accepted in 1.7.2 UAT |
+| CG3 | 2, 5 | Layout and preservation tests | Accepted in 1.7.2 UAT |
+| CG4 | 1, 2, 4, 5 | Profile, copy, and reset tests | Accepted in 1.7.2 UAT |
+| CG5 | 1, 5 | Saved-data and older-reader safety tests | Schema-10 migration verified in 1.7.2 UAT |
+| CG6 | 3, 5 | Visibility and placement tests; in-game scene checks | Accepted in 1.7.2 UAT |
+| CG7 | 1, 3, 4, 5 | Persistence, isolation, transition, and logout tests | Accepted in 1.7.2 UAT |
 
-Offline tests cannot establish actual scene geometry, event delivery, or logout
-persistence. In-game checks and any required backed-up migration UAT remain
-pending separate approval.
+The 1.7.2 release UAT records `/ictest verbose copy` passing 88/88, successful
+schema-10 migration checks, and the author's confirmation that migrated profile
+settings and normal positions looked correct after reload and normal transfer
+tests passed. The full report is retained inside the frozen 1.7.2 package.
 
 ### In-game investigation: repeated tracker positioning
 
-Status: BANK CHECK PASSED - Tim's observations recorded 2026-11-15.
-Other interaction/inventory-update checks and temporary-code cleanup PENDING.
+Status: Superseded and resolved during implementation; temporary experiment
+removed before feature implementation. The final supported-scene behavior was
+covered by implementation tests and 1.7.2 UAT.
 
 Checkpoint before the experiment: `b9eee0e` on `main`. The temporary change in
 `Tracking\ItemTrackerPanel.lua` remembers the last successfully positioned raw
@@ -1028,7 +1036,8 @@ First press shows tracker, currency and every discovered resource bar at
 temporarily disabled for those controls; the second press stops movement,
 restores original anchors/visibility/handlers, and resumes the ordinary ticker.
 Visibility ticking is suspended only while this separate stagger test is on;
-bar refreshes retain test anchors. Turn it off before the Q12 interaction test.
+bar refreshes retain test anchors. This experiment was removed before the Q12
+interaction tests and was not part of the final implementation.
 No preference enabling or position writes are required to show the stack.
 
 The actual DEV disk backup is now
@@ -1082,17 +1091,17 @@ Reviewed source: working-tree spec/plan on `main`, HEAD
 
 | Finding | Tim's decision and resolution | Focused re-review |
 |---|---|---|
-| Stale appendix left shared/per-tab editor layouts undecided. | Fix authorized; appendix now specifies one `Layout_EditorScene` for all tabs. | PENDING |
-| Placement pseudocode lacked deterministic advancement, fit and fallback rules. | Fix authorized; Task 3 now defines trials, blocker advancement, atomic side selection, fallback anchors and clamps. | PENDING |
-| Meaning of tracker placeholder for visibility needed clarification. | Tim confirmed placeholders count: preserve normal no-scene visibility, not stricter emptiness filtering. Spec and controller pseudocode updated. | PENDING |
-| Q12 repeated-positioning client evidence unavailable. | Bank initial placement, drag without snap-back and close/reopen behavior now confirmed by Tim; remaining interaction/refresh coverage is still pending. | PARTIAL client evidence |
+| Stale appendix left shared/per-tab editor layouts undecided. | Fix authorized; appendix now specifies one `Layout_EditorScene` for all tabs. | Resolved; final amendment review found no blocking issues. |
+| Placement pseudocode lacked deterministic advancement, fit and fallback rules. | Fix authorized; Task 3 now defines trials, blocker advancement, atomic side selection, fallback anchors and clamps. | Resolved; final amendment review found no blocking issues. |
+| Meaning of tracker placeholder for visibility needed clarification. | Tim confirmed placeholders count: preserve normal no-scene visibility, not stricter emptiness filtering. Spec and controller pseudocode updated. | Resolved; final amendment review found no blocking issues. |
+| Q12 repeated-positioning client evidence unavailable. | Entry-only behavior was superseded by the approved geometry-change correction; supported scenes were covered by implementation tests and 1.7.2 UAT. | Resolved. |
 
-Reviewer reported no findings in migration/downgrade, copy/reset, slider/grid,
-or shared visibility integration. These are design assessments, not runtime
-verification. Focused review confirmed the previous findings resolved. It identified a
-startup-order conflict; Tim authorized correcting it, and an independent
+The final independent amendment review on 2026-11-17 found no blocking issues.
+Reviewer assessments of migration/downgrade, copy/reset, slider/grid, and shared
+visibility integration were design reviews, not runtime verification. An
+identified startup-order conflict was corrected; independent
 `startup-plan-check` confirmed the revised Initialize/Register/Complete sequence
-clear before implementation. Overall approvals are recorded below.
+before implementation.
 
 ## Approvals
 
@@ -1140,20 +1149,26 @@ or timers are added: reuse the existing ticker and callbacks.
   source preservation on both successful and rejected copies.
 - Final independent `profile-copy-correction-check`: no significant issues
   found in the correction. No reported review findings remain unresolved.
-- Actual test results: 2026-11-16, `python Project\Tests\Run-RuleTests.py`,
-  237/237 isolated tests passed, including Lua 5.1 compilation and XML checks;
-  `git diff --check` passed. Retained acceptance evidence: PENDING.
-- Unavailable checks and remaining limitations: client rendering, actual event
-  delivery, and migration from an actual older-schema backup remain PENDING.
+- Earlier verification: 237/237 isolated tests passed on 2026-11-16. Subsequent
+  layout and snapping corrections passed 246/246, and the final closeout run
+  passed 247/247, including Lua 5.1 compilation and XML checks; `git diff --check`
+  also passed.
+- Release UAT: `/ictest verbose copy` passed 88/88; schema-10 migration and
+  normal transfer tests passed. The author confirmed migrated tracked groups,
+  panel settings, and normal positions looked correct after reload. See the
+  1.7.2 release review retained in the frozen package.
 
 ## Acceptance and handoff
 
-- Approved in-game test scope and required backups: PENDING
-- Actual Tim-reported results: PENDING
-- Explicit feature acceptance: PENDING
-- Current spec, user docs, TODO, completed-work index, and archive links updated: PENDING
-- Commit/merge authorization: PENDING
-- Release follows the separate release process and is not authorized here.
+- Approved in-game scope and required backups: completed under the 1.7.2 release
+  process; verified backups and UAT results are in the release review.
+- Actual Tim-reported results: 88/88 diagnostics passed; migrated profile
+  settings and normal positions looked correct after reload; all normal transfer
+  tests passed.
+- Explicit feature acceptance: Tim, 2026-11-19, following successful 1.7.2 UAT.
+- Current spec, completed-work index, and archive links updated at release
+  closeout; user documentation shipped in the 1.7.2 package.
+- Feature implementation was merged to `main`; release 1.7.2 was published.
 
 ## Appendix: Investigation results
 
@@ -1350,7 +1365,7 @@ checks must confirm which visible rectangles represent the approved policy.
 
 ### Offline placement feasibility experiment
 
-[ScenePlacementInvestigationTests.lua](../../Tests/ScenePlacementInvestigationTests.lua)
+[ScenePlacementInvestigationTests.lua](../../../Tests/ScenePlacementInvestigationTests.lua)
 contains an isolated, unapproved candidate algorithm, never loaded by the addon.
 For axis-aligned rectangular obstacles, expand each obstacle by the panel's
 size in top-left-coordinate space. Test combinations of the clamped requested

@@ -141,6 +141,168 @@ function Get-CandidateRecords {
     }
 }
 
+function Set-ReviewPendingItemsComplete([string]$Content) {
+    $lines = @($Content -split "\r?\n")
+    $sectionStart = [Array]::IndexOf($lines, "### Pending items")
+    if ($sectionStart -lt 0) {
+        throw "Release review Pending items section was not found."
+    }
+    $sectionEnd = $lines.Count
+    for ($index = $sectionStart + 1; $index -lt $lines.Count; $index++) {
+        if ($lines[$index] -match '^### ') {
+            $sectionEnd = $index
+            break
+        }
+    }
+    $updated = [System.Collections.Generic.List[string]]::new()
+    for ($index = 0; $index -le $sectionStart; $index++) { $updated.Add($lines[$index]) }
+    $updated.Add("")
+    $updated.Add("- None.")
+    for ($index = $sectionEnd; $index -lt $lines.Count; $index++) { $updated.Add($lines[$index]) }
+    return ($updated -join "`r`n")
+}
+
+function Set-ReviewSummaryPackageComplete([string]$Content) {
+    $lines = [System.Collections.Generic.List[string]]::new()
+    foreach ($line in ($Content -split "\r?\n")) { $lines.Add($line) }
+    $sectionStart = $lines.IndexOf("### Summary")
+    if ($sectionStart -lt 0) {
+        throw "Release review Summary section was not found."
+    }
+    $sectionEnd = $lines.Count
+    for ($index = $sectionStart + 1; $index -lt $lines.Count; $index++) {
+        if ($lines[$index] -match '^### ') {
+            $sectionEnd = $index
+            break
+        }
+    }
+    $updated = $false
+    for ($index = $sectionStart + 1; $index -lt $sectionEnd; $index++) {
+        $updatedLine = [regex]::Replace(
+            $lines[$index],
+            '(?i)final package verification is pending',
+            'final package verification passed'
+        )
+        if ($updatedLine -ne $lines[$index]) {
+            $lines[$index] = $updatedLine
+            $updated = $true
+        }
+    }
+    if (-not $updated) {
+        $summaryLine = $sectionEnd - 1
+        while ($summaryLine -gt $sectionStart -and [string]::IsNullOrWhiteSpace($lines[$summaryLine])) {
+            $summaryLine--
+        }
+        if ($summaryLine -eq $sectionStart) {
+            throw "Release review Summary section is empty."
+        }
+        if ($lines[$summaryLine] -notmatch '(?i)final package verification passed') {
+            $lines[$summaryLine] += " Final package verification passed."
+        }
+    }
+    return ($lines -join "`r`n")
+}
+
+function Complete-PackageReview([string]$Content, [string]$Version) {
+    $packageChecks = @(
+        @{
+            Marker = "Confirm the intended top-level add-on folder(s)"
+            Result = "PASS: Finalize verified InventoryCompanion-v$Version.zip against the frozen candidate; the final package hash is provided with the approval request."
+        }
+        @{
+            Marker = "Exclude executables unless a documented ESOUI exception permits them"
+            Result = "PASS: The final ZIP contains only the frozen runtime files and approved release documents; excluded files are absent."
+        }
+        @{
+            Marker = "Required upload files are the ReadMe, Changelog, and ZIP file"
+            Result = "PASS: The final ZIP contains the approved combined ReadMe, Changelog, and review; all entries were byte-verified and the retained ZIP hash matches."
+        }
+    )
+    $lines = $Content -split "\r?\n"
+    $inChecks = $false
+    $matched = @{}
+    for ($index = 0; $index -lt $lines.Count; $index++) {
+        if ($lines[$index] -eq "### Checks performed and results") {
+            $inChecks = $true
+            continue
+        }
+        if ($lines[$index] -match '^### ') {
+            $inChecks = $false
+            continue
+        }
+        if (-not $inChecks -or $lines[$index] -notmatch '^\| .+ \|$' -or
+            $lines[$index] -match '^\|[-| ]+\|$') {
+            continue
+        }
+        $cells = @($lines[$index].Trim('|').Split('|') | ForEach-Object { $_.Trim() })
+        if ($cells.Count -ne 3) {
+            throw "Unexpected release review check row: $($lines[$index])"
+        }
+        foreach ($packageCheck in $packageChecks) {
+            if ($cells[0].Contains($packageCheck.Marker)) {
+                if ($matched.ContainsKey($packageCheck.Marker) -or
+                    $cells[2] -notmatch '^PENDING(?:\s|:|$)') {
+                    throw "Expected one pending package check for '$($packageCheck.Marker)'."
+                }
+                $matched[$packageCheck.Marker] = $true
+                $cells[2] = $packageCheck.Result
+                $lines[$index] = "| $($cells[0]) | $($cells[1]) | $($cells[2]) |"
+            }
+        }
+    }
+    if ($matched.Count -ne $packageChecks.Count) {
+        throw "Release review does not contain all expected pending package checks."
+    }
+    $completed = $lines -join "`r`n"
+    $completed = [regex]::Replace(
+        $completed,
+        '(?m)^Status: \[Not Approved\]\s*$',
+        "Status: [Approved for Release]"
+    )
+    if ($completed -eq $Content) {
+        throw "Release review package checks could not be completed."
+    }
+    $completed = Set-ReviewPendingItemsComplete $completed
+    return Set-ReviewSummaryPackageComplete $completed
+}
+
+function Assert-ZipMatchesRecords([string]$ArchivePath, [object[]]$PackageRecords) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $expectedEntries = @{}
+    foreach ($record in $PackageRecords) {
+        $entryName = "InventoryCompanion/$($record.Path.Replace('\', '/'))"
+        if ($expectedEntries.ContainsKey($entryName)) {
+            throw "Duplicate package file path: $entryName"
+        }
+        $expectedEntries[$entryName] = $record.Hash
+    }
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($ArchivePath)
+    try {
+        foreach ($entry in $archive.Entries) {
+            if (-not $expectedEntries.ContainsKey($entry.FullName)) {
+                throw "Unexpected or duplicate ZIP entry: $($entry.FullName)"
+            }
+            $stream = $entry.Open()
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try {
+                $hash = [System.BitConverter]::ToString($sha.ComputeHash($stream)).Replace("-", "")
+            } finally {
+                $sha.Dispose()
+                $stream.Dispose()
+            }
+            if ($hash -ne $expectedEntries[$entry.FullName]) {
+                throw "ZIP file differs from the verified package: $($entry.FullName)"
+            }
+            $expectedEntries.Remove($entry.FullName)
+        }
+        if ($expectedEntries.Count -gt 0) {
+            throw "ZIP is missing finalized release files."
+        }
+    } finally {
+        $archive.Dispose()
+    }
+}
+
 function Read-TestState {
     if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) {
         throw "No staged release test exists. Run -Action Stage first."
@@ -161,8 +323,20 @@ function Read-TestState {
     return $state
 }
 
-function Assert-ReleaseReview([string]$Content, [string]$Version, [string]$CandidateHash, [bool]$RequireCandidateHash) {
-    $requiredStatus = if ($RequireCandidateHash) { "Approved for Release" } else { "Approved to Test" }
+function Assert-ReleaseReview(
+    [string]$Content,
+    [string]$Version,
+    [string]$CandidateHash,
+    [bool]$RequireCandidateHash,
+    [bool]$AllowPendingPackageChecks = $false
+) {
+    $requiredStatus = if (-not $RequireCandidateHash) {
+        "Approved to Test"
+    } elseif ($AllowPendingPackageChecks) {
+        "Not Approved"
+    } else {
+        "Approved for Release"
+    }
     if ($Content -notmatch "(?m)^Status: \[$([regex]::Escape($requiredStatus))\]\s*$") {
         throw "Release review Status must be [$requiredStatus] for this release action."
     }
@@ -275,6 +449,7 @@ function Assert-ReleaseReview([string]$Content, [string]$Version, [string]$Candi
     }
     $checkSection = [regex]::Match($Content, '(?ms)^### Checks performed and results\s*\r?\n(?<body>.*?)(?=^### |\z)')
     $checkRows = @($checkSection.Groups["body"].Value -split '\r?\n' | Where-Object { $_ -match '^\| .+ \|$' -and $_ -notmatch '^\|[-| ]+\|$' })
+    $pendingCheckLabels = [System.Collections.Generic.List[string]]::new()
     foreach ($row in $checkRows | Select-Object -Skip 1) {
         $cells = @($row.Trim('|').Split('|') | ForEach-Object { $_.Trim() })
         $prefilledResult = $cells.Count -eq 3 -and
@@ -287,7 +462,11 @@ function Assert-ReleaseReview([string]$Content, [string]$Version, [string]$Candi
         if ($cells[2] -match '^(FAIL|UNRESOLVED)(?:\s|:|$)') {
             throw "Release review contains an unresolved/failed check: $row"
         }
-        if ($RequireCandidateHash -and $cells[2] -match '^PENDING(?:\s|:|$)') {
+        if ($cells[2] -match '^PENDING(?:\s|:|$)') {
+            $pendingCheckLabels.Add($cells[0])
+        }
+        if ($RequireCandidateHash -and -not $AllowPendingPackageChecks -and
+            $cells[2] -match '^PENDING(?:\s|:|$)') {
             throw "Release review still contains a pending check before finalization: $row"
         }
     }
@@ -297,8 +476,35 @@ function Assert-ReleaseReview([string]$Content, [string]$Version, [string]$Candi
     }
     $pendingItems = @($pendingSection.Groups["body"].Value -split '\r?\n' |
         Where-Object { $_ -match '^- ' -and $_ -notmatch '^- <' -and $_ -notmatch '^- None\.$' })
-    if ($RequireCandidateHash -and $pendingItems.Count -gt 0) {
+    if ($RequireCandidateHash -and -not $AllowPendingPackageChecks -and $pendingItems.Count -gt 0) {
         throw "Release review still has Pending items before finalization."
+    }
+    if ($AllowPendingPackageChecks) {
+        $expectedPendingMarkers = @(
+            "Confirm the intended top-level add-on folder(s)"
+            "Exclude executables unless a documented ESOUI exception permits them"
+            "Required upload files are the ReadMe, Changelog, and ZIP file"
+        )
+        $expectedPendingItemMarkers = @(
+            "runtime files and archive contents"
+            "(exclusions)"
+            "(required upload files)"
+        )
+        if ($pendingCheckLabels.Count -ne $expectedPendingMarkers.Count -or
+            $pendingItems.Count -ne $expectedPendingMarkers.Count -or
+            @($pendingItems | Where-Object { $_ -notmatch '^- Package and installation \(' }).Count -gt 0) {
+            throw "Only the three package-verification checks may remain pending before finalization."
+        }
+        foreach ($marker in $expectedPendingMarkers) {
+            if (@($pendingCheckLabels | Where-Object { $_.Contains($marker) }).Count -ne 1) {
+                throw "Only the three package-verification checks may remain pending before finalization."
+            }
+        }
+        foreach ($marker in $expectedPendingItemMarkers) {
+            if (@($pendingItems | Where-Object { $_.Contains($marker) }).Count -ne 1) {
+                throw "Pending items must identify each package-verification check exactly once."
+            }
+        }
     }
     $documentationSection = [regex]::Match($Content, '(?ms)^### Documentation review\s*\r?\n(?<body>.*?)(?=^### |\z)')
     $documentationRows = @($documentationSection.Groups["body"].Value -split '\r?\n' |
@@ -509,7 +715,7 @@ if (-not (Test-Path -LiteralPath $reviewPath -PathType Leaf)) {
     throw "Complete ReleaseReview.md from Project\Processes\Templates\ReleaseReview.md before finalizing."
 }
 $reviewContent = [System.IO.File]::ReadAllText($reviewPath)
-Assert-ReleaseReview $reviewContent $version $candidateHash $true
+Assert-ReleaseReview $reviewContent $version $candidateHash $true $true
 
 $archiveName = "InventoryCompanion-v$version.zip"
 $archivePath = Join-Path $currentReleaseRoot $archiveName
@@ -522,11 +728,24 @@ if (Test-Path -LiteralPath $retainedArchive) {
     throw "Archived release already exists: $retainedArchive. Do not overwrite a prior release."
 }
 $packagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("InventoryCompanion-package-" + [guid]::NewGuid().ToString("N"))
+$preliminaryArchive = Join-Path ([System.IO.Path]::GetTempPath()) ("InventoryCompanion-preliminary-" + [guid]::NewGuid().ToString("N") + ".zip")
 $temporaryArchive = Join-Path ([System.IO.Path]::GetTempPath()) ("InventoryCompanion-" + [guid]::NewGuid().ToString("N") + ".zip")
 $candidateReadmePath = Join-Path $candidateRoot "ReadMe.bbcode"
-$originalReadme = [System.IO.File]::ReadAllBytes($candidateReadmePath)
+$originalReview = [System.IO.File]::ReadAllBytes($reviewPath)
+$originalCandidateDocuments = @{}
+foreach ($relativePath in @("ReadMe.bbcode", "Changelog.bbcode", "ReleaseReview.md")) {
+    $candidateDocumentPath = Join-Path $candidateRoot $relativePath
+    $originalCandidateDocuments[$relativePath] = if (Test-Path -LiteralPath $candidateDocumentPath -PathType Leaf) {
+        [System.IO.File]::ReadAllBytes($candidateDocumentPath)
+    } else {
+        $null
+    }
+}
 $candidateDocumentsApplied = $false
+$reviewUpdated = $false
 $archiveCreated = $false
+$retainedArchiveCreated = $false
+$packageVerified = $false
 try {
     $null = New-Item -ItemType Directory -Path $packagingRoot
     $packagingAddon = Join-Path $packagingRoot "InventoryCompanion"
@@ -542,82 +761,42 @@ try {
     [System.IO.File]::WriteAllText(
         (Join-Path $packagingAddon "ReleaseReview.md"), $reviewContent, [System.Text.UTF8Encoding]::new($false)
     )
+    $preliminaryRecords = @(Get-ChildItem -LiteralPath $packagingAddon -File -Recurse -Force | ForEach-Object {
+        Get-FileRecord $_.FullName $_.FullName.Substring($packagingAddon.Length + 1)
+    })
+    Compress-Archive -LiteralPath $packagingAddon -DestinationPath $preliminaryArchive -CompressionLevel Optimal
+    Assert-ZipMatchesRecords $preliminaryArchive $preliminaryRecords
+
+    $finalReviewContent = Complete-PackageReview $reviewContent $version
+    Assert-ReleaseReview $finalReviewContent $version $candidateHash $true
+    [System.IO.File]::WriteAllText(
+        (Join-Path $packagingAddon "ReleaseReview.md"), $finalReviewContent, [System.Text.UTF8Encoding]::new($false)
+    )
     $packageRecords = @(Get-ChildItem -LiteralPath $packagingAddon -File -Recurse -Force | ForEach-Object {
         Get-FileRecord $_.FullName $_.FullName.Substring($packagingAddon.Length + 1)
     })
     Compress-Archive -LiteralPath $packagingAddon -DestinationPath $temporaryArchive -CompressionLevel Optimal
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $archive = [System.IO.Compression.ZipFile]::OpenRead($temporaryArchive)
-    try {
-        $expectedEntries = @{}
-        foreach ($record in $packageRecords) {
-            $expectedEntries["InventoryCompanion/$($record.Path.Replace('\', '/'))"] = $record.Hash
-        }
-        foreach ($entry in $archive.Entries) {
-            if (-not $expectedEntries.ContainsKey($entry.FullName)) {
-                throw "Unexpected or duplicate ZIP entry: $($entry.FullName)"
-            }
-            $stream = $entry.Open()
-            $sha = [System.Security.Cryptography.SHA256]::Create()
-            try {
-                $hash = [System.BitConverter]::ToString($sha.ComputeHash($stream)).Replace("-", "")
-            } finally {
-                $sha.Dispose()
-                $stream.Dispose()
-            }
-            if ($hash -ne $expectedEntries[$entry.FullName]) {
-                throw "ZIP file differs from the tested candidate: $($entry.FullName)"
-            }
-            $expectedEntries.Remove($entry.FullName)
-        }
-        if ($expectedEntries.Count -gt 0) {
-            throw "ZIP is missing finalized release files."
-        }
-    } finally {
-        $archive.Dispose()
-    }
+    Assert-ZipMatchesRecords $temporaryArchive $packageRecords
+
     $candidateDocumentsApplied = $true
     foreach ($relativePath in $finalReleaseDocuments.Keys) {
         Copy-Item -LiteralPath $finalReleaseDocuments[$relativePath] `
             -Destination (Join-Path $candidateRoot $relativePath) -Force
     }
-    Copy-Item -LiteralPath $reviewPath -Destination (Join-Path $candidateRoot "ReleaseReview.md")
+    [System.IO.File]::WriteAllText(
+        (Join-Path $candidateRoot "ReleaseReview.md"), $finalReviewContent, [System.Text.UTF8Encoding]::new($false)
+    )
     $candidateFinalRecords = @(Get-CandidateRecords)
     $expectedFinalRecords = @($packageRecords | ForEach-Object { "$($_.Path)|$($_.Hash)" } | Sort-Object)
     $actualFinalRecords = @($candidateFinalRecords | ForEach-Object { "$($_.Path)|$($_.Hash)" } | Sort-Object)
     if (@(Compare-Object $expectedFinalRecords $actualFinalRecords).Count -gt 0) {
         throw "Finalized test-installation files differ from the verified package."
     }
+    $reviewUpdated = $true
+    [System.IO.File]::WriteAllText($reviewPath, $finalReviewContent, [System.Text.UTF8Encoding]::new($false))
     Move-Item -LiteralPath $temporaryArchive -Destination $archivePath
     $archiveCreated = $true
-} catch {
-    if ($candidateDocumentsApplied) {
-        [System.IO.File]::WriteAllBytes($candidateReadmePath, $originalReadme)
-        foreach ($relativePath in @("Changelog.bbcode", "ReleaseReview.md")) {
-            $candidateDocumentPath = Join-Path $candidateRoot $relativePath
-            if (Test-Path -LiteralPath $candidateDocumentPath) {
-                Remove-Item -LiteralPath $candidateDocumentPath
-            }
-        }
-    }
-    if ($archiveCreated -and (Test-Path -LiteralPath $archivePath)) {
-        Remove-Item -LiteralPath $archivePath
-    }
-    throw
-} finally {
-    if (Test-Path -LiteralPath $temporaryArchive) {
-        Remove-Item -LiteralPath $temporaryArchive
-    }
-    if (Test-Path -LiteralPath $packagingRoot) {
-        Remove-Item -LiteralPath $packagingRoot -Recurse -Force
-    }
-}
-$archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash
-Write-Output "Created verified release package: $archivePath"
-Write-Output "Archive SHA256: $archiveHash"
-Write-Output "Candidate file-set SHA256: $candidateHash"
-$retainedArchiveCreated = $false
-try {
+    $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash
     $null = New-Item -ItemType Directory -Path $archiveDirectory -Force
     $retainedStream = [System.IO.File]::Open($retainedArchive, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write)
     $retainedArchiveCreated = $true
@@ -634,22 +813,47 @@ try {
     if ((Get-FileHash -LiteralPath $retainedArchive -Algorithm SHA256).Hash -ne $archiveHash) {
         throw "The retained ZIP copy does not match the finalized package."
     }
+    $packageVerified = $true
 } catch {
-    if ($retainedArchiveCreated -and (Test-Path -LiteralPath $retainedArchive)) {
-        Remove-Item -LiteralPath $retainedArchive
-    }
-    [System.IO.File]::WriteAllBytes($candidateReadmePath, $originalReadme)
-    foreach ($relativePath in @("Changelog.bbcode", "ReleaseReview.md")) {
-        $candidateDocumentPath = Join-Path $candidateRoot $relativePath
-        if (Test-Path -LiteralPath $candidateDocumentPath) {
-            Remove-Item -LiteralPath $candidateDocumentPath
+    if (-not $packageVerified) {
+        if ($candidateDocumentsApplied) {
+            foreach ($relativePath in $originalCandidateDocuments.Keys) {
+                $candidateDocumentPath = Join-Path $candidateRoot $relativePath
+                $originalContent = $originalCandidateDocuments[$relativePath]
+                if ($null -eq $originalContent) {
+                    if (Test-Path -LiteralPath $candidateDocumentPath) {
+                        Remove-Item -LiteralPath $candidateDocumentPath
+                    }
+                } else {
+                    [System.IO.File]::WriteAllBytes($candidateDocumentPath, $originalContent)
+                }
+            }
+        }
+        if ($reviewUpdated) {
+            [System.IO.File]::WriteAllBytes($reviewPath, $originalReview)
+        }
+        if ($retainedArchiveCreated -and (Test-Path -LiteralPath $retainedArchive)) {
+            Remove-Item -LiteralPath $retainedArchive
+        }
+        if ($archiveCreated -and (Test-Path -LiteralPath $archivePath)) {
+            Remove-Item -LiteralPath $archivePath
         }
     }
-    if ($archiveCreated -and (Test-Path -LiteralPath $archivePath)) {
-        Remove-Item -LiteralPath $archivePath
+    throw
+} finally {
+    if (Test-Path -LiteralPath $preliminaryArchive) {
+        Remove-Item -LiteralPath $preliminaryArchive
     }
-    throw "The ZIP was verified at '$archivePath', but retaining its archive copy failed: $($_.Exception.Message)"
+    if (Test-Path -LiteralPath $temporaryArchive) {
+        Remove-Item -LiteralPath $temporaryArchive
+    }
+    if (Test-Path -LiteralPath $packagingRoot) {
+        Remove-Item -LiteralPath $packagingRoot -Recurse -Force
+    }
 }
+Write-Output "Created verified release package: $archivePath"
+Write-Output "Archive SHA256: $archiveHash"
+Write-Output "Candidate file-set SHA256: $candidateHash"
 try {
     $state.Completed = $true
     $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath -Encoding UTF8
@@ -659,4 +863,5 @@ try {
 Write-Output "Release installation retained for gameplay. Use your add-on profiles to select release OR development."
 Write-Output "Retained release ZIP: $retainedArchive"
 Write-Output "Prepared upload handoff folder: $currentReleaseRoot"
+Write-Output "Final review: Approved for Release; package checks passed."
 Start-Process explorer.exe -ArgumentList ('"' + $currentReleaseRoot + '"')

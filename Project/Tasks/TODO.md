@@ -71,16 +71,6 @@ material, not approved implementation scope.
   Miscellaneous virtual group before implementation and reuse or extend its
   behavior where appropriate. Consider renaming the Currency Panel to Summary
   Panel if it includes broader item/group summaries.
-- **D10.3. Standalone Configurable Currency Grid Columns (formerly F1):**
-  Choose the currency-grid column count in the existing Currency Summary Panel
-  settings, with immediate persistence and its existing position-preserving
-  Reset Panel behavior. Include resource-discovery-driven slider range updates
-  and temporary panel visibility/repositioning around the settings window.
-  This is independent of the abandoned D10.1 HUD editor and D10.2 bar-visibility
-  work. The active draft
-  [implementation plan](../DevDocs/Plans/CurrencyGridColumnsStandaloneImplementationPlan.md)
-  and [spec](../DevDocs/FeatureSpecs/CurrencyGridColumnsFeatureSpec.md) remain unapproved;
-  no code is authorized.
 ---
 
 ## Section E: 🏗️ Post-V1 Refactoring Tickets
