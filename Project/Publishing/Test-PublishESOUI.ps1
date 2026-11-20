@@ -178,6 +178,20 @@ try {
         Assert-Fails { & $scriptPath @arguments } "documentation differs"
         $documents[$name] | Set-Content -LiteralPath (Join-Path $current $name)
     }
+    $requests.Clear()
+    $changedChangelog = "[b]Updated synthetic changes[/b]"
+    $changedChangelog | Set-Content -LiteralPath (Join-Path $current "Changelog.bbcode")
+    $mismatchWarnings = @()
+    & $scriptPath @arguments -AllowDocumentationMismatch -WarningVariable mismatchWarnings | Out-Null
+    Assert ($requests.Count -eq 1 -and $requests[0].Uri.EndsWith("/updatetest")) "Documentation override must remain a non-saving test by default."
+    Assert ($requests[0].Form.changelog.Trim() -eq $changedChangelog) "Documentation override must upload the current Changelog."
+    Assert (@($mismatchWarnings).Count -eq 1 -and $mismatchWarnings[0].Message.Contains("Changelog.bbcode")) "Documentation override must report the differing file."
+    $documents["Changelog.bbcode"] | Set-Content -LiteralPath (Join-Path $current "Changelog.bbcode")
+    $requests.Clear()
+    "changed ZIP" | Set-Content -LiteralPath $currentZip
+    Assert-Fails { & $scriptPath @arguments -AllowDocumentationMismatch } "ZIP differs"
+    Copy-Item -LiteralPath $retainedZip -Destination $currentZip
+    Assert-Fails { & $scriptPath -Action List -AllowDocumentationMismatch -Confirm:$false } "requires -Action Test or Publish"
     foreach ($variant in @("missing", "duplicate")) {
         Remove-Item -LiteralPath $retainedZip
         if ($variant -eq "missing") {
@@ -186,7 +200,7 @@ try {
             Write-FixtureArchive $retainedZip -Duplicate "ReadMe.bbcode"
         }
         Copy-Item -LiteralPath $retainedZip -Destination $currentZip
-        Assert-Fails { & $scriptPath @arguments } "exactly one"
+        Assert-Fails { & $scriptPath @arguments -AllowDocumentationMismatch } "exactly one"
     }
     [System.IO.File]::WriteAllBytes($retainedZip, $originalZip)
     Copy-Item -LiteralPath $retainedZip -Destination $currentZip

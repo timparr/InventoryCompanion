@@ -33,6 +33,11 @@ material, not approved implementation scope.
   newly initialized character profiles without reapplying a preset over
   existing choices. Include saved-schema/downgrade protection and migration
   tests if the stored contract changes.
+- **B5. Partial Craft Bag and Furniture Vault Transfers:** Add context-menu
+  actions to withdraw one item, one 200-item stack, or all but one item from
+  Craft Bag and Furniture Vault stacks into the backpack, plus Stow 1, N-1,
+  or the full stack from eligible backpack stacks into the Craft Bag. See the
+  [combined specification and implementation plan](../DevDocs/Plans/CraftBagAndFurnitureVaultWithdrawalsPlan.md).
 ---
 
 ## Section C: ✨ Quality of Life (QOL) & Tweaks

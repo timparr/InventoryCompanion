@@ -7,6 +7,7 @@ param(
     [int]$Id,
     [ValidatePattern('^\d+\.\d+(?:\.\d+)?$')]
     [string]$Compatible,
+    [switch]$AllowDocumentationMismatch,
     [switch]$UseCurl
 )
 
@@ -94,6 +95,9 @@ $form = $null
 if ($UseCurl -and $Action -ne "List") {
     throw "-UseCurl requires -Action List; it never uploads."
 }
+if ($AllowDocumentationMismatch -and $Action -notin @("Test", "Publish")) {
+    throw "-AllowDocumentationMismatch requires -Action Test or Publish."
+}
 if ($Action -in @("Test", "Publish")) {
     if (-not $PSBoundParameters.ContainsKey("Id") -or -not $PSBoundParameters.ContainsKey("Compatible")) {
         throw "Test and Publish require -Id (ESOUI addon ID) and -Compatible (ESOUI game version, not API number)."
@@ -113,6 +117,7 @@ if ($Action -in @("Test", "Publish")) {
     }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [System.IO.Compression.ZipFile]::OpenRead($retainedArchive)
+    $documentationMismatches = [System.Collections.Generic.List[string]]::new()
     try {
         foreach ($name in @("ReadMe.bbcode", "Changelog.bbcode", "ReleaseReview.md")) {
             $entries = @($archive.Entries | Where-Object { $_.FullName -ceq "InventoryCompanion/$name" })
@@ -128,7 +133,10 @@ if ($Action -in @("Test", "Publish")) {
                 $stream.Dispose()
             }
             if ($hash -ne (Get-FileHash -LiteralPath (Join-Path $handoff $name) -Algorithm SHA256).Hash) {
-                throw "Archived release documentation differs from Current release: $name"
+                if (-not $AllowDocumentationMismatch) {
+                    throw "Archived release documentation differs from Current release: $name"
+                }
+                $documentationMismatches.Add($name)
             }
         }
     } finally {
@@ -138,6 +146,9 @@ if ($Action -in @("Test", "Publish")) {
     if ($review -notmatch '(?m)^Status: \[Approved for Release\]\s*$' -or
         $review -notmatch "(?m)^Release version: $([regex]::Escape($version))\s*$") {
         throw "The finalized review must approve this version for release."
+    }
+    if ($documentationMismatches.Count -gt 0) {
+        Write-Warning "Allowing documentation differences from the unchanged ZIP: $($documentationMismatches -join ', '). Current release ReadMe and Changelog will be uploaded; the ZIP will not be modified."
     }
     $form = @{
         id = [string]$Id

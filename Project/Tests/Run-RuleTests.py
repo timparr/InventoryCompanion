@@ -282,6 +282,16 @@ currency_discovery_lua.globals().CurrencyDiscoveryHelperSource = (
 currency_discovery_lua.execute(
     (root / "Project\\Tests\\CurrencyDiscoveryInvestigationTests.lua").read_text(encoding="utf-8-sig")
 )
+storage_transfer_lua = LuaRuntime(unpack_returned_tuples=True)
+storage_transfer_lua.globals().ContextMenusSource = (
+    root / "Core\\ContextMenus.lua"
+).read_text(encoding="utf-8-sig")
+storage_transfer_lua.globals().BankTransfersSource = (
+    root / "Banking\\BankTransfers.lua"
+).read_text(encoding="utf-8-sig")
+storage_transfer_lua.execute(
+    (root / "Project\\Tests\\CraftBagAndFurnitureVaultWithdrawalTests.lua").read_text(encoding="utf-8-sig")
+)
 tracker_lua = LuaRuntime(unpack_returned_tuples=True)
 tracker_lua.execute("SLASH_COMMANDS = {}; EVENT_MANAGER = { RegisterForEvent = function() end }")
 tracker_lua.globals().GetGameTimeMilliseconds = lambda: int(perf_counter() * 1000)
@@ -353,6 +363,7 @@ if not args.item_editor_only:
         saved_variables_lua.globals().GetSavedVariablesTests(),
         saved_variables_lua.globals().GetScenePlacementInvestigationTests(),
         currency_discovery_lua.globals().GetCurrencyDiscoveryInvestigationTests(),
+        storage_transfer_lua.globals().GetCraftBagAndFurnitureVaultWithdrawalTests(),
         tracker_lua.globals().InventoryCompanion.GetTrackerPanelTests(),
         autocategory_lua.globals().InventoryCompanion.GetAutoCategoryIntegrationTests(),
         autocategory_lua.globals().InventoryCompanion.GetAutoCategoryEditorTests(),
