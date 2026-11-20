@@ -38,6 +38,7 @@ local rightBackdropWindows = {
 local NORMAL = "Layout_NoScene"
 local SNAP_DISTANCE = 12
 local SNAP_GAP = 5
+local SETTINGS_RIGHT_CLEARANCE = 8
 
 local function CopyPosition(position)
     return { offsetX = position.offsetX, offsetY = position.offsetY }
@@ -207,8 +208,12 @@ local function CollectObstacles(key, window)
                 rect.x = left
             end
         end
+        if key == "Layout_SettingsScene" and control == LAMAddonSettingsWindow then
+            rect.width = rect.width + SETTINGS_RIGHT_CLEARANCE
+        end
         rect.control = control
         obstacles[#obstacles + 1] = rect
+        return rect
     end
     Add(window)
     if relatedWindows[key] then
@@ -218,6 +223,21 @@ local function CollectObstacles(key, window)
                 Add(control)
             end
         end
+    end
+    -- Addon settings use inline controls, not the full-width scene footer.
+    if key ~= "Layout_SettingsScene" and not IsInGamepadPreferredMode() then
+        local strip = ZO_KeybindStripControl
+        local backdrop, texture = ZO_KeybindStripMungeBackground, ZO_KeybindStripMungeBackgroundTexture
+        local footer
+        if strip and not strip:IsHidden() then footer = Add(strip) end
+        if backdrop and not backdrop:IsHidden() and texture and not texture:IsHidden() then
+            -- The texture extends above the keybind row and its background container.
+            if not footer then footer = Add(backdrop) end
+            local top = math.min(footer.y, texture:GetTop())
+            footer.height = footer.height + footer.y - top
+            footer.y = top
+        end
+        if footer then footer.isFooter = true end
     end
     return obstacles
 end
@@ -317,6 +337,12 @@ end
 local function CorrectPositions(obstacles, onlyKey)
     local retained, displaced = {}, {}
     local width, height = GuiRoot:GetWidth(), GuiRoot:GetHeight()
+    local footer
+    for _, obstacle in ipairs(obstacles) do
+        if obstacle.isFooter then footer = obstacle end
+    end
+    -- The keyboard keybind strip spans the bottom of GuiRoot, including between its labels.
+    if footer then height = math.min(height, footer.y) end
     if onlyKey then
         for _, key in ipairs(order) do
             if key ~= onlyKey and NormalVisible(key) then
@@ -339,6 +365,32 @@ local function CorrectPositions(obstacles, onlyKey)
                 displaced[#displaced + 1] = rect
             end
         end
+    end
+    if footer then
+        local remaining = {}
+        for _, rect in ipairs(displaced) do
+            local y = height - rect.height - SNAP_GAP
+            local candidate = { x = rect.x, y = y, width = rect.width, height = rect.height }
+            local clear = Intersects(rect, footer, 0) and y >= 0
+                and rect.x >= 0 and rect.x + rect.width <= width
+            if clear then
+                for _, obstacle in ipairs(obstacles) do
+                    if Intersects(candidate, obstacle, SNAP_GAP) then clear = false; break end
+                end
+            end
+            if clear then
+                for _, panel in ipairs(retained) do
+                    if Intersects(candidate, panel, SNAP_GAP) then clear = false; break end
+                end
+            end
+            if clear then
+                positions[rect.key] = { offsetX = rect.x, offsetY = y }
+                retained[#retained + 1] = candidate
+            else
+                remaining[#remaining + 1] = rect
+            end
+        end
+        displaced = remaining
     end
     if #displaced > 0 then
         local placed = layout.PlaceDisplaced(displaced, obstacles[1], obstacles, retained, width, height)

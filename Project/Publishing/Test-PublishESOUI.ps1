@@ -79,11 +79,14 @@ function Write-FixtureArchive {
 try {
     $null = New-Item -ItemType Directory -Path $fixture
     $env:LOCALAPPDATA = $fixture
-    $scriptPath = Join-Path $fixture "Publish-ESOUI.ps1"
+    $publishRoot = Join-Path $fixture "Project\Publishing"
+    $null = New-Item -ItemType Directory -Path $publishRoot -Force
+    $scriptPath = Join-Path $publishRoot "Publish-ESOUI.ps1"
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Publish-ESOUI.ps1") -Destination $scriptPath
-    $stateRoot = Join-Path $fixture ".release-test"
-    $current = Join-Path $fixture "Current release"
-    $archiveRoot = Join-Path $fixture "Archive"
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot "ReleaseWaiver.ps1") -Destination (Join-Path $publishRoot "ReleaseWaiver.ps1")
+    $stateRoot = Join-Path $publishRoot ".release-test"
+    $current = Join-Path $publishRoot "Current release"
+    $archiveRoot = Join-Path $publishRoot "Archive"
     foreach ($directory in @($stateRoot, $current, $archiveRoot)) {
         $null = New-Item -ItemType Directory -Path $directory -Force
     }
@@ -209,6 +212,60 @@ try {
     Write-FixtureArchive $retainedZip
     Copy-Item -LiteralPath $retainedZip -Destination $currentZip
     Assert-Fails { & $scriptPath @arguments } "must approve"
+    $waiverEvidence = Join-Path $fixture "Project\Tests\Evidence\synthetic-diagnostic.txt"
+    $null = New-Item -ItemType Directory -Path (Split-Path $waiverEvidence -Parent) -Force
+    Set-Content -LiteralPath $waiverEvidence -Value "Synthetic diagnostic." -Encoding UTF8
+    $candidateFileHash = "A" * 64
+    $candidateIdentity = "Core\Init.lua|$candidateFileHash"
+    $candidateSha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $candidateHash = [System.BitConverter]::ToString(
+            $candidateSha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($candidateIdentity))
+        ).Replace("-", "")
+    } finally { $candidateSha.Dispose() }
+    @{
+        Completed = $true
+        Version = "1.2.3"
+        ReleaseMode = "Hotfix"
+        RuntimeFiles = @("Core\Init.lua")
+        Sources = @(@{ Path = "Core\Init.lua"; Hash = $candidateFileHash })
+        Candidate = @(@{ Path = "Core\Init.lua"; Hash = $candidateFileHash })
+    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $statePath
+    $documents["ReleaseReview.md"] = @"
+# Hotfix Release Waiver
+
+Status: [Hotfix Waiver - Package Verified]
+Waiver authorized by: @Tim-P
+Waiver authorized (UTC): 2000-01-01T00:00:00Z
+Release version: 1.2.3
+Hotfix reason: Synthetic hotfix fixture.
+Source identity: synthetic source
+Full standards review: SKIPPED
+Waiver scope: Skip the full release standards review for this hotfix only.
+Candidate SHA256: $candidateHash
+Focused synthetic tests: 1/1 passed
+DEV diagnostic: 88/88 passed; runtime version=1.2.3
+DEV diagnostic evidence: Project\Tests\Evidence\synthetic-diagnostic.txt
+UAT runtime identity: $candidateHash
+DEV UAT report: The user confirms DEV testing was fine with no issues.
+Package verification: PASS — Finalize verified the package and retained archive.
+Publication approval: NOT GRANTED
+"@
+    Set-Content -LiteralPath (Join-Path $current "ReleaseReview.md") -Value $documents["ReleaseReview.md"] -Encoding UTF8
+    Remove-Item -LiteralPath $retainedZip, $currentZip
+    Write-FixtureArchive $retainedZip
+    Copy-Item -LiteralPath $retainedZip -Destination $currentZip
+    $requests.Clear()
+    & $scriptPath @arguments | Out-Null
+    Assert ($requests.Count -eq 1 -and $requests[0].Uri.EndsWith("/updatetest")) "Authorized hotfix waiver must permit a non-saving test upload."
+    $requests.Clear()
+    $invalidWaiver = $documents["ReleaseReview.md"].Replace("Full standards review: SKIPPED", "Full standards review: COMPLETE")
+    Set-Content -LiteralPath (Join-Path $current "ReleaseReview.md") -Value $invalidWaiver -Encoding UTF8
+    Remove-Item -LiteralPath $retainedZip, $currentZip
+    Write-FixtureArchive $retainedZip
+    Copy-Item -LiteralPath $retainedZip -Destination $currentZip
+    Assert-Fails { & $scriptPath @arguments } "Full standards review: SKIPPED"
+    Assert ($requests.Count -eq 0) "Invalid hotfix waivers must not contact ESOUI."
     Assert-Fails { & $scriptPath -Confirm:$false } "require -Id"
     Assert ($requests.Count -eq 0) "Local validation failures must not contact ESOUI."
 

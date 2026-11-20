@@ -4,7 +4,7 @@ InventoryCompanion = {
     IsDevelopment = isDevelopment,
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
-    Version = "1.8.1",
+    Version = "1.8.2",
     SettingsVersion = 11,
     SettingsName = "InventoryCompanion_SavedVariables",
 }

@@ -14,6 +14,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+. (Join-Path $PSScriptRoot "ReleaseWaiver.ps1")
 $tokenPath = Join-Path $env:LOCALAPPDATA "InventoryCompanion\ESOUI-token.clixml"
 
 function Invoke-ESOUI([string]$Endpoint, [hashtable]$Form) {
@@ -143,7 +144,25 @@ if ($Action -in @("Test", "Publish")) {
         $archive.Dispose()
     }
     $review = Get-Content -LiteralPath (Join-Path $handoff "ReleaseReview.md") -Raw
-    if ($review -notmatch '(?m)^Status: \[Approved for Release\]\s*$' -or
+    $releaseMode = if ($state.PSObject.Properties["ReleaseMode"] -and $state.ReleaseMode -eq "Hotfix") {
+        "Hotfix"
+    } else {
+        "Review"
+    }
+    if ($releaseMode -eq "Hotfix") {
+        $candidateIdentity = (@($state.Candidate | ForEach-Object { "$($_.Path)|$($_.Hash)" } | Sort-Object) -join "`n")
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $candidateHash = [System.BitConverter]::ToString(
+                $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($candidateIdentity))
+            ).Replace("-", "")
+        } finally {
+            $sha.Dispose()
+        }
+        Assert-HotfixReleaseWaiver $review $version $candidateHash "Publish"
+        Assert-HotfixRuntimeIdentity $review @($state.Sources) @($state.RuntimeFiles)
+        Assert-HotfixRuntimeIdentity $review @($state.Candidate) @($state.RuntimeFiles)
+    } elseif ($review -notmatch '(?m)^Status: \[Approved for Release\]\s*$' -or
         $review -notmatch "(?m)^Release version: $([regex]::Escape($version))\s*$") {
         throw "The finalized review must approve this version for release."
     }

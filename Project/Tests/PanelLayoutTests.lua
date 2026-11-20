@@ -32,7 +32,8 @@ local function Fixture(scene)
         "ZO_OptionsWindow", "ZO_AddOns", "LAMAddonSettingsWindow", "ZO_StoreWindow", "ZO_BuyBack",
         "ZO_RepairWindow", "ZO_StoreWindowMenu", "ZO_StorePanelTabContainer",
         "ZO_Character", "ZO_CharacterWindowStats", "ZO_PlayerProgress", "ZO_MainMenuCategoryBar",
-        "ZO_SharedRightPanelBackground", "ZO_SharedRightPanelBackgroundLeft" }) do
+        "ZO_SharedRightPanelBackground", "ZO_SharedRightPanelBackgroundLeft", "ZO_KeybindStripControl",
+        "ZO_KeybindStripMungeBackground", "ZO_KeybindStripMungeBackgroundTexture" }) do
         _G[name] = nil
     end
     local state = { scene = scene, currencyVisible = false, saves = 0 }
@@ -500,13 +501,24 @@ function GetPanelLayoutTests()
                 ZO_CompassFrame.hidden = false
                 ZO_OptionsWindow = Control(0, 0, 400, 500)
                 LAMAddonSettingsWindow = Control(0, 0, 400, 500)
+                ZO_MainMenuCategoryBar = Control(0, 0, 1000, 100)
                 layout.CompleteInitialization()
                 assert(state.tracker.hidden and state.tracker.x == 50)
 
+                state.profile.Currency.Layout_SettingsScene = { character = { offsetX = 700, offsetY = 615 } }
                 addon.state.isCurrencySettingsOpen = true
                 layout.UpdateContext()
-                assert(not state.tracker.hidden and state.tracker.x == 405)
+                assert(not state.tracker.hidden and state.tracker.x == 413 and state.tracker.y == 0,
+                    "Settings must leave a gap beside the page without reserving the inventory header")
                 assert(state.currency.hidden, "Empty currency panel stays hidden")
+
+                state.currencyVisible = true
+                ZO_KeybindStripControl = Control(0, 645, 1000, 55)
+                ZO_KeybindStripMungeBackground = Control(0, 645, 1000, 55)
+                ZO_KeybindStripMungeBackgroundTexture = Control(0, 575, 1000, 128)
+                layout.UpdateContext()
+                assert(not state.currency.hidden and state.currency.x == 700 and state.currency.y == 615,
+                    "Settings must not reserve a scene footer")
 
                 addon.state.isCurrencySettingsOpen = false
                 layout.UpdateContext()
@@ -578,6 +590,50 @@ function GetPanelLayoutTests()
             end,
         },
         {
+            name = "Panel layout lifts resource bars clear of the visible keybind footer",
+            run = function()
+                local addon, layout, state = Fixture("inventory")
+                ZO_PlayerInventory = Control(750, 100, 250, 500)
+                ZO_KeybindStripControl = Control(0, 645, 1000, 55)
+                ZO_KeybindStripControl.hidden = true
+                ZO_KeybindStripMungeBackground = Control(0, 645, 1000, 55)
+                ZO_KeybindStripMungeBackground.hidden = true
+                ZO_KeybindStripMungeBackgroundTexture = Control(0, 575, 1000, 128)
+                local resources, bars = {}, {}
+                for index, key in ipairs({ "capacity:bag", "capacity:bank", "capacity:transmute" }) do
+                    resources[index] = { key = key }
+                    state.profile[key] = { showBar = true, Layout_NoScene = { offsetX = (index - 1) * 200, offsetY = 665 } }
+                    bars[index] = Control(0, 0, 180, 25)
+                    layout.RegisterPanel(key, bars[index])
+                end
+                addon.GetProgressBarResources = function() return resources end
+                addon.GetProgressBarSettings = function(key) return state.profile[key] end
+                addon.GetProgressBarResourceValues = function() return { amount = 5, cap = 10 } end
+                layout.CompleteInitialization()
+                for _, bar in ipairs(bars) do assert(bar.y == 665, "Hidden strip should not move the bar") end
+
+                ZO_KeybindStripControl.hidden = false
+                layout.UpdateContext()
+                for index, bar in ipairs(bars) do
+                    assert(bar.x == (index - 1) * 200, "Footer correction should preserve the bar's column")
+                    assert(bar.y + bar.height == ZO_KeybindStripControl.y - 5)
+                end
+
+                ZO_KeybindStripMungeBackground.hidden = false
+                layout.UpdateContext()
+                for index, bar in ipairs(bars) do
+                    assert(bar.x == (index - 1) * 200, "Backdrop correction should preserve the bar's column")
+                    assert(bar.y + bar.height == ZO_KeybindStripMungeBackgroundTexture.y - 5,
+                        "A bar above the labels but inside the visible background still needs to move")
+                end
+
+                state.scene = nil
+                layout.UpdateContext()
+                for _, bar in ipairs(bars) do assert(bar.y == 665, "Closing inventory should restore HUD positions") end
+                assert(state.saves == 0)
+            end,
+        },
+        {
             name = "Panel layout settings geometry corrects saved positions without writes or drag interruption",
             run = function()
                 local addon, layout, state = Fixture("gameMenuInGame")
@@ -607,7 +663,7 @@ function GetPanelLayoutTests()
                 assert(tracker.x == 700 and tracker.writes == writes, "Geometry updates must not interrupt dragging")
                 layout.OnMoveStop("Tracker")
                 layout.UpdateContext()
-                assert(tracker.x == 805 and state.saves == 1, "Deferred geometry must be corrected after release")
+                assert(tracker.x == 813 and state.saves == 1, "Deferred correction must leave room beside settings")
                 assert(state.profile.Tracker.Layout_SettingsScene.character.offsetX == 700)
                 writes = tracker.writes
                 for _ = 1, 20 do layout.UpdateContext() end
@@ -619,7 +675,7 @@ function GetPanelLayoutTests()
                 assert(tracker.x == 700, "A new visit starts from saved rather than temporary coordinates")
                 LAMAddonSettingsWindow.hidden = false
                 layout.ResetPanelPosition("Tracker")
-                assert(tracker.x == 805, "Position reset must also avoid related wider settings controls")
+                assert(tracker.x == 813, "Position reset must also leave room beside settings")
             end,
         },
         {

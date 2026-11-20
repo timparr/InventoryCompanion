@@ -24,6 +24,7 @@ $sourceDocumentPaths = @(
     "Project\Publishing\Source Documents\ReadMe-Body.bbcode"
     "Project\Publishing\Source Documents\Changelog.bbcode"
 )
+. (Join-Path $PSScriptRoot "ReleaseWaiver.ps1")
 $finalReleaseDocuments = [ordered]@{
     "ReadMe.bbcode" = $readmePath
     "Changelog.bbcode" = $changelogPath
@@ -618,17 +619,27 @@ foreach ($requiredReleaseFile in @($readmePath, $changelogPath, $reviewPath)) {
     }
 }
 $initialReviewContent = [System.IO.File]::ReadAllText($reviewPath)
-Assert-ReleaseReview $initialReviewContent $version "" $false
+$releaseMode = if (Test-HotfixReleaseWaiver $initialReviewContent) { "Hotfix" } else { "Review" }
+if ($releaseMode -eq "Hotfix") {
+    Assert-HotfixReleaseWaiver $initialReviewContent $version "" "Stage"
+} else {
+    Assert-ReleaseReview $initialReviewContent $version "" $false
+}
 $sourcePaths = @(
     "InventoryCompanion_DEV.txt"
     "Project\Processes\Release.md"
     "Project\Processes\Templates\ReleaseReview.md"
     "Project\Publishing\PackageRelease.ps1"
+    "Project\Publishing\ReleaseWaiver.ps1"
+    "Project\Processes\Templates\HotfixReleaseWaiver.md"
 ) + $sourceDocumentPaths + @($manifestFiles)
 $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
     $path = if ($relativePath -eq "InventoryCompanion_DEV.txt") { $sourceManifestPath } else { Join-Path $addonRoot $relativePath }
     Get-FileRecord $path $relativePath
 })
+if ($releaseMode -eq "Hotfix") {
+    Assert-HotfixRuntimeIdentity $initialReviewContent $sourceRecords $runtimeFiles
+}
 
     Backup-SavedVariables
     $releaseManifest = @($manifestLines | Where-Object {
@@ -673,6 +684,8 @@ $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
             SourceRoot = $addonRoot
             CandidateRoot = $candidateRoot
             Version = $version
+            ReleaseMode = $releaseMode
+            RuntimeFiles = $runtimeFiles
             StagedAt = [datetime]::UtcNow.ToString("o")
             Sources = $sourceRecords
             Candidate = $candidateRecords
@@ -688,10 +701,21 @@ $sourceRecords = @(foreach ($relativePath in $sourcePaths) {
     }
     Write-Output "Staged release $version at $candidateRoot"
     Write-Output "Staging finished. Only runtime files and the prepared combined ReadMe.bbcode were copied into the test installation."
-    Write-Output "Select only InventoryCompanion in your release-test add-on profile, then reload the UI. Verify Installation=InventoryCompanion, runtime version=$version, DEV=false, AddOnVersion=$integerVersion, and no enabled DEV copy."
-    Write-Output "Verify the candidate identity, then run the agreed in-game diagnostics, feature/transfer checks, and brief load/function smoke. Record actual results; do not infer success from staging."
+    if ($releaseMode -eq "Hotfix") {
+        Write-Output "DEV UAT was accepted before staging under the explicit hotfix waiver. Verify the staged candidate identity; reloading the release installation is not required."
+    } else {
+        Write-Output "Select only InventoryCompanion in your release-test add-on profile, then reload the UI. Verify Installation=InventoryCompanion, runtime version=$version, DEV=false, AddOnVersion=$integerVersion, and no enabled DEV copy."
+        Write-Output "Verify the candidate identity, then run the agreed in-game diagnostics, feature/transfer checks, and brief load/function smoke. Record actual results; do not infer success from staging."
+    }
     Write-Output "Both versions share saved variables. Any automatic backup is only the last-on-disk snapshot."
-    Write-Output "After UAT, update the Current release documents and report. Finalize copies the approved documents and report into the test installation and packages its files."
+    if ($releaseMode -eq "Hotfix") {
+        Write-Output "Hotfix waiver accepted. Full standards review is explicitly skipped; focused tests, DEV UAT evidence, and all package integrity checks remain required."
+    }
+    if ($releaseMode -eq "Hotfix") {
+        Write-Output "DEV UAT evidence is recorded. After verifying the candidate, run Finalize to verify the waiver, documents, and package."
+    } else {
+        Write-Output "After UAT, update the Current release documents and report. Finalize copies the approved documents and report into the test installation and packages its files."
+    }
     Write-Output "To remove this installation, run -Action Cancel without reloading during removal; then select DEV only and reload."
     return
 }
@@ -712,10 +736,21 @@ if (@(Compare-Object $expectedCandidate $actualCandidate).Count -gt 0) {
     throw "Release candidate files changed since staging. Cancel and stage a fresh candidate for testing."
 }
 if (-not (Test-Path -LiteralPath $reviewPath -PathType Leaf)) {
-    throw "Complete ReleaseReview.md from Project\Processes\Templates\ReleaseReview.md before finalizing."
+    throw "Prepare the current release report or authorized hotfix waiver before finalizing."
 }
 $reviewContent = [System.IO.File]::ReadAllText($reviewPath)
-Assert-ReleaseReview $reviewContent $version $candidateHash $true $true
+$releaseMode = if ($state.PSObject.Properties["ReleaseMode"] -and $state.ReleaseMode -eq "Hotfix") {
+    "Hotfix"
+} else {
+    "Review"
+}
+if ($releaseMode -eq "Hotfix") {
+    Assert-HotfixReleaseWaiver $reviewContent $version $candidateHash "Finalize"
+    Assert-HotfixRuntimeIdentity $reviewContent @($state.Sources) @($state.RuntimeFiles)
+    Assert-HotfixRuntimeIdentity $reviewContent @($state.Candidate) @($state.RuntimeFiles)
+} else {
+    Assert-ReleaseReview $reviewContent $version $candidateHash $true $true
+}
 
 $archiveName = "InventoryCompanion-v$version.zip"
 $archivePath = Join-Path $currentReleaseRoot $archiveName
@@ -767,8 +802,13 @@ try {
     Compress-Archive -LiteralPath $packagingAddon -DestinationPath $preliminaryArchive -CompressionLevel Optimal
     Assert-ZipMatchesRecords $preliminaryArchive $preliminaryRecords
 
-    $finalReviewContent = Complete-PackageReview $reviewContent $version
-    Assert-ReleaseReview $finalReviewContent $version $candidateHash $true
+    if ($releaseMode -eq "Hotfix") {
+        $finalReviewContent = Complete-HotfixReleaseWaiver $reviewContent $version $candidateHash
+        Assert-HotfixReleaseWaiver $finalReviewContent $version $candidateHash "Publish"
+    } else {
+        $finalReviewContent = Complete-PackageReview $reviewContent $version
+        Assert-ReleaseReview $finalReviewContent $version $candidateHash $true
+    }
     [System.IO.File]::WriteAllText(
         (Join-Path $packagingAddon "ReleaseReview.md"), $finalReviewContent, [System.Text.UTF8Encoding]::new($false)
     )
@@ -863,5 +903,9 @@ try {
 Write-Output "Release installation retained for gameplay. Use your add-on profiles to select release OR development."
 Write-Output "Retained release ZIP: $retainedArchive"
 Write-Output "Prepared upload handoff folder: $currentReleaseRoot"
-Write-Output "Final review: Approved for Release; package checks passed."
+if ($releaseMode -eq "Hotfix") {
+    Write-Output "Hotfix waiver: full standards review skipped; package checks passed."
+} else {
+    Write-Output "Final review: Approved for Release; package checks passed."
+}
 Start-Process explorer.exe -ArgumentList ('"' + $currentReleaseRoot + '"')

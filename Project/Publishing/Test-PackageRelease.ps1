@@ -16,6 +16,7 @@ $script = Join-Path $devRoot "Project\Publishing\PackageRelease.ps1"
 $manifest = Join-Path $devRoot "InventoryCompanion_DEV.txt"
 $currentRelease = Join-Path $devRoot "Project\Publishing\Current release"
 $reviewPath = Join-Path $currentRelease "ReleaseReview.md"
+. (Join-Path $PSScriptRoot "ReleaseWaiver.ps1")
 $passed = 0
 $explorerFolders = [System.Collections.Generic.List[string]]::new()
 
@@ -191,8 +192,10 @@ try {
     )
     $paths = @(
         "Project\Publishing\PackageRelease.ps1"
+        "Project\Publishing\ReleaseWaiver.ps1"
         "Project\Processes\Release.md"
         "Project\Processes\Templates\ReleaseReview.md"
+        "Project\Processes\Templates\HotfixReleaseWaiver.md"
     ) + $sourceDocuments + @(
         $manifestLines | ForEach-Object { $_.Trim().Replace('/', '\') } |
             Where-Object { $_ -and -not $_.StartsWith("#") -and -not $_.StartsWith("--") }
@@ -390,6 +393,64 @@ try {
     & $script -Action Cancel | Out-Null
     Assert (-not (Test-Path -LiteralPath $candidate)) "Cancellation left the managed test installation."
     Assert (Test-Path -LiteralPath $zip) "Cancellation removed the verified release ZIP."
+
+    $hotfixVersion = [regex]::Match((Get-Content -LiteralPath $manifest -Raw), '(?m)^## Version: ([^\r\n]+)').Groups[1].Value
+    $hotfixEvidence = Join-Path $devRoot "Project\Tests\Evidence\hotfix-diagnostic.txt"
+    $null = New-Item -ItemType Directory -Path (Split-Path $hotfixEvidence -Parent) -Force
+    Set-Content -LiteralPath $hotfixEvidence -Value "Synthetic DEV diagnostic evidence." -Encoding UTF8
+    $waiverTemplate = Get-Content -LiteralPath (Join-Path $devRoot "Project\Processes\Templates\HotfixReleaseWaiver.md") -Raw
+    $hotfixRuntimeFiles = @((Get-Content -LiteralPath $manifest | ForEach-Object { $_.Trim().Replace('/', '\') }) |
+        Where-Object { $_ -and -not $_.StartsWith("#") -and -not $_.StartsWith("--") -and $_ -ne "Core\Development.lua" })
+    $hotfixRuntimeRecords = @(foreach ($relativePath in $hotfixRuntimeFiles) {
+        [pscustomobject]@{
+            Path = $relativePath
+            Hash = (Get-FileHash -LiteralPath (Join-Path $devRoot $relativePath) -Algorithm SHA256).Hash
+        }
+    })
+    $hotfixRuntimeIdentity = Get-HotfixRuntimeIdentity $hotfixRuntimeRecords $hotfixRuntimeFiles
+    $waiver = $waiverTemplate.
+        Replace("<YYYY-MM-DDTHH:mm:ssZ>", "2000-01-01T00:00:00Z").
+        Replace("<agreed major.minor.patch version>", $hotfixVersion).
+        Replace("<brief user-facing reason and why this is a hotfix>", "Synthetic hotfix fixes a narrow HUD layout defect.").
+        Replace("<DEV commit and any uncommitted source changes>", "synthetic-source").
+        Replace("<x>/<y> passed", "1/1 passed").
+        Replace("<release version>", $hotfixVersion).
+        Replace("<repository path to retained diagnostic output>", "Project\Tests\Evidence\hotfix-diagnostic.txt").
+        Replace("<SHA256 of the DEV runtime files used for UAT>", $hotfixRuntimeIdentity).
+        Replace("<actual user-reported result from DEV testing>", "The user confirms DEV testing was fine with no issues.")
+    Set-Content -LiteralPath $reviewPath -Value $waiver -Encoding UTF8
+    foreach ($placeholderCase in @(
+        @{ Content = $waiver.Replace("Synthetic hotfix fixes a narrow HUD layout defect.", "<brief user-facing reason and why this is a hotfix>"); Message = "identify 'Hotfix reason'" }
+        @{ Content = $waiver.Replace("synthetic-source", "<DEV commit and any uncommitted source changes>"); Message = "identify 'Source identity'" }
+    )) {
+        Set-Content -LiteralPath $reviewPath -Value $placeholderCase.Content -Encoding UTF8
+        Assert-Fails { & $script -Action Stage } $placeholderCase.Message
+        Assert (-not (Test-Path -LiteralPath $candidate)) "An incomplete hotfix waiver created a candidate."
+    }
+    Set-Content -LiteralPath $reviewPath -Value $waiver -Encoding UTF8
+    $wrongUatIdentity = $waiver.Replace($hotfixRuntimeIdentity, ("0" * 64))
+    Set-Content -LiteralPath $reviewPath -Value $wrongUatIdentity -Encoding UTF8
+    Assert-Fails { & $script -Action Stage } "UAT runtime identity does not match"
+    Assert (-not (Test-Path -LiteralPath $candidate)) "A mismatched DEV UAT identity created a candidate."
+    Set-Content -LiteralPath $reviewPath -Value $waiver -Encoding UTF8
+    $hotfixStageOutput = @(& $script -Action Stage)
+    Assert (($hotfixStageOutput -join "`n") -match "Hotfix waiver accepted") "Stage did not identify the hotfix waiver path."
+    $hotfixState = Get-Content -LiteralPath (Join-Path $devRoot "Project\Publishing\.release-test\state.json") -Raw | ConvertFrom-Json
+    Assert ($hotfixState.ReleaseMode -eq "Hotfix") "Staging did not retain the hotfix release mode."
+    $hotfixCandidateHash = Get-CandidateIdentity
+    $stagedWaiver = Get-Content -LiteralPath $reviewPath -Raw
+    Assert ($stagedWaiver -match "(?m)^Candidate SHA256: $hotfixCandidateHash\s*$") "Hotfix waiver did not receive the staged candidate hash."
+    $hotfixFinalizeOutput = @(& $script -Action Finalize)
+    Assert ($hotfixFinalizeOutput -contains "Hotfix waiver: full standards review skipped; package checks passed.") "Finalization did not keep the hotfix waiver distinct from a review."
+    $hotfixZip = Join-Path $currentRelease "InventoryCompanion-v$hotfixVersion.zip"
+    $hotfixArchive = Join-Path $devRoot "Project\Publishing\Archive\InventoryCompanion-v$hotfixVersion.zip"
+    Assert ((Get-FileHash -LiteralPath $hotfixZip).Hash -eq (Get-FileHash -LiteralPath $hotfixArchive).Hash) "Hotfix ZIP and retained archive hashes differ."
+    $hotfixReport = Get-Content -LiteralPath $reviewPath -Raw
+    Assert ($hotfixReport -match '(?m)^Status: \[Hotfix Waiver - Package Verified\]\s*$') "Finalization did not mark the hotfix package verified."
+    Assert ($hotfixReport -match '(?m)^Full standards review: SKIPPED\s*$') "Finalization disguised the skipped standards review."
+    Assert ($hotfixReport -match '(?m)^Package verification: PASS') "Finalization did not record package verification."
+    & $script -Action Cancel | Out-Null
+    Assert (-not (Test-Path -LiteralPath $candidate)) "Hotfix cancellation left the managed test installation."
 
     Write-Output "PackageRelease regression tests passed: $passed assertions."
 } finally {
