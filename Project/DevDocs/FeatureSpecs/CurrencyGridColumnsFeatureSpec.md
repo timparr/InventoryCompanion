@@ -13,7 +13,7 @@ Use the [feature development process](../../Processes/FeatureDevelopment.md).
 The release describes the feature as follows:
 
 - **Choose your currency-panel layout.** Open IC settings and expand Currency Summary Panel to find the new Grid Columns slider. Use fewer columns for a taller, narrower panel, or more columns for a wider, shorter one. The panel updates immediately without a reload, keeping your resource order and formatting. The default remains three columns, and the maximum grows as more resources become available. Your selected settings profile remembers the choice.
-- **Keep your information visible while using other screens.** The item tracker, currency panel, and resource gauges now remain visible while accessing inventory, banks (including house and guild banks), merchants, fences, the IC editor, and the main settings menu, including IC settings. Panels you have disabled, and panels with nothing to display, remain hidden.
+- **Keep your information visible while using other screens.** The item tracker, currency panel, and resource gauges remain visible while accessing inventory, banks (including house and guild banks), merchants, fences, the IC editor, and Inventory Companion's settings page. They hide in the keyboard game menu and on other settings pages. Panels you have disabled, and panels with nothing to display, remain hidden.
 - **Panels make room for the screen you open.** IC leaves panels where they are if they are not in the way. Displaced panels form a vertical stack beside the active window, preferring its right edge and otherwise using its left. This applies to settings, banks, merchants, and the IC editors as well as the other supported screens. Other addons' UI is not considered. If space is tight, avoiding overlap between IC panels has the lowest priority.
 - **Arrange panels differently for each screen.** Move a panel while one of these screens is open, and IC remembers that position for that screen and character. For example, you can choose one position beside the bank and another beside your inventory. These positions survive logging out, and each character keeps its own arrangement even when using a shared settings profile. Closing the screen returns panels to their normal positions; IC's automatic moves do not overwrite your chosen positions.
 - **Existing reset and copy behavior is preserved.** Reset Panel returns the currency grid to three columns without moving your panels. Any action that resets a panel's positions also resets its remembered screen positions. Copy Full Profile includes panel positions and their screen-specific variants.
@@ -81,10 +81,13 @@ available resources; the sketch is illustrative, not a new settings window.
    clear of scene elements wherever possible. Explicitly disabled panels stay
    hidden. This applies to all InventoryCompanion HUD panels: the tracking
    panel, currency panel, and every standalone resource progress bar, for:
-   - Inventory, bank, store/merchant, and fence interactions.
-   - House bank, guild bank, and furniture vault, including withdrawal/deposit tabs.
+   - Inventory (avoid the backpack, equipment, stats, and top header), banks,
+     furniture vault, merchants, and fences. Avoid the visible left edge of the
+     shared right-side backdrop in these scenes, including bank and vault
+     deposit and withdrawal tabs.
    - The InventoryCompanion editor.
-   - The main settings menu, including InventoryCompanion settings.
+   - InventoryCompanion's settings page only. Hide HUD panels elsewhere in the
+     keyboard game menu, and resume normal HUD visibility when it closes.
 
    Use normal no-scene visibility, including its enabled/content preferences.
    Placeholder text counts as visible content: a tracker showing "No tracked

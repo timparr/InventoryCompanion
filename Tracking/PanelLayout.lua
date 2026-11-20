@@ -15,6 +15,8 @@ local sceneWindows = {
     { "fence_keyboard", "Layout_FenceScene", "ZO_PlayerInventory" },
 }
 local relatedWindows = {
+    Layout_InventoryScene = { "ZO_PlayerInventory", "ZO_Character", "ZO_CharacterWindowStats",
+        "ZO_PlayerProgress", "ZO_MainMenuCategoryBar" },
     Layout_BankScene = { "ZO_PlayerBank", "ZO_PlayerInventory", "ZO_PlayerBankMenu" },
     Layout_HouseBankScene = { "ZO_HouseBank", "ZO_PlayerInventory", "ZO_HouseBankMenu" },
     Layout_GuildBankScene = { "ZO_GuildBank", "ZO_PlayerInventory", "ZO_GuildBankMenu" },
@@ -23,6 +25,15 @@ local relatedWindows = {
         "ZO_RepairWindow", "ZO_StoreWindowMenu", "ZO_StorePanelTabContainer" },
     Layout_FenceScene = { "ZO_PlayerInventory", "ZO_Fence_Keyboard_WindowMenu" },
     Layout_SettingsScene = { "LAMAddonSettingsWindow", "ZO_OptionsWindow", "ZO_AddOns", "ZO_GameMenu_InGame" },
+}
+local rightBackdropWindows = {
+    Layout_InventoryScene = "ZO_PlayerInventory",
+    Layout_BankScene = "ZO_PlayerBank",
+    Layout_HouseBankScene = "ZO_HouseBank",
+    Layout_GuildBankScene = "ZO_GuildBank",
+    Layout_FurnitureVaultScene = "ZO_FurnitureVault",
+    Layout_MerchantScene = "ZO_PlayerInventory",
+    Layout_FenceScene = "ZO_PlayerInventory",
 }
 local NORMAL = "Layout_NoScene"
 local SNAP_DISTANCE = 12
@@ -165,7 +176,7 @@ local function ResolveContext()
     if editor then return "Layout_EditorScene", window end
     -- This feature deliberately does not repair or extend gamepad scene handling.
     if IsInGamepadPreferredMode() then return NORMAL end
-    if SCENE_MANAGER:IsShowing("gameMenuInGame") then
+    if this.state.isCurrencySettingsOpen and SCENE_MANAGER:IsShowing("gameMenuInGame") then
         for _, name in ipairs(relatedWindows.Layout_SettingsScene) do
             local control = _G[name]
             if control and not control:IsHidden() then return "Layout_SettingsScene", control end
@@ -184,8 +195,18 @@ end
 
 local function CollectObstacles(key, window)
     local obstacles = {}
+    local rightBackdropWindow = rightBackdropWindows[key]
     local function Add(control)
         local rect = Rectangle(control, { offsetX = control:GetLeft(), offsetY = control:GetTop() })
+        if rightBackdropWindow and (control == _G[rightBackdropWindow] or control == ZO_PlayerInventory) then
+            local background, texture = ZO_SharedRightPanelBackground, ZO_SharedRightPanelBackgroundLeft
+            if background and not background:IsHidden() and texture and not texture:IsHidden() then
+                -- Use the backdrop's left edge, not its vertically padded texture bounds.
+                local left = math.min(rect.x, texture:GetLeft())
+                rect.width = rect.width + rect.x - left
+                rect.x = left
+            end
+        end
         rect.control = control
         obstacles[#obstacles + 1] = rect
     end
@@ -359,6 +380,7 @@ function layout.UpdateVisibility()
     local inCutscene = ZO_CompassFrame and ZO_CompassFrame:IsHidden()
     local supported = activeKey ~= NORMAL
     local gamepad = IsInGamepadPreferredMode()
+    local otherSettings = not this.state.isCurrencySettingsOpen and SCENE_MANAGER:IsShowing("gameMenuInGame")
     -- Keep observing input mode while the currency settings preview can appear.
     local needsTicker = this.state.isCurrencySettingsOpen == true
     for _, key in ipairs(order) do
@@ -370,7 +392,7 @@ function layout.UpdateVisibility()
                 (this.IsEditorWindowOpen() or this.Utils.IsItemInteractionActive())
             if key == "Currency" and this.state.isCurrencySettingsOpen then visible, exception = true, true end
         end
-        panels[key]:SetHidden(not (visible and (not inCutscene or exception)))
+        panels[key]:SetHidden(not (visible and not otherSettings and (not inCutscene or exception)))
     end
     this.SetVisibilityTickerNeeded(needsTicker)
 end

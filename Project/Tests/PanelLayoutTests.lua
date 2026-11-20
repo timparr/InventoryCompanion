@@ -30,7 +30,11 @@ local function Fixture(scene)
         "ZO_HouseBank", "ZO_HouseBankMenu", "ZO_GuildBank", "ZO_GuildBankMenu",
         "ZO_FurnitureVault", "ZO_FurnitureVaultMenu", "ZO_GameMenu_InGame",
         "ZO_OptionsWindow", "ZO_AddOns", "LAMAddonSettingsWindow", "ZO_StoreWindow", "ZO_BuyBack",
-        "ZO_RepairWindow", "ZO_StoreWindowMenu", "ZO_StorePanelTabContainer" }) do _G[name] = nil end
+        "ZO_RepairWindow", "ZO_StoreWindowMenu", "ZO_StorePanelTabContainer",
+        "ZO_Character", "ZO_CharacterWindowStats", "ZO_PlayerProgress", "ZO_MainMenuCategoryBar",
+        "ZO_SharedRightPanelBackground", "ZO_SharedRightPanelBackgroundLeft" }) do
+        _G[name] = nil
+    end
     local state = { scene = scene, currencyVisible = false, saves = 0 }
     state.profile = {
         Tracker = { showTrackedItemsPanel = true, Layout_NoScene = { offsetX = 50, offsetY = 50 } },
@@ -383,13 +387,16 @@ function GetPanelLayoutTests()
                     { "gameMenuInGame", "Layout_SettingsScene" },
                 }) do
                     scene = mapping[1]
+                    addon.state.isCurrencySettingsOpen = scene == "gameMenuInGame"
                     layout.UpdateContext()
                     assert(not tracker.hidden)
                     layout.OnMoveStart("Tracker")
                     tracker.x, tracker.y = 700, 300
                     layout.OnMoveStop("Tracker")
                     assert(profile.Tracker[mapping[2]][character].offsetX == 700, mapping[1])
-                    scene = nil; layout.UpdateContext()
+                    scene = nil
+                    addon.state.isCurrencySettingsOpen = false
+                    layout.UpdateContext()
                     assert(tracker.x == 50)
                 end
                 local merchantSaved = profile.Tracker.Layout_MerchantScene
@@ -487,9 +494,94 @@ function GetPanelLayoutTests()
             end,
         },
         {
+            name = "Panel layout hides the HUD in other settings and restores it after closing the menu",
+            run = function()
+                local addon, layout, state = Fixture("gameMenuInGame")
+                ZO_CompassFrame.hidden = false
+                ZO_OptionsWindow = Control(0, 0, 400, 500)
+                LAMAddonSettingsWindow = Control(0, 0, 400, 500)
+                layout.CompleteInitialization()
+                assert(state.tracker.hidden and state.tracker.x == 50)
+
+                addon.state.isCurrencySettingsOpen = true
+                layout.UpdateContext()
+                assert(not state.tracker.hidden and state.tracker.x == 405)
+                assert(state.currency.hidden, "Empty currency panel stays hidden")
+
+                addon.state.isCurrencySettingsOpen = false
+                layout.UpdateContext()
+                assert(state.tracker.hidden and state.tracker.x == 50 and state.saves == 0)
+                state.scene = nil
+                layout.UpdateContext()
+                assert(not state.tracker.hidden and state.tracker.x == 50)
+            end,
+        },
+        {
+            name = "Panel layout inventory avoids equipment, stats, and the top header as well as the backpack",
+            run = function()
+                local _, layout, state = Fixture("inventory")
+                state.currencyVisible = true
+                state.profile.Currency.Layout_NoScene = { offsetX = 880, offsetY = 100 }
+                ZO_PlayerInventory = Control(750, 0, 250, 600)
+                ZO_Character = Control(0, 100, 160, 400)
+                ZO_CharacterWindowStats = Control(160, 170, 240, 330)
+                ZO_PlayerProgress = Control(0, 0, 250, 60)
+                ZO_MainMenuCategoryBar = Control(300, 0, 445, 60)
+                layout.CompleteInitialization()
+                assert(state.tracker.x == 645 and state.tracker.y == 65, "Header must not obscure the displaced tracker")
+                assert(state.currency.x == 625 and state.currency.y == 170, "Backpack overlap must join the stack")
+                ZO_CharacterWindowStats.width = 585
+                layout.UpdateContext()
+                assert(state.tracker.x == 645 and state.tracker.y == 65, "A panel still clear of stats stays put")
+                assert(state.currency.x == 625 and state.currency.y == 505, "Growing stats must displace an overlapping panel")
+                assert(state.saves == 0)
+
+                state.scene = nil
+                layout.UpdateContext()
+                assert(state.tracker.x == 50 and state.tracker.y == 50)
+                assert(state.currency.x == 880 and state.currency.y == 100)
+            end,
+        },
+        {
+            name = "Panel layout leaves a gap to the shared right backdrop throughout inventory interactions",
+            run = function()
+                for _, mapping in ipairs({
+                    { "inventory", "Layout_InventoryScene" },
+                    { "bank", "Layout_BankScene", "ZO_PlayerBank" },
+                    { "houseBank", "Layout_HouseBankScene", "ZO_HouseBank" },
+                    { "guildBank", "Layout_GuildBankScene", "ZO_GuildBank" },
+                    { "furnitureVault", "Layout_FurnitureVaultScene", "ZO_FurnitureVault" },
+                    { "store", "Layout_MerchantScene" },
+                    { "store_keyboard", "Layout_MerchantScene" },
+                    { "fence_keyboard", "Layout_FenceScene" },
+                }) do
+                    local scene, layoutKey, withdrawalWindow = unpack(mapping)
+                    for _, controlName in ipairs(withdrawalWindow and { "ZO_PlayerInventory", withdrawalWindow }
+                        or { "ZO_PlayerInventory" }) do
+                        local _, layout, state = Fixture(scene)
+                        local label = scene .. ": " .. controlName
+                        state.profile.Tracker[layoutKey] = { character = { offsetX = 640, offsetY = 100 } }
+                        _G[controlName] = Control(750, 100, 250, 500)
+                        ZO_SharedRightPanelBackground = Control(750, 100, 250, 500)
+                        ZO_SharedRightPanelBackground.hidden = true
+                        ZO_SharedRightPanelBackgroundLeft = Control(685, 25, 1024, 1024)
+                        layout.CompleteInitialization()
+                        assert(state.tracker.x == 640, label .. " moved for a hidden backdrop")
+
+                        ZO_SharedRightPanelBackground.hidden = false
+                        layout.UpdateContext()
+                        assert(state.tracker.x + state.tracker.width == ZO_SharedRightPanelBackgroundLeft.x - 5, label)
+                        assert(state.tracker.y == 100, label .. " changed vertical alignment")
+                        assert(state.profile.Tracker[layoutKey].character.offsetX == 640 and state.saves == 0, label)
+                    end
+                end
+            end,
+        },
+        {
             name = "Panel layout settings geometry corrects saved positions without writes or drag interruption",
             run = function()
-                local _, layout, state = Fixture("gameMenuInGame")
+                local addon, layout, state = Fixture("gameMenuInGame")
+                addon.state.isCurrencySettingsOpen = true
                 local tracker = state.tracker
                 state.profile.Tracker.Layout_SettingsScene = { character = { offsetX = 450, offsetY = 50 } }
                 ZO_GameMenu_InGame = Control(0, 0, 400, 500)
@@ -601,7 +693,8 @@ function GetPanelLayoutTests()
             name = "Panel layout ZOS edge contact and small gaps do not trigger padding correction",
             run = function()
                 for _, x in ipairs({ 300, 297 }) do
-                    local _, layout, state = Fixture("gameMenuInGame")
+                    local addon, layout, state = Fixture("gameMenuInGame")
+                    addon.state.isCurrencySettingsOpen = true
                     ZO_GameMenu_InGame = Control(400, 0, 600, 700)
                     state.profile.Tracker.Layout_SettingsScene = {
                         character = { offsetX = x, offsetY = 100 },
