@@ -4,7 +4,7 @@ Status: APPROVED for temporary diagnostic implementation; in-game acceptance pen
 TODO item: None; user-requested feasibility spike, not the MVP feature
 Owner: Copilot
 Updated: 2026-11-20
-Implementation plan: [diagnostic spike plan](../Plans/FCOItemSaverDiagnosticSpikeImplementationPlan.md)
+Implementation plan: [diagnostic spike plan](<002 FCOItemSaver - Implementation Plan.md>)
 
 ## Overview / proposed changelog text
 
@@ -92,9 +92,9 @@ are DEV-gated.
 
 FCO exposes `FCOIS.IsMarked`; its API documents gamepad limitations. IC scans
 slots but aggregates tracker records by item ID. The existing synthetic
-[rule tests](../../../Core/RuleTests.lua) and read-only performance tests in
-[Tests.lua](../../../Core/Tests.lua) are prior art. See the
-[spike report](../../Tasks/Proposals/FCOItemSaverIntegrationSpike.md).
+[rule tests](../../../../Core/RuleTests.lua) and read-only performance tests in
+[Tests.lua](../../../../Core/Tests.lua) are prior art. See the
+[spike report](<003 FCOItemSaver - Spike Report.md>).
 
 ## Independent spec review
 

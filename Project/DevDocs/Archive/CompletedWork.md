@@ -5,7 +5,8 @@ Completed work is recorded here for project history and future release-note draf
 Supporting documents are grouped by feature in this archive. They preserve
 design decisions, implementation details, failed approaches, and dated evidence,
 not independent current requirements or outstanding tasks. Current authoritative
-specifications live in [FeatureSpecs](../FeatureSpecs); active work lives in the
+specifications live in [FeatureSpecs](../FeatureSpecs) and active feature folders
+under [Features](../Features); active work lives in the
 [master TODO](../../Tasks/TODO.md).
 
 ## Verified Addon Work
@@ -53,6 +54,16 @@ specifications live in [FeatureSpecs](../FeatureSpecs); active work lives in the
   and the in-game acceptance tests passed on 2026-10-31.
   See the [feature plan](ItemTracker/RowOptionsSpecification.md) and
   [implementation and verification record](ItemTracker/RowOptionsImplementation.md).
+
+- **Group-first tracker counts:** Keeps per-group item and aggregate counts in
+  the scan snapshot, flattens repeated items only when both raw location counts
+  match, retains source-labeled rows for differing counts, and preserves
+  singleton group headers. Tim chose to retain group-count bookkeeping after
+  the in-game A/B comparison. Finalization was requested on 2026-11-21; the
+  remaining display and differing-source checks are recorded as pending, not
+  passed. See the [current feature specification](../Features/TrackerGroupFirst/001%20TrackerGroupFirst%20-%20Specification.md),
+  [archived implementation plan](TrackerGroupFirst/002%20TrackerGroupFirst%20-%20Implementation%20Plan.md),
+  and [consolidated test results](TrackerGroupFirst/008%20TrackerGroupFirst%20-%20Consolidated%20Test%20Results.md).
 
 - **Group pattern exclusions (C5):** Groups match at least one Include pattern
   and no Exclude patterns, without vetoing other groups or individual tracking.

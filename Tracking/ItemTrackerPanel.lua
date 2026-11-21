@@ -164,6 +164,7 @@ end
 
 local function PopulateBaseRow(rowIndex, itemData, wrapped)
     local row = GetOrCreateTrackerRow(rowIndex)
+    row.itemData = itemData
     ApplyRowAnchors(row, rowIndex, wrapped)
     row:SetWidth(ROW_WIDTH)
     
@@ -213,6 +214,8 @@ local function PopulateBaseRow(rowIndex, itemData, wrapped)
         nameControl:SetAnchor(TOPLEFT, row, TOPLEFT, 40, 0)
 
         row:SetHandler("OnMouseDown", nil)
+        row:SetHandler("OnMouseUp", nil)
+        row:SetHandler("OnMouseWheel", nil)
         row:SetMouseEnabled(false)
 
     else
@@ -225,6 +228,8 @@ local function PopulateBaseRow(rowIndex, itemData, wrapped)
         nameControl:SetAnchor(TOPLEFT, row, TOPLEFT, 22, 0)
 
         row:SetHandler("OnMouseDown", nil)
+        row:SetHandler("OnMouseUp", nil)
+        row:SetHandler("OnMouseWheel", nil)
         row:SetMouseEnabled(false)
     end
 
@@ -239,7 +244,21 @@ local function PopulateBaseRow(rowIndex, itemData, wrapped)
         iconControl:SetColor(1, 1, 1, 1)
     end
             
-    nameControl:SetText(itemData.link)        
+    nameControl:SetText(itemData.displayLabel or itemData.link)
+    if itemData.displayLabel then
+        nameControl:SetMouseEnabled(true)
+        nameControl:SetHandler("OnMouseEnter", function(control)
+            InitializeTooltip(InformationTooltip, control, TOP, 0, -5)
+            InformationTooltip:AddLine(itemData.displayLabel, "ZoFontGame", 1, 1, 1, 1)
+        end)
+        nameControl:SetHandler("OnMouseExit", function()
+            ClearTooltip(InformationTooltip)
+        end)
+    else
+        nameControl:SetMouseEnabled(false)
+        nameControl:SetHandler("OnMouseEnter", nil)
+        nameControl:SetHandler("OnMouseExit", nil)
+    end
     if itemData.isOverflowGroup then
         nameControl:SetColor(1, 0.25, 0.25, 1)
     elseif itemData.isEmpty then
@@ -286,6 +305,45 @@ local function CalculateMinAvailableNameWidth(computedRows, maxCountWidth)
     return minWidth
 end
 
+local function GetUtf8Length(value)
+    local count = 0
+    for index = 1, #value do
+        local byte = value:byte(index)
+        if byte < 0x80 or byte >= 0xC0 then count = count + 1 end
+    end
+    return count
+end
+
+local function GetUtf8Prefix(value, characterCount)
+    local byteIndex, count = 1, 0
+    while byteIndex <= #value and count < characterCount do
+        local firstByte = value:byte(byteIndex)
+        local byteCount = firstByte >= 0xF0 and 4
+            or firstByte >= 0xE0 and 3
+            or firstByte >= 0xC0 and 2
+            or 1
+        byteIndex = byteIndex + byteCount
+        count = count + 1
+    end
+    return value:sub(1, math.min(byteIndex - 1, #value))
+end
+
+local function GetTruncatedDisplayLabel(item, nameControl, availableWidth)
+    local fullLabel = item.displayLabel
+    nameControl:SetText(fullLabel)
+    if nameControl:GetTextWidth() <= availableWidth then return fullLabel end
+
+    local groupName = item.displayPrefix:sub(2, -3)
+    for length = GetUtf8Length(groupName) - 1, 0, -1 do
+        local shortened = "[" .. GetUtf8Prefix(groupName, length) .. "..." .. "]:"
+            .. item.displayItemName
+        nameControl:SetText(shortened)
+        if nameControl:GetTextWidth() <= availableWidth then return shortened end
+    end
+    nameControl:SetText(item.displayItemName)
+    return item.displayItemName
+end
+
 local function ApplyFinalRowLayout(computedRows, minAvailableWidth, items, wrapped)
     local height = 0
     for index, entry in ipairs(computedRows) do
@@ -295,9 +353,13 @@ local function ApplyFinalRowLayout(computedRows, minAvailableWidth, items, wrapp
         nameControl:SetWrapMode(TEXT_WRAP_MODE_ELLIPSIS)
         if wrapped and not items[index].isGroup then
             nameControl:SetDimensionConstraints(minAvailableWidth, 0, minAvailableWidth, 0)
+            if items[index].displayLabel then nameControl:SetText(items[index].displayLabel) end
             items[index].rowUnits = math.max(1, nameControl:GetNumLines())
         else
             nameControl:SetDimensionConstraints(minAvailableWidth, ROW_HEIGHT, minAvailableWidth, ROW_HEIGHT)
+            if items[index].displayLabel then
+                nameControl:SetText(GetTruncatedDisplayLabel(items[index], nameControl, minAvailableWidth))
+            end
             items[index].rowUnits = 1
         end
         row:SetHeight(items[index].rowUnits * ROW_HEIGHT)
@@ -324,7 +386,7 @@ local function MeasureWrappedRows(items)
         if item.isGroup then
             item.rowUnits = 1
         else
-            name:SetText(item.link)
+            name:SetText(item.displayLabel or item.link)
             item.rowUnits = math.max(1, name:GetNumLines())
         end
     end
@@ -346,109 +408,152 @@ end
 ------------------------------------------------------------------
 -- BuildDisplayList
 ------------------------------------------------------------------
-local function CollectSortedGroupNames(activeRules, snapshot)
+local function CollectSortedGroupNames(activeRules, snapshot, miscRows)
     local sortedGroupNames = {}
     for ruleName, ruleData in pairs(activeRules) do
-        if ruleData.display and ruleData.display.group and ruleData.display.show then
+        if ruleName ~= "miscellaneous" and ruleData.display.group and ruleData.display.show then
             local itemIds = snapshot.ruleIndex[ruleName]
             if itemIds and #itemIds > 0 then
-                if ruleName ~= "miscellaneous" then table.insert(sortedGroupNames, ruleName) end
+                table.insert(sortedGroupNames, ruleName)
             end
-
         end
     end
     table.sort(sortedGroupNames)
-    
-    local miscItems = snapshot.ruleIndex["miscellaneous"]
-    if miscItems and #miscItems > 0 then
+    if #miscRows > 0 then
         table.insert(sortedGroupNames, "miscellaneous")
     end
-    
     return sortedGroupNames
 end
 
-local function GetItemLocations(ruleName, display, snapshot, itemId)
-    local backpack, bank = display.showBackpack, display.showBank
-    if ruleName == "miscellaneous" and snapshot.itemShowBank[itemId] ~= nil then
-        backpack, bank = snapshot.itemShowBackpack[itemId], snapshot.itemShowBank[itemId]
-    end
-    return backpack, bank
+local function GetItemLocations(display)
+    return display.showBackpack ~= false, display.showBank == true
 end
 
 local function GetRelevantCount(item, backpack, bank)
     return (backpack and item.bagCount or 0) + (bank and (item.bankCount - item.bagCount) or 0)
 end
 
-local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, showEmpty, itemsToDisplay)
+local function CreateRowIdentity(sourceRuleName, itemId)
+    sourceRuleName = tostring(sourceRuleName)
+    return string.format("%d:%s:%s", #sourceRuleName, sourceRuleName, tostring(itemId))
+end
+
+local function CreateMiscRow(itemId, itemData, display, sourceRuleName, displayName, duplicate)
+    local linkName = GetItemLinkName(itemData.link) or ""
+    local displayLabel
+    if duplicate then
+        displayLabel = string.format("[%s]:%s", displayName, linkName)
+    end
+    local row = {
+        itemId = itemId,
+        link = itemData.link,
+        icon = itemData.icon,
+        bagCount = itemData.bagCount,
+        count = itemData.bagCount,
+        bankCount = itemData.bankCount,
+        showBackpack = display.showBackpack,
+        showBank = display.showBank,
+        sortName = displayLabel or linkName,
+        displayLabel = displayLabel,
+        displayPrefix = duplicate and ("[" .. displayName .. "]:") or nil,
+        displayItemName = duplicate and linkName or nil,
+        sourceRuleName = sourceRuleName,
+        sourceDisplayName = duplicate and displayName or nil,
+        rowIdentity = CreateRowIdentity(sourceRuleName, itemId),
+        isGroupMember = true,
+        parentGroup = "miscellaneous",
+    }
+    return row
+end
+
+local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, miscRows,
+    miscHeaderSources, showEmpty, itemsToDisplay)
     for _, ruleName in ipairs(sortedGroupNames) do
         local ruleData = activeRules[ruleName]
         local itemIds = snapshot.ruleIndex[ruleName]
-        
+        local headerSources = {}
+        local detailRows = {}
+        if ruleName == "miscellaneous" then
+            for itemId, source in pairs(miscHeaderSources) do
+                headerSources[#headerSources + 1] = {
+                    itemId = itemId,
+                    itemData = source.itemData,
+                    display = source.display,
+                }
+            end
+        elseif itemIds then
+            local group = snapshot.groups[ruleName]
+            for _, itemId in ipairs(itemIds) do
+                headerSources[#headerSources + 1] = {
+                    itemId = itemId,
+                    itemData = group.items[itemId],
+                    display = ruleData.display,
+                }
+            end
+        end
+
         local totalGroupCount = 0
         local totalGroupBankCount = 0
         local highestQuality = -1
         local bestIcon = nil
-        local bestLink = ""
-        local showBank = ruleData.display.showBank
+        local bestLink = nil
+        local showBank = ruleData.display.showBank == true
         local showBackpack = ruleData.display.showBackpack ~= false
+        for _, source in ipairs(headerSources) do
+            local itemData = source.itemData
+            local itemShowBackpack, itemShowBank = GetItemLocations(source.display)
+            if GetRelevantCount(itemData, itemShowBackpack, itemShowBank) > 0 then
+                totalGroupCount = totalGroupCount + (itemShowBackpack and itemData.bagCount or 0)
+                totalGroupBankCount = totalGroupBankCount
+                    + GetRelevantCount(itemData, itemShowBackpack, itemShowBank)
 
-        if itemIds then
-            for _, itemId in ipairs(itemIds) do
-                local itemData = snapshot.items[itemId]
-                local itemShowBackpack, itemShowBank = GetItemLocations(ruleName, ruleData.display, snapshot, itemId)
-                local hasRelevantStock = GetRelevantCount(itemData, itemShowBackpack, itemShowBank) > 0
-                
-                if itemData and hasRelevantStock then
-                    totalGroupCount = totalGroupCount + (itemShowBackpack and itemData.bagCount or 0)
-                    totalGroupBankCount = totalGroupBankCount + GetRelevantCount(itemData, itemShowBackpack, itemShowBank)
+                if not bestIcon and itemData.icon and itemData.icon ~= "" then
+                    bestIcon = itemData.icon
+                end
 
-                    if not bestIcon and itemData.icon and itemData.icon ~= "" then
-                        bestIcon = itemData.icon
-                    end
-
-                    local quality = GetItemLinkQuality(itemData.link) or 0
-                    if quality > highestQuality then
-                        highestQuality = quality
-                        bestIcon = itemData.icon
-                        bestLink = itemData.link
-                    elseif quality == highestQuality and itemData.link < bestLink then
-                        bestLink = itemData.link
-                        bestIcon = itemData.icon
-                    end
+                local quality = GetItemLinkQuality(itemData.link) or 0
+                if quality > highestQuality then
+                    highestQuality = quality
+                    bestIcon = itemData.icon
+                    bestLink = itemData.link
+                elseif quality == highestQuality and itemData.link < (bestLink or "") then
+                    bestIcon = itemData.icon
+                    bestLink = itemData.link
                 end
             end
         end
 
         if ruleName == "miscellaneous" then
             bestIcon = "EsoUI/Art/Tooltips/icon_bag.dds"
+            showBackpack = false
+            showBank = false
+            for _, source in ipairs(headerSources) do
+                local itemShowBackpack, itemShowBank = GetItemLocations(source.display)
+                showBackpack = showBackpack or itemShowBackpack
+                showBank = showBank or itemShowBank
+            end
+            for _, row in ipairs(miscRows) do
+                if GetRelevantCount(row, row.showBackpack ~= false, row.showBank == true) > 0 or showEmpty then
+                    detailRows[#detailRows + 1] = row
+                end
+            end
         else
             bestIcon = bestIcon or "/esoui/art/quickslots/quickslot_emptyslot.dds"
         end
-		
-        local effectiveGroupBankActive = showBank
-        if ruleName == "miscellaneous" and itemIds then
-            showBackpack = false
-            effectiveGroupBankActive = false
-            for _, itemId in ipairs(itemIds) do
-                showBackpack = showBackpack or snapshot.itemShowBackpack[itemId]
-                effectiveGroupBankActive = effectiveGroupBankActive or snapshot.itemShowBank[itemId]
-            end
-        end
-        local relevantCount = totalGroupBankCount
 
-        if relevantCount > 0 or showEmpty then
+        if totalGroupBankCount > 0 or showEmpty
+            or ruleName == "miscellaneous" and #detailRows > 0 then
             local colorDef = GetItemQualityColor(math.max(0, highestQuality))
-            local groupTitle = ruleData and ruleData.displayName or ruleName
+            local groupTitle = ruleData.displayName or ruleName
             local displayName = colorDef and colorDef:Colorize(groupTitle) or groupTitle
 
-            -- Insert Group Header
             local groupHeader = {
                 link = displayName,
                 icon = bestIcon,
                 count = showBackpack and totalGroupCount or 0,
                 showBackpack = showBackpack,
-                showBank = effectiveGroupBankActive,
-                bankCount = effectiveGroupBankActive and totalGroupBankCount or 0,
+                showBank = showBank,
+                bankCount = showBank and totalGroupBankCount or 0,
                 sortName = groupTitle,
                 isGroup = true,
                 isExpanded = ruleData.display.isExpanded == true,
@@ -457,56 +562,52 @@ local function ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, 
             }
             table.insert(itemsToDisplay, groupHeader)
 
-            if itemIds then
-                local groupMembers = {}
-                local memberCount = 0
+            if ruleName ~= "miscellaneous" and itemIds then
+                local group = snapshot.groups[ruleName]
                 for _, itemId in ipairs(itemIds) do
-                    local itemData = snapshot.items[itemId]
-                    if itemData then
-                        local itemShowBackpack, itemShowBank = GetItemLocations(ruleName, ruleData.display, snapshot, itemId)
-
-                        local memberRelCount = GetRelevantCount(itemData, itemShowBackpack, itemShowBank) > 0
-                        if memberRelCount or showEmpty then
-                            memberCount = memberCount + 1
-                            if memberCount <= MAX_GROUP_ITEM_ROWS then
-                                table.insert(groupMembers, {
-                                    link = itemData.link,
-                                    icon = itemData.icon,
-                                    count = itemData.bagCount,
-                                    showBackpack = itemShowBackpack,
-                                    showBank = itemShowBank,
-                                    bankCount = itemData.bankCount,
-                                    sortName = GetItemLinkName(itemData.link) or "",
-                                    isGroupMember = true,
-                                    parentGroup = ruleName,
-                                    itemId = itemId,
-                                })
-                            end
-                        end
+                    local itemData = group.items[itemId]
+                    local itemShowBackpack, itemShowBank = GetItemLocations(ruleData.display)
+                    if GetRelevantCount(itemData, itemShowBackpack, itemShowBank) > 0 or showEmpty then
+                        detailRows[#detailRows + 1] = {
+                            itemId = itemId,
+                            link = itemData.link,
+                            icon = itemData.icon,
+                            count = itemData.bagCount,
+                            showBackpack = itemShowBackpack,
+                            showBank = itemShowBank,
+                            bankCount = itemData.bankCount,
+                            sortName = GetItemLinkName(itemData.link) or "",
+                            sourceRuleName = ruleName,
+                            rowIdentity = CreateRowIdentity(ruleName, itemId),
+                            isGroupMember = true,
+                            parentGroup = ruleName,
+                        }
                     end
                 end
+            end
 
-                if memberCount > MAX_GROUP_ITEM_ROWS then
-                    groupHeader.isOverflowGroup = true
-                    groupHeader.link = groupTitle
-                    groupHeader.icon = "/esoui/art/buttons/info_up.dds"
-                    table.insert(itemsToDisplay, {
-                        link = string.format("Your patterns matched %d items - too many to display here.",
-                            memberCount),
-                        isEmpty = true,
-                        isGroupMember = true,
-                        parentGroup = ruleName,
-                        itemId = "overflow",
-                        overflowCount = memberCount,
-                    })
-                else
-                    table.sort(groupMembers, function(a, b)
-                        if a.sortName == b.sortName then return a.itemId < b.itemId end
-                        return a.sortName < b.sortName
-                    end)
-                    for _, member in ipairs(groupMembers) do
-                        table.insert(itemsToDisplay, member)
-                    end
+            local memberCount = #detailRows
+            if memberCount > MAX_GROUP_ITEM_ROWS then
+                groupHeader.isOverflowGroup = true
+                groupHeader.link = groupTitle
+                groupHeader.icon = "/esoui/art/buttons/info_up.dds"
+                itemsToDisplay[#itemsToDisplay + 1] = {
+                    link = string.format("Your patterns matched %d items - too many to display here.",
+                        memberCount),
+                    isEmpty = true,
+                    isGroupMember = true,
+                    parentGroup = ruleName,
+                    itemId = "overflow",
+                    rowIdentity = CreateRowIdentity(ruleName, "overflow"),
+                    overflowCount = memberCount,
+                }
+            else
+                table.sort(detailRows, function(a, b)
+                    if a.sortName == b.sortName then return a.rowIdentity < b.rowIdentity end
+                    return a.sortName < b.sortName
+                end)
+                for _, member in ipairs(detailRows) do
+                    itemsToDisplay[#itemsToDisplay + 1] = member
                 end
             end
         end
@@ -515,15 +616,22 @@ end
 
 local function CollectAllVisibleItems(snapshot, activeRules, trackedItems, showEmpty, seenVisibleIds)
     local allVisibleItems = {}
+    local sourcesByItemId = {}
+    local ungroupedItemIds = {}
 
     for ruleName, ruleData in pairs(activeRules) do
-        if ruleData.display and ruleData.display.show then
+        if ruleName ~= "miscellaneous" and ruleData.display.show then
             local itemIds = snapshot.ruleIndex[ruleName]
             if itemIds then
                 for _, itemId in ipairs(itemIds) do
-                    local itemData = snapshot.items[itemId]
-                    if itemData and not seenVisibleIds[itemId] then
-                        local showBackpack, showBank = GetItemLocations(ruleName, ruleData.display, snapshot, itemId)
+                    local itemData = snapshot.groups[ruleName].items[itemId]
+                    assert(itemData ~= nil, "Missing group item in tracker snapshot: " .. ruleName .. "/" .. tostring(itemId))
+                    local sources = sourcesByItemId[itemId] or {}
+                    sourcesByItemId[itemId] = sources
+                    sources[#sources + 1] = itemData
+                    if not ruleData.display.group then ungroupedItemIds[itemId] = true end
+                    if not seenVisibleIds[itemId] then
+                        local showBackpack, showBank = GetItemLocations(ruleData.display)
                         local relevantCount = GetRelevantCount(itemData, showBackpack, showBank)
                         if relevantCount > 0 or showEmpty then
                             seenVisibleIds[itemId] = true
@@ -547,9 +655,16 @@ local function CollectAllVisibleItems(snapshot, activeRules, trackedItems, showE
         for itemId, data in pairs(trackedItems) do
             local itemData = snapshot.items[itemId]
             local display = this.ResolveItemDisplay(data.display)
-            if itemData and display.show and not seenVisibleIds[itemId] then
-                local bagCount = itemData.bagCount or 0
-                local bankCount = itemData.bankCount or 0
+            if display.show and not ungroupedItemIds[itemId] then
+                assert(itemData ~= nil, "Missing tracked item in tracker snapshot: " .. tostring(itemId))
+                local sources = sourcesByItemId[itemId] or {}
+                sourcesByItemId[itemId] = sources
+                sources[#sources + 1] = itemData
+            end
+            if display.show and not seenVisibleIds[itemId] then
+                assert(itemData ~= nil, "Missing tracked item in tracker snapshot: " .. tostring(itemId))
+                local bagCount = itemData.bagCount
+                local bankCount = itemData.bankCount
                 local showBank = display.showBank
                 local relevantCount = GetRelevantCount(itemData, display.showBackpack, showBank)
 
@@ -569,58 +684,91 @@ local function CollectAllVisibleItems(snapshot, activeRules, trackedItems, showE
         end
     end
 
-    return allVisibleItems
+    local differingItemCount = 0
+    for _, sources in pairs(sourcesByItemId) do
+        if #sources > 1 then
+            local first = sources[1]
+            local firstBankCount = first.bankCount - first.bagCount
+            for index = 2, #sources do
+                local source = sources[index]
+                if source.bagCount ~= first.bagCount
+                    or source.bankCount - source.bagCount ~= firstBankCount then
+                    differingItemCount = differingItemCount + 1
+                    break
+                end
+            end
+        end
+    end
+
+    return allVisibleItems, differingItemCount
 end
 
-local function FoldSingleMemberAndUngroupedIntoMisc(snapshot, activeRules, trackedItems, processedItemIds)
-    snapshot.ruleIndex["miscellaneous"] = {}
-    snapshot.itemShowBank = {}
-    snapshot.itemShowBackpack = {}
+local function FoldSingleMemberAndUngroupedIntoMisc(snapshot, activeRules, trackedItems)
+    local ungroupedSourcesByItemId = {}
+    local miscRows = {}
+    local miscHeaderSources = {}
+    local processedItemIds = {}
 
     for ruleName, ruleData in pairs(activeRules) do
-        if ruleName ~= "miscellaneous" and ruleData.display and not ruleData.display.group and ruleData.display.show then
+        if ruleName ~= "miscellaneous" and ruleData.display.show and not ruleData.display.group then
             local itemIds = snapshot.ruleIndex[ruleName]
             if itemIds then
                 for _, itemId in ipairs(itemIds) do
-                    local itemData = snapshot.items[itemId]
-                    if itemData and not processedItemIds[itemId] then
-                        processedItemIds[itemId] = true
-                        table.insert(snapshot.ruleIndex["miscellaneous"], itemId)
-                        snapshot.itemShowBank[itemId] = ruleData.display.showBank
-                        snapshot.itemShowBackpack[itemId] = ruleData.display.showBackpack ~= false
-                    end
+                    local sources = ungroupedSourcesByItemId[itemId] or {}
+                    ungroupedSourcesByItemId[itemId] = sources
+                    sources[#sources + 1] = {
+                        ruleName = ruleName,
+                        displayName = ruleData.displayName or ruleName,
+                        display = ruleData.display,
+                        itemData = snapshot.groups[ruleName].items[itemId],
+                    }
                 end
             end
+        end
+    end
+
+    for itemId, sources in pairs(ungroupedSourcesByItemId) do
+        local first = sources[1]
+        miscHeaderSources[itemId] = first
+        processedItemIds[itemId] = true
+
+        local firstItem = first.itemData
+        local firstBankCount = firstItem.bankCount - firstItem.bagCount
+        local hasDifferentCounts = false
+        for index = 2, #sources do
+            local itemData = sources[index].itemData
+            if itemData.bagCount ~= firstItem.bagCount
+                or itemData.bankCount - itemData.bagCount ~= firstBankCount then
+                hasDifferentCounts = true
+                break
+            end
+        end
+
+        if hasDifferentCounts then
+            for _, source in ipairs(sources) do
+                miscRows[#miscRows + 1] = CreateMiscRow(itemId, source.itemData, source.display,
+                    source.ruleName, source.displayName, true)
+            end
+        else
+            miscRows[#miscRows + 1] = CreateMiscRow(itemId, first.itemData, first.display,
+                first.ruleName, first.displayName, false)
         end
     end
 
     if trackedItems then
         for itemId, data in pairs(trackedItems) do
-            local itemData = snapshot.items[itemId]
             local display = this.ResolveItemDisplay(data.display)
-            if not processedItemIds[itemId] and display.show then
+            if display.show and not processedItemIds[itemId] then
+                local source = {
+                    ruleName = "trackedItem",
+                    displayName = "",
+                    display = display,
+                    itemData = snapshot.items[itemId],
+                }
+                miscHeaderSources[itemId] = source
+                miscRows[#miscRows + 1] = CreateMiscRow(itemId, source.itemData, display,
+                    source.ruleName, source.displayName, false)
                 processedItemIds[itemId] = true
-                table.insert(snapshot.ruleIndex["miscellaneous"], itemId)
-                snapshot.itemShowBank[itemId] = display.showBank
-                snapshot.itemShowBackpack[itemId] = display.showBackpack
-            end
-        end
-    end
-
-    for ruleName, ruleData in pairs(activeRules) do
-        if ruleName ~= "miscellaneous" and ruleData.display and ruleData.display.group and ruleData.display.show then
-            local itemIds = snapshot.ruleIndex[ruleName]
-            if itemIds and #itemIds == 1 then
-                for _, itemId in ipairs(itemIds) do
-                    local itemData = snapshot.items[itemId]
-                    if itemData and not processedItemIds[itemId] then
-                        processedItemIds[itemId] = true
-                        table.insert(snapshot.ruleIndex["miscellaneous"], itemId)
-                        snapshot.itemShowBank[itemId] = ruleData.display.showBank
-                        snapshot.itemShowBackpack[itemId] = ruleData.display.showBackpack ~= false
-                    end
-                end
-                snapshot.ruleIndex[ruleName] = nil
             end
         end
     end
@@ -629,27 +777,27 @@ local function FoldSingleMemberAndUngroupedIntoMisc(snapshot, activeRules, track
         activeRules["miscellaneous"].display.group = true
         activeRules["miscellaneous"].display.show = true
     end
+    return miscRows, miscHeaderSources
 end
 
 local function BuildDisplayList(snapshot, activeRules, trackedItems, showEmpty)
-    snapshot.itemShowBank, snapshot.itemShowBackpack = {}, {}
     local seenVisibleIds = {}
-    local allVisibleItems = CollectAllVisibleItems(snapshot, activeRules, trackedItems, showEmpty, seenVisibleIds)
+    local allVisibleItems, differingItemCount =
+        CollectAllVisibleItems(snapshot, activeRules, trackedItems, showEmpty, seenVisibleIds)
+    local hasDifferingCounts = differingItemCount > 0
 
     local threshold = (this.accountWide and this.GetPanelSettings("Tracker").trackerGroupThreshold) or 8
-    if #allVisibleItems < threshold then
+    if #allVisibleItems < threshold and not hasDifferingCounts then
         table.sort(allVisibleItems, function(a, b) return a.sortName < b.sortName end)
-        return allVisibleItems
+        return allVisibleItems, differingItemCount
     end
 
+    local miscRows, miscHeaderSources = FoldSingleMemberAndUngroupedIntoMisc(snapshot, activeRules, trackedItems)
+    local sortedGroupNames = CollectSortedGroupNames(activeRules, snapshot, miscRows)
     local itemsToDisplay = {}
-    local processedItemIds = {}
-    FoldSingleMemberAndUngroupedIntoMisc(snapshot, activeRules, trackedItems, processedItemIds)
-
-    local sortedGroupNames = CollectSortedGroupNames(activeRules, snapshot)
-    ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, showEmpty, itemsToDisplay)
-
-    return itemsToDisplay
+    ProcessGroupsAndMembers(sortedGroupNames, activeRules, snapshot, miscRows,
+        miscHeaderSources, showEmpty, itemsToDisplay)
+    return itemsToDisplay, differingItemCount
 end
 
 function this.BuildTrackerDisplayListForPerformanceTest(snapshot, activeRules, trackedItems, showEmpty)
@@ -678,10 +826,12 @@ local function BuildLayoutModel(items, rules)
             model.order[#model.order + 1] = item.ruleName
         elseif item.isGroupMember then
             local group = model.groups[item.parentGroup]
-            group.members[item.itemId] = true
+            local memberIdentity = item.rowIdentity or item.itemId
+            group.members[memberIdentity] = true
             group.memberCount = group.memberCount + 1
-            group.signatureParts[#group.signatureParts + 1] = tostring(item.itemId) .. ":" .. tostring(item.showBank)
-                .. ":" .. tostring(item.showBackpack) .. ":" .. tostring(item.overflowCount)
+            group.signatureParts[#group.signatureParts + 1] = tostring(memberIdentity) .. ":"
+                .. tostring(item.showBank) .. ":" .. tostring(item.showBackpack) .. ":"
+                .. tostring(item.displayLabel) .. ":" .. tostring(item.overflowCount)
         end
         if not item.isGroupMember then
             model.baseRows = model.baseRows + 1
@@ -834,6 +984,9 @@ local function ApplyViewport(contentHeight, budget, wrapped, previousOffset, tar
                 local name = GetControl(row, "Name")
                 local nameWidth = name:GetWidth() - ZO_SCROLL_BAR_WIDTH
                 name:SetDimensionConstraints(nameWidth, ROW_HEIGHT, nameWidth, ROW_HEIGHT)
+                if not wrapped and row.itemData.displayLabel then
+                    name:SetText(GetTruncatedDisplayLabel(row.itemData, name, nameWidth))
+                end
             end
         end
     end
@@ -868,18 +1021,15 @@ local function GetTrackerCoordinates()
     return oldLeft, oldTop
 end
 
-local function GetTrackerDisplayList()
+function this.GetTrackerDisplayList()
     local trackedItems = this.GetActiveTrackedItems()
     local activeRules = this.GetActiveTrackedRules()
     local showEmpty = this.GetPanelSettings("Tracker").showEmptyTrackedItems ~= false
 
-    local bagIdList = { BAG_BACKPACK, BAG_BANK, BAG_SUBSCRIBER_BANK }
-    if IsESOPlusSubscriber() then
-        table.insert(bagIdList, BAG_VIRTUAL)
-    end
-
-    local snapshot = this.GetMasterItemList(trackedItems, activeRules, bagIdList)
-    return BuildDisplayList(snapshot, activeRules, trackedItems, showEmpty), activeRules
+    local snapshot = this.GetMasterItemList(trackedItems, activeRules, this.GetTrackerBagIdList())
+    local displayList, differingItemCount =
+        BuildDisplayList(snapshot, activeRules, trackedItems, showEmpty)
+    return displayList, activeRules, snapshot, differingItemCount
 end
 
 local function ApplyBoundedPosition(oldLeft, oldTop)
@@ -932,7 +1082,7 @@ function this.RefreshItemTrackerPanel(reason, targetGroup)
     if contextChanged then previousLayout = nil end
     local _, scrollOffset = GetRowsContainer().scroll:GetScrollOffsets()
     if contextChanged then scrollOffset = 0 end
-    local items, rules = GetTrackerDisplayList()
+    local items, rules = this.GetTrackerDisplayList()
     if #items == 0 then
         items = { { link = "|c888888No tracked items in backpack|r", count = 0,
             icon = "EsoUI/Art/Buttons/edit_up.dds", isEmpty = true } }

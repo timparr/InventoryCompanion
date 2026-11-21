@@ -784,10 +784,7 @@ local function RunTests(arguments)
         table.insert(discovery, line)
     end
 
-    local liveBagIds = { BAG_BACKPACK, BAG_BANK, BAG_SUBSCRIBER_BANK }
-    if IsESOPlusSubscriber() then
-        table.insert(liveBagIds, BAG_VIRTUAL)
-    end
+    local liveBagIds = this.GetTrackerBagIdList()
 
     local scanOk, scanError = pcall(function()
         local startedAt = GetGameTimeMilliseconds()
@@ -825,6 +822,50 @@ local function RunTests(arguments)
         table.insert(results, result)
     else
         table.insert(results, "FAIL Live read-only scan: " .. tostring(scanError))
+    end
+
+    local trackerBuildSummary
+    local trackerBuildOk, trackerBuildError = pcall(function()
+        local sampleCount = 3
+        local samples, sampleDetails = {}, {}
+        local bagReads = 0
+        for sample = 1, sampleCount do
+            local sampleEntries, sampleBagReads = 0, 0
+            this.Scanning.GetBagContents = function(bagIds, selectFunc)
+                sampleBagReads = sampleBagReads + 1
+                local contents = original.getBagContents(bagIds, selectFunc)
+                sampleEntries = sampleEntries + #contents
+                return contents
+            end
+            local startedAt = GetGameTimeMilliseconds()
+            local buildOk, displayList, _, snapshot, differentIds = pcall(this.GetTrackerDisplayList)
+            samples[sample] = GetGameTimeMilliseconds() - startedAt
+            this.Scanning.GetBagContents = original.getBagContents
+            if not buildOk then error(displayList, 0) end
+
+            local itemCount = 0
+            for _ in pairs(snapshot.items) do itemCount = itemCount + 1 end
+            bagReads = sampleBagReads
+            sampleDetails[sample] = string.format("%dms/%d occupied entries/%d snapshot IDs/%d differing/%d rows",
+                samples[sample], sampleEntries, itemCount, differentIds, #displayList)
+        end
+        local sortedSamples = {}
+        for index, elapsed in ipairs(samples) do sortedSamples[index] = elapsed end
+        table.sort(sortedSamples)
+        trackerBuildSummary = string.format(
+            "%d probe samples [%s]; min/median/max %d/%d/%d ms; %d bag reads/sample; bank %s; acceptance limit pending",
+            sampleCount,
+            table.concat(sampleDetails, "; "),
+            sortedSamples[1],
+            sortedSamples[math.ceil(sampleCount / 2)],
+            sortedSamples[sampleCount],
+            bagReads,
+            bankOpenDuringLiveScan and "open" or "closed"
+        )
+    end)
+    this.Scanning.GetBagContents = original.getBagContents
+    if not trackerBuildOk then
+        table.insert(results, "FAIL Real-inventory tracker-build probe: " .. tostring(trackerBuildError))
     end
 
     -- AutoCategory live performance: read-only reorder preflights plus AutoCategory's own registry rebuild
@@ -2381,6 +2422,9 @@ local function RunTests(arguments)
         )
     else
         summary = string.format("[InventoryCompanion tests] %d/%d passed.", passed, total)
+    end
+    if trackerBuildSummary then
+        summary = summary .. "; real tracker build " .. trackerBuildSummary
     end
     if classificationMs then
         summary = summary .. string.format(

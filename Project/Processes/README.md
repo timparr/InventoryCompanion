@@ -14,10 +14,13 @@ approve unrelated product or implementation changes.
 
 ## Documents and templates
 
-- [Feature-spec template](Templates/FeatureSpec.md): copy into
-  [DevDocs/FeatureSpecs](../DevDocs/FeatureSpecs) as `<Feature>FeatureSpec.md`.
-- [Implementation-plan template](Templates/ImplementationPlan.md): copy into
-  [DevDocs/Plans](../DevDocs/Plans) as `<Feature>ImplementationPlan.md`.
+- [Feature-spec template](Templates/FeatureSpec.md) and
+  [implementation-plan template](Templates/ImplementationPlan.md): copy into
+  a shared `DevDocs\Features\<Feature>` folder using the numbered filenames
+  in the [feature development process](FeatureDevelopment.md).
+- [Legacy feature specifications](../DevDocs/FeatureSpecs) and
+  [legacy implementation plans](../DevDocs/Plans) remain in their existing
+  locations until their work is reorganized or archived.
 - [Release-review template](Templates/ReleaseReview.md): copy into
   [Publishing/Current release](<../Publishing/Current release>) as
   `ReleaseReview.md`, following the release process.

@@ -16,7 +16,7 @@ matching has not been implemented.
 - AutoCategory asks IC about individual items, and could use the same group
   condition. This still needs testing.
 
-The [master writ case study](../../DevDocs/Plans/TrackerGroupFirstImplementationPlan.md#background-case-study-master-writs)
+The [master writ case study](<../../Archive/TrackerGroupFirst/002 TrackerGroupFirst - Implementation Plan.md#background-case-study-master-writs>)
 and possible counting structures are now background in the tracker plan.
 
 ## Proposed solution
@@ -55,9 +55,9 @@ and possible counting structures are now background in the tracker plan.
   tracker display and notifications with real items.
 - Test scene coverage and bank availability.
 - Make test output copyable, then run the
-  [in-game MVP checklist](FCOItemSaverMVPInGameTests.md), including moves,
+  [in-game MVP checklist](<004 FCOItemSaver - MVP Test Checklist.md>), including moves,
   counts and performance.
 
 The group and refresh approach are proposals, not yet implemented or approved.
-The [diagnostic record](../../DevDocs/Plans/FCOItemSaverDiagnosticSpikeImplementationPlan.md)
+The [diagnostic record](<002 FCOItemSaver - Implementation Plan.md>)
 contains the detailed results.

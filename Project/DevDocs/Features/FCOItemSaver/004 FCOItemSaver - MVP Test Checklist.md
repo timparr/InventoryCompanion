@@ -9,14 +9,14 @@ marker-writing from IC or marker-driven transfers are assumed. Supported
 locations, refresh timing, unavailable-addon behaviour and performance limits
 still need agreement.
 
-See the [feasibility report](FCOItemSaverIntegrationSpike.md) for context and
+See the [feasibility report](<003 FCOItemSaver - Spike Report.md>) for context and
 open design decisions.
 
 ## Preliminary diagnostic spike
 
 Before implementing marker-based groups, investigate the uncertain parts with
-the proposed [diagnostic spike spec](../../DevDocs/FeatureSpecs/FCOItemSaverDiagnosticSpikeFeatureSpec.md)
-and [implementation plan](../../DevDocs/Plans/FCOItemSaverDiagnosticSpikeImplementationPlan.md):
+the proposed [diagnostic spike spec](<001 FCOItemSaver - Specification.md>)
+and [implementation plan](<002 FCOItemSaver - Implementation Plan.md>):
 
 - [x] Query the real FCO marker for occupied backpack slots and report matching
   counts and timings without changing items or markers.
@@ -39,7 +39,7 @@ slots; ten FCO-query passes took 22 ms, while baseline iteration measured 0 ms.
 One marker changed from false to true at slot 57, with zero observed backpack
 slot events. This was detected by the stop snapshot, not automatically. The
 occupied-slot count and synthetic output were not visible in the supplied
-screenshot. See the [report](FCOItemSaverIntegrationSpike.md) for limitations.
+screenshot. See the [report](<003 FCOItemSaver - Spike Report.md>) for limitations.
 
 ### Diagnostic commands
 

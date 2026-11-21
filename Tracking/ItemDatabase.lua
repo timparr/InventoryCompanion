@@ -2186,11 +2186,23 @@ end
 ------------------------------------------------------------------
 -- Internal Helpers & Scan Engine
 ------------------------------------------------------------------
-local function addToRuleIndex(ruleIndex, ruleName, itemId)
-    ruleIndex[ruleName] = ruleIndex[ruleName] or {}
+local function addToRuleIndex(ruleIndex, ruleIndexSets, ruleName, itemId)
+    if ruleIndexSets then
+        if ruleIndexSets[ruleName][itemId] then return end
+        ruleIndexSets[ruleName][itemId] = true
+        ruleIndex[ruleName] = ruleIndex[ruleName] or {}
+        table.insert(ruleIndex[ruleName], itemId)
+        return
+    end
+
     local list = ruleIndex[ruleName]
-    for _, id in ipairs(list) do
-        if id == itemId then return end
+    if list then
+        for _, id in ipairs(list) do
+            if id == itemId then return end
+        end
+    else
+        list = {}
+        ruleIndex[ruleName] = list
     end
     table.insert(list, itemId)
 end
@@ -2217,14 +2229,32 @@ local function updateItemCounts(itemRecord, count, isBank)
     itemRecord.bankCount = itemRecord.bankCount + count
 end
 
-local function registerItemRules(itemRecord, ruleIndex, matchedRules, itemId)
+local function registerItemRules(itemRecord, groups, ruleIndex, ruleIndexSets, matchedRules, itemData, isBank)
     for ruleName in pairs(matchedRules) do
         itemRecord.matchedRules[ruleName] = true
-        addToRuleIndex(ruleIndex, ruleName, itemId)
+        addToRuleIndex(ruleIndex, ruleIndexSets, ruleName, itemData.itemId)
+
+        if groups then
+            local group = groups[ruleName]
+            local groupItem = group.items[itemData.itemId]
+            if not groupItem then
+                groupItem = {
+                    itemId = itemData.itemId,
+                    link = itemData.link,
+                    icon = itemData.icon or GetItemLinkIcon(itemData.link),
+                    bagCount = 0,
+                    bankCount = 0,
+                }
+                group.items[itemData.itemId] = groupItem
+            end
+            updateItemCounts(groupItem, itemData.count, isBank)
+            updateItemCounts(group, itemData.count, isBank)
+        end
     end
 end
 
-local function evaluateAndRecordItem(masterItems, ruleIndex, trackedItems, compiledRules, itemData, isBank)
+local function evaluateAndRecordItem(masterItems, groups, ruleIndex, ruleIndexSets, trackedItems,
+    compiledRules, itemData, isBank)
     local itemId = itemData.itemId
     local link = itemData.link
     local isTracked = trackedItems and trackedItems[itemId] ~= nil
@@ -2249,7 +2279,7 @@ local function evaluateAndRecordItem(masterItems, ruleIndex, trackedItems, compi
 
     local itemRecord = masterItems[itemId]
     updateItemCounts(itemRecord, itemData.count, isBank)
-    registerItemRules(itemRecord, ruleIndex, matchedRules, itemId)
+    registerItemRules(itemRecord, groups, ruleIndex, ruleIndexSets, matchedRules, itemData, isBank)
 end
 
 local function addRescuePassForTrackedItems(masterItems, trackedItems)
@@ -2269,9 +2299,12 @@ local function addRescuePassForTrackedItems(masterItems, trackedItems)
     end
 end
 
-function this.GetMasterItemList(trackedItems, activeRules, bagIdList)
+local function BuildMasterItemList(trackedItems, activeRules, bagIdList, collectGroupBookkeeping)
+    assert(type(collectGroupBookkeeping) == "boolean", "collectGroupBookkeeping must be a boolean")
     local masterItems = {}
+    local groups = collectGroupBookkeeping and {} or nil
     local ruleIndex = {}
+    local ruleIndexSets = collectGroupBookkeeping and {} or nil
 
     local compiledRules = {}
     for ruleName, ruleData in pairs(activeRules) do
@@ -2282,13 +2315,23 @@ function this.GetMasterItemList(trackedItems, activeRules, bagIdList)
             compiledPatterns = ruleData.compiledPatterns,
             compiledExcludedPatterns = ruleData.compiledExcludedPatterns,
         }
+        if collectGroupBookkeeping then
+            groups[ruleName] = {
+                displayName = ruleData.displayName,
+                items = {},
+                bagCount = 0,
+                bankCount = 0,
+            }
+            ruleIndexSets[ruleName] = {}
+        end
     end
 
     for _, bagId in ipairs(bagIdList) do
         local isBank = (bagId ~= BAG_BACKPACK)
         local contents = this.Scanning.GetBagContents({ bagId })
         for _, itemData in ipairs(contents) do
-            evaluateAndRecordItem(masterItems, ruleIndex, trackedItems, compiledRules, itemData, isBank)
+            evaluateAndRecordItem(masterItems, groups, ruleIndex, ruleIndexSets, trackedItems,
+                compiledRules, itemData, isBank)
         end
     end
 
@@ -2296,6 +2339,23 @@ function this.GetMasterItemList(trackedItems, activeRules, bagIdList)
 
     return {
         items = masterItems,
+        groups = groups,
         ruleIndex = ruleIndex,
     }
+end
+
+function this.GetMasterItemList(trackedItems, activeRules, bagIdList)
+    return BuildMasterItemList(trackedItems, activeRules, bagIdList, true)
+end
+
+function this.GetMasterItemListWithoutGroupBookkeepingForPerformanceTest(trackedItems, activeRules, bagIdList)
+    return BuildMasterItemList(trackedItems, activeRules, bagIdList, false)
+end
+
+function this.GetTrackerBagIdList()
+    local bagIdList = { BAG_BACKPACK, BAG_BANK, BAG_SUBSCRIBER_BANK }
+    if IsESOPlusSubscriber() then
+        table.insert(bagIdList, BAG_VIRTUAL)
+    end
+    return bagIdList
 end
