@@ -36,19 +36,25 @@ local function RunTrackerPerformanceTest()
     local bankOpen = IsBankOpen()
     local ruleCount = CountEntries(this.GetActiveTrackedRules())
     local scanTimes, displayListTimes, layoutTimes = {}, {}, {}
+    local reportLines = {}
     local runIndex, operationIndex = 1, 0
     local runScanMilliseconds, runDisplayListMilliseconds, runLayoutMilliseconds = 0, 0, 0
     local lastSnapshotIdCount, lastDisplayRowCount, lastLayoutRowCount, lastLayoutGroupCount
 
-    d(string.format(
+    local function FinishReport(line)
+        if line then reportLines[#reportLines + 1] = line end
+        running = false
+        error(table.concat(reportLines, "\n"), 0)
+    end
+
+    reportLines[#reportLines + 1] = string.format(
         "[InventoryCompanion tracker timing] Starting %d runs of %d iterations: scan, display-list build, and layout-model build. Each timer covers only its function; UI yields between iterations. Rules: %d; bags: %d; bank %s.",
-        RUN_COUNT, OPERATIONS_PER_RUN, ruleCount, #bagIds, bankOpen and "open" or "closed"))
+        RUN_COUNT, OPERATIONS_PER_RUN, ruleCount, #bagIds, bankOpen and "open" or "closed")
+    d("[InventoryCompanion tracker timing] Started; the complete report will be raised as an error when finished.")
 
     local function RunNextOperation()
         if IsBankOpen() ~= bankOpen then
-            running = false
-            d("[InventoryCompanion tracker timing] Aborted: bank state changed during the test.")
-            return
+            return FinishReport("[InventoryCompanion tracker timing] Aborted: bank state changed during the test.")
         end
 
         local activeRules = this.GetActiveTrackedRules()
@@ -58,12 +64,12 @@ local function RunTrackerPerformanceTest()
             return result, GetGameTimeMilliseconds() - startedAt
         end)
         if not scanOk then
-            running = false
-            d("[InventoryCompanion tracker timing] Scan failed: " .. tostring(snapshot))
-            return
+            return FinishReport("[InventoryCompanion tracker timing] Scan failed: " .. tostring(snapshot))
         end
         runScanMilliseconds = runScanMilliseconds + elapsed
-        assert(snapshot and snapshot.items, "GetMasterItemList returned an invalid snapshot")
+        if not snapshot or not snapshot.items then
+            return FinishReport("[InventoryCompanion tracker timing] Scan failed: GetMasterItemList returned an invalid snapshot.")
+        end
         lastSnapshotIdCount = CountEntries(snapshot.items)
 
         local showEmpty = this.GetPanelSettings("Tracker").showEmptyTrackedItems ~= false
@@ -74,12 +80,12 @@ local function RunTrackerPerformanceTest()
             return result, GetGameTimeMilliseconds() - startedAt
         end)
         if not displayOk then
-            running = false
-            d("[InventoryCompanion tracker timing] Display-list build failed: " .. tostring(displayList))
-            return
+            return FinishReport("[InventoryCompanion tracker timing] Display-list build failed: " .. tostring(displayList))
         end
         runDisplayListMilliseconds = runDisplayListMilliseconds + displayElapsed
-        assert(type(displayList) == "table", "Display-list builder returned an invalid list")
+        if type(displayList) ~= "table" then
+            return FinishReport("[InventoryCompanion tracker timing] Display-list build failed: builder returned an invalid list.")
+        end
         lastDisplayRowCount = CountList(displayList)
 
         local layoutOk, layoutModel, layoutElapsed = pcall(function()
@@ -88,12 +94,12 @@ local function RunTrackerPerformanceTest()
             return result, GetGameTimeMilliseconds() - startedAt
         end)
         if not layoutOk then
-            running = false
-            d("[InventoryCompanion tracker timing] Layout-model build failed: " .. tostring(layoutModel))
-            return
+            return FinishReport("[InventoryCompanion tracker timing] Layout-model build failed: " .. tostring(layoutModel))
         end
         runLayoutMilliseconds = runLayoutMilliseconds + layoutElapsed
-        assert(type(layoutModel) == "table", "Layout-model builder returned an invalid model")
+        if type(layoutModel) ~= "table" then
+            return FinishReport("[InventoryCompanion tracker timing] Layout-model build failed: builder returned an invalid model.")
+        end
         lastLayoutRowCount = layoutModel.baseRows
         lastLayoutGroupCount = #layoutModel.order
 
@@ -102,13 +108,13 @@ local function RunTrackerPerformanceTest()
             scanTimes[runIndex] = runScanMilliseconds / OPERATIONS_PER_RUN
             displayListTimes[runIndex] = runDisplayListMilliseconds / OPERATIONS_PER_RUN
             layoutTimes[runIndex] = runLayoutMilliseconds / OPERATIONS_PER_RUN
-            d(string.format(
+            reportLines[#reportLines + 1] = string.format(
                 "[InventoryCompanion tracker timing] Run %d/%d (%d iterations): scans %d ms total (%.3f ms/scan); display-list builds %d ms total (%.3f ms/build); layout-model builds %d ms total (%.3f ms/build); last output %d IDs, %d display rows, %d layout rows/%d groups.",
                 runIndex, RUN_COUNT, OPERATIONS_PER_RUN,
                 runScanMilliseconds, scanTimes[runIndex],
                 runDisplayListMilliseconds, displayListTimes[runIndex],
                 runLayoutMilliseconds, layoutTimes[runIndex], lastSnapshotIdCount,
-                lastDisplayRowCount, lastLayoutRowCount, lastLayoutGroupCount))
+                lastDisplayRowCount, lastLayoutRowCount, lastLayoutGroupCount)
 
             if runIndex == RUN_COUNT then
                 local function GetSortedTimes(times)
@@ -123,14 +129,12 @@ local function RunTrackerPerformanceTest()
                 local sortedScanTimes = GetSortedTimes(scanTimes)
                 local sortedDisplayListTimes = GetSortedTimes(displayListTimes)
                 local sortedLayoutTimes = GetSortedTimes(layoutTimes)
-                running = false
-                d(string.format(
+                return FinishReport(string.format(
                     "[InventoryCompanion tracker timing] Complete: %d iterations total; scan min/median/max %.3f/%.3f/%.3f ms; display-list %.3f/%.3f/%.3f ms; layout-model %.3f/%.3f/%.3f ms.",
                     RUN_COUNT * OPERATIONS_PER_RUN,
                     sortedScanTimes[1], sortedScanTimes[2], sortedScanTimes[3],
                     sortedDisplayListTimes[1], sortedDisplayListTimes[2], sortedDisplayListTimes[3],
                     sortedLayoutTimes[1], sortedLayoutTimes[2], sortedLayoutTimes[3]))
-                return
             end
 
             runIndex = runIndex + 1
