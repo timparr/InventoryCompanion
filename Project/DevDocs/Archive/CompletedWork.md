@@ -59,9 +59,9 @@ under [Features](../Features); active work lives in the
   the scan snapshot, flattens repeated items only when both raw location counts
   match, retains source-labeled rows for differing counts, and preserves
   singleton group headers. Tim chose to retain group-count bookkeeping after
-  the in-game A/B comparison. Finalization was requested on 2026-11-21; the
-  remaining display and differing-source checks are recorded as pending, not
-  passed. See the [current feature specification](../Features/TrackerGroupFirst/001%20TrackerGroupFirst%20-%20Specification.md),
+  the in-game A/B comparison. Merged to main on 2026-11-21; the remaining
+  display and differing-source checks are recorded as pending, not passed.
+  See the [current feature specification](../Features/TrackerGroupFirst/001%20TrackerGroupFirst%20-%20Specification.md),
   [archived implementation plan](TrackerGroupFirst/002%20TrackerGroupFirst%20-%20Implementation%20Plan.md),
   and [consolidated test results](TrackerGroupFirst/008%20TrackerGroupFirst%20-%20Consolidated%20Test%20Results.md).
 

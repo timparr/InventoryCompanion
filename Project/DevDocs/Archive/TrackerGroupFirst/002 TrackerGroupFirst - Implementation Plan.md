@@ -1,6 +1,6 @@
 # Tracker group-first scan: implementation plan
 
-Status: IMPLEMENTED; closeout/merge requested; remaining in-game behavior checks are documented as pending
+Status: IMPLEMENTED; merged to main 2026-11-21; remaining in-game behavior checks are documented as pending
 TODO item: None; user-requested work arising from the
 [FCO spike](<../../Features/FCOItemSaver/003 FCOItemSaver - Spike Report.md>)
 Spec: [Tracker group-first specification](<../../Features/TrackerGroupFirst/001 TrackerGroupFirst - Specification.md>) - APPROVED
@@ -586,7 +586,7 @@ pending.
 ## Acceptance and handoff
 
 - In-game behavior checks: PENDING where not run; see the consolidated results.
-- Closeout and merge: Tim requested completion and merge on 2026-11-21.
+- Closeout and merge: merged to main on 2026-11-21.
 - Documentation, completed-work index and archive updates: completed for this closeout.
 - Commit/merge authorization: granted by Tim's closeout request.
 - Numeric performance limit: not set; the recorded timing comparison is observational.

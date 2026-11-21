@@ -1,6 +1,6 @@
 # Tracker Group-First: Consolidated Test Results
 
-Status: Closeout requested; bookkeeping retained; remaining behavior and performance checks pending
+Status: Implementation merged to main; bookkeeping retained; remaining behavior and performance checks pending
 Captured: 2026-11-21
 
 This is the single summary of the tracker feature's offline, in-game, and

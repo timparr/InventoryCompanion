@@ -1,6 +1,6 @@
 # Tracker group-first scan: feature spec
 
-Status: IMPLEMENTED; group-count design selected for production; closeout/merge requested; in-game behavior checks remain unrun
+Status: IMPLEMENTED; merged to main 2026-11-21; in-game behavior checks remain unrun
 TODO item: None; user-requested work arising from the
 [FCO spike](<../FCOItemSaver/003 FCOItemSaver - Spike Report.md>)
 Owner: Copilot
@@ -261,7 +261,7 @@ refresh behavior and a numeric performance limit remain pending.
 
 - Product discussion agreement: RECORDED in D1-D10 and the behavior above
 - Explicit spec approval: Tim: "ok go" (2026-11-21); implementation authorized.
-- Closeout and merge: Tim requested finalization and merge on 2026-11-21.
+- Closeout and merge: merged to main on 2026-11-21.
 - Remaining in-game behavior checks: PENDING and explicitly not claimed as
   passed; see the [consolidated test results](<../../Archive/TrackerGroupFirst/008 TrackerGroupFirst - Consolidated Test Results.md>).
 
