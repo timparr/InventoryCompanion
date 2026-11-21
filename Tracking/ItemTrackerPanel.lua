@@ -652,6 +652,10 @@ local function BuildDisplayList(snapshot, activeRules, trackedItems, showEmpty)
     return itemsToDisplay
 end
 
+function this.BuildTrackerDisplayListForPerformanceTest(snapshot, activeRules, trackedItems, showEmpty)
+    return BuildDisplayList(snapshot, activeRules, trackedItems, showEmpty)
+end
+
 local function RuleSignature(rule)
     local parts = { tostring(rule.display.show), tostring(rule.display.showBank),
         tostring(rule.display.group), tostring(rule.display.isHidden), tostring(rule.display.showBackpack) }
@@ -689,6 +693,10 @@ local function BuildLayoutModel(items, rules)
         group.signatureParts = nil
     end
     return model
+end
+
+function this.BuildTrackerLayoutModelForPerformanceTest(items, rules)
+    return BuildLayoutModel(items, rules)
 end
 
 local function SelectRows(model, expanded)
