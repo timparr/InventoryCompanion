@@ -1,6 +1,7 @@
 # <Feature name>: feature spec
 
-Save this document as `<Feature>FeatureSpec.md` in `Project\DevDocs\FeatureSpecs`.
+Save this document as `001 <FeatureName> - Specification.md` in
+`Project\DevDocs\Features\<FeatureName>`.
 
 Status: DRAFT - not approved
 TODO item: <ID and link>
@@ -37,9 +38,10 @@ question history here. Remove this section when no open questions remain.
 
 Use the [feature development process](../FeatureDevelopment.md). Replace
 placeholders without copying historical approvals or test results. When copied
-into DevDocs/FeatureSpecs, change this process link to
-`../../Processes/FeatureDevelopment.md` and set the plan link to
-`../Plans/<Feature>ImplementationPlan.md`.
+into the feature folder, change this process link to
+`../../../Processes/FeatureDevelopment.md` and set the plan link to
+`002 <FeatureName> - Implementation Plan.md` in the same folder. Enclose
+relative Markdown link targets containing spaces in angle brackets.
 
 ## Scope and non-goals
 

@@ -26,6 +26,29 @@ recording feasibility are allowed during planning; coding is a separate gate.
    document status, and open questions. Leave approvals and unperformed tests
    pending; do not carry historical results forward as fresh evidence.
 
+### Feature documents
+
+Keep documents for each new feature or change together in
+`Project\DevDocs\Features\<FeatureName>`, rather than separating specs and plans
+into different folders. Use sortable, three-digit prefixes:
+
+```text
+001 <FeatureName> - Specification.md
+002 <FeatureName> - Implementation Plan.md
+003 <FeatureName> - Spec Review.md
+004 <FeatureName> - Plan Review.md
+```
+
+The first two names are for the spec and plan. If separate review, revision,
+investigation or other documents are needed, give each the next available
+number and a descriptive title; the review names above are examples, not a
+requirement to create extra files. Keep links between related documents current.
+Do not use a colon in filenames: Windows does not permit it.
+
+Existing work in `DevDocs\FeatureSpecs` or `DevDocs\Plans` remains valid; when
+reorganizing it, preserve its approvals and history and update inbound links.
+Follow the normal archive and acceptance rules below.
+
 ## 2. Specify and discuss the product
 
 1. Describe the problem, users' observable behavior, UX, defaults, boundaries,

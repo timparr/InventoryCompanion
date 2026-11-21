@@ -1,6 +1,7 @@
 # <Feature name>: implementation plan
 
-Save this document as `<Feature>ImplementationPlan.md` in `Project\DevDocs\Plans`.
+Save this document as `002 <FeatureName> - Implementation Plan.md` in
+`Project\DevDocs\Features\<FeatureName>`.
 
 Status: PROVISIONAL - not approved; coding not authorized
 TODO item: <ID and link>
@@ -24,9 +25,10 @@ Bold the investigation and decision labels so the type of work is easy to scan.
 
 Use the [feature development process](../FeatureDevelopment.md). Keep this plan
 aligned with the spec during discussion, but do not silently change requirements.
-When copied into DevDocs/Plans, change this process link to
-`../../Processes/FeatureDevelopment.md` and set the spec link to
-`../FeatureSpecs/<Feature>FeatureSpec.md`.
+When copied into the feature folder, change this process link to
+`../../../Processes/FeatureDevelopment.md` and set the spec link to
+`001 <FeatureName> - Specification.md` in the same folder. Enclose relative
+Markdown link targets containing spaces in angle brackets.
 
 The spec is authoritative for product behavior. Reference its requirements and
 acceptance criteria instead of repeating settled behavior, wireframes, or product

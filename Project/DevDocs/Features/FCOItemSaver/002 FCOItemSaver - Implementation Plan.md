@@ -2,7 +2,7 @@
 
 Status: Implemented on spike branch; in-game testing and acceptance pending
 TODO item: None; user-requested feasibility spike
-Spec: [diagnostic spike spec](../FeatureSpecs/FCOItemSaverDiagnosticSpikeFeatureSpec.md)
+Spec: [diagnostic spike spec](<001 FCOItemSaver - Specification.md>)
 Owner: Copilot
 Updated: 2026-11-20
 

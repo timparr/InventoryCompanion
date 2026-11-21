@@ -120,6 +120,14 @@ function ZO_Scroll_OnMouseWheel(_, delta)
     scroll.offset = math.max(0, math.min(child.height - rows.height, scroll.offset - delta * 40))
 end
 function GetItemLinkName(link) return link end
+InformationTooltip = { lines = {} }
+function InformationTooltip:AddLine(text) self.lines[#self.lines + 1] = text end
+function InitializeTooltip(tooltip)
+    tooltip.lines = {}
+end
+function ClearTooltip(tooltip)
+    tooltip.cleared = true
+end
 function GetItemQualityColor()
     return {
         Colorize = function(_, text) return text end,
@@ -143,12 +151,13 @@ local function AddItem(group, length)
     fixture.index[group][index] = id
     fixture.items[id] = { link = string.rep("x", length or 8) .. string.format("%04d", id),
         icon = "icon", bagCount = 1, bankCount = 1 }
+    fixture.groupItems[group][id] = fixture.items[id]
     return id
 end
 
 local function Setup(sizes, budget, expanded, wrapped, length)
     counters = { scans = 0, creations = 0, measurements = 0, rowLayouts = 0, writes = 0 }
-    fixture = { index = {}, items = {}, groupIds = {} }
+    fixture = { index = {}, items = {}, groupIds = {}, groupItems = {} }
     this.accountWide = { trackedRules = {}, trackedItems = {}, PanelSettings = { Tracker = { showTrackedItemsPanel = true,
         showEmptyTrackedItems = false, trackerMaxRows = budget, trackerGroupThreshold = 1,
         Layout_NoScene = { offsetX = 50, offsetY = 50 }, wrapTrackedItemNames = wrapped == true, trackerTitleSize = 20 },
@@ -175,7 +184,7 @@ local function Setup(sizes, budget, expanded, wrapped, length)
     this.preLoadedRulesets = {}
     for index, size in ipairs(sizes) do
         local name = "group" .. index
-        fixture.groupIds[name], fixture.index[name] = index, {}
+        fixture.groupIds[name], fixture.index[name], fixture.groupItems[name] = index, {}, {}
         this.preLoadedRulesets[name] = { displayName = name, patterns = { name },
             display = { show = true, bank = false, notify = false, isHidden = false,
                 group = true, isExpanded = expanded == true } }
@@ -187,11 +196,14 @@ local function Setup(sizes, budget, expanded, wrapped, length)
     this.InvalidateRuleCache()
     this.GetMasterItemList = function()
         counters.scans = counters.scans + 1
-        local snapshot = { items = {}, ruleIndex = {} }
+        local snapshot = { items = {}, groups = {}, ruleIndex = {} }
         for id, item in pairs(fixture.items) do snapshot.items[id] = item end
         for name, ids in pairs(fixture.index) do
             snapshot.ruleIndex[name] = {}
             for i, id in ipairs(ids) do snapshot.ruleIndex[name][i] = id end
+        end
+        for name in pairs(this.GetActiveTrackedRules()) do
+            snapshot.groups[name] = { items = fixture.groupItems[name] or {} }
         end
         return snapshot
     end
@@ -634,6 +646,7 @@ function this.GetTrackerPanelTests()
 
     Add("Tracker keeps Miscellaneous and zero-stock filtering in the row policy", function()
         Setup({ 1, 3 }, 5, false)
+        this.UpdateRuleFlag("group1", "group", false)
         this.RefreshItemTrackerPanel()
         Equal(#VisibleRows(), 2)
         Click("miscellaneous")
@@ -643,6 +656,246 @@ function this.GetTrackerPanelTests()
         this.RefreshItemTrackerPanel("inventory")
         Equal(#VisibleRows(), 1)
         assert(GetControl(VisibleRows()[1], "Name").text:find("No tracked items", 1, true))
+    end)
+
+    Add("Tracker preserves singleton headers and labels differing ungrouped sources", function()
+        Setup({ 1 }, 5, true)
+        this.RefreshItemTrackerPanel()
+        assert(Expanded("group1"), "A singleton group keeps its header")
+        Equal(#VisibleRows(), 2)
+
+        local singletonId = fixture.index.group1[1]
+        fixture.items[singletonId].bagCount, fixture.items[singletonId].bankCount = 0, 0
+        this.RefreshItemTrackerPanel("inventory")
+        Equal(#VisibleRows(), 1)
+        assert(GetControl(VisibleRows()[1], "Name").text:find("No tracked items", 1, true))
+        this.accountWide.PanelSettings.Tracker.showEmptyTrackedItems = true
+        this.RefreshItemTrackerPanel("settings")
+        assert(Expanded("group1"), "A zero-stock singleton retains its header when empty items are shown")
+        Equal(#VisibleRows(), 2)
+
+        Setup({ 1, 0 }, 5, true)
+        this.accountWide.PanelSettings.Tracker.trackerGroupThreshold = 8
+        local itemId = fixture.index.group1[1]
+        local first = fixture.groupItems.group1[itemId]
+        first.link = "Sealed Writ"
+        first.bagCount, first.bankCount = 2, 5
+        fixture.items[itemId].link = first.link
+        fixture.items[itemId].bagCount, fixture.items[itemId].bankCount = 2, 5
+        fixture.index.group2[1] = itemId
+        fixture.groupItems.group2[itemId] = {
+            itemId = itemId, link = "Sealed Writ Variant", icon = "icon", bagCount = 1, bankCount = 6,
+        }
+        this.UpdateRuleFlag("group1", "group", false)
+        this.UpdateRuleFlag("group1", "showBank", true)
+        this.UpdateRuleFlag("group2", "group", false)
+        this.UpdateRuleFlag("group2", "showBank", true)
+        this.UpdateRuleFlag("miscellaneous", "isExpanded", true)
+        this.accountWide.trackedItems[itemId] = {
+            link = "Sealed Writ", display = { showBackpack = true, showBank = true },
+        }
+        this.RefreshItemTrackerPanel()
+
+        local visible = VisibleRows()
+        Equal(#visible, 3)
+        Equal(GetControl(visible[1], "Name").text, "miscellaneous")
+        local miscCount = GetControl(visible[1], "Count").text
+        assert(miscCount == "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 3  |t16:16:EsoUI/Art/Tooltips/icon_bag.dds|t 2"
+            or miscCount == "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 5  |t16:16:EsoUI/Art/Tooltips/icon_bag.dds|t 1",
+            "The Miscellaneous header uses one first-source count and never adds duplicate sources")
+        Equal(GetControl(visible[2], "Name").text, "[group1]:Sealed Writ")
+        Equal(GetControl(visible[2], "Count").text,
+            "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 3  |t16:16:EsoUI/Art/Tooltips/icon_bag.dds|t 2")
+        Equal(GetControl(visible[3], "Name").text, "[g...]:Sealed Writ Variant")
+        Equal(GetControl(visible[3], "Count").text,
+            "|t16:16:EsoUI/Art/Tooltips/icon_bank.dds|t 5  |t16:16:EsoUI/Art/Tooltips/icon_bag.dds|t 1")
+        assert(visible[2].itemData.rowIdentity ~= visible[3].itemData.rowIdentity,
+            "Duplicate source rows need distinct identities")
+
+        this.UpdateRuleFlag("group2", "showBackpack", false)
+        fixture.groupItems.group2[itemId].bankCount = 1
+        this.RefreshItemTrackerPanel()
+        local remainingRows = VisibleRows()
+        local remainingNames = {}
+        for _, row in ipairs(remainingRows) do remainingNames[#remainingNames + 1] = GetControl(row, "Name").text end
+        assert(#remainingRows == 2, "Unexpected remaining rows: " .. table.concat(remainingNames, " | "))
+        Equal(GetControl(remainingRows[1], "Name").text, "miscellaneous")
+        Equal(GetControl(remainingRows[2], "Name").text, "[group1]:Sealed Writ")
+        this.UpdateRuleFlag("group2", "showBackpack", true)
+        fixture.groupItems.group2[itemId].bankCount = 6
+        this.RefreshItemTrackerPanel()
+        visible = VisibleRows()
+
+        local label = GetControl(visible[2], "Name")
+        label.handlers.OnMouseEnter(label)
+        Equal(InformationTooltip.lines[1], "[group1]:Sealed Writ")
+        label.handlers.OnMouseExit(label)
+        assert(InformationTooltip.cleared)
+
+        this.preLoadedRulesets.group1.displayName = string.rep("Long group name ", 8)
+        this.InvalidateRuleCache()
+        this.RefreshItemTrackerPanel()
+        visible = VisibleRows()
+        local truncated = GetControl(visible[2], "Name").text
+        assert(truncated:find("%.%.%.%]:Sealed Writ$"),
+            "Unwrapped labels truncate only the source prefix and retain the item name")
+
+        local unicodeName = string.rep("é", 40)
+        this.preLoadedRulesets.group1.displayName = unicodeName
+        this.InvalidateRuleCache()
+        this.RefreshItemTrackerPanel()
+        visible = VisibleRows()
+        local groupOneRow
+        for _, row in ipairs(visible) do
+            if row.itemData.sourceRuleName == "group1" then groupOneRow = row end
+        end
+        assert(groupOneRow, "The group1 source row remains visible")
+        local unicodeLabel = GetControl(groupOneRow, "Name").text
+        local retainedPrefix = unicodeLabel:match("^%[(.-)%.%.%.%]:Sealed Writ$")
+        assert(unicodeLabel == "Sealed Writ" or
+            (retainedPrefix and string.rep("é", #retainedPrefix / #"é") == retainedPrefix),
+            "Source-name truncation preserves UTF-8 character boundaries: " .. unicodeLabel)
+
+        first.bagCount, first.bankCount = 2, 5
+        fixture.groupItems.group2[itemId].bagCount = 2
+        fixture.groupItems.group2[itemId].bankCount = 5
+        this.RefreshItemTrackerPanel("inventory")
+        visible = VisibleRows()
+        Equal(#visible, 1)
+        local deduplicatedName = GetControl(visible[1], "Name").text
+        assert(deduplicatedName == "Sealed Writ" or deduplicatedName == "Sealed Writ Variant",
+            "Equal source counts deduplicate using the first encountered link")
+    end)
+
+    Add("Tracker compares hidden-location and individually tracked source counts before flattening", function()
+        Setup({ 1, 0 }, 5, true)
+        this.accountWide.PanelSettings.Tracker.trackerGroupThreshold = 8
+        local itemId = fixture.index.group1[1]
+        fixture.groupItems.group1[itemId].bagCount = 2
+        fixture.groupItems.group1[itemId].bankCount = 8
+        fixture.index.group2[1] = itemId
+        fixture.groupItems.group2[itemId] = {
+            itemId = itemId, link = fixture.items[itemId].link, icon = "icon", bagCount = 2, bankCount = 7,
+        }
+        local rows = this.GetTrackerDisplayList()
+        Equal(#rows, 4)
+        Equal(rows[1].link, "group1")
+        Equal(rows[3].link, "group2")
+
+        Setup({ 1 }, 5, true)
+        this.accountWide.PanelSettings.Tracker.trackerGroupThreshold = 8
+        itemId = fixture.index.group1[1]
+        fixture.groupItems.group1[itemId] = {
+            itemId = itemId, link = fixture.items[itemId].link, icon = "icon", bagCount = 2, bankCount = 2,
+        }
+        fixture.items[itemId].bagCount, fixture.items[itemId].bankCount = 3, 4
+        this.accountWide.trackedItems[itemId] = {
+            link = fixture.items[itemId].link, display = { showBackpack = true, showBank = false },
+        }
+        this.UpdateRuleFlag("miscellaneous", "isExpanded", true)
+        rows = this.GetTrackerDisplayList()
+        Equal(#rows, 4)
+        Equal(rows[1].ruleName, "group1")
+        Equal(rows[3].ruleName, "miscellaneous")
+        Equal(rows[4].sourceRuleName, "trackedItem")
+
+        Setup({ 1, 0 }, 5, true)
+        this.accountWide.PanelSettings.Tracker.trackerGroupThreshold = 8
+        itemId = fixture.index.group1[1]
+        fixture.index.group2[1] = itemId
+        fixture.groupItems.group2[itemId] = {
+            itemId = itemId, link = fixture.items[itemId].link, icon = "icon", bagCount = 1, bankCount = 4,
+        }
+        fixture.groupItems.group1[itemId].bagCount = 1
+        fixture.groupItems.group1[itemId].bankCount = 4
+        this.UpdateRuleFlag("group1", "group", false)
+        this.UpdateRuleFlag("group1", "showBank", false)
+        this.UpdateRuleFlag("group2", "group", false)
+        this.UpdateRuleFlag("group2", "showBank", true)
+        rows = this.GetTrackerDisplayList()
+        Equal(#rows, 1)
+        assert(not rows[1].isGroup, "Different display flags alone do not prevent flattening")
+
+        Setup({ 1, 0 }, 5, true)
+        this.accountWide.PanelSettings.Tracker.trackerGroupThreshold = 8
+        itemId = fixture.index.group1[1]
+        fixture.index.group2[1] = itemId
+        fixture.groupItems.group2[itemId] = {
+            itemId = itemId, link = fixture.items[itemId].link, icon = "icon", bagCount = 1, bankCount = 2,
+        }
+        fixture.groupItems.group1[itemId].bagCount = 1
+        fixture.groupItems.group1[itemId].bankCount = 3
+        this.UpdateRuleFlag("group2", "isHidden", true)
+        rows = this.GetTrackerDisplayList()
+        Equal(#rows, 1)
+        assert(not rows[1].isGroup, "Hidden rules are outside the tracker comparison set")
+    end)
+
+    Add("Tracker preserves ungrouped-rule precedence over the tracked-item fallback", function()
+        Setup({ 1 }, 5, true)
+        this.accountWide.PanelSettings.Tracker.trackerGroupThreshold = 8
+        local itemId = fixture.index.group1[1]
+        fixture.groupItems.group1[itemId] = {
+            itemId = itemId,
+            link = fixture.items[itemId].link,
+            icon = fixture.items[itemId].icon,
+            bagCount = 2,
+            bankCount = 5,
+        }
+        fixture.items[itemId].bagCount, fixture.items[itemId].bankCount = 7, 9
+        this.UpdateRuleFlag("group1", "group", false)
+        this.accountWide.trackedItems[itemId] = {
+            link = fixture.items[itemId].link,
+            display = { showBackpack = true, showBank = true },
+        }
+        this.UpdateRuleFlag("miscellaneous", "isExpanded", true)
+
+        local rows = this.GetTrackerDisplayList()
+        Equal(#rows, 1)
+        Equal(rows[1].count, 2)
+        Equal(rows[1].bankCount, 5)
+    end)
+
+    Add("Tracker uses a strict threshold boundary for equal source counts", function()
+        Setup({ 2 }, 5, true)
+        this.accountWide.PanelSettings.Tracker.trackerGroupThreshold = 3
+        local rows = this.GetTrackerDisplayList()
+        Equal(#rows, 2)
+        assert(not rows[1].isGroup, "One below the threshold is flat")
+        this.accountWide.PanelSettings.Tracker.trackerGroupThreshold = 2
+        rows = this.GetTrackerDisplayList()
+        Equal(#rows, 3)
+        assert(rows[1].isGroup, "At the threshold the tracker is grouped")
+    end)
+
+    Add("Tracker builds a scaled synthetic set of duplicate source rows", function()
+        Setup({ 100, 0 }, 20, false)
+        this.accountWide.PanelSettings.Tracker.trackerGroupThreshold = 8
+        for _, itemId in ipairs(fixture.index.group1) do
+            fixture.index.group2[#fixture.index.group2 + 1] = itemId
+            fixture.groupItems.group2[itemId] = {
+                itemId = itemId,
+                link = fixture.items[itemId].link,
+                icon = fixture.items[itemId].icon,
+                bagCount = 2,
+                bankCount = 2,
+            }
+        end
+        this.UpdateRuleFlag("group1", "group", false)
+        this.UpdateRuleFlag("group2", "group", false)
+
+        local started = GetGameTimeMilliseconds()
+        local rows
+        for _ = 1, 5 do rows = this.GetTrackerDisplayList() end
+        local elapsed = GetGameTimeMilliseconds() - started
+
+        Equal(#rows, 201)
+        Equal(rows[1].ruleName, "miscellaneous")
+        Equal(rows[2].sourceRuleName, "group1")
+        Equal(rows[102].sourceRuleName, "group2")
+        Equal(rows[2].count, 1)
+        Equal(rows[102].count, 2)
+        return string.format("100 same-ID source pairs, 5 display-list builds: %d ms (no timing limit)", elapsed)
     end)
 
     Add("Tracker trials never create member controls for collapsed categories", function()
@@ -1099,6 +1352,7 @@ function this.GetTrackerPanelTests()
         end
 
         Setup({ 1 }, 20, true)
+        this.UpdateRuleFlag("group1", "group", false)
         local id = fixture.index.group1[1]
         fixture.items[id].bagCount, fixture.items[id].bankCount = 3, 10
         this.UpdateRuleFlag("group1", "showBackpack", false)

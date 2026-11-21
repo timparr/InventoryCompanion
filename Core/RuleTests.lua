@@ -458,6 +458,66 @@ function this.GetRuleTests()
         Equal(warnings, 2, "Unhiding takes effect immediately")
     end)
 
+    Add("Group-first scanning counts matching stacks independently by rule and location", function()
+        _G.BAG_BACKPACK, _G.BAG_BANK = 1, 2
+        local originalName, originalScanning = _G.GetItemLinkName, this.Scanning
+        _G.GetItemLinkName = function(link) return link end
+        local contentsByBag = {
+            [BAG_BACKPACK] = {
+                { itemId = 987654320, link = "alpha", icon = "alpha-icon", count = 2 },
+            },
+            [BAG_BANK] = {
+                { itemId = 987654320, link = "beta", icon = "beta-icon", count = 3 },
+            },
+        }
+        this.Scanning = {
+            GetBagContents = function(bagIds)
+                local contents = {}
+                for _, bagId in ipairs(bagIds) do
+                    for _, itemData in ipairs(contentsByBag[bagId] or {}) do
+                        contents[#contents + 1] = itemData
+                    end
+                end
+                return contents
+            end,
+        }
+        this.UpdateRulePatterns("default", { "alpha*", "*pha" })
+        this.UpdateRulePatterns("custom", { "*" })
+        local activeRules = this.GetActiveTrackedRules()
+        local snapshot = this.GetMasterItemList({}, activeRules, { BAG_BACKPACK, BAG_BANK })
+        local snapshotWithoutGroupBookkeeping =
+            this.GetMasterItemListWithoutGroupBookkeepingForPerformanceTest(
+                {}, activeRules, { BAG_BACKPACK, BAG_BANK })
+
+        Equal(#snapshot.ruleIndex.default, 1, "Overlapping patterns index a rule only once")
+        Equal(snapshot.groups.default.items[987654320].bagCount, 2, "Default backpack count")
+        Equal(snapshot.groups.default.items[987654320].bankCount, 2, "Default combined count")
+        Equal(snapshot.groups.default.items[987654320].link, "alpha", "Default keeps its first matching link")
+        Equal(snapshot.groups.default.bagCount, 2, "Default group backpack total")
+        Equal(snapshot.groups.default.bankCount, 2, "Default group combined total")
+        Equal(snapshot.groups.custom.items[987654320].bagCount, 2, "Custom backpack count")
+        Equal(snapshot.groups.custom.items[987654320].bankCount, 5, "Custom combined count")
+        Equal(snapshot.groups.custom.items[987654320].link, "alpha", "Custom keeps its first matching link")
+        Equal(snapshot.groups.custom.bagCount, 2, "Custom group backpack total")
+        Equal(snapshot.groups.custom.bankCount, 5, "Custom group combined total")
+        Equal(snapshot.items[987654320].bagCount, 2, "Shared backpack count remains available")
+        Equal(snapshot.items[987654320].bankCount, 5, "Shared combined count remains available")
+        Equal(snapshotWithoutGroupBookkeeping.groups, nil, "Comparison scan omits group bookkeeping")
+        local sharedItem = snapshot.items[987654320]
+        local comparisonItem = snapshotWithoutGroupBookkeeping.items[987654320]
+        Equal(comparisonItem.bagCount, sharedItem.bagCount, "Comparison scan backpack count")
+        Equal(comparisonItem.bankCount, sharedItem.bankCount, "Comparison scan combined count")
+        Equal(comparisonItem.link, sharedItem.link, "Comparison scan first link")
+        Equal(comparisonItem.matchedRules.default, true, "Comparison scan default membership")
+        Equal(comparisonItem.matchedRules.custom, true, "Comparison scan custom membership")
+        List(snapshotWithoutGroupBookkeeping.ruleIndex.default, snapshot.ruleIndex.default,
+            "Comparison scan default rule index")
+        List(snapshotWithoutGroupBookkeeping.ruleIndex.custom, snapshot.ruleIndex.custom,
+            "Comparison scan custom rule index")
+
+        _G.GetItemLinkName, this.Scanning = originalName, originalScanning
+    end)
+
     Add("Exclusion suffix narrows only its own group", function()
         _G.BAG_BACKPACK = 1
         _G.GetItemLinkName = function(link) return link == "item" and "Target +1" or nil end

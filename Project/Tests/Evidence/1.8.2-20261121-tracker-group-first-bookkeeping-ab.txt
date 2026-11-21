@@ -1,0 +1,5 @@
+[InventoryCompanion tracker timing] Starting 3 runs of 1000 matched scan pairs: group-count bookkeeping on versus off; the off path retains shared item/index data and uses legacy list-based index deduplication. Variant order alternates; each timer covers only GetMasterItemList. Rules: 20; bags: 4; bank closed.
+[InventoryCompanion tracker timing] Run 1/3 (1000 scans per mode): with bookkeeping 32100 ms total (32.100 ms/scan); without bookkeeping 31503 ms total (31.503 ms/scan); difference 0.597 ms/scan; last output 140 IDs.
+[InventoryCompanion tracker timing] Run 2/3 (1000 scans per mode): with bookkeeping 31630 ms total (31.630 ms/scan); without bookkeeping 31381 ms total (31.381 ms/scan); difference 0.249 ms/scan; last output 140 IDs.
+[InventoryCompanion tracker timing] Run 3/3 (1000 scans per mode): with bookkeeping 31639 ms total (31.639 ms/scan); without bookkeeping 30978 ms total (30.978 ms/scan); difference 0.661 ms/scan; last output 140 IDs.
+[InventoryCompanion tracker timing] Complete: 3000 scans per mode; with bookkeeping min/median/max 31.630/31.639/32.100 ms/scan; without bookkeeping 30.978/31.381/31.503 ms/scan; median difference 0.258 ms/scan.
