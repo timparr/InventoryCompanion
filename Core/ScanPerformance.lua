@@ -24,10 +24,11 @@ local function CountList(items)
     return count
 end
 
-local function RunTrackerPerformanceTest()
+local function RunTrackerPerformanceTest(onComplete)
     if running then
-        d("[InventoryCompanion tracker timing] A tracker timing test is already running.")
-        return
+        local report = "[InventoryCompanion tracker timing] A tracker timing test is already running."
+        if onComplete then return onComplete(report) end
+        error(report, 0)
     end
 
     running = true
@@ -44,7 +45,9 @@ local function RunTrackerPerformanceTest()
     local function FinishReport(line)
         if line then reportLines[#reportLines + 1] = line end
         running = false
-        error(table.concat(reportLines, "\n"), 0)
+        local report = table.concat(reportLines, "\n")
+        if onComplete then return onComplete(report) end
+        error(report, 0)
     end
 
     reportLines[#reportLines + 1] = string.format(
@@ -148,4 +151,5 @@ local function RunTrackerPerformanceTest()
     zo_callLater(RunNextOperation, 0)
 end
 
-SLASH_COMMANDS["/ictrackperf"] = RunTrackerPerformanceTest
+this.RunTrackerPerformanceTest = RunTrackerPerformanceTest
+SLASH_COMMANDS["/ictrackperf"] = function() RunTrackerPerformanceTest() end

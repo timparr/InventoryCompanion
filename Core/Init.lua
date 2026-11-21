@@ -194,5 +194,5 @@ end
 -- Debug Key
 ------------------------------------------------------------------
 function this.Debug()
-    this.RunTests("verbose copy autocategory")
+    this.RunTests("verbose copy autocategory trackerperf")
 end

@@ -743,8 +743,8 @@ local function RunTests(arguments)
     local options = {}
     for option in tostring(arguments or ""):lower():gmatch("%S+") do
         if option ~= "verbose" and option ~= "veryverbose" and option ~= "copy"
-            and option ~= "autocategory" then
-            d("[InventoryCompanion tests] Usage: /ictest [verbose] [veryverbose] [copy] [autocategory]")
+            and option ~= "autocategory" and option ~= "trackerperf" then
+            d("[InventoryCompanion tests] Usage: /ictest [verbose] [veryverbose] [copy] [autocategory] [trackerperf]")
             return
         end
         options[option] = true
@@ -2414,6 +2414,16 @@ local function RunTests(arguments)
             table.insert(reportLines,
                 "[InventoryCompanion AutoCategory diagnostics] Collection failed: " .. tostring(diagnostic))
         end
+    end
+
+    if options.trackerperf then
+        this.RunTrackerPerformanceTest(function(performanceReport)
+            for line in (performanceReport .. "\n"):gmatch("(.-)\n") do
+                table.insert(reportLines, line)
+            end
+            error(table.concat(reportLines, "\n"), 0)
+        end)
+        return
     end
 
     local hasFailures = passed < total
