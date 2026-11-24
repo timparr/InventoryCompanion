@@ -1,5 +1,9 @@
 # FCO ItemSaver Integration: In-game MVP Test Checklist
 
+Archived 2026-11-24: original preliminary checklist from `main`, superseded by
+the [spike test record](<Spike/001 FCOItemSaver - Step by Step.md>).
+Unchecked items below are historical, not the current production checklist.
+
 **Status:** MVP checklist remains draft; preliminary diagnostic observations
 are recorded below. The actual marker-based IC group has not been implemented.
 
@@ -15,8 +19,8 @@ open design decisions.
 ## Preliminary diagnostic spike
 
 Before implementing marker-based groups, investigate the uncertain parts with
-the proposed [diagnostic spike spec](<001 FCOItemSaver - Specification.md>)
-and [implementation plan](<002 FCOItemSaver - Implementation Plan.md>):
+the proposed [diagnostic spike spec](<Spike/003 FCOItemSaver - Spike Specification.md>)
+and [implementation plan](<Spike/004 FCOItemSaver - Spike Implementation Plan.md>):
 
 - [x] Query the real FCO marker for occupied backpack slots and report matching
   counts and timings without changing items or markers.

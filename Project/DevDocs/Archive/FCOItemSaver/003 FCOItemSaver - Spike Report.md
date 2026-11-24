@@ -1,5 +1,9 @@
 # FCO ItemSaver Integration Spike
 
+Archived 2026-11-24: original preliminary report from `main`, superseded by
+the [consolidated spike record](<Spike/002 FCOItemSaver - Results and Decisions.md>).
+The implementation statements and proposed next steps below are historical.
+
 The temporary diagnostic is on `spike/fco-itemsaver`, not `main`. FCO group
 matching has not been implemented.
 
@@ -16,7 +20,7 @@ matching has not been implemented.
 - AutoCategory asks IC about individual items, and could use the same group
   condition. This still needs testing.
 
-The [master writ case study](<../../Archive/TrackerGroupFirst/002 TrackerGroupFirst - Implementation Plan.md#background-case-study-master-writs>)
+The [master writ case study](<../TrackerGroupFirst/002 TrackerGroupFirst - Implementation Plan.md#background-case-study-master-writs>)
 and possible counting structures are now background in the tracker plan.
 
 ## Proposed solution
@@ -59,5 +63,5 @@ and possible counting structures are now background in the tracker plan.
   counts and performance.
 
 The group and refresh approach are proposals, not yet implemented or approved.
-The [diagnostic record](<002 FCOItemSaver - Implementation Plan.md>)
+The [diagnostic record](<Spike/002 FCOItemSaver - Results and Decisions.md>)
 contains the detailed results.

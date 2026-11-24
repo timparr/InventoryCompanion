@@ -1,185 +1,153 @@
-# FCO ItemSaver diagnostic spike: implementation plan
+# FCO Integration: implementation plan
 
-Status: Implemented on spike branch; in-game testing and acceptance pending
-TODO item: None; user-requested feasibility spike
-Spec: [diagnostic spike spec](<001 FCOItemSaver - Specification.md>)
+Status: DEFERRED PROVISIONAL - not approved; coding not authorized
+TODO item: None; follows Scanning Refactor
+Spec: [feature spec](<001 FCOItemSaver - Specification.md>)
 Owner: Copilot
-Updated: 2026-11-20
+Updated: 2026-11-24
+
+Follow the [feature development process](../../../Processes/FeatureDevelopment.md).
+
+## Feature split
+
+The backend tasks and their historical implementation/approval evidence have
+moved to the [Scanning Refactor plan](<../ScanningRefactor/002 ScanningRefactor - Implementation Plan.md>).
+That plan owns prepared scans, slot indexes, incremental updates, sliced
+top-ups, marker polling, single-marker built-ins and their production
+migration. It replaces the backend stages in the old combined plan.
+
+This plan is deliberately provisional: it does not prescribe an editor or
+data model before Tim agrees their behavior. Existing spike approvals apply
+to the spike work recorded in Scanning Refactor and the
+[spike record](<../../Archive/FCOItemSaver/Spike/002 FCOItemSaver - Results and Decisions.md>), not this
+deferred feature.
 
 ## Open questions
 
-| ID | Question | What is needed to resolve it |
+| ID | Question | What resolves it |
 |---|---|---|
-| Q1 | Which FCO marker-change paths emit inventory events? | **Investigation:** approved in-game before/after observations; no assumption that one result covers every path. |
-| Q2 | What should the MVP performance limit be? | **Behavior decision:** discuss measurements and agree a measurable limit before MVP acceptance. |
+| Q1 | What marker conditions/operators and built-in override behavior are required? | **Behavior decision:** resolve spec Q1-Q4 before specifying representation or UI tasks in detail. |
+| Q2 | How are the agreed conditions stored and migrated? | **Logic/data-design decision:** assess the delivered Scanning Refactor schema and supported older readers. The old proposed `markers` list was never approved. |
+| Q3 | Is bag coverage changing? | **Behavior decision:** resolve spec Q5; do not expand beyond current supported marker bags implicitly. |
 
 ## Current implementation and prior art
 
-`Core/Scanning.lua` returns `bagId`, `slotIndex`, item ID, link and count.
-`Core/Events.lua` listens for slot updates under its own name; the diagnostic
-must use a separate event registration. `Core/RuleTests.lua` uses isolated
-synthetic state and restores replaced globals. `Core/Tests.lua` contains
-read-only scans and synthetic timing. FCO's installed API documents
-`IsMarked` and gamepad restrictions. The DEV flag is set by
-`Core/Development.lua`, which release packaging removes.
+- `Tracking\EditPanelGroupsTab.lua` and `.xml` already edit ordinary
+  Include/Exclude name patterns and built-in overrides. This is the UI to
+  extend after design approval, not a reason to create a parallel editor.
+- `Tracking\ItemDatabase.lua` owns `GetRuntimeRules`, pattern compilation,
+  saved-rule validation, profile migration and built-in normalization.
+- Scanning Refactor will supply the production FCO boundary and prepared
+  scan/index contracts. Its proposed paths are `Core\FCOItemSaver.lua` and
+  `Tracking\PreparedScanning.lua`; verify delivered names before coding.
+- `Tracking\AutoCategoryIntegration.lua` already calls IC's bag/slot rule
+  predicate. New conditions must reuse the same matcher in tracker and AC.
+- Diagnostic logging is a separate feature; do not reimplement it here.
 
 ## Technical options and decisions
 
-| ID | Alternatives and trade-offs | Recommendation | Agreed choice and evidence |
-|---|---|---|---|
-| D1 | One-shot scans vs a watcher for the event question. | Explicit start/stop observer with snapshot comparison; no persistent hook. | PENDING |
-| D2 | Synthetic prototype vs claiming a tracker regression before support exists. | Test a separate candidate accumulator and clearly label it. | PENDING |
+Representation, operator support and UI wiring remain PENDING until product
+decisions are made. Do not assume a `markers` array, reserved pattern tokens,
+new wildcard syntax, AND/OR operators or a separate picker implementation.
 
 ## SavedVariables changes and migration
 
-No persisted fields or migration are proposed. All diagnostic state is local
-and transient. FCO's read API is external; inspect its readiness and do not call
-marker-writing APIs. The diagnostic must not use normal saved profiles as
-synthetic fixtures.
+Assessment: new persisted conditions will need schema evolution, but the
+shape/version is PENDING. Select them against the delivered Scanning Refactor
+baseline rather than reusing spike schema 13 or the old provisional version
+recommendation.
+
+Before coding, specify validation of all profiles/backups, built-in override
+and reset semantics, profile copy behavior, absent-FCO preservation and
+actual older-reader downgrade refusal. Preserve existing built-in keys and
+AC references.
 
 ## Data, compatibility, and failure contracts
 
-Validate external addon/API availability, readiness, mode, marker ID and query
-returns. FCO's `gAddonLoaded`, `libsLoadedProperly`, `settingsVars.settings`
-and its marker storage table must exist before a query. Check the settings table
-before calling `GetSavedVarsMarkedItemsTableName`; then check both the named
-table inside settings and `FCOIS[name]`. Do not call FCO's
-`CheckIfFCOISSettingsWereLoaded` as a readiness probe, as it can load settings.
-Require `settings.isIconEnabled[markerId] == true` and a marker storage
-subtable at `FCOIS[name][markerId]`; report disabled markers and missing
-storage explicitly rather than treating them as unmarked. This spike rejects
-disabled markers even if FCO is configured to check deactivated icons.
-Resolve the storage name without an override immediately before each
-synchronous query operation, using the same settings as `IsMarked`.
-These are installed-version signals, not a promise
-of a stable public readiness API. Accept a query only when its first return is
-boolean and second return is a table; bare `false` or `nil` is unavailable or
-failed, not an unmarked result. Require marker ID to be an integer from 1
-through `FCOIS.numVars.gFCONumFilterIcons`; the default is
-`FCOIS_CON_ICON_SELL_AT_GUILDSTORE`. In keyboard mode query normally; when
-`IsInGamepadPreferredMode()` is true, call FCO's
-`CheckIfADCUIAndIsNotUsingGamepadMode` and proceed
-only when it returns true. Missing predicate is an explicit failure.
-Surface failures. An observer uses its own event namespace and is
-unregistered on stop, including when snapshot/reporting fails. No broad catch
-may turn a failure into success. Counts and timings are evidence, not a
-performance certification. Gamepad support follows FCO's documented boundary.
-The branch-only diagnostic file, manifest entry and offline test harness
-wiring must be removed or deliberately redesigned before any release; a DEV
-flag alone does not exclude the runtime file from the staged package.
+- Reuse Scanning Refactor's validated FCO boundary.
+- Compile the approved condition model once into the existing runtime-rule
+  path; do not duplicate tracker/AC matching semantics.
+- Treat saved conditions as external input, validate before use, preserve
+  unrelated data, and fail fast on internal contract violations.
+- Keep no-condition/name-only rules unchanged.
 
-## Implementation tasks
+## Provisional implementation tasks
 
-### Task 1: DEV-only live diagnostic
+### Task 1: agree and review the marker-condition design
 
-- Depends on: spec approval, plan approval and GO to code.
-- Spec coverage: AC1, AC2, AC4, AC5.
-- Files/methods and affected callers: add `Core/FCOItemSaverSpike.lua`; add it
-  after `Core/Scanning.lua` in `InventoryCompanion_DEV.txt`. The file registers
-  `/icfcotest` only when `InventoryCompanion.IsDevelopment` is true.
-- Method contracts: local `ValidateFCO(markerId)` validates external
-  readiness, supported mode and marker ID; local `CaptureBackpack(markerId)`
-  returns occupied slot snapshots and marker results or explicitly fails.
-  `RunScan` measures ten baseline iterations and ten FCO-query iterations on
-  the same captured slots with `GetGameTimeMilliseconds` and reports
-  counts/timings. `StartWatch` captures a
-  snapshot and registers a separate backpack slot listener; `StopWatch`
-  unregisters it before capturing/reporting the final snapshot and event
-  evidence. `RunCommand` validates arguments and dispatches these operations.
-- Caller wiring and state: slash command calls dispatcher after addon load;
-  watch state stays local in memory. Reject an already-active watch; stop and
-  reload end it. Validate FCO at every operation that calls it. Report
-  inconclusive before/after comparisons when item identities or marker state
-  cannot establish a changed slot. Capture the ESO item unique ID using
-  `zo_getSafeId64Key(GetItemUniqueId(bag, slot))`; only a nonempty, nonzero
-  unchanged ID at the same slot permits reporting a candidate marker change.
-  An added, removed, replaced or moved item is inconclusive. The listener
-  filters for backpack events using `REGISTER_FILTER_BAG_ID` and observes raw
-  events, not IC's debounced refresh count. Stop unregisters before checking
-  the current mode, so a mode change cannot strand a listener.
-- Verification: stub FCO, mode, inventory, clock and event manager in focused
-  offline tests; exercise success, errors, lifecycle and cleanup. In-game
-  observations require separate approval.
+- Depends on: Scanning Refactor's delivered contract and spec open questions.
+- Spec coverage: AC1-AC6.
+- Produce approved matching examples, editor flow and persistence/reset
+  contracts, then revise this plan with exact methods, data shape and wiring.
+- Independent spec/plan reviews and explicit approvals remain required.
 
-### Task 2: Synthetic candidate and timing exercise
+### Task 2: persist and evaluate the approved conditions
 
-- Depends on: Task 1 command wiring.
-- Spec coverage: AC3, AC4, AC5.
-- Files/methods and affected callers: in `Core/FCOItemSaverSpike.lua`, local
-  `RunSynthetic` uses fabricated slot records and a local candidate
-  accumulator; it never replaces or invokes production tracker state. Add
-  `Project/Tests/FCOItemSaverSpikeTests.lua` and load that suite in a separate
-  Lua runtime in `Project/Tests/Run-RuleTests.py`, explicitly supplying the
-  spike source and stubbing the slash registry, clock, ESO events, inventory,
-  FCO readiness/API and gamepad boundaries.
-- Contract: same item ID with one marked and one unmarked must produce the
-  marked-only quantity and independent all-copy quantity. Include a bounded
-  synthetic repeated scan/burst with recorded elapsed time; clearly report it
-  as prototype timing, with no arbitrary pass threshold.
-- Verification: assert exact synthetic counts and failure reporting offline;
-  run in-game after approval. This does not certify tracker aggregation.
+- Depends on: Task 1 and separate GO to code.
+- Spec coverage: AC2-AC6.
+- Expected files: `Tracking\ItemDatabase.lua`, `Core\Init.lua`, production
+  FCO/prepared scanning modules and existing rule/profile tests.
+- Exact changed methods and new fields: PENDING Task 1. Reuse runtime-rule
+  compilation, index invalidation and AC predicate integration.
+- Verify truth-table cases, ordinary-rule equivalence, migration and
+  downgrade refusal before normal-data in-game use.
+
+### Task 3: add the approved editor controls
+
+- Depends on: Task 2's validated representation/contracts.
+- Spec coverage: AC1-AC4.
+- Expected files: `Tracking\EditPanelGroupsTab.lua` / `.xml` and existing
+  item-editor tests. Exact callbacks, labels and controls: PENDING Task 1.
+- Verify add/remove/edit/cancel/reset, custom and built-in groups,
+  unavailable markers, profile copy/switch and reload persistence.
+
+### Task 4: independently review and accept the feature
+
+- Depends on: Tasks 2-3.
+- Spec coverage: AC1-AC6.
+- Test the agreed combinations in tracker and AutoCategory backpack/bank;
+  confirm Scanning Refactor performance has not regressed.
+- Run the existing offline runner and approved older-backup/in-game UAT;
+  record real evidence. Update BBCode user docs only for delivered behavior.
 
 ## Verification and acceptance mapping
 
-| Spec criterion | Task | Test / command | Required evidence | Actual result |
-|---|---|---|---|---|
-| AC1 | 1 | Offline stubs; `/icfcotest scan` | Correct output/counts/timings; live FCO observation | Offline PASS; one in-game scan observed, broader cases PENDING |
-| AC2 | 1 | Offline event stubs; `watch` then `stop` | Separate listener cleanup, snapshots and event report | Offline PASS; one in-game marker change observed, broader paths PENDING |
-| AC3 | 2 | Offline prototype cases; `synthetic` | Exact mixed-copy counts and diagnostic timing | Offline PASS; in-game PENDING |
-| AC4 | 1-2 | Offline invalid-input/error cases; code inspection | Explicit failures and no live writes | Offline PASS; in-game PENDING |
-| AC5 | 1-2 | Focused `Run-RuleTests.py` and release-mode stub | Related tests pass; DEV-only registration | Focused offline PASS; full suite not run |
+| Criteria | Task | Evidence | Actual result |
+|---|---|---|---|
+| AC1 | 2, 3 | Approved editor workflow and saved-condition reload tests | PENDING |
+| AC2 | 2, 3 | Built-in override/reset preservation cases | PENDING |
+| AC3, AC4 | 2 | Agreed combination/name-exclusion truth tables and UAT | PENDING |
+| AC5 | 2, 4 | Shared matcher results and tracker/AC sorting UAT | PENDING |
+| AC6 | 2, 4 | All-profile migration, older-reader refusal and real backup UAT | PENDING |
 
 ## Independent plan review
 
-Reviewer: independent `rubber-duck` agent, `spike-plan-review`
-Reviewed plan/spec: draft before marker-range and identity clarifications;
-`spike-focused-review` and `marker-guard-review` reviewed the corrections.
-
-| Finding | Evidence | Tim's decision | Resolution / re-review |
-|---|---|---|---|
-| Require an in-range integer marker ID and explicit default. | FCO `IsMarked` can return false for an unknown marker. | Clarify validation. | Added range/default; focused review verified. |
-| Define a reliable item identity for watch comparisons. | IC scan records do not include unique ID. | Identify same item or report inconclusive. | Added ESO unique-ID capture and replacement handling; focused review verified. |
-| FCO can return false for disabled markers. | FCO `CheckIfItemIsProtected` | Avoid misleading negative results. | Reject disabled marker and missing marker storage; focused review verified. |
+Reviewer: PENDING
+Reviewed plan/spec revision and source identity: PENDING
+Findings and Tim's decisions: PENDING
 
 ## Approvals
 
-- User expressed spec and plan approval: "ok I'm approveing both".
-- User separately authorized coding: "go".
-- Independent plan and focused reviews: `spike-plan-review`,
-  `spike-focused-review`, `marker-guard-review`; documented blockers resolved.
+- Explicit spec approval and revision: PENDING
+- Explicit plan approval and revision: PENDING
+- Explicit GO to code: PENDING
 
 ## Implementation record and deviations
 
-- Added `Core/FCOItemSaverSpike.lua` and its DEV manifest entry, plus isolated
-  `Project/Tests/FCOItemSaverSpikeTests.lua` and runner wiring.
-- The watcher additionally treats changed item details or counts as
-  inconclusive, preventing stack changes from being presented as marker changes.
-- The synthetic exercise is a standalone candidate, not an actual IC group or
-  a measurement of real FCO calls.
+24 November: split the original combined documents at Tim's request.
+No marker editor, persisted custom marker conditions or combinations have
+been implemented by this documentation change.
 
 ## Independent code review and verification
 
-- Reviewer: independent `code-review` agent `fco-spike-code-review`; no
-  significant issues found. Reviewed Git blob identities: runtime
-  `acfbcaf4a77d10dcd5d651551d2d2aa7a6ea916d`, offline tests
-  `76b2a399d4693706b315c245db3db58d98ddfc72`, runner
-  `797a6891d72726589e5e13af13454b7dabc1370c`, manifest
-  `c171a287dd417fc912679bffeddcc9a1bb144027`.
-- Offline: `python Project\Tests\Run-RuleTests.py --test-filter 'FCO spike|Scanning and notifications|Cached synthetic'`
-  passed 8/8; Lua 5.1 syntax compilation passed.
-- In-game, 20 November 2026: screenshot showed an initial backpack scan with no
-  matching slots, 22 ms for ten FCO-query passes and 0 ms baseline iteration.
-  Watch/stop detected slot 57 changing from false to true with zero backpack
-  slot events. This is one observation, not a general event guarantee.
-- The user reports running the synthetic command, but its output was not
-  captured. Complete MVP behaviour and further in-game checks remain PENDING.
-- The diagnostic prints to chat; the user identified that copyable error-report
-  output is needed for future evidence. No such output was implemented.
+- Reviewer/source identity and findings: PENDING
+- Actual feature test results: PENDING
+- Known limitation: Tasks 2-3 require the product/data/UI decisions above.
 
 ## Acceptance and handoff
 
-- Approved in-game test scope and actual results: PENDING
-- Explicit spike acceptance: PENDING
-- Archive and links: PENDING
-- Commit/merge: not authorized
-- Release: separate process; not authorized.
+- Approved in-game test scope/results: PENDING
+- Explicit feature acceptance: PENDING
+- User docs and archive/index/TODO closeout: PENDING
+- Commit/merge authorization and outcome: PENDING
+- Release: separate process; not authorized here.

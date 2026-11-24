@@ -9,6 +9,20 @@ specifications live in [FeatureSpecs](../FeatureSpecs) and active feature folder
 under [Features](../Features); active work lives in the
 [master TODO](../../Tasks/TODO.md).
 
+## Archived investigations
+
+- **FCO ItemSaver / scanning feasibility spike:** Archived on 2026-11-24
+  from `spike/fco-itemsaver` at `16c31c2`, preserving the working DEV code
+  on that branch. The [spike records](FCOItemSaver/Spike) retain measurements,
+  approvals, diagnostics and known limitations; the original preliminary
+  report/checklist are retained in the [feature archive](FCOItemSaver).
+  The raw [scaling capture](../../Tests/Evidence/FCO-Scaling-20261122-025148.txt)
+  remains under test evidence. This is not production feature acceptance.
+  Active work is split into
+  [Scanning Refactor](<../Features/ScanningRefactor/001 ScanningRefactor - Specification.md>),
+  [Diagnostic Logging](<../Features/DiagnosticLogging/001 DiagnosticLogging - Specification.md>)
+  and deferred [FCO Integration](<../Features/FCOItemSaver/001 FCOItemSaver - Specification.md>).
+
 ## Verified Addon Work
 
 - **Untracked-item browsing (implemented portion of D3):** The item editor's

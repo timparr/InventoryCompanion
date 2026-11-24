@@ -1,0 +1,1132 @@
+[IC FCO spike] MATCHING DIAGNOSTICS BEGIN: T09.1/T09.2/T09.3; baseline, naive, batching and name reuse.
+[IC FCO spike] Diagnostic-only marker groups include Craft Bag; the live vendor group's scope/settings are unchanged.
+[IC FCO spike] At most 11 full scans and two captured per-rule passes, then one snapshot enumeration; timings are instrumented.
+[IC FCO spike] Naive: per-group readiness/scalar queries; batched: readiness once per marker/scan and one array query/slot.
+[IC FCO spike] Lower counters are requests/executions; per-rule passes reuse captured inputs and do not read bags.
+[IC FCO spike] FCO also caches its last slot identity internally; API call counts are not identity-rebuild counts.
+[IC FCO spike] Diagnostic marker IDs (priority order): 5,17,13,15,1
+[IC FCO spike] T09.1 baseline (no FCO groups): 85 ms; 4 bag reads/1020 entries; FCO 0 requests/0 calls; readiness 0 checks; names 1020 requests/1020 calls/766 unique links; lower 1020/1020; patterns 167273 requests/167273 match calls/105950 unique pairs.
+[IC FCO spike] Full-scan footprint: Backpack 162 occupied entries.
+[IC FCO spike] Full-scan footprint: Bank 240 occupied entries.
+[IC FCO spike] Full-scan footprint: Subscriber bank 155 occupied entries.
+[IC FCO spike] Full-scan footprint: Craft Bag 463 occupied entries.
+[IC FCO spike] T09.1 1 marker-only groups; markers [5]; shared no-FCO baseline above.
+[IC FCO spike] T09.1 1 groups naive: 110 ms; 4 bag reads/1020 entries; FCO 1020 requests/1020 calls; readiness 1020 checks; names 1020 requests/1020 calls/766 unique links; lower 1020/1020; patterns 167273 requests/167273 match calls/105950 unique pairs.
+[IC FCO spike] T09.1 1 groups batched: 104 ms; 4 bag reads/1020 entries; FCO 1020 requests/1020 calls; readiness 1 checks; names 1020 requests/1020 calls/766 unique links; lower 1020/1020; patterns 167273 requests/167273 match calls/105950 unique pairs.
+[IC FCO spike] T09.1 1 groups batched+names: 111 ms; 4 bag reads/1020 entries; FCO 1020 requests/1020 calls; readiness 1 checks; names 1020 requests/766 calls/766 unique links; lower 1020/646; patterns 167273 requests/105950 match calls/105950 unique pairs.
+[IC FCO spike] PASS T09.1 1 groups: baseline normal groups/tracked items preserved; strategies have identical items, groups, counts, source data and rule membership.
+[IC FCO spike] T09.1 2 marker-only groups; markers [5,17]; shared no-FCO baseline above.
+[IC FCO spike] T09.1 2 groups batched: 117 ms; 4 bag reads/1020 entries; FCO 2040 requests/1020 calls; readiness 2 checks; names 1020 requests/1020 calls/766 unique links; lower 1020/1020; patterns 167273 requests/167273 match calls/105950 unique pairs.
+[IC FCO spike] T09.1 2 groups batched+names: 121 ms; 4 bag reads/1020 entries; FCO 2040 requests/1020 calls; readiness 2 checks; names 1020 requests/766 calls/766 unique links; lower 1020/646; patterns 167273 requests/105950 match calls/105950 unique pairs.
+[IC FCO spike] T09.1 2 groups naive: 126 ms; 4 bag reads/1020 entries; FCO 2040 requests/2040 calls; readiness 2040 checks; names 1020 requests/1020 calls/766 unique links; lower 1020/1020; patterns 167273 requests/167273 match calls/105950 unique pairs.
+[IC FCO spike] PASS T09.1 2 groups: baseline normal groups/tracked items preserved; strategies have identical items, groups, counts, source data and rule membership.
+[IC FCO spike] T09.1 5 marker-only groups; markers [5,17,13,15,1]; shared no-FCO baseline above.
+[IC FCO spike] T09.1 5 groups batched+names: 122 ms; 4 bag reads/1020 entries; FCO 5100 requests/1020 calls; readiness 5 checks; names 1020 requests/766 calls/766 unique links; lower 1020/646; patterns 167273 requests/105950 match calls/105950 unique pairs.
+[IC FCO spike] T09.1 5 groups naive: 139 ms; 4 bag reads/1020 entries; FCO 5100 requests/5100 calls; readiness 5100 checks; names 1020 requests/1020 calls/766 unique links; lower 1020/1020; patterns 167273 requests/167273 match calls/105950 unique pairs.
+[IC FCO spike] T09.1 5 groups batched: 122 ms; 4 bag reads/1020 entries; FCO 5100 requests/1020 calls; readiness 5 checks; names 1020 requests/1020 calls/766 unique links; lower 1020/1020; patterns 167273 requests/167273 match calls/105950 unique pairs.
+[IC FCO spike] PASS T09.1 5 groups: baseline normal groups/tracked items preserved; strategies have identical items, groups, counts, source data and rule membership.
+[IC FCO spike] Probe marker 5: Backpack 21 slots/x98; Bank 17 slots/x17; Subscriber bank 30 slots/x30; Craft Bag 0 slots/x0
+[IC FCO spike] Probe marker 17: Backpack 9 slots/x68; Bank 0 slots/x0; Subscriber bank 4 slots/x371; Craft Bag 2 slots/x3511
+[IC FCO spike] Probe marker 13: Backpack 33 slots/x6170; Bank 49 slots/x7062; Subscriber bank 27 slots/x4883; Craft Bag 0 slots/x0
+[IC FCO spike] Probe marker 15: Backpack 3 slots/x300; Bank 67 slots/x3186; Subscriber bank 68 slots/x2785; Craft Bag 0 slots/x0
+[IC FCO spike] Probe marker 1: Backpack 0 slots/x0; Bank 7 slots/x1228; Subscriber bank 4 slots/x1302; Craft Bag 0 slots/x0
+[IC FCO spike] T09.2 normal groups with name reuse (no FCO): 76 ms; 4 bag reads/1020 entries; FCO 0 requests/0 calls; readiness 0 checks; names 1020 requests/766 calls/766 unique links; lower 1020/646; patterns 167273 requests/105950 match calls/105950 unique pairs.
+[IC FCO spike] PASS T09.2: name reuse preserves the no-FCO baseline snapshot.
+[IC FCO spike] T09.3: full per-rule sweep on captured inputs; shared editor/AC matcher, not their UI/early-exit lifecycle.
+[IC FCO spike] T09.3 per-rule uncached: 114 ms; 0 bag reads/0 entries; FCO 0 requests/0 calls; readiness 0 checks; names 20400 requests/20400 calls/766 unique links; lower 20400/20400; patterns 167273 requests/167273 match calls/105950 unique pairs.
+[IC FCO spike] T09.3 per-rule cached: 98 ms; 0 bag reads/0 entries; FCO 0 requests/0 calls; readiness 0 checks; names 20400 requests/766 calls/766 unique links; lower 20400/646; patterns 167273 requests/105950 match calls/105950 unique pairs.
+[IC FCO spike] PASS T09.3: every captured slot/rule result is unchanged by name reuse.
+[IC FCO spike] MATCHING DIAGNOSTICS COMPLETE: fresh caches per run; no production caching or saved changes; limits pending.
+[IC FCO spike] LIVE SNAPSHOT BEGIN: read-only; enabled markers only (disabled marks are not queried).
+[IC FCO spike] Context: bank closed; ESO Plus true. Bags reflect slots currently exposed by ZOS.
+[IC FCO spike] Bank is closed: reporting bank contents currently exposed by ZOS.
+[IC FCO spike] Backpack: capacity 215; occupied slots 162; quantity 6859.
+[IC FCO spike] Bank: capacity 240; occupied slots 240; quantity 10702.
+[IC FCO spike] Subscriber bank: capacity 240; occupied slots 155; quantity 8796.
+[IC FCO spike] Craft Bag: capacity n/a (virtual); occupied slots 463; quantity 967364.
+[IC FCO spike] Snapshot totals: 1020 slots; quantity 993721; 12 multi-marker slots.
+[IC FCO spike] Marker 1 (no custom label): Backpack 0 slots/x0; Bank 7 slots/x1228; Subscriber bank 4 slots/x1302; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 2 Gear 1: Backpack 14 slots/x14; Bank 0 slots/x0; Subscriber bank 0 slots/x0; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 3 (no custom label): Backpack 0 slots/x0; Bank 0 slots/x0; Subscriber bank 0 slots/x0; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 4 Gear 2: Backpack 41 slots/x41; Bank 0 slots/x0; Subscriber bank 0 slots/x0; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 5 (no custom label): Backpack 21 slots/x98; Bank 17 slots/x17; Subscriber bank 30 slots/x30; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 6 Gear 3: Backpack 6 slots/x6; Bank 0 slots/x0; Subscriber bank 0 slots/x0; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 7 Gear 4: Backpack 9 slots/x9; Bank 0 slots/x0; Subscriber bank 0 slots/x0; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 8 Gear 5: Backpack 24 slots/x24; Bank 0 slots/x0; Subscriber bank 0 slots/x0; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 9 (no custom label): Backpack 0 slots/x0; Bank 0 slots/x0; Subscriber bank 0 slots/x0; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 10 (no custom label): Backpack 0 slots/x0; Bank 0 slots/x0; Subscriber bank 0 slots/x0; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 11 (no custom label): Backpack 0 slots/x0; Bank 0 slots/x0; Subscriber bank 2 slots/x2; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 13 Essential Gear: Backpack 33 slots/x6170; Bank 49 slots/x7062; Subscriber bank 27 slots/x4883; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 14 Cheap Writ: Backpack 0 slots/x0; Bank 102 slots/x102; Subscriber bank 21 slots/x21; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 15 Pre-Crafted: Backpack 3 slots/x300; Bank 67 slots/x3186; Subscriber bank 68 slots/x2785; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 16 Unknown Writs: Backpack 0 slots/x0; Bank 0 slots/x0; Subscriber bank 0 slots/x0; Craft Bag 0 slots/x0.
+[IC FCO spike] Marker 17 PvP: Backpack 9 slots/x68; Bank 0 slots/x0; Subscriber bank 4 slots/x371; Craft Bag 2 slots/x3511.
+[IC FCO spike] Marker 18 Writworthy: Backpack 0 slots/x0; Bank 0 slots/x0; Subscriber bank 0 slots/x0; Craft Bag 0 slots/x0.
+[IC FCO spike] Combination [1]: 3 slots; quantity 995.
+[IC FCO spike] Combination [1+13]: 8 slots; quantity 1535.
+[IC FCO spike] Combination [2]: 11 slots; quantity 11.
+[IC FCO spike] Combination [2+4+8]: 1 slots; quantity 1.
+[IC FCO spike] Combination [2+6]: 1 slots; quantity 1.
+[IC FCO spike] Combination [2+8]: 1 slots; quantity 1.
+[IC FCO spike] Combination [4]: 40 slots; quantity 40.
+[IC FCO spike] Combination [5]: 68 slots; quantity 145.
+[IC FCO spike] Combination [6]: 5 slots; quantity 5.
+[IC FCO spike] Combination [7]: 8 slots; quantity 8.
+[IC FCO spike] Combination [7+8]: 1 slots; quantity 1.
+[IC FCO spike] Combination [8]: 21 slots; quantity 21.
+[IC FCO spike] Combination [11]: 2 slots; quantity 2.
+[IC FCO spike] Combination [13]: 101 slots; quantity 16580.
+[IC FCO spike] Combination [14]: 123 slots; quantity 123.
+[IC FCO spike] Combination [15]: 138 slots; quantity 6271.
+[IC FCO spike] Combination [17]: 15 slots; quantity 3950.
+[IC FCO spike] Combination [none]: 473 slots; quantity 964031.
+[IC FCO spike] Same-ID copies across locations: 26 item IDs (not necessarily identical variants).
+[IC FCO spike] Cross-location item 30357: Backpack x1400; Bank x875; Subscriber bank x200.
+[IC FCO spike] Cross-location item 33265: Bank x2048; Subscriber bank x600.
+[IC FCO spike] Cross-location item 33271: Backpack x2000; Bank x342; Subscriber bank x600.
+[IC FCO spike] Cross-location item 43562: Bank x1; Subscriber bank x2.
+[IC FCO spike] Cross-location item 44812: Bank x50; Subscriber bank x400.
+[IC FCO spike] Cross-location item 44879: Backpack x2400; Bank x1304; Subscriber bank x1600.
+[IC FCO spike] Cross-location item 54339: Bank x1244; Subscriber bank x1600.
+[IC FCO spike] Cross-location item 54340: Bank x184; Subscriber bank x800.
+[IC FCO spike] Cross-location item 68239: Bank x154; Subscriber bank x100.
+[IC FCO spike] Cross-location item 68246: Bank x19; Subscriber bank x100.
+[IC FCO spike] Cross-location item 68257: Bank x40; Subscriber bank x100.
+[IC FCO spike] Cross-location item 68260: Backpack x300; Bank x429.
+[IC FCO spike] Cross-location item 73754: Backpack x70; Bank x1.
+[IC FCO spike] Cross-location item 94272: Bank x17; Subscriber bank x30.
+[IC FCO spike] Cross-location item 119564: Bank x13; Subscriber bank x3.
+[IC FCO spike] Cross-location item 119680: Bank x3; Subscriber bank x1.
+[IC FCO spike] Cross-location item 119682: Bank x4; Subscriber bank x1.
+[IC FCO spike] Cross-location item 119693: Bank x4; Subscriber bank x5.
+[IC FCO spike] Cross-location item 119695: Bank x5; Subscriber bank x1.
+[IC FCO spike] Cross-location item 119696: Bank x4; Subscriber bank x1.
+[IC FCO spike] Cross-location item 119700: Bank x2; Subscriber bank x1.
+[IC FCO spike] Cross-location item 119705: Bank x1; Subscriber bank x1.
+[IC FCO spike] Cross-location item 119820: Bank x2; Subscriber bank x1.
+[IC FCO spike] Cross-location item 120763: Backpack x300; Bank x434; Subscriber bank x300.
+[IC FCO spike] Cross-location item 153737: Bank x24; Subscriber bank x5.
+[IC FCO spike] Cross-location item 204483: Backpack x30; Subscriber bank x367.
+[IC FCO spike] Timing: one enumeration/sort pass 5 ms; FCO queries/validation 23 ms. Not a tracker benchmark.
+[IC FCO spike] Formatting/aggregation excluded; 0 ms is below clock resolution, not zero cost.
+[IC FCO spike] Slot Backpack:0 item 141737 x7 tags[] Welkynar Style Motif Fragment
+[IC FCO spike] Slot Backpack:1 item 95863 x1 tags[4] Cuirass of the Trainee
+[IC FCO spike] Slot Backpack:2 item 185375 x1 tags[4] Boots of Serpent's Disdain
+[IC FCO spike] Slot Backpack:3 item 96027 x1 tags[4] Gloves of the Trainee
+[IC FCO spike] Slot Backpack:4 item 199137 x2 tags[] Possessed Shred
+[IC FCO spike] Slot Backpack:5 item 27114 x2 tags[17] Pact Firepot Trebuchet
+[IC FCO spike] Slot Backpack:6 item 27971 x2 tags[17] Pact Firebolt Ballista
+[IC FCO spike] Slot Backpack:7 item 224406 x1 tags[4] Bracers of the Gorethief
+[IC FCO spike] Slot Backpack:8 item 27850 x2 tags[17] Pact Battering Ram
+[IC FCO spike] Slot Backpack:9 item 43703 x3 tags[5] Cyrodiil Treasure Map I
+[IC FCO spike] Slot Backpack:10 item 43705 x11 tags[5] Cyrodiil Treasure Map III
+[IC FCO spike] Slot Backpack:11 item 204483 x30 tags[17] Cyrodiil Repair Kit
+[IC FCO spike] Slot Backpack:12 item 43706 x5 tags[5] Cyrodiil Treasure Map IV
+[IC FCO spike] Slot Backpack:13 item 43711 x8 tags[5] Cyrodiil Treasure Map IX
+[IC FCO spike] Slot Backpack:14 item 43707 x6 tags[5] Cyrodiil Treasure Map V
+[IC FCO spike] Slot Backpack:15 item 43708 x3 tags[5] Cyrodiil Treasure Map VI
+[IC FCO spike] Slot Backpack:16 item 43709 x2 tags[5] Cyrodiil Treasure Map VII
+[IC FCO spike] Slot Backpack:17 item 43710 x2 tags[5] Cyrodiil Treasure Map VIII
+[IC FCO spike] Slot Backpack:18 item 43712 x7 tags[5] Cyrodiil Treasure Map X
+[IC FCO spike] Slot Backpack:19 item 43713 x4 tags[5] Cyrodiil Treasure Map XI
+[IC FCO spike] Slot Backpack:20 item 43714 x2 tags[5] Cyrodiil Treasure Map XII
+[IC FCO spike] Slot Backpack:21 item 214354 x3 tags[5] Wayshrine Navigation Chart
+[IC FCO spike] Slot Backpack:22 item 43715 x8 tags[5] Cyrodiil Treasure Map XIII
+[IC FCO spike] Slot Backpack:23 item 43716 x3 tags[5] Cyrodiil Treasure Map XIV
+[IC FCO spike] Slot Backpack:24 item 43717 x6 tags[5] Cyrodiil Treasure Map XV
+[IC FCO spike] Slot Backpack:29 item 185327 x1 tags[4] Helm of Serpent's Disdain
+[IC FCO spike] Slot Backpack:30 item 185329 x1 tags[4] Pauldrons of Serpent's Disdain
+[IC FCO spike] Slot Backpack:46 item 157536 x1 tags[4] Draugrkin Amulet
+[IC FCO spike] Slot Backpack:47 item 157537 x1 tags[4] Draugrkin Axe
+[IC FCO spike] Slot Backpack:48 item 157537 x1 tags[4] Draugrkin Axe
+[IC FCO spike] Slot Backpack:49 item 157535 x1 tags[4] Draugrkin Ring
+[IC FCO spike] Slot Backpack:51 item 151939 x82 tags[] Siege of Cyrodiil Merit
+[IC FCO spike] Slot Backpack:52 item 157557 x1 tags[4] Draugrkin Sash
+[IC FCO spike] Slot Backpack:54 item 166199 x1 tags[2+6] The Maelstrom's Perfected Ice Staff
+[IC FCO spike] Slot Backpack:55 item 111514 x1 tags[2] Dagger of Sheer Venom
+[IC FCO spike] Slot Backpack:56 item 111514 x1 tags[2] Dagger of Sheer Venom
+[IC FCO spike] Slot Backpack:57 item 212235 x10 tags[] Battlemaster Token
+[IC FCO spike] Slot Backpack:58 item 138783 x26 tags[] Arena Gladiator's Proof
+[IC FCO spike] Slot Backpack:60 item 141736 x6 tags[] Welkynar Binding
+[IC FCO spike] Slot Backpack:66 item 43704 x9 tags[5] Cyrodiil Treasure Map II
+[IC FCO spike] Slot Backpack:76 item 43718 x5 tags[5] Cyrodiil Treasure Map XVI
+[IC FCO spike] Slot Backpack:77 item 43719 x3 tags[5] Cyrodiil Treasure Map XVII
+[IC FCO spike] Slot Backpack:78 item 43720 x5 tags[5] Cyrodiil Treasure Map XVIII
+[IC FCO spike] Slot Backpack:80 item 189845 x1 tags[4] Mara's Balm Amulet
+[IC FCO spike] Slot Backpack:81 item 189865 x1 tags[4] Mara's Balm Girdle
+[IC FCO spike] Slot Backpack:82 item 189862 x1 tags[4] Mara's Balm Helm
+[IC FCO spike] Slot Backpack:83 item 189844 x1 tags[4] Mara's Balm Ring
+[IC FCO spike] Slot Backpack:84 item 189860 x1 tags[4] Mara's Balm Sabatons
+[IC FCO spike] Slot Backpack:85 item 201113 x1 tags[8] Monolith of Storms Amulet
+[IC FCO spike] Slot Backpack:86 item 201287 x1 tags[2] Monolith of Storms Bracers
+[IC FCO spike] Slot Backpack:87 item 201223 x1 tags[8] Monolith of Storms Gloves
+[IC FCO spike] Slot Backpack:88 item 203034 x1 tags[7] The Blind Visage
+[IC FCO spike] Slot Backpack:89 item 201112 x1 tags[8] Monolith of Storms Ring
+[IC FCO spike] Slot Backpack:90 item 205386 x1 tags[8] The Shadow Queen's Cowl
+[IC FCO spike] Slot Backpack:91 item 201228 x1 tags[8] Monolith of Storms Sash
+[IC FCO spike] Slot Backpack:92 item 201222 x1 tags[8] Monolith of Storms Shoes
+[IC FCO spike] Slot Backpack:93 item 46922 x1 tags[2] Bow of Night's Silence
+[IC FCO spike] Slot Backpack:94 item 47015 x1 tags[7] Bow of Night's Silence
+[IC FCO spike] Slot Backpack:95 item 47015 x1 tags[7] Bow of Night's Silence
+[IC FCO spike] Slot Backpack:96 item 47132 x1 tags[7] Bow of Night's Silence
+[IC FCO spike] Slot Backpack:97 item 46922 x1 tags[2] Bow of Night's Silence
+[IC FCO spike] Slot Backpack:98 item 46958 x1 tags[8] Guards of Night's Silence
+[IC FCO spike] Slot Backpack:99 item 139900 x1 tags[8] Necklace of Night's Silence
+[IC FCO spike] Slot Backpack:100 item 139858 x1 tags[8] Ring of Night's Silence
+[IC FCO spike] Slot Backpack:101 item 210556 x1 tags[4] Arm Cops of Shared Pain
+[IC FCO spike] Slot Backpack:102 item 210544 x1 tags[4] Dagger of Shared Pain
+[IC FCO spike] Slot Backpack:103 item 210544 x1 tags[4] Dagger of Shared Pain
+[IC FCO spike] Slot Backpack:104 item 210555 x1 tags[4] Guards of Shared Pain
+[IC FCO spike] Slot Backpack:105 item 210551 x1 tags[4] Jack of Shared Pain
+[IC FCO spike] Slot Backpack:106 item 206690 x1 tags[4] Null Arca Bow
+[IC FCO spike] Slot Backpack:107 item 206690 x1 tags[4] Null Arca Bow
+[IC FCO spike] Slot Backpack:108 item 206690 x1 tags[4] Null Arca Bow
+[IC FCO spike] Slot Backpack:109 item 185376 x1 tags[4] Bracers of Serpent's Disdain
+[IC FCO spike] Slot Backpack:110 item 206689 x1 tags[8] Null Arca Dagger
+[IC FCO spike] Slot Backpack:111 item 206700 x1 tags[8] Null Arca Guards
+[IC FCO spike] Slot Backpack:112 item 206699 x1 tags[8] Null Arca Helmet
+[IC FCO spike] Slot Backpack:113 item 206696 x1 tags[2+8] Null Arca Jack
+[IC FCO spike] Slot Backpack:114 item 206684 x1 tags[8] Null Arca Mace
+[IC FCO spike] Slot Backpack:115 item 173729 x1 tags[4] Amulet of Sul-Xan's Torment
+[IC FCO spike] Slot Backpack:116 item 173749 x1 tags[4] Belt of Sul-Xan's Torment
+[IC FCO spike] Slot Backpack:117 item 185378 x1 tags[4] Guards of Serpent's Disdain
+[IC FCO spike] Slot Backpack:118 item 173736 x1 tags[4] Dagger of Sul-Xan's Torment
+[IC FCO spike] Slot Backpack:119 item 173736 x1 tags[4] Dagger of Sul-Xan's Torment
+[IC FCO spike] Slot Backpack:120 item 173728 x1 tags[4] Ring of Sul-Xan's Torment
+[IC FCO spike] Slot Backpack:121 item 149452 x1 tags[8] Darloc Brae's Belt
+[IC FCO spike] Slot Backpack:122 item 149447 x1 tags[8] Darloc Brae's Boots
+[IC FCO spike] Slot Backpack:123 item 149448 x1 tags[8] Darloc Brae's Bracers
+[IC FCO spike] Slot Backpack:124 item 149449 x1 tags[8] Darloc Brae's Helmet
+[IC FCO spike] Slot Backpack:125 item 149446 x1 tags[8] Darloc Brae's Jack
+[IC FCO spike] Slot Backpack:126 item 149431 x1 tags[8] Darloc Brae's Ring
+[IC FCO spike] Slot Backpack:127 item 186429 x1 tags[4] Breeches of the Depths
+[IC FCO spike] Slot Backpack:128 item 186427 x1 tags[4] Gloves of the Depths
+[IC FCO spike] Slot Backpack:129 item 186425 x1 tags[4] Robe of the Depths
+[IC FCO spike] Slot Backpack:130 item 186432 x1 tags[4] Sash of the Depths
+[IC FCO spike] Slot Backpack:131 item 186426 x1 tags[4] Shoes of the Depths
+[IC FCO spike] Slot Backpack:135 item 120763 x100 tags[13] Dubious Camoran Throne
+[IC FCO spike] Slot Backpack:136 item 224394 x1 tags[4] Pauldrons of the Gorethief
+[IC FCO spike] Slot Backpack:137 item 120763 x100 tags[13] Dubious Camoran Throne
+[IC FCO spike] Slot Backpack:138 item 120763 x100 tags[13] Dubious Camoran Throne
+[IC FCO spike] Slot Backpack:139 item 171263 x1 tags[17] Alliance War Skill Line Scroll, Grand
+[IC FCO spike] Slot Backpack:140 item 73753 x2 tags[5] Grand Amnesty Edict
+[IC FCO spike] Slot Backpack:141 item 216237 x1 tags[8] Monomyth Reforged
+[IC FCO spike] Slot Backpack:142 item 166197 x1 tags[2] The Maelstrom's Perfected Bow
+[IC FCO spike] Slot Backpack:143 item 185387 x1 tags[4] Dagger of Serpent's Disdain
+[IC FCO spike] Slot Backpack:144 item 185387 x1 tags[4] Dagger of Serpent's Disdain
+[IC FCO spike] Slot Backpack:145 item 194614 x1 tags[6] Shattered Fate Amulet
+[IC FCO spike] Slot Backpack:146 item 194790 x1 tags[6] Shattered Fate Arm Cops
+[IC FCO spike] Slot Backpack:147 item 194764 x1 tags[6] Shattered Fate Bow
+[IC FCO spike] Slot Backpack:148 item 194764 x1 tags[6] Shattered Fate Bow
+[IC FCO spike] Slot Backpack:149 item 194613 x1 tags[6] Shattered Fate Ring
+[IC FCO spike] Slot Backpack:150 item 95180 x1 tags[7+8] Slimecraw Arm Cops
+[IC FCO spike] Slot Backpack:151 item 95180 x1 tags[7] Slimecraw Arm Cops
+[IC FCO spike] Slot Backpack:152 item 94908 x1 tags[7] Slimecraw Epaulets
+[IC FCO spike] Slot Backpack:153 item 30359 x6 tags[17] Flaming Oil
+[IC FCO spike] Slot Backpack:154 item 203064 x1 tags[7] The Blind Epaulets
+[IC FCO spike] Slot Backpack:155 item 141731 x18 tags[17] Keep Recall Stone
+[IC FCO spike] Slot Backpack:156 item 73754 x70 tags[13] Leniency Edict
+[IC FCO spike] Slot Backpack:158 item 187658 x1 tags[8] Oakensoul Ring
+[IC FCO spike] Slot Backpack:160 item 71152 x1 tags[2+4+8] The Maelstrom's Inferno Staff^n
+[IC FCO spike] Slot Backpack:161 item 29534 x6 tags[17] Pact Forward Camp
+[IC FCO spike] Slot Backpack:162 item 111522 x1 tags[2] Boots of Sheer Venom
+[IC FCO spike] Slot Backpack:164 item 68347 x1 tags[17] Sigil of Imperial Retreat
+[IC FCO spike] Slot Backpack:165 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Backpack:166 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Backpack:167 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Backpack:168 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Backpack:169 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Backpack:170 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Backpack:171 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Backpack:172 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Backpack:173 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Backpack:174 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Backpack:175 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Backpack:176 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Backpack:177 item 30357 x200 tags[13] Lockpick
+[IC FCO spike] Slot Backpack:178 item 30357 x200 tags[13] Lockpick
+[IC FCO spike] Slot Backpack:179 item 30357 x200 tags[13] Lockpick
+[IC FCO spike] Slot Backpack:180 item 30357 x200 tags[13] Lockpick
+[IC FCO spike] Slot Backpack:181 item 30357 x200 tags[13] Lockpick
+[IC FCO spike] Slot Backpack:182 item 111523 x1 tags[2] Bracers of Sheer Venom
+[IC FCO spike] Slot Backpack:183 item 30357 x200 tags[13] Lockpick
+[IC FCO spike] Slot Backpack:184 item 30357 x200 tags[13] Lockpick
+[IC FCO spike] Slot Backpack:185 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Backpack:186 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Backpack:187 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Backpack:188 item 111525 x1 tags[2] Guards of Sheer Venom
+[IC FCO spike] Slot Backpack:189 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Backpack:190 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Backpack:191 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Backpack:192 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Backpack:193 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Backpack:194 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Backpack:195 item 111524 x1 tags[2] Helmet of Sheer Venom
+[IC FCO spike] Slot Backpack:196 item 111521 x1 tags[2] Jack of Sheer Venom
+[IC FCO spike] Slot Backpack:197 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Backpack:198 item 68260 x100 tags[15] Muthsera's Remorse
+[IC FCO spike] Slot Backpack:199 item 68260 x100 tags[15] Muthsera's Remorse
+[IC FCO spike] Slot Backpack:200 item 68260 x100 tags[15] Muthsera's Remorse
+[IC FCO spike] Slot Backpack:202 item 224106 x1 tags[4] Shattered Paths Signet
+[IC FCO spike] Slot Backpack:203 item 94908 x1 tags[7] Slimecraw Epaulets
+[IC FCO spike] Slot Backpack:204 item 226945 x1 tags[5] Treatise on Scrying and Excavation, Major
+[IC FCO spike] Slot Backpack:207 item 94439 x1 tags[] Gold Coast Experience Scroll
+[IC FCO spike] Slot Bank:0 item 120764 x100 tags[13] Jewels of Misrule
+[IC FCO spike] Slot Bank:1 item 87697 x100 tags[13] Witchmother's Potent Brew
+[IC FCO spike] Slot Bank:2 item 87697 x100 tags[13] Witchmother's Potent Brew
+[IC FCO spike] Slot Bank:3 item 87697 x1 tags[13] Witchmother's Potent Brew
+[IC FCO spike] Slot Bank:4 item 54339 x200 tags[1] Essence of health
+[IC FCO spike] Slot Bank:5 item 54340 x184 tags[13] Essence of Magicka
+[IC FCO spike] Slot Bank:6 item 120764 x100 tags[13] Jewels of Misrule
+[IC FCO spike] Slot Bank:7 item 68260 x100 tags[15] Muthsera's Remorse
+[IC FCO spike] Slot Bank:8 item 68257 x40 tags[15] Markarth Mead
+[IC FCO spike] Slot Bank:9 item 54339 x93 tags[1] Essence of health
+[IC FCO spike] Slot Bank:10 item 54339 x200 tags[1+13] Essence of health
+[IC FCO spike] Slot Bank:11 item 54339 x16 tags[15] Essence of health
+[IC FCO spike] Slot Bank:12 item 120764 x100 tags[13] Jewels of Misrule
+[IC FCO spike] Slot Bank:13 item 68252 x100 tags[13] Jugged Rabbit in Preserves
+[IC FCO spike] Slot Bank:14 item 68246 x19 tags[13] Garlic Cod with Potato Crust
+[IC FCO spike] Slot Bank:15 item 30357 x200 tags[13] Lockpick
+[IC FCO spike] Slot Bank:16 item 44812 x50 tags[15] Essence of Ravage Health
+[IC FCO spike] Slot Bank:17 item 76827 x524 tags[15] Damage Health Poison IX
+[IC FCO spike] Slot Bank:18 item 76829 x550 tags[15] Damage Magicka Poison IX
+[IC FCO spike] Slot Bank:19 item 120763 x100 tags[13] Dubious Camoran Throne
+[IC FCO spike] Slot Bank:20 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Bank:21 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Bank:22 item 73754 x1 tags[13] Leniency Edict
+[IC FCO spike] Slot Bank:23 item 30357 x200 tags[13] Lockpick
+[IC FCO spike] Slot Bank:24 item 54339 x200 tags[1+13] Essence of health
+[IC FCO spike] Slot Bank:25 item 54339 x200 tags[1+13] Essence of health
+[IC FCO spike] Slot Bank:26 item 54339 x200 tags[1+13] Essence of health
+[IC FCO spike] Slot Bank:27 item 120763 x100 tags[13] Dubious Camoran Throne
+[IC FCO spike] Slot Bank:28 item 54339 x135 tags[1+13] Essence of health
+[IC FCO spike] Slot Bank:29 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Bank:30 item 30357 x200 tags[13] Lockpick
+[IC FCO spike] Slot Bank:31 item 30357 x200 tags[13] Lockpick
+[IC FCO spike] Slot Bank:32 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Bank:33 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Bank:34 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Bank:35 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Bank:36 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Bank:37 item 120764 x51 tags[13] Jewels of Misrule
+[IC FCO spike] Slot Bank:38 item 68252 x75 tags[13] Jugged Rabbit in Preserves
+[IC FCO spike] Slot Bank:39 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Bank:40 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Bank:41 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Bank:42 item 139016 x82 tags[13] Artaeum Pickled Fish Bowl
+[IC FCO spike] Slot Bank:43 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Bank:44 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Bank:45 item 30357 x75 tags[13] Lockpick
+[IC FCO spike] Slot Bank:46 item 68236 x100 tags[15] Firsthold Fruit and Cheese Plate
+[IC FCO spike] Slot Bank:47 item 68239 x100 tags[15] Hearty Garlic Corn Chowder
+[IC FCO spike] Slot Bank:48 item 76826 x505 tags[15] Drain Health Poison IX
+[IC FCO spike] Slot Bank:49 item 76831 x603 tags[15] Damage Stamina Poison IX
+[IC FCO spike] Slot Bank:50 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Bank:51 item 71779 x111 tags[13] Counterfeit Pardon Edict
+[IC FCO spike] Slot Bank:52 item 68239 x54 tags[15] Hearty Garlic Corn Chowder
+[IC FCO spike] Slot Bank:53 item 68236 x62 tags[15] Firsthold Fruit and Cheese Plate
+[IC FCO spike] Slot Bank:54 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:55 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Bank:56 item 68260 x100 tags[15] Muthsera's Remorse
+[IC FCO spike] Slot Bank:57 item 68260 x100 tags[15] Muthsera's Remorse
+[IC FCO spike] Slot Bank:58 item 68260 x100 tags[15] Muthsera's Remorse
+[IC FCO spike] Slot Bank:59 item 68260 x29 tags[15] Muthsera's Remorse
+[IC FCO spike] Slot Bank:60 item 120763 x100 tags[13] Dubious Camoran Throne
+[IC FCO spike] Slot Bank:61 item 120763 x100 tags[13] Dubious Camoran Throne
+[IC FCO spike] Slot Bank:62 item 120763 x34 tags[13] Dubious Camoran Throne
+[IC FCO spike] Slot Bank:63 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Bank:64 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:65 item 119682 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:66 item 119680 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:67 item 119563 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:68 item 119695 x1 tags[14] Master Clothier Writ
+[IC FCO spike] Slot Bank:69 item 119682 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:70 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:71 item 121527 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:72 item 119681 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:73 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:74 item 119819 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:75 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:76 item 121528 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:77 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:78 item 119680 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:79 item 119698 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:80 item 121531 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:81 item 119699 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:82 item 119681 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:83 item 119818 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:84 item 119693 x1 tags[14] Master Provisioning Writ
+[IC FCO spike] Slot Bank:85 item 121529 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:86 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:87 item 119681 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:88 item 121528 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:89 item 119682 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:90 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:91 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:92 item 121529 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:93 item 119695 x1 tags[14] Master Clothier Writ
+[IC FCO spike] Slot Bank:94 item 33271 x142 tags[13] Soul Gem
+[IC FCO spike] Slot Bank:95 item 119696 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:96 item 119698 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:97 item 119681 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:98 item 119819 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:99 item 119819 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:100 item 68235 x52 tags[15] Lilmoth Garlic Hagfish
+[IC FCO spike] Slot Bank:101 item 119695 x1 tags[14] Master Clothier Writ
+[IC FCO spike] Slot Bank:102 item 68263 x52 tags[15] Hagraven's Tonic
+[IC FCO spike] Slot Bank:103 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:104 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:105 item 121528 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:106 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Bank:107 item 119695 x1 tags[14] Master Clothier Writ
+[IC FCO spike] Slot Bank:108 item 119702 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:109 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:110 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:111 item 121527 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:112 item 121530 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:113 item 119563 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:114 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:115 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:116 item 119693 x1 tags[14] Master Provisioning Writ
+[IC FCO spike] Slot Bank:117 item 119703 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:118 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:119 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:120 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:121 item 119693 x1 tags[14] Master Provisioning Writ
+[IC FCO spike] Slot Bank:122 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:123 item 119819 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:124 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:125 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:126 item 119563 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:127 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:128 item 119693 x1 tags[14] Master Provisioning Writ
+[IC FCO spike] Slot Bank:129 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:130 item 119695 x1 tags[14] Master Clothier Writ
+[IC FCO spike] Slot Bank:131 item 119563 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:132 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:133 item 119819 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:134 item 119563 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:135 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:136 item 119818 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:137 item 119820 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:138 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:139 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:140 item 119702 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:141 item 119700 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:142 item 44879 x104 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Bank:143 item 119700 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:144 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:145 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:146 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:147 item 119696 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:148 item 121529 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:149 item 119696 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:150 item 119681 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:151 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:152 item 121528 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:153 item 119696 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:154 item 119820 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:155 item 224302 x39 tags[] Wondrous Nowhere Key
+[IC FCO spike] Slot Bank:156 item 119681 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:157 item 121531 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:158 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:159 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:160 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:161 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:162 item 119682 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:163 item 33265 x48 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Bank:164 item 119702 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:165 item 119680 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:166 item 43556 x1 tags[15] ruby ash shield^n
+[IC FCO spike] Slot Bank:167 item 43556 x1 tags[15] ruby ash shield^n
+[IC FCO spike] Slot Bank:168 item 43556 x1 tags[15] ruby ash shield^n
+[IC FCO spike] Slot Bank:169 item 43556 x1 tags[15] ruby ash shield^n
+[IC FCO spike] Slot Bank:170 item 43556 x1 tags[15] ruby ash shield^n
+[IC FCO spike] Slot Bank:171 item 43556 x1 tags[15] ruby ash shield^n
+[IC FCO spike] Slot Bank:172 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Bank:173 item 43557 x1 tags[15] ruby ash inferno staff^n
+[IC FCO spike] Slot Bank:174 item 43557 x1 tags[15] ruby ash inferno staff^n
+[IC FCO spike] Slot Bank:175 item 43557 x1 tags[15] ruby ash inferno staff^n
+[IC FCO spike] Slot Bank:176 item 43558 x1 tags[15] ruby ash ice staff^n
+[IC FCO spike] Slot Bank:177 item 43561 x1 tags[15] platinum necklace^n
+[IC FCO spike] Slot Bank:178 item 43558 x1 tags[15] ruby ash ice staff^n
+[IC FCO spike] Slot Bank:179 item 43558 x1 tags[15] ruby ash ice staff^n
+[IC FCO spike] Slot Bank:180 item 43559 x1 tags[15] ruby ash lightning staff^n
+[IC FCO spike] Slot Bank:181 item 43559 x1 tags[15] ruby ash lightning staff^n
+[IC FCO spike] Slot Bank:182 item 43559 x1 tags[15] ruby ash lightning staff^n
+[IC FCO spike] Slot Bank:183 item 43561 x1 tags[15] platinum necklace^n
+[IC FCO spike] Slot Bank:184 item 43561 x1 tags[15] platinum necklace^n
+[IC FCO spike] Slot Bank:185 item 43560 x1 tags[15] ruby ash restoration staff^n
+[IC FCO spike] Slot Bank:186 item 43560 x1 tags[15] ruby ash restoration staff^n
+[IC FCO spike] Slot Bank:187 item 43560 x1 tags[15] ruby ash restoration staff^n
+[IC FCO spike] Slot Bank:188 item 43560 x1 tags[15] ruby ash restoration staff^n
+[IC FCO spike] Slot Bank:189 item 43560 x1 tags[15] ruby ash restoration staff^n
+[IC FCO spike] Slot Bank:190 item 43561 x1 tags[15] platinum necklace^n
+[IC FCO spike] Slot Bank:191 item 43561 x1 tags[15] platinum necklace^n
+[IC FCO spike] Slot Bank:192 item 43560 x1 tags[15] ruby ash restoration staff^n
+[IC FCO spike] Slot Bank:193 item 43561 x1 tags[15] platinum necklace^n
+[IC FCO spike] Slot Bank:194 item 43549 x1 tags[15] ruby ash bow^n
+[IC FCO spike] Slot Bank:195 item 43549 x1 tags[15] ruby ash bow^n
+[IC FCO spike] Slot Bank:196 item 43549 x1 tags[15] ruby ash bow^n
+[IC FCO spike] Slot Bank:197 item 43549 x1 tags[15] ruby ash bow^n
+[IC FCO spike] Slot Bank:198 item 43549 x1 tags[15] ruby ash bow^n
+[IC FCO spike] Slot Bank:199 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:200 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:201 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:202 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:203 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:204 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:205 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:206 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:207 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:208 item 43561 x1 tags[15] platinum necklace^n
+[IC FCO spike] Slot Bank:209 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:210 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:211 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:212 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:213 item 43536 x1 tags[15] platinum ring^n
+[IC FCO spike] Slot Bank:214 item 43549 x1 tags[15] ruby ash bow^n
+[IC FCO spike] Slot Bank:215 item 43562 x1 tags[15] rubedite helm^n
+[IC FCO spike] Slot Bank:216 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Bank:217 item 119705 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:218 item 87693 x2 tags[] Recipe: Frosted Brains
+[IC FCO spike] Slot Bank:219 item 119704 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Bank:220 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:221 item 119563 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Bank:222 item 119681 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Bank:223 item 119363 x1 tags[] Blueprint: Common Bucket, Basic
+[IC FCO spike] Slot Bank:224 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:225 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:226 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:227 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:228 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:229 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:230 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:231 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:232 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:233 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:234 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:235 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:236 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:237 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:238 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Bank:239 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:0 item 54341 x200 tags[15] Essence of stamina
+[IC FCO spike] Slot Subscriber bank:1 item 68239 x100 tags[15] Hearty Garlic Corn Chowder
+[IC FCO spike] Slot Subscriber bank:2 item 30357 x200 tags[13] Lockpick
+[IC FCO spike] Slot Subscriber bank:3 item 68257 x100 tags[15] Markarth Mead
+[IC FCO spike] Slot Subscriber bank:4 item 76844 x702 tags[1] Escapist's Poison IX
+[IC FCO spike] Slot Subscriber bank:5 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Subscriber bank:6 item 54339 x200 tags[15] Essence of health
+[IC FCO spike] Slot Subscriber bank:7 item 54339 x200 tags[15] Essence of health
+[IC FCO spike] Slot Subscriber bank:8 item 54340 x200 tags[15] Essence of Magicka
+[IC FCO spike] Slot Subscriber bank:9 item 54340 x200 tags[13] Essence of Magicka
+[IC FCO spike] Slot Subscriber bank:10 item 44812 x200 tags[15] Essence of Ravage Health
+[IC FCO spike] Slot Subscriber bank:11 item 30145 x200 tags[13] Essence of Power
+[IC FCO spike] Slot Subscriber bank:12 item 30145 x200 tags[13] Essence of Power
+[IC FCO spike] Slot Subscriber bank:13 item 30145 x200 tags[13] Essence of Power
+[IC FCO spike] Slot Subscriber bank:14 item 54341 x200 tags[15] Essence of stamina
+[IC FCO spike] Slot Subscriber bank:15 item 68246 x100 tags[13] Garlic Cod with Potato Crust
+[IC FCO spike] Slot Subscriber bank:16 item 30145 x83 tags[13] Essence of Power
+[IC FCO spike] Slot Subscriber bank:17 item 54339 x200 tags[1+13] Essence of health
+[IC FCO spike] Slot Subscriber bank:18 item 54339 x200 tags[1+13] Essence of health
+[IC FCO spike] Slot Subscriber bank:19 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Subscriber bank:20 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Subscriber bank:21 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Subscriber bank:22 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Subscriber bank:23 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Subscriber bank:24 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Subscriber bank:25 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Subscriber bank:26 item 44879 x200 tags[13] Equipment Repair Kit
+[IC FCO spike] Slot Subscriber bank:27 item 120763 x100 tags[13] Dubious Camoran Throne
+[IC FCO spike] Slot Subscriber bank:28 item 120763 x100 tags[13] Dubious Camoran Throne
+[IC FCO spike] Slot Subscriber bank:29 item 120763 x100 tags[13] Dubious Camoran Throne
+[IC FCO spike] Slot Subscriber bank:30 item 54339 x200 tags[15] Essence of health
+[IC FCO spike] Slot Subscriber bank:31 item 54339 x200 tags[15] Essence of health
+[IC FCO spike] Slot Subscriber bank:32 item 54340 x200 tags[15] Essence of Magicka
+[IC FCO spike] Slot Subscriber bank:33 item 54339 x200 tags[15] Essence of health
+[IC FCO spike] Slot Subscriber bank:34 item 54340 x200 tags[15] Essence of Magicka
+[IC FCO spike] Slot Subscriber bank:35 item 44812 x200 tags[15] Essence of Ravage Health
+[IC FCO spike] Slot Subscriber bank:36 item 54341 x132 tags[15] Essence of stamina
+[IC FCO spike] Slot Subscriber bank:37 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Subscriber bank:38 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Subscriber bank:39 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Subscriber bank:40 item 33265 x200 tags[13] Soul Gem (Empty)
+[IC FCO spike] Slot Subscriber bank:41 item 204483 x200 tags[17] Cyrodiil Repair Kit
+[IC FCO spike] Slot Subscriber bank:42 item 64515 x3 tags[17] Dominion Cold Fire Ballista
+[IC FCO spike] Slot Subscriber bank:43 item 204483 x167 tags[17] Cyrodiil Repair Kit
+[IC FCO spike] Slot Subscriber bank:44 item 64512 x1 tags[17] Dominion Cold Fire Trebuchet
+[IC FCO spike] Slot Subscriber bank:45 item 33271 x200 tags[13] Soul Gem
+[IC FCO spike] Slot Subscriber bank:46 item 54339 x200 tags[1+13] Essence of health
+[IC FCO spike] Slot Subscriber bank:47 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Subscriber bank:48 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Subscriber bank:49 item 119820 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Subscriber bank:50 item 119693 x1 tags[14] Master Provisioning Writ
+[IC FCO spike] Slot Subscriber bank:51 item 119696 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Subscriber bank:52 item 119693 x1 tags[14] Master Provisioning Writ
+[IC FCO spike] Slot Subscriber bank:53 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Subscriber bank:54 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Subscriber bank:55 item 119705 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Subscriber bank:56 item 119693 x1 tags[14] Master Provisioning Writ
+[IC FCO spike] Slot Subscriber bank:57 item 119700 x1 tags[14] Master Alchemy Writ
+[IC FCO spike] Slot Subscriber bank:58 item 119693 x1 tags[14] Master Provisioning Writ
+[IC FCO spike] Slot Subscriber bank:59 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Subscriber bank:60 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Subscriber bank:61 item 119695 x1 tags[14] Master Clothier Writ
+[IC FCO spike] Slot Subscriber bank:62 item 119680 x1 tags[14] Master Blacksmithing Writ
+[IC FCO spike] Slot Subscriber bank:63 item 119564 x1 tags[14] Master Enchanting Writ
+[IC FCO spike] Slot Subscriber bank:64 item 119694 x1 tags[14] Master Clothier Writ
+[IC FCO spike] Slot Subscriber bank:65 item 43562 x1 tags[15] rubedite helm^n
+[IC FCO spike] Slot Subscriber bank:66 item 43562 x1 tags[15] rubedite helm^n
+[IC FCO spike] Slot Subscriber bank:67 item 43531 x1 tags[15] rubedite sword^n
+[IC FCO spike] Slot Subscriber bank:68 item 43531 x1 tags[15] rubedite sword^n
+[IC FCO spike] Slot Subscriber bank:69 item 43531 x1 tags[15] rubedite sword^n
+[IC FCO spike] Slot Subscriber bank:70 item 43534 x1 tags[15] rubedite greatsword^n
+[IC FCO spike] Slot Subscriber bank:71 item 43534 x1 tags[15] rubedite greatsword^n
+[IC FCO spike] Slot Subscriber bank:72 item 43534 x1 tags[15] rubedite greatsword^n
+[IC FCO spike] Slot Subscriber bank:73 item 43535 x1 tags[15] rubedite dagger^n
+[IC FCO spike] Slot Subscriber bank:74 item 43535 x1 tags[15] rubedite dagger^n
+[IC FCO spike] Slot Subscriber bank:75 item 43535 x1 tags[15] rubedite dagger^n
+[IC FCO spike] Slot Subscriber bank:76 item 43537 x1 tags[15] rubedite cuirass^n
+[IC FCO spike] Slot Subscriber bank:77 item 43537 x1 tags[15] rubedite cuirass^n
+[IC FCO spike] Slot Subscriber bank:78 item 43537 x1 tags[15] rubedite cuirass^n
+[IC FCO spike] Slot Subscriber bank:79 item 43538 x1 tags[15] rubedite sabatons^p
+[IC FCO spike] Slot Subscriber bank:80 item 43538 x1 tags[15] rubedite sabatons^p
+[IC FCO spike] Slot Subscriber bank:81 item 43538 x1 tags[15] rubedite sabatons^p
+[IC FCO spike] Slot Subscriber bank:82 item 43539 x1 tags[15] rubedite gauntlets^p
+[IC FCO spike] Slot Subscriber bank:83 item 43539 x1 tags[15] rubedite gauntlets^p
+[IC FCO spike] Slot Subscriber bank:84 item 43539 x1 tags[15] rubedite gauntlets^p
+[IC FCO spike] Slot Subscriber bank:85 item 43540 x1 tags[15] rubedite greaves^p
+[IC FCO spike] Slot Subscriber bank:86 item 43540 x1 tags[15] rubedite greaves^p
+[IC FCO spike] Slot Subscriber bank:87 item 43540 x1 tags[15] rubedite greaves^p
+[IC FCO spike] Slot Subscriber bank:88 item 43541 x1 tags[15] rubedite pauldron^p
+[IC FCO spike] Slot Subscriber bank:89 item 43541 x1 tags[15] rubedite pauldron^p
+[IC FCO spike] Slot Subscriber bank:90 item 43541 x1 tags[15] rubedite pauldron^p
+[IC FCO spike] Slot Subscriber bank:91 item 43552 x1 tags[15] rubedo leather bracers^p
+[IC FCO spike] Slot Subscriber bank:92 item 43552 x1 tags[15] rubedo leather bracers^p
+[IC FCO spike] Slot Subscriber bank:93 item 43552 x1 tags[15] rubedo leather bracers^p
+[IC FCO spike] Slot Subscriber bank:94 item 43554 x1 tags[15] rubedo leather arm cops^p
+[IC FCO spike] Slot Subscriber bank:95 item 43554 x1 tags[15] rubedo leather arm cops^p
+[IC FCO spike] Slot Subscriber bank:96 item 43554 x1 tags[15] rubedo leather arm cops^p
+[IC FCO spike] Slot Subscriber bank:97 item 43564 x1 tags[15] ancestor silk hat^n
+[IC FCO spike] Slot Subscriber bank:98 item 43564 x1 tags[15] ancestor silk hat^n
+[IC FCO spike] Slot Subscriber bank:99 item 43564 x1 tags[15] ancestor silk hat^n
+[IC FCO spike] Slot Subscriber bank:100 item 43543 x1 tags[15] ancestor silk robe^n
+[IC FCO spike] Slot Subscriber bank:101 item 43543 x1 tags[15] ancestor silk robe^n
+[IC FCO spike] Slot Subscriber bank:102 item 43543 x1 tags[15] ancestor silk robe^n
+[IC FCO spike] Slot Subscriber bank:103 item 43544 x1 tags[15] ancestor silk shoes^p
+[IC FCO spike] Slot Subscriber bank:104 item 43544 x1 tags[15] ancestor silk shoes^p
+[IC FCO spike] Slot Subscriber bank:105 item 43544 x1 tags[15] ancestor silk shoes^p
+[IC FCO spike] Slot Subscriber bank:106 item 43546 x1 tags[15] ancestor silk breeches^p
+[IC FCO spike] Slot Subscriber bank:107 item 43546 x1 tags[15] ancestor silk breeches^p
+[IC FCO spike] Slot Subscriber bank:108 item 43546 x1 tags[15] ancestor silk breeches^p
+[IC FCO spike] Slot Subscriber bank:109 item 43547 x1 tags[15] ancestor silk epaulets^p
+[IC FCO spike] Slot Subscriber bank:110 item 43547 x1 tags[15] ancestor silk epaulets^p
+[IC FCO spike] Slot Subscriber bank:111 item 43547 x1 tags[15] ancestor silk epaulets^p
+[IC FCO spike] Slot Subscriber bank:112 item 43548 x1 tags[15] ancestor silk sash^p
+[IC FCO spike] Slot Subscriber bank:113 item 43548 x1 tags[15] ancestor silk sash^p
+[IC FCO spike] Slot Subscriber bank:114 item 43548 x1 tags[15] ancestor silk sash^p
+[IC FCO spike] Slot Subscriber bank:115 item 43563 x1 tags[15] rubedo leather helmet^n
+[IC FCO spike] Slot Subscriber bank:116 item 43563 x1 tags[15] rubedo leather helmet^n
+[IC FCO spike] Slot Subscriber bank:117 item 43563 x1 tags[15] rubedo leather helmet^n
+[IC FCO spike] Slot Subscriber bank:118 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:119 item 153737 x1 tags[14] Master Jewelry Crafter Writ
+[IC FCO spike] Slot Subscriber bank:120 item 119682 x1 tags[14] Master Woodworking Writ
+[IC FCO spike] Slot Subscriber bank:121 item 119693 x1 tags[14] Master Provisioning Writ
+[IC FCO spike] Slot Subscriber bank:122 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:123 item 197685 x1 tags[11] Style Page: Sancre Tor Sentry Staff
+[IC FCO spike] Slot Subscriber bank:124 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:125 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:126 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:127 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:128 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:129 item 71694 x1 tags[] Crafting Motif 25: Aldmeri Dominion Daggers
+[IC FCO spike] Slot Subscriber bank:130 item 71692 x1 tags[] Crafting Motif 25: Aldmeri Dominion Bows
+[IC FCO spike] Slot Subscriber bank:131 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:132 item 204855 x1 tags[11] Style Page: Arkay Unending Cycle Greaves
+[IC FCO spike] Slot Subscriber bank:133 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:134 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:135 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:136 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:137 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:138 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:139 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:140 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:141 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:142 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:143 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:144 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:145 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:146 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:147 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:148 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:149 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:150 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:151 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:152 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:153 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Subscriber bank:154 item 94272 x1 tags[5] Helm of the Veiled Heritance
+[IC FCO spike] Slot Craft Bag:521 item 521 x5 tags[] rough oak^ns
+[IC FCO spike] Slot Craft Bag:533 item 533 x4571 tags[] sanded oak^ns
+[IC FCO spike] Slot Craft Bag:793 item 793 x9 tags[] rawhide scraps^p
+[IC FCO spike] Slot Craft Bag:794 item 794 x2217 tags[] rawhide^ns
+[IC FCO spike] Slot Craft Bag:800 item 800 x2 tags[] superb hide scraps^p
+[IC FCO spike] Slot Craft Bag:803 item 803 x5250 tags[] sanded maple^ns
+[IC FCO spike] Slot Craft Bag:808 item 808 x5 tags[] iron ore
+[IC FCO spike] Slot Craft Bag:810 item 810 x2760 tags[] Jade
+[IC FCO spike] Slot Craft Bag:811 item 811 x2681 tags[] jute^ns
+[IC FCO spike] Slot Craft Bag:812 item 812 x2 tags[] raw jute^ns
+[IC FCO spike] Slot Craft Bag:813 item 813 x3174 tags[] Turquoise
+[IC FCO spike] Slot Craft Bag:818 item 818 x9 tags[] rough birch^ns
+[IC FCO spike] Slot Craft Bag:883 item 883 x491 tags[] natural water
+[IC FCO spike] Slot Craft Bag:1187 item 1187 x332 tags[] clear water
+[IC FCO spike] Slot Craft Bag:4439 item 4439 x2 tags[] rough ash^ns
+[IC FCO spike] Slot Craft Bag:4442 item 4442 x5394 tags[] Emerald
+[IC FCO spike] Slot Craft Bag:4447 item 4447 x1815 tags[] hide^ns
+[IC FCO spike] Slot Craft Bag:4448 item 4448 x5 tags[] hide scraps^p
+[IC FCO spike] Slot Craft Bag:4456 item 4456 x5754 tags[] Quartz
+[IC FCO spike] Slot Craft Bag:4463 item 4463 x2878 tags[] flax^ns
+[IC FCO spike] Slot Craft Bag:4464 item 4464 x3 tags[] raw flax^ns
+[IC FCO spike] Slot Craft Bag:4478 item 4478 x9 tags[] shadowhide scraps^p
+[IC FCO spike] Slot Craft Bag:4482 item 4482 x9 tags[] Calcinium ore
+[IC FCO spike] Slot Craft Bag:4486 item 4486 x2847 tags[] Ruby
+[IC FCO spike] Slot Craft Bag:4487 item 4487 x4780 tags[] Steel ingot
+[IC FCO spike] Slot Craft Bag:5413 item 5413 x3938 tags[] Iron ingot
+[IC FCO spike] Slot Craft Bag:5820 item 5820 x5 tags[] high iron ore
+[IC FCO spike] Slot Craft Bag:6000 item 6000 x4351 tags[] dwarven ingot
+[IC FCO spike] Slot Craft Bag:6001 item 6001 x4048 tags[] ebony ingot
+[IC FCO spike] Slot Craft Bag:6020 item 6020 x6 tags[] thick leather scraps^p
+[IC FCO spike] Slot Craft Bag:16291 item 16291 x2844 tags[] Citrine
+[IC FCO spike] Slot Craft Bag:23095 item 23095 x6 tags[] leather scraps^p
+[IC FCO spike] Slot Craft Bag:23097 item 23097 x4 tags[] fell hide scraps^p
+[IC FCO spike] Slot Craft Bag:23099 item 23099 x1772 tags[] leather^ns
+[IC FCO spike] Slot Craft Bag:23100 item 23100 x1844 tags[] thick leather^ns
+[IC FCO spike] Slot Craft Bag:23101 item 23101 x1547 tags[] fell hide^ns
+[IC FCO spike] Slot Craft Bag:23103 item 23103 x6 tags[] orichalcum ore
+[IC FCO spike] Slot Craft Bag:23104 item 23104 x7 tags[] dwarven ore
+[IC FCO spike] Slot Craft Bag:23105 item 23105 x3 tags[] ebony ore
+[IC FCO spike] Slot Craft Bag:23107 item 23107 x4471 tags[] orichalcum ingot
+[IC FCO spike] Slot Craft Bag:23117 item 23117 x8 tags[] rough beech^ns
+[IC FCO spike] Slot Craft Bag:23118 item 23118 x9 tags[] rough hickory^ns
+[IC FCO spike] Slot Craft Bag:23119 item 23119 x1 tags[] rough yew^ns
+[IC FCO spike] Slot Craft Bag:23121 item 23121 x3956 tags[] sanded beech^ns
+[IC FCO spike] Slot Craft Bag:23122 item 23122 x4383 tags[] sanded hickory^ns
+[IC FCO spike] Slot Craft Bag:23123 item 23123 x4325 tags[] sanded yew^ns
+[IC FCO spike] Slot Craft Bag:23125 item 23125 x3419 tags[] cotton^ns
+[IC FCO spike] Slot Craft Bag:23126 item 23126 x3447 tags[] spidersilk^ns
+[IC FCO spike] Slot Craft Bag:23127 item 23127 x3018 tags[] ebonthread^ns
+[IC FCO spike] Slot Craft Bag:23129 item 23129 x2 tags[] raw cotton^ns
+[IC FCO spike] Slot Craft Bag:23130 item 23130 x5 tags[] raw spidersilk^ns
+[IC FCO spike] Slot Craft Bag:23131 item 23131 x9 tags[] raw ebonthread^ns
+[IC FCO spike] Slot Craft Bag:23133 item 23133 x8 tags[] Galatite ore
+[IC FCO spike] Slot Craft Bag:23135 item 23135 x3 tags[] voidstone ore
+[IC FCO spike] Slot Craft Bag:23137 item 23137 x1 tags[] rough mahogany^ns
+[IC FCO spike] Slot Craft Bag:23142 item 23142 x7 tags[] topgrain hide scraps^p
+[IC FCO spike] Slot Craft Bag:23143 item 23143 x8 tags[] iron hide scraps^p
+[IC FCO spike] Slot Craft Bag:23149 item 23149 x2785 tags[] Fire Opal
+[IC FCO spike] Slot Craft Bag:23165 item 23165 x2378 tags[] Carnelian
+[IC FCO spike] Slot Craft Bag:23171 item 23171 x5289 tags[] Garnet
+[IC FCO spike] Slot Craft Bag:23173 item 23173 x5193 tags[] Sapphire
+[IC FCO spike] Slot Craft Bag:23203 item 23203 x3174 tags[] Chysolite
+[IC FCO spike] Slot Craft Bag:23204 item 23204 x2770 tags[] Amethyst
+[IC FCO spike] Slot Craft Bag:23219 item 23219 x5610 tags[] Diamond
+[IC FCO spike] Slot Craft Bag:23221 item 23221 x6526 tags[] Almandine
+[IC FCO spike] Slot Craft Bag:23266 item 23266 x14 tags[] filtered water
+[IC FCO spike] Slot Craft Bag:23268 item 23268 x71 tags[] cloud mist
+[IC FCO spike] Slot Craft Bag:26802 item 26802 x5099 tags[] Frost Mirriam
+[IC FCO spike] Slot Craft Bag:26954 item 26954 x13294 tags[] Garlic
+[IC FCO spike] Slot Craft Bag:27035 item 27035 x14188 tags[] Isinglass
+[IC FCO spike] Slot Craft Bag:27043 item 27043 x14199 tags[] Honey
+[IC FCO spike] Slot Craft Bag:27048 item 27048 x12994 tags[] Metheglin
+[IC FCO spike] Slot Craft Bag:27049 item 27049 x15130 tags[] Lemon
+[IC FCO spike] Slot Craft Bag:27052 item 27052 x15108 tags[] Ginger
+[IC FCO spike] Slot Craft Bag:27057 item 27057 x14911 tags[] Cheese
+[IC FCO spike] Slot Craft Bag:27058 item 27058 x16052 tags[] Seasoning
+[IC FCO spike] Slot Craft Bag:27059 item 27059 x5703 tags[] Bervez Juice
+[IC FCO spike] Slot Craft Bag:27063 item 27063 x13706 tags[] Saltrice
+[IC FCO spike] Slot Craft Bag:27064 item 27064 x14709 tags[] Millet
+[IC FCO spike] Slot Craft Bag:27100 item 27100 x12681 tags[] Flour
+[IC FCO spike] Slot Craft Bag:28603 item 28603 x5108 tags[] Tomato
+[IC FCO spike] Slot Craft Bag:28604 item 28604 x5404 tags[] Greens
+[IC FCO spike] Slot Craft Bag:28609 item 28609 x5899 tags[] Game
+[IC FCO spike] Slot Craft Bag:28610 item 28610 x5581 tags[] Jazbay Grapes
+[IC FCO spike] Slot Craft Bag:28636 item 28636 x6391 tags[] Rose
+[IC FCO spike] Slot Craft Bag:28639 item 28639 x7961 tags[] Rye
+[IC FCO spike] Slot Craft Bag:28666 item 28666 x14450 tags[] Seaweed
+[IC FCO spike] Slot Craft Bag:29030 item 29030 x7344 tags[] Rice
+[IC FCO spike] Slot Craft Bag:30148 item 30148 x1933 tags[] blue entoloma
+[IC FCO spike] Slot Craft Bag:30149 item 30149 x1011 tags[] stinkhorn
+[IC FCO spike] Slot Craft Bag:30151 item 30151 x714 tags[] emetic russula
+[IC FCO spike] Slot Craft Bag:30152 item 30152 x131 tags[] violet coprinus
+[IC FCO spike] Slot Craft Bag:30153 item 30153 x1509 tags[] namira's rot
+[IC FCO spike] Slot Craft Bag:30154 item 30154 x1410 tags[] white cap
+[IC FCO spike] Slot Craft Bag:30155 item 30155 x624 tags[] luminous russula
+[IC FCO spike] Slot Craft Bag:30156 item 30156 x275 tags[] imp stool
+[IC FCO spike] Slot Craft Bag:30157 item 30157 x2897 tags[17] blessed thistle
+[IC FCO spike] Slot Craft Bag:30158 item 30158 x1806 tags[] lady's smock
+[IC FCO spike] Slot Craft Bag:30159 item 30159 x2672 tags[] wormwood
+[IC FCO spike] Slot Craft Bag:30160 item 30160 x1800 tags[] bugloss
+[IC FCO spike] Slot Craft Bag:30161 item 30161 x2334 tags[] corn flower
+[IC FCO spike] Slot Craft Bag:30162 item 30162 x2253 tags[] dragonthorn
+[IC FCO spike] Slot Craft Bag:30163 item 30163 x1816 tags[] mountain flower
+[IC FCO spike] Slot Craft Bag:30164 item 30164 x2560 tags[] columbine
+[IC FCO spike] Slot Craft Bag:30165 item 30165 x357 tags[] nirnroot
+[IC FCO spike] Slot Craft Bag:30166 item 30166 x1581 tags[] water hyacinth
+[IC FCO spike] Slot Craft Bag:30219 item 30219 x6171 tags[] Bloodstone
+[IC FCO spike] Slot Craft Bag:30221 item 30221 x6601 tags[] Sardonyx
+[IC FCO spike] Slot Craft Bag:33150 item 33150 x224 tags[] flint
+[IC FCO spike] Slot Craft Bag:33194 item 33194 x232 tags[] Bone
+[IC FCO spike] Slot Craft Bag:33217 item 33217 x1 tags[] raw Kreshweed^ns
+[IC FCO spike] Slot Craft Bag:33218 item 33218 x6 tags[] raw ironweed^ns
+[IC FCO spike] Slot Craft Bag:33220 item 33220 x9 tags[] raw void bloom^ns
+[IC FCO spike] Slot Craft Bag:33251 item 33251 x226 tags[] Molybdenum
+[IC FCO spike] Slot Craft Bag:33252 item 33252 x230 tags[] Adamantite
+[IC FCO spike] Slot Craft Bag:33253 item 33253 x226 tags[] Obsidian
+[IC FCO spike] Slot Craft Bag:33254 item 33254 x237 tags[] Nickel
+[IC FCO spike] Slot Craft Bag:33255 item 33255 x230 tags[] Moonstone
+[IC FCO spike] Slot Craft Bag:33256 item 33256 x229 tags[] Corundum
+[IC FCO spike] Slot Craft Bag:33257 item 33257 x224 tags[] Manganese
+[IC FCO spike] Slot Craft Bag:33258 item 33258 x222 tags[] Starmetal
+[IC FCO spike] Slot Craft Bag:33752 item 33752 x5394 tags[] Red Meat
+[IC FCO spike] Slot Craft Bag:33753 item 33753 x8051 tags[] Fish
+[IC FCO spike] Slot Craft Bag:33754 item 33754 x4653 tags[] White Meat
+[IC FCO spike] Slot Craft Bag:33755 item 33755 x5948 tags[] Bananas
+[IC FCO spike] Slot Craft Bag:33756 item 33756 x5940 tags[] Small Game
+[IC FCO spike] Slot Craft Bag:33758 item 33758 x5601 tags[] Potato
+[IC FCO spike] Slot Craft Bag:33768 item 33768 x7360 tags[] Comberry
+[IC FCO spike] Slot Craft Bag:33771 item 33771 x6025 tags[] Jasmine
+[IC FCO spike] Slot Craft Bag:33772 item 33772 x7016 tags[] Coffee
+[IC FCO spike] Slot Craft Bag:33773 item 33773 x7307 tags[] Mint
+[IC FCO spike] Slot Craft Bag:33774 item 33774 x6144 tags[] Yeast
+[IC FCO spike] Slot Craft Bag:34305 item 34305 x6662 tags[] Pumpkin
+[IC FCO spike] Slot Craft Bag:34307 item 34307 x5470 tags[] Radish
+[IC FCO spike] Slot Craft Bag:34308 item 34308 x6865 tags[] Melon
+[IC FCO spike] Slot Craft Bag:34309 item 34309 x5698 tags[] Beets
+[IC FCO spike] Slot Craft Bag:34311 item 34311 x13481 tags[] Apples
+[IC FCO spike] Slot Craft Bag:34321 item 34321 x4628 tags[] Poultry
+[IC FCO spike] Slot Craft Bag:34323 item 34323 x5642 tags[] Corn
+[IC FCO spike] Slot Craft Bag:34324 item 34324 x6047 tags[] Carrots
+[IC FCO spike] Slot Craft Bag:34329 item 34329 x5607 tags[] Barley
+[IC FCO spike] Slot Craft Bag:34330 item 34330 x6429 tags[] Lotus
+[IC FCO spike] Slot Craft Bag:34333 item 34333 x7112 tags[] Guarana
+[IC FCO spike] Slot Craft Bag:34334 item 34334 x6067 tags[] Bittergreen
+[IC FCO spike] Slot Craft Bag:34335 item 34335 x7479 tags[] Yerba Mate
+[IC FCO spike] Slot Craft Bag:34345 item 34345 x6259 tags[] Surilie Grapes
+[IC FCO spike] Slot Craft Bag:34346 item 34346 x6709 tags[] Ginkgo
+[IC FCO spike] Slot Craft Bag:34347 item 34347 x6868 tags[] Ginseng
+[IC FCO spike] Slot Craft Bag:34348 item 34348 x6881 tags[] Wheat
+[IC FCO spike] Slot Craft Bag:34349 item 34349 x6360 tags[] Acai Berry
+[IC FCO spike] Slot Craft Bag:42869 item 42869 x3829 tags[] worms, Saltwater Bait
+[IC FCO spike] Slot Craft Bag:42870 item 42870 x1653 tags[] guts, Lake Bait
+[IC FCO spike] Slot Craft Bag:42871 item 42871 x5861 tags[] crawlers, Foul Bait
+[IC FCO spike] Slot Craft Bag:42872 item 42872 x3093 tags[] insect parts, River Bait
+[IC FCO spike] Slot Craft Bag:42874 item 42874 x166 tags[] shad, River Bait
+[IC FCO spike] Slot Craft Bag:42876 item 42876 x1 tags[] minnow, Lake Bait
+[IC FCO spike] Slot Craft Bag:45806 item 45806 x26 tags[] Jejora
+[IC FCO spike] Slot Craft Bag:45807 item 45807 x5 tags[] Odra
+[IC FCO spike] Slot Craft Bag:45808 item 45808 x54 tags[] Pojora
+[IC FCO spike] Slot Craft Bag:45809 item 45809 x37 tags[] Edora
+[IC FCO spike] Slot Craft Bag:45810 item 45810 x49 tags[] Jaera
+[IC FCO spike] Slot Craft Bag:45811 item 45811 x61 tags[] Pora
+[IC FCO spike] Slot Craft Bag:45812 item 45812 x27 tags[] Denara
+[IC FCO spike] Slot Craft Bag:45813 item 45813 x22 tags[] Rera
+[IC FCO spike] Slot Craft Bag:45814 item 45814 x29 tags[] Derado
+[IC FCO spike] Slot Craft Bag:45815 item 45815 x225 tags[] Rekura
+[IC FCO spike] Slot Craft Bag:45816 item 45816 x8 tags[] Kura
+[IC FCO spike] Slot Craft Bag:45817 item 45817 x123 tags[] Jode
+[IC FCO spike] Slot Craft Bag:45818 item 45818 x168 tags[] Notade
+[IC FCO spike] Slot Craft Bag:45819 item 45819 x48 tags[] Ode
+[IC FCO spike] Slot Craft Bag:45820 item 45820 x23 tags[] Tade
+[IC FCO spike] Slot Craft Bag:45821 item 45821 x21 tags[] Jayde
+[IC FCO spike] Slot Craft Bag:45822 item 45822 x31 tags[] Edode
+[IC FCO spike] Slot Craft Bag:45823 item 45823 x30 tags[] Pojode
+[IC FCO spike] Slot Craft Bag:45824 item 45824 x30 tags[] Rekude
+[IC FCO spike] Slot Craft Bag:45825 item 45825 x41 tags[] Hade
+[IC FCO spike] Slot Craft Bag:45826 item 45826 x5 tags[] Idode
+[IC FCO spike] Slot Craft Bag:45827 item 45827 x21 tags[] Pode
+[IC FCO spike] Slot Craft Bag:45828 item 45828 x14 tags[] Kedeko
+[IC FCO spike] Slot Craft Bag:45829 item 45829 x59 tags[] Rede
+[IC FCO spike] Slot Craft Bag:45830 item 45830 x41 tags[] Kude
+[IC FCO spike] Slot Craft Bag:45831 item 45831 x907 tags[] Oko
+[IC FCO spike] Slot Craft Bag:45832 item 45832 x1907 tags[] Makko
+[IC FCO spike] Slot Craft Bag:45833 item 45833 x1860 tags[] Deni
+[IC FCO spike] Slot Craft Bag:45834 item 45834 x1055 tags[] Okoma
+[IC FCO spike] Slot Craft Bag:45835 item 45835 x1127 tags[] Makkoma
+[IC FCO spike] Slot Craft Bag:45836 item 45836 x1191 tags[] Denima
+[IC FCO spike] Slot Craft Bag:45837 item 45837 x1057 tags[] Kuoko
+[IC FCO spike] Slot Craft Bag:45838 item 45838 x1248 tags[] Rakeipa
+[IC FCO spike] Slot Craft Bag:45839 item 45839 x1254 tags[] Dekeipa
+[IC FCO spike] Slot Craft Bag:45840 item 45840 x1286 tags[] Meip
+[IC FCO spike] Slot Craft Bag:45841 item 45841 x1094 tags[] Haoko
+[IC FCO spike] Slot Craft Bag:45842 item 45842 x1148 tags[] Deteri
+[IC FCO spike] Slot Craft Bag:45843 item 45843 x802 tags[] Okori
+[IC FCO spike] Slot Craft Bag:45846 item 45846 x1052 tags[] Oru
+[IC FCO spike] Slot Craft Bag:45847 item 45847 x1107 tags[] Taderi
+[IC FCO spike] Slot Craft Bag:45848 item 45848 x1096 tags[] Makderi
+[IC FCO spike] Slot Craft Bag:45849 item 45849 x1100 tags[] Kaderi
+[IC FCO spike] Slot Craft Bag:45850 item 45850 x5118 tags[] Ta
+[IC FCO spike] Slot Craft Bag:45851 item 45851 x9905 tags[] Jejota
+[IC FCO spike] Slot Craft Bag:45852 item 45852 x5314 tags[] Denata
+[IC FCO spike] Slot Craft Bag:45853 item 45853 x4215 tags[] Rekuta
+[IC FCO spike] Slot Craft Bag:45854 item 45854 x1060 tags[] Kuta
+[IC FCO spike] Slot Craft Bag:45855 item 45855 x33 tags[] Jora
+[IC FCO spike] Slot Craft Bag:45856 item 45856 x189 tags[] Porade
+[IC FCO spike] Slot Craft Bag:45857 item 45857 x45 tags[] Jera
+[IC FCO spike] Slot Craft Bag:46127 item 46127 x3201 tags[] Calcinium ingot
+[IC FCO spike] Slot Craft Bag:46128 item 46128 x4005 tags[] Galatite ingot
+[IC FCO spike] Slot Craft Bag:46129 item 46129 x4427 tags[] quicksilver ingot
+[IC FCO spike] Slot Craft Bag:46130 item 46130 x4459 tags[] voidstone ingot
+[IC FCO spike] Slot Craft Bag:46131 item 46131 x2901 tags[] Kresh Fiber^ns
+[IC FCO spike] Slot Craft Bag:46132 item 46132 x2741 tags[] ironthread^ns
+[IC FCO spike] Slot Craft Bag:46133 item 46133 x2896 tags[] silverweave^ns
+[IC FCO spike] Slot Craft Bag:46134 item 46134 x3853 tags[] void cloth^ns
+[IC FCO spike] Slot Craft Bag:46135 item 46135 x1197 tags[] topgrain hide^ns
+[IC FCO spike] Slot Craft Bag:46136 item 46136 x1675 tags[] Iron Hide^ns
+[IC FCO spike] Slot Craft Bag:46137 item 46137 x1325 tags[] superb hide^ns
+[IC FCO spike] Slot Craft Bag:46138 item 46138 x2585 tags[] Shadowhide^ns
+[IC FCO spike] Slot Craft Bag:46139 item 46139 x3700 tags[] sanded birch^ns
+[IC FCO spike] Slot Craft Bag:46140 item 46140 x3924 tags[] sanded ash^ns
+[IC FCO spike] Slot Craft Bag:46141 item 46141 x3882 tags[] sanded mahogany^ns
+[IC FCO spike] Slot Craft Bag:46142 item 46142 x4404 tags[] sanded nightwood^ns
+[IC FCO spike] Slot Craft Bag:46149 item 46149 x1347 tags[] Bronze
+[IC FCO spike] Slot Craft Bag:46150 item 46150 x1834 tags[] Argentum
+[IC FCO spike] Slot Craft Bag:46151 item 46151 x2696 tags[] Daedra Heart
+[IC FCO spike] Slot Craft Bag:46152 item 46152 x1584 tags[] Palladium
+[IC FCO spike] Slot Craft Bag:54170 item 54170 x3417 tags[] honing stone
+[IC FCO spike] Slot Craft Bag:54171 item 54171 x9619 tags[] dwarven oil
+[IC FCO spike] Slot Craft Bag:54172 item 54172 x4062 tags[] grain solvent
+[IC FCO spike] Slot Craft Bag:54173 item 54173 x429 tags[] tempering alloy
+[IC FCO spike] Slot Craft Bag:54174 item 54174 x5362 tags[] hemming
+[IC FCO spike] Slot Craft Bag:54175 item 54175 x11480 tags[] embroidery
+[IC FCO spike] Slot Craft Bag:54176 item 54176 x4482 tags[] elegant lining
+[IC FCO spike] Slot Craft Bag:54177 item 54177 x422 tags[] dreugh wax
+[IC FCO spike] Slot Craft Bag:54178 item 54178 x4583 tags[] pitch
+[IC FCO spike] Slot Craft Bag:54179 item 54179 x8045 tags[] turpen
+[IC FCO spike] Slot Craft Bag:54180 item 54180 x3232 tags[] mastic
+[IC FCO spike] Slot Craft Bag:54181 item 54181 x1069 tags[] rosin
+[IC FCO spike] Slot Craft Bag:56862 item 56862 x49 tags[] Fortified Nirncrux
+[IC FCO spike] Slot Craft Bag:56863 item 56863 x17 tags[] Potent Nirncrux
+[IC FCO spike] Slot Craft Bag:57587 item 57587 x76 tags[] Dwemer Frame
+[IC FCO spike] Slot Craft Bag:59922 item 59922 x221 tags[] Charcoal of Remorse
+[IC FCO spike] Slot Craft Bag:59923 item 59923 x2 tags[] Ashes of Remorse
+[IC FCO spike] Slot Craft Bag:64222 item 64222 x56 tags[] Perfect Roe
+[IC FCO spike] Slot Craft Bag:64489 item 64489 x13134 tags[] Rubedite Ingot
+[IC FCO spike] Slot Craft Bag:64500 item 64500 x79 tags[] Star Dew
+[IC FCO spike] Slot Craft Bag:64501 item 64501 x13453 tags[] Lorkhan's Tears
+[IC FCO spike] Slot Craft Bag:64502 item 64502 x20701 tags[] Sanded Ruby Ash^ns
+[IC FCO spike] Slot Craft Bag:64504 item 64504 x12090 tags[] Ancestor Silk^ns
+[IC FCO spike] Slot Craft Bag:64506 item 64506 x28268 tags[] Rubedo Leather^ns
+[IC FCO spike] Slot Craft Bag:64508 item 64508 x4419 tags[] Jehade
+[IC FCO spike] Slot Craft Bag:64509 item 64509 x3940 tags[] Rejera
+[IC FCO spike] Slot Craft Bag:64685 item 64685 x245 tags[] Ferrous Salts
+[IC FCO spike] Slot Craft Bag:64687 item 64687 x72 tags[] Goldscale
+[IC FCO spike] Slot Craft Bag:64688 item 64688 x12 tags[] Ancient Scale
+[IC FCO spike] Slot Craft Bag:64689 item 64689 x347 tags[] Malachite
+[IC FCO spike] Slot Craft Bag:64690 item 64690 x3 tags[] Malachite Shard
+[IC FCO spike] Slot Craft Bag:64713 item 64713 x284 tags[] Laurel
+[IC FCO spike] Slot Craft Bag:68340 item 68340 x1960 tags[] Itade
+[IC FCO spike] Slot Craft Bag:68341 item 68341 x2966 tags[] Repora
+[IC FCO spike] Slot Craft Bag:68342 item 68342 x28 tags[] Hakeijo
+[IC FCO spike] Slot Craft Bag:69555 item 69555 x57 tags[] Cassiterite
+[IC FCO spike] Slot Craft Bag:71198 item 71198 x307 tags[] rubedite ore
+[IC FCO spike] Slot Craft Bag:71199 item 71199 x408 tags[] rough ruby ash^ns
+[IC FCO spike] Slot Craft Bag:71200 item 71200 x226 tags[] raw ancestor silk^ns
+[IC FCO spike] Slot Craft Bag:71239 item 71239 x74 tags[] rubedo hide scraps^p
+[IC FCO spike] Slot Craft Bag:71538 item 71538 x79 tags[] Rogue's Soot
+[IC FCO spike] Slot Craft Bag:71582 item 71582 x70 tags[] Auric Tusk
+[IC FCO spike] Slot Craft Bag:71584 item 71584 x102 tags[] Potash
+[IC FCO spike] Slot Craft Bag:71668 item 71668 x310 tags[] Crown Mimic Stone
+[IC FCO spike] Slot Craft Bag:71736 item 71736 x337 tags[] Ancient Sandstone
+[IC FCO spike] Slot Craft Bag:71738 item 71738 x494 tags[] Eagle Feather
+[IC FCO spike] Slot Craft Bag:71740 item 71740 x165 tags[] Dragon Scute
+[IC FCO spike] Slot Craft Bag:71742 item 71742 x129 tags[] Lion Fang
+[IC FCO spike] Slot Craft Bag:71766 item 71766 x471 tags[] Azure Plasm
+[IC FCO spike] Slot Craft Bag:75357 item 75357 x903 tags[] Grease
+[IC FCO spike] Slot Craft Bag:75358 item 75358 x1156 tags[] Ichor
+[IC FCO spike] Slot Craft Bag:75359 item 75359 x499 tags[] Slime
+[IC FCO spike] Slot Craft Bag:75360 item 75360 x296 tags[] Gall
+[IC FCO spike] Slot Craft Bag:75361 item 75361 x151 tags[] Terebinthine
+[IC FCO spike] Slot Craft Bag:75362 item 75362 x235 tags[] Pitch-Bile
+[IC FCO spike] Slot Craft Bag:75363 item 75363 x32 tags[] Tarblack
+[IC FCO spike] Slot Craft Bag:75364 item 75364 x61 tags[] Night-Oil
+[IC FCO spike] Slot Craft Bag:75365 item 75365 x43665 tags[] Alkahest
+[IC FCO spike] Slot Craft Bag:75370 item 75370 x242 tags[] Fine Chalk
+[IC FCO spike] Slot Craft Bag:75371 item 75371 x8 tags[] Coarse Chalk
+[IC FCO spike] Slot Craft Bag:75373 item 75373 x273 tags[] Pristine Shroud
+[IC FCO spike] Slot Craft Bag:76910 item 76910 x94 tags[] Tainted Blood
+[IC FCO spike] Slot Craft Bag:76911 item 76911 x3 tags[] Dried Blood
+[IC FCO spike] Slot Craft Bag:76914 item 76914 x35 tags[] Polished Shilling
+[IC FCO spike] Slot Craft Bag:77581 item 77581 x325 tags[] Torchbug Thorax
+[IC FCO spike] Slot Craft Bag:77583 item 77583 x614 tags[17] Beetle Scuttle
+[IC FCO spike] Slot Craft Bag:77584 item 77584 x963 tags[] Spider Egg
+[IC FCO spike] Slot Craft Bag:77585 item 77585 x761 tags[] Butterfly Wing
+[IC FCO spike] Slot Craft Bag:77587 item 77587 x1147 tags[] Fleshfly Larva||Fleshfly Larvae
+[IC FCO spike] Slot Craft Bag:77589 item 77589 x1397 tags[] Scrib Jelly
+[IC FCO spike] Slot Craft Bag:77590 item 77590 x143 tags[] Nightshade
+[IC FCO spike] Slot Craft Bag:77591 item 77591 x232 tags[] Mudcrab Chitin
+[IC FCO spike] Slot Craft Bag:79304 item 79304 x98 tags[] Black Beeswax
+[IC FCO spike] Slot Craft Bag:79305 item 79305 x43 tags[] Boiled Carapace
+[IC FCO spike] Slot Craft Bag:79672 item 79672 x133 tags[] Defiled Whiskers
+[IC FCO spike] Slot Craft Bag:81994 item 81994 x51 tags[] Oxblood Fungus
+[IC FCO spike] Slot Craft Bag:81995 item 81995 x6 tags[] Oxblood Fungus Spore
+[IC FCO spike] Slot Craft Bag:81996 item 81996 x49 tags[] Pearl Sand
+[IC FCO spike] Slot Craft Bag:81997 item 81997 x7 tags[] Grain of Pearl Sand
+[IC FCO spike] Slot Craft Bag:81998 item 81998 x281 tags[] Star Sapphire
+[IC FCO spike] Slot Craft Bag:82000 item 82000 x263 tags[] Amber Marble
+[IC FCO spike] Slot Craft Bag:96388 item 96388 x94 tags[] Wolfsbane Incense
+[IC FCO spike] Slot Craft Bag:114889 item 114889 x417 tags[] Regulus
+[IC FCO spike] Slot Craft Bag:114890 item 114890 x1572 tags[] Bast
+[IC FCO spike] Slot Craft Bag:114891 item 114891 x1959 tags[] Clean Pelt
+[IC FCO spike] Slot Craft Bag:114892 item 114892 x1596 tags[] Mundane Rune
+[IC FCO spike] Slot Craft Bag:114893 item 114893 x2022 tags[] Alchemical Resin
+[IC FCO spike] Slot Craft Bag:114894 item 114894 x1024 tags[] Decorative Wax
+[IC FCO spike] Slot Craft Bag:114895 item 114895 x1550 tags[] Heartwood
+[IC FCO spike] Slot Craft Bag:114983 item 114983 x32 tags[] Distilled Slowsilver
+[IC FCO spike] Slot Craft Bag:114984 item 114984 x21 tags[] Leviathan Scrimshaw
+[IC FCO spike] Slot Craft Bag:115026 item 115026 x1 tags[] Aetherial Dust
+[IC FCO spike] Slot Craft Bag:120078 item 120078 x2 tags[] Diminished Aetherial Dust
+[IC FCO spike] Slot Craft Bag:120894 item 120894 x1 tags[] Animus Stone
+[IC FCO spike] Slot Craft Bag:121518 item 121518 x90 tags[] Volcanic Viridian
+[IC FCO spike] Slot Craft Bag:121519 item 121519 x50 tags[] Wrought Ferrofungus
+[IC FCO spike] Slot Craft Bag:121520 item 121520 x74 tags[] Lustrous Sphalerite
+[IC FCO spike] Slot Craft Bag:121521 item 121521 x1 tags[] Viridian Dust
+[IC FCO spike] Slot Craft Bag:121522 item 121522 x4 tags[] Pliant Ferrofungus
+[IC FCO spike] Slot Craft Bag:125476 item 125476 x237 tags[] Ash Canvas
+[IC FCO spike] Slot Craft Bag:130058 item 130058 x4 tags[] Raw Bonemold Resin
+[IC FCO spike] Slot Craft Bag:130059 item 130059 x53 tags[] Refined Bonemold Resin
+[IC FCO spike] Slot Craft Bag:130060 item 130060 x49 tags[] Polished Scarab Elytra
+[IC FCO spike] Slot Craft Bag:130061 item 130061 x58 tags[] Polished Rivets
+[IC FCO spike] Slot Craft Bag:130062 item 130062 x1 tags[] Scarab Elytra
+[IC FCO spike] Slot Craft Bag:132617 item 132617 x94 tags[] Tempered Brass
+[IC FCO spike] Slot Craft Bag:132618 item 132618 x109 tags[] Tenebrous Cord
+[IC FCO spike] Slot Craft Bag:132619 item 132619 x22 tags[] Minotaur Bezoar
+[IC FCO spike] Slot Craft Bag:132620 item 132620 x12 tags[] Bloodroot Flux
+[IC FCO spike] Slot Craft Bag:134798 item 134798 x161 tags[] Desecrated Grave Soil
+[IC FCO spike] Slot Craft Bag:135137 item 135137 x1 tags[] pewter dust
+[IC FCO spike] Slot Craft Bag:135138 item 135138 x1804 tags[] pewter ounce
+[IC FCO spike] Slot Craft Bag:135139 item 135139 x1 tags[] copper dust
+[IC FCO spike] Slot Craft Bag:135140 item 135140 x3122 tags[] copper ounce
+[IC FCO spike] Slot Craft Bag:135141 item 135141 x4 tags[] silver dust
+[IC FCO spike] Slot Craft Bag:135142 item 135142 x342 tags[] silver ounce
+[IC FCO spike] Slot Craft Bag:135143 item 135143 x6 tags[] electrum dust
+[IC FCO spike] Slot Craft Bag:135144 item 135144 x1715 tags[] electrum ounce
+[IC FCO spike] Slot Craft Bag:135145 item 135145 x54 tags[] platinum dust
+[IC FCO spike] Slot Craft Bag:135146 item 135146 x3476 tags[] platinum ounce
+[IC FCO spike] Slot Craft Bag:135155 item 135155 x291 tags[] cobalt^ns
+[IC FCO spike] Slot Craft Bag:135156 item 135156 x282 tags[] antimony^ns
+[IC FCO spike] Slot Craft Bag:135157 item 135157 x282 tags[] zinc^ns
+[IC FCO spike] Slot Craft Bag:135158 item 135158 x11 tags[] Pulverized Cobalt
+[IC FCO spike] Slot Craft Bag:135159 item 135159 x5 tags[] Pulverized Antimony
+[IC FCO spike] Slot Craft Bag:135160 item 135160 x3 tags[] Pulverized Zinc
+[IC FCO spike] Slot Craft Bag:135161 item 135161 x1292 tags[] Ochre
+[IC FCO spike] Slot Craft Bag:137951 item 137951 x79 tags[] Vitrified Malondo
+[IC FCO spike] Slot Craft Bag:137953 item 137953 x87 tags[] Culanda Lacquer
+[IC FCO spike] Slot Craft Bag:137957 item 137957 x210 tags[] Warrior's Heart Ashes
+[IC FCO spike] Slot Craft Bag:137958 item 137958 x47 tags[] Dragon Bone
+[IC FCO spike] Slot Craft Bag:137961 item 137961 x55 tags[] Infected Flesh
+[IC FCO spike] Slot Craft Bag:139019 item 139019 x410 tags[] Powdered Mother of Pearl
+[IC FCO spike] Slot Craft Bag:139020 item 139020 x114 tags[] Clam Gall
+[IC FCO spike] Slot Craft Bag:139409 item 139409 x173 tags[] Dawn-Prism^n
+[IC FCO spike] Slot Craft Bag:139410 item 139410 x40 tags[] Titanium^ns
+[IC FCO spike] Slot Craft Bag:139411 item 139411 x11 tags[] Aurbic Amber^ns
+[IC FCO spike] Slot Craft Bag:139412 item 139412 x25 tags[] Gilding Wax^ns
+[IC FCO spike] Slot Craft Bag:139413 item 139413 x46 tags[] Dibellium^ns
+[IC FCO spike] Slot Craft Bag:139414 item 139414 x205 tags[] Slaughterstone
+[IC FCO spike] Slot Craft Bag:139415 item 139415 x2 tags[] Pulverized Dawn-Prism
+[IC FCO spike] Slot Craft Bag:139416 item 139416 x6 tags[] Pulverized Titanium
+[IC FCO spike] Slot Craft Bag:139417 item 139417 x6 tags[] Pulverized Aurbic Amber
+[IC FCO spike] Slot Craft Bag:139418 item 139418 x3 tags[] Pulverized Gilding Wax
+[IC FCO spike] Slot Craft Bag:139419 item 139419 x4 tags[] Pulverized Dibellium
+[IC FCO spike] Slot Craft Bag:140267 item 140267 x22 tags[] Sea Serpent Hide
+[IC FCO spike] Slot Craft Bag:141740 item 141740 x50 tags[] Gryphon Plume
+[IC FCO spike] Slot Craft Bag:141820 item 141820 x54 tags[] Bloodscent Dew
+[IC FCO spike] Slot Craft Bag:141821 item 141821 x99 tags[] Argent Pelt
+[IC FCO spike] Slot Craft Bag:145532 item 145532 x11 tags[] Crocodile Leather
+[IC FCO spike] Slot Craft Bag:145533 item 145533 x9 tags[] Hackwing Plumage
+[IC FCO spike] Slot Craft Bag:147288 item 147288 x29 tags[] Red Diamond Seal
+[IC FCO spike] Slot Craft Bag:150669 item 150669 x247 tags[] Chaurus Egg
+[IC FCO spike] Slot Craft Bag:150670 item 150670 x315 tags[] Vile Coagulant
+[IC FCO spike] Slot Craft Bag:150671 item 150671 x591 tags[] Dragon Rheum
+[IC FCO spike] Slot Craft Bag:150672 item 150672 x431 tags[] Crimson Nirnroot
+[IC FCO spike] Slot Craft Bag:150731 item 150731 x708 tags[] Dragon's Blood
+[IC FCO spike] Slot Craft Bag:150789 item 150789 x568 tags[] Dragon's Bile
+[IC FCO spike] Slot Craft Bag:151621 item 151621 x63 tags[] Shimmering Sand
+[IC FCO spike] Slot Craft Bag:151622 item 151622 x89 tags[] Dragonthread
+[IC FCO spike] Slot Craft Bag:151907 item 151907 x56 tags[] Goblin-Cloth Scrap
+[IC FCO spike] Slot Craft Bag:151908 item 151908 x50 tags[] Auroran Dust
+[IC FCO spike] Slot Craft Bag:152235 item 152235 x63 tags[] Frost Embers
+[IC FCO spike] Slot Craft Bag:156571 item 156571 x175 tags[] Gilding Salts
+[IC FCO spike] Slot Craft Bag:156589 item 156589 x45 tags[] Oath Cord
+[IC FCO spike] Slot Craft Bag:156606 item 156606 x23 tags[] Blood of Sahrotnax
+[IC FCO spike] Slot Craft Bag:156624 item 156624 x262 tags[] Aeonstone Shard
+[IC FCO spike] Slot Craft Bag:156643 item 156643 x89 tags[] Carmine Shieldsilk
+[IC FCO spike] Slot Craft Bag:157533 item 157533 x28 tags[] Fryse Willow
+[IC FCO spike] Slot Craft Bag:158307 item 158307 x69 tags[] Consecrated Myrrh
+[IC FCO spike] Slot Craft Bag:160509 item 160509 x56 tags[] Gloomspore Chitin
+[IC FCO spike] Slot Craft Bag:160558 item 160558 x59 tags[] Bat Oil
+[IC FCO spike] Slot Craft Bag:160575 item 160575 x62 tags[] Sea Snake Fang
+[IC FCO spike] Slot Craft Bag:160592 item 160592 x24 tags[] Etched Corundum
+[IC FCO spike] Slot Craft Bag:160609 item 160609 x29 tags[] Etched Adamantite
+[IC FCO spike] Slot Craft Bag:160626 item 160626 x26 tags[] Etched Manganese
+[IC FCO spike] Slot Craft Bag:166045 item 166045 x255 tags[] Indeko
+[IC FCO spike] Slot Craft Bag:166988 item 166988 x34 tags[] Thorn Sigil
+[IC FCO spike] Slot Craft Bag:167005 item 167005 x33 tags[] Viridian Phial
+[IC FCO spike] Slot Craft Bag:167189 item 167189 x14 tags[] Burnished Goldscale
+[IC FCO spike] Slot Craft Bag:167206 item 167206 x27 tags[] Etched Molybdenum
+[IC FCO spike] Slot Craft Bag:167286 item 167286 x12 tags[] Etched Bronze
+[IC FCO spike] Slot Craft Bag:167959 item 167959 x44 tags[] Umbral Droplet
+[IC FCO spike] Slot Craft Bag:167976 item 167976 x45 tags[] Arkthzand Sprocket
+[IC FCO spike] Slot Craft Bag:167993 item 167993 x50 tags[] Hawk Skull
+[IC FCO spike] Slot Craft Bag:170147 item 170147 x63 tags[] Etched Nickel
+[IC FCO spike] Slot Craft Bag:171326 item 171326 x1535 tags[] Cyrodiil Citrus
+[IC FCO spike] Slot Craft Bag:171328 item 171328 x2 tags[] Rubyblossom Extract
+[IC FCO spike] Slot Craft Bag:171433 item 171433 x1 tags[] Mourning Dew
+[IC FCO spike] Slot Craft Bag:171567 item 171567 x57 tags[] Fulgid Epidote
+[IC FCO spike] Slot Craft Bag:171596 item 171596 x55 tags[] Chokeberry Extract
+[IC FCO spike] Slot Craft Bag:171874 item 171874 x13 tags[] Pristine Daedric Heart
+[IC FCO spike] Slot Craft Bag:171894 item 171894 x38 tags[] Marsh Nettle Sprig
+[IC FCO spike] Slot Craft Bag:171911 item 171911 x40 tags[] Ivory Brigade Clasp
+[IC FCO spike] Slot Craft Bag:171928 item 171928 x109 tags[] Death Hopper Vocal Sac
+[IC FCO spike] Slot Craft Bag:176073 item 176073 x53 tags[] Filed Barbs
+[IC FCO spike] Slot Craft Bag:178520 item 178520 x30 tags[] Rose Engraving
+[IC FCO spike] Slot Craft Bag:178544 item 178544 x57 tags[] Blaze-Veined Prism
+[IC FCO spike] Slot Craft Bag:178722 item 178722 x57 tags[] Indigo Lucent
+[IC FCO spike] Slot Craft Bag:181677 item 181677 x77 tags[] Squid Ink
+[IC FCO spike] Slot Craft Bag:181694 item 181694 x45 tags[] Bone Pyre Ash
+[IC FCO spike] Slot Craft Bag:182536 item 182536 x104 tags[] Scalloped Frog-Metal
+[IC FCO spike] Slot Craft Bag:182553 item 182553 x43 tags[] Stendarr Stamp
+[IC FCO spike] Slot Craft Bag:182570 item 182570 x52 tags[] High Isle Filigree
+[IC FCO spike] Slot Craft Bag:187744 item 187744 x39 tags[] Engraved Leaves
+[IC FCO spike] Slot Craft Bag:187778 item 187778 x39 tags[] Preserving Saltwater
+[IC FCO spike] Slot Craft Bag:188323 item 188323 x51 tags[] Firesong Skarn
+[IC FCO spike] Slot Craft Bag:188340 item 188340 x43 tags[] Vibrant Tumeric
+[IC FCO spike] Slot Craft Bag:190905 item 190905 x48 tags[] Glass Eye of Mora
+[IC FCO spike] Slot Craft Bag:190922 item 190922 x18 tags[] Necrom Incense
+[IC FCO spike] Slot Craft Bag:194508 item 194508 x112 tags[] Terror Oil
+[IC FCO spike] Slot Craft Bag:194529 item 194529 x130 tags[] Funerary Wrappings
+[IC FCO spike] Slot Craft Bag:194556 item 194556 x34 tags[] Festering Dreamcloth
+[IC FCO spike] Slot Craft Bag:203198 item 203198 x34 tags[] Wildburn Withers
+[IC FCO spike] Slot Craft Bag:203230 item 203230 x81 tags[] Splinters of Mirrormoor
+[IC FCO spike] Slot Craft Bag:203376 item 203376 x48 tags[] Obliviate Lacquer
+[IC FCO spike] Slot Craft Bag:203489 item 203489 x15 tags[] Weald Brooch
+[IC FCO spike] Slot Craft Bag:203508 item 203508 x149 tags[] Memory Dross
+[IC FCO spike] Slot Craft Bag:203631 item 203631 x1902 tags[] Terne Plating^n
+[IC FCO spike] Slot Craft Bag:203632 item 203632 x3563 tags[] Iridium Plating^n
+[IC FCO spike] Slot Craft Bag:203633 item 203633 x1168 tags[] Zircon Plating^n
+[IC FCO spike] Slot Craft Bag:203634 item 203634 x627 tags[] Chromium Plating^n
+[IC FCO spike] Slot Craft Bag:204881 item 204881 x2780 tags[] Luminous Ink
+[IC FCO spike] Slot Craft Bag:211070 item 211070 x38 tags[] Exile's Oath-Gem
+[IC FCO spike] Slot Craft Bag:211087 item 211087 x31 tags[] Hel Netu Pigment
+[IC FCO spike] Slot Craft Bag:212100 item 212100 x242 tags[] Brooch of Fellowship
+[IC FCO spike] Slot Craft Bag:212117 item 212117 x36 tags[] Cold-Iron Cladding
+[IC FCO spike] Slot Craft Bag:212134 item 212134 x33 tags[] Tide-Born Feathers
+[IC FCO spike] Slot Craft Bag:212440 item 212440 x22 tags[] Uncut Black Gem Shards
+[IC FCO spike] Slot Craft Bag:212457 item 212457 x18 tags[] Voskrona Jade Clusters
+[IC FCO spike] Slot Craft Bag:223963 item 223963 x43 tags[] Cartel Clasp
+[IC FCO spike] Slot Craft Bag:224357 item 224357 x193 tags[] Cultivated Cryptpods
+[IC FCO spike] Slot Craft Bag:224358 item 224358 x253 tags[] Daedra-Blood Maggots
+[IC FCO spike] Slot Craft Bag:224359 item 224359 x1006 tags[] Fossilized Verminous Bones
+[IC FCO spike] Slot Craft Bag:224360 item 224360 x254 tags[] Winter's Grave Tongue
+[IC FCO spike] Slot Craft Bag:224836 item 224836 x136 tags[] Portent of Curiosity
+[IC FCO spike] Slot Craft Bag:225210 item 225210 x40 tags[] Red Lichen
+[IC FCO spike] LIVE SNAPSHOT END: 1020 slot rows; 17 enabled markers; no items, marks or saved settings changed.
