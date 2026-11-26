@@ -92,7 +92,7 @@ last projection reason.
 If it goes badly, roll back to `e4d668b` (with Tim's approval) and retry the
 stages more slowly. Then investigate the reported FCO/AutoCategory readiness
 failure (T10.1). See the
-[Scanning Refactor implementation plan](<../../../Features/ScanningRefactor/002 ScanningRefactor - Implementation Plan.md>). Tim considers the spike
+[Scanning Refactor implementation plan](<../../ScanningRefactor/002 ScanningRefactor - Implementation Plan.md>). Tim considers the spike
 in a good place even if work stops here; these remain follow-ups, not a claim
 of feature or release acceptance. Use the agreed disposable DEV saved-data file.
 See [T09.10 details](<002 FCOItemSaver - Results and Decisions.md#t0910-sliced-inventory-refresh>).

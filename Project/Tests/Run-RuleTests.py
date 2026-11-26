@@ -175,8 +175,22 @@ for folder in ("Core", "Banking", "Tracking"):
         compile_lua(path.read_text(encoding="utf-8-sig"), str(path.relative_to(root)))
 
 lua.execute((root / "Core\\Constants.lua").read_text(encoding="utf-8-sig"), name="Core\\Constants.lua")
+lua.execute("""
+InventoryCompanion.FCOItemSaver = {
+    GetGroups = function() return {} end,
+    GetActiveMarkerIds = function() return {}, {} end,
+    ReadSlotMarkerKey = function() return "" end,
+    IsReady = function() return false end,
+}
+InventoryCompanion.StartTrackerMarkerPolling = function() end
+InventoryCompanion.DiagnosticLog = {
+    Sample = function() end, Event = function() end,
+    IsEnabled = function() return false end, GetEnableRevision = function() return 0 end,
+}
+""")
 for relative in (
     "Tracking\\ItemDatabase.lua",
+    "Tracking\\PreparedScanning.lua",
     "Tracking\\AutoCategoryIntegration.lua",
     "Core\\RuleTests.lua",
     "Project\\Tests\\GroupEditorTests.lua",
@@ -196,6 +210,19 @@ function ZO_ClearTable(values) for key in pairs(values) do values[key] = nil end
 for relative in ("Core\\Init.lua", "Tracking\\ItemDatabase.lua", "Project\\Tests\\RulePersistenceTests.lua"):
     if relative == "Tracking\\ItemDatabase.lua":
         persistence_lua.execute((root / "Core\\Constants.lua").read_text(encoding="utf-8-sig"), name="Core\\Constants.lua")
+        persistence_lua.execute("""
+        InventoryCompanion.FCOItemSaver = {
+            GetGroups = function() return {} end,
+            RegisterBuiltInGroups = function() end,
+        }
+        InventoryCompanion.StartTrackerMarkerPolling = function() end
+        InventoryCompanion.DiagnosticLog = {
+            Initialize = function() end,
+            Start = function() assert(type(InventoryCompanion.accountWide.diagnosticLoggingEnabled) == "boolean") end,
+            Sample = function() end, Event = function() end,
+            IsEnabled = function() return false end, GetEnableRevision = function() return 0 end,
+        }
+        """)
     persistence_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
 persistence_lua.execute(
     (root / "Tracking\\AutoCategoryIntegration.lua").read_text(encoding="utf-8-sig"),
@@ -210,6 +237,28 @@ saved_variables_lua.globals().SavedVariablesDatabaseSource = (root / "Tracking\\
 saved_variables_lua.globals().SavedVariablesIntegrationSource = (
     root / "Tracking\\AutoCategoryIntegration.lua"
 ).read_text(encoding="utf-8-sig")
+saved_variables_lua.globals().SavedVariablesFCOSource = (
+    root / "Core\\FCOItemSaver.lua"
+).read_text(encoding="utf-8-sig")
+# Unmodified schema-14 DEV reader from checkpoint 50cc70a5c4d26e4e0f13674fb9e4a5cc1f313739.
+for field, relative in (
+    ("Schema14DevInitSource", "Core\\Init.lua"),
+    ("Schema14DevConstantsSource", "Core\\Constants.lua"),
+    ("Schema14DevDatabaseSource", "Tracking\\ItemDatabase.lua"),
+    ("Schema14DevIntegrationSource", "Tracking\\AutoCategoryIntegration.lua"),
+):
+    saved_variables_lua.globals()[field] = (
+        root / "Project\\Tests\\Fixtures\\Schema14" / relative
+    ).read_text(encoding="utf-8-sig")
+for field, relative in (
+    ("Schema11ReleaseInitSource", "Core/Init.lua"),
+    ("Schema11ReleaseConstantsSource", "Core/Constants.lua"),
+    ("Schema11ReleaseDatabaseSource", "Tracking/ItemDatabase.lua"),
+    ("Schema11ReleaseIntegrationSource", "Tracking/AutoCategoryIntegration.lua"),
+):
+    saved_variables_lua.globals()[field] = subprocess.check_output(
+        ["git", "--no-pager", "show", f"v1.8.1:{relative}"], cwd=root
+    ).decode("utf-8-sig")
 # Pin the last schema-4 build so downgrade protection tests the incompatible ordering change.
 legacy_saved_variables_commit = "9d2531ef621725351039ad7d3044b4a55d426b75"
 for field, relative in (
@@ -223,6 +272,23 @@ for field, relative in (
 saved_variables_lua.execute((root / "Project\\Tests\\SavedVariablesTests.lua").read_text(encoding="utf-8-sig"))
 saved_variables_lua.execute(
     (root / "Project\\Tests\\ScenePlacementInvestigationTests.lua").read_text(encoding="utf-8-sig")
+)
+diagnostic_log_lua = LuaRuntime(unpack_returned_tuples=True)
+diagnostic_log_lua.globals().DiagnosticLogSource = (
+    root / "Core\\DiagnosticLog.lua"
+).read_text(encoding="utf-8-sig")
+diagnostic_log_lua.globals().DiagnosticManifestSource = manifest
+diagnostic_log_lua.globals().TestReportSource = (
+    root / "Core\\Tests.lua"
+).read_text(encoding="utf-8-sig")
+diagnostic_log_lua.globals().HistoricalDiagnosticSchema2Source = subprocess.check_output(
+    ["git", "--no-pager", "show", "spike/fco-itemsaver:Core/DiagnosticLog.lua"], cwd=root
+).decode("utf-8-sig")
+diagnostic_log_lua.globals().HistoricalDiagnosticSchema1Source = subprocess.check_output(
+    ["git", "--no-pager", "show", "383644c^:Core/FCOItemSaverSpike.lua"], cwd=root
+).decode("utf-8-sig")
+diagnostic_log_lua.execute(
+    (root / "Project\\Tests\\DiagnosticLogTests.lua").read_text(encoding="utf-8-sig")
 )
 for field, relative in (
     ("Schema5InitSource", "Core/Init.lua"),
@@ -294,24 +360,38 @@ storage_transfer_lua.execute(
 )
 tracker_lua = LuaRuntime(unpack_returned_tuples=True)
 tracker_lua.execute("SLASH_COMMANDS = {}; EVENT_MANAGER = { RegisterForEvent = function() end }")
+tracker_lua.execute("function IsBankOpen() return false end; function IsESOPlusSubscriber() return false end")
+tracker_lua.execute("function zo_callLater(callback) callback() end; function zo_removeCallLater() end")
 tracker_lua.globals().GetGameTimeMilliseconds = lambda: int(perf_counter() * 1000)
 tracker_lua.globals().TrackerEventSource = (root / "Core\\Events.lua").read_text(encoding="utf-8-sig")
+tracker_lua.globals().TrackerInGameTestSource = (root / "Core\\Tests.lua").read_text(encoding="utf-8-sig")
 tracker_lua.globals().TrackerPanelSource = (root / "Tracking\\ItemTrackerPanel.lua").read_text(encoding="utf-8-sig")
 for relative in (
     "Core\\Init.lua",
     "Core\\Constants.lua",
+    "Core\\FCOItemSaver.lua",
+    "Core\\Scanning.lua",
     "Tracking\\ItemDatabase.lua",
+    "Tracking\\PreparedScanning.lua",
     "Tracking\\AutoCategoryIntegration.lua",
     "Project\\Tests\\TrackerPanelTests.lua",
     "Tracking\\ItemTrackerPanel.lua",
     "Core\\Settings.lua",
     "Tracking\\EditPanelTabManager.lua",
 ):
+    if relative == "Tracking\\ItemDatabase.lua":
+        tracker_lua.execute("""
+        InventoryCompanion.DiagnosticLog = {
+            Sample = function() end, Event = function() end,
+            IsEnabled = function() return false end, GetEnableRevision = function() return 0 end,
+        }
+        """)
     tracker_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
 item_editor_lua = LuaRuntime(unpack_returned_tuples=True)
-item_editor_lua.execute('InventoryCompanion = { Name = "InventoryCompanion_DEV", SettingsName = "InventoryCompanion_ItemEditorTests" }')
+item_editor_lua.execute('InventoryCompanion = { Name = "InventoryCompanion_DEV", SettingsName = "InventoryCompanion_ItemEditorTests", StartTrackerMarkerPolling = function() end }')
 for relative in (
     "Core\\Constants.lua",
+    "Core\\FCOItemSaver.lua",
     "Tracking\\ItemDatabase.lua",
     "Tracking\\AutoCategoryIntegration.lua",
     "Project\\Tests\\ItemEditorTests.lua",
@@ -325,11 +405,13 @@ autocategory_lua.execute(
 )
 # ESO does not expose debug.getinfo; keep the diagnostic tests representative of that runtime.
 autocategory_lua.execute("debug.getinfo = nil")
+autocategory_lua.globals().DiagnosticLogSource = diagnostic_log_lua.globals().DiagnosticLogSource
 autocategory_lua.globals().AutoCategoryIntegrationSource = (
     root / "Tracking\\AutoCategoryIntegration.lua"
 ).read_text(encoding="utf-8-sig")
 for relative in (
     "Core\\Constants.lua",
+    "Core\\FCOItemSaver.lua",
     "Tracking\\ItemDatabase.lua",
     "Tracking\\AutoCategoryIntegration.lua",
     "Project\\Tests\\AutoCategoryIntegrationTests.lua",
@@ -338,6 +420,25 @@ for relative in (
     "Tracking\\EditPanelAutoCategoryTab.lua",
 ):
     autocategory_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
+fco_lua = LuaRuntime(unpack_returned_tuples=True)
+fco_lua.execute('InventoryCompanion = { IsDevelopment = true }')
+for relative in ("Core\\Constants.lua", "Core\\FCOItemSaver.lua", "Project\\Tests\\FCOItemSaverTests.lua"):
+    fco_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
+prepared_scanning_lua = LuaRuntime(unpack_returned_tuples=True)
+prepared_scanning_lua.execute('InventoryCompanion = { SettingsName = "InventoryCompanion_PreparedScanTests" }')
+prepared_scanning_lua.execute((root / "Core\\Constants.lua").read_text(encoding="utf-8-sig"), name="Core\\Constants.lua")
+prepared_scanning_lua.execute("""
+BAG_BACKPACK, BAG_VIRTUAL = 1, 4
+function GetItemLinkIcon() return "icon" end
+InventoryCompanion.FCOItemSaver = {
+    GetGroups = function() return {} end,
+    GetActiveMarkerIds = function() return {}, {} end,
+}
+InventoryCompanion.DiagnosticLog = { Sample = function() end }
+""")
+for relative in ("Tracking\\ItemDatabase.lua", "Tracking\\PreparedScanning.lua",
+    "Project\\Tests\\PreparedScanningTests.lua"):
+    prepared_scanning_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
 panel_layout_lua = LuaRuntime(unpack_returned_tuples=True)
 panel_layout_lua.globals().PanelLayoutSource = (root / "Tracking\\PanelLayout.lua").read_text(encoding="utf-8-sig")
 panel_layout_lua.globals().ProgressBarSource = (root / "Banking\\ProgressBarResources.lua").read_text(encoding="utf-8-sig")
@@ -354,9 +455,12 @@ if not args.item_editor_only:
     for relative in ("Core\\Utils.lua", "Project\\Tests\\ItemNotificationTests.lua"):
         notification_lua.execute((root / relative).read_text(encoding="utf-8-sig"), name=relative)
     suites += (
+        diagnostic_log_lua.globals().GetDiagnosticLogTests(),
         panel_layout_lua.globals().GetPanelLayoutTests(),
         currency_grid_lua.globals().GetCurrencyGridColumnsTests(),
         notification_lua.globals().InventoryCompanion.GetItemNotificationTests(),
+        fco_lua.globals().GetFCOItemSaverTests(),
+        prepared_scanning_lua.globals().GetPreparedScanningTests(),
         lua.globals().InventoryCompanion.GetRuleTests(),
         lua.globals().InventoryCompanion.GetGroupEditorTests(),
         persistence_lua.globals().InventoryCompanion.GetRulePersistenceTests(),

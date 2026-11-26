@@ -734,6 +734,27 @@ local function CheckAutoCategoryRuntime()
     )
 end
 
+local function FinishTestReport(reportLines, options, discovery, results)
+    if options.verbose or options.veryverbose then
+        for _, line in ipairs(reportLines) do d(line) end
+    else
+        d(reportLines[1])
+        for _, line in ipairs(discovery) do d("[InventoryCompanion tests] " .. line) end
+        for _, result in ipairs(results) do
+            if result:sub(1, 5) == "FAIL " or result:sub(1, 5) == "WARN " then
+                d("[InventoryCompanion tests] " .. result)
+            end
+        end
+    end
+    local report, reason = this.DiagnosticLog.RecordTestReport(reportLines)
+    if report then
+        d(string.format("[InventoryCompanion tests] Report #%d recorded in diagnostic SavedVariables memory. "
+            .. "/reloadui or log out before reading the saved file.", report.sequence))
+    else
+        d("[InventoryCompanion tests] Report NOT saved: " .. tostring(reason))
+    end
+end
+
 local function RunTests(arguments)
     if not this.state or not this.state.isLoaded then
         d("[InventoryCompanion tests] Addon is not fully loaded.")
@@ -1931,8 +1952,9 @@ local function RunTests(arguments)
                     local scheduledCallbacks = {}
                     local removedCallbacks = {}
                     local nextCallbackId = 0
-                    local debounceRefreshes = { tracker = 0, currency = 0, progress = 0, slotUpdate = 0 }
+                    local debounceRefreshes = { tracker = 0, trackerQueued = 0, currency = 0, progress = 0, slotUpdate = 0 }
                     local savedHandleTrackedItemInventoryUpdate = this.HandleTrackedItemInventoryUpdate
+                    local savedQueueTrackerSlotUpdate = this.QueueTrackerSlotUpdate
                     local savedRefreshItemTrackerPanel = this.RefreshItemTrackerPanel
                     local savedRefreshCurrencyPanel = this.RefreshCurrencyPanel
                     local savedRefreshResourceProgressBars = this.RefreshResourceProgressBars
@@ -1981,6 +2003,18 @@ local function RunTests(arguments)
                                 Check(filterFound, "Expected a bag filter for " .. suffix .. " slot updates")
                             end
                             CheckEqual(#filterCalls, 4, "Each slot-update listener should receive a bag filter")
+                            if EVENT_INVENTORY_FULL_UPDATE then
+                                local fullEventId = this.Name .. "_Event_FullInventoryUpdate"
+                                CheckEqual(HasEventCall(registrationCalls, fullEventId),
+                                    tracker.showTrackedItemsPanel ~= false,
+                                    "Full-inventory updates should be registered only for the tracker")
+                                for _, call in ipairs(registrationCalls) do
+                                    if call.eventId == fullEventId then
+                                        CheckEqual(call.eventCode, EVENT_INVENTORY_FULL_UPDATE,
+                                            "Full-inventory registration should use the full-update event")
+                                    end
+                                end
+                            end
                         end
 
                         ClearCalls()
@@ -2014,7 +2048,16 @@ local function RunTests(arguments)
                         this.UpdateEventRegistry()
                         tracker.showTrackedItemsPanel = false
                         this.UpdateEventRegistry()
-                        CheckEqual(#unregistrationCalls, 0, "A shared slot listener should remain while capacity notifications need it")
+                        CheckEqual(#unregistrationCalls, EVENT_INVENTORY_FULL_UPDATE and 1 or 0,
+                            "Hiding the tracker should release only its full-update listener while capacity retains slot updates")
+                        for _, call in ipairs(unregistrationCalls) do
+                            Check(call.eventCode ~= EVENT_INVENTORY_SINGLE_SLOT_UPDATE,
+                                "Shared slot listeners must remain while capacity notifications need them")
+                        end
+                        if EVENT_INVENTORY_FULL_UPDATE then
+                            Check(HasEventCall(unregistrationCalls, this.Name .. "_Event_FullInventoryUpdate"),
+                                "The tracker-only full-update listener must be released when the tracker is hidden")
+                        end
                         listenerState.capacityNotifications = false
 
                         ClearCalls()
@@ -2145,6 +2188,11 @@ local function RunTests(arguments)
                         this.RefreshItemTrackerPanel = function()
                             debounceRefreshes.tracker = debounceRefreshes.tracker + 1
                         end
+                        this.QueueTrackerSlotUpdate = function(bagId, slotIndex)
+                            Check(bagId == BAG_BACKPACK and (slotIndex == 1 or slotIndex == 2),
+                                "Inventory events must queue the original bag and slot")
+                            debounceRefreshes.trackerQueued = debounceRefreshes.trackerQueued + 1
+                        end
                         this.RefreshCurrencyPanel = function()
                             debounceRefreshes.currency = debounceRefreshes.currency + 1
                         end
@@ -2171,14 +2219,15 @@ local function RunTests(arguments)
 
                         slotUpdateHandler(EVENT_INVENTORY_SINGLE_SLOT_UPDATE, BAG_BACKPACK, 1, false, nil, nil, 1)
                         slotUpdateHandler(EVENT_INVENTORY_SINGLE_SLOT_UPDATE, BAG_BACKPACK, 2, false, nil, nil, 1)
-                        CheckEqual(nextCallbackId, 6, "Two slot updates should debounce three refresh actions")
-                        CheckEqual(CountEntries(scheduledCallbacks), 1, "Only the final debounced callback should remain scheduled")
-                        CheckEqual(CountEntries(removedCallbacks), 5, "Each newly enqueued action should cancel the prior callback")
+                        CheckEqual(nextCallbackId, 1, "Two slot updates should share one currency/progress refresh timer")
+                        CheckEqual(CountEntries(scheduledCallbacks), 1, "Only one shared refresh callback should be scheduled")
+                        CheckEqual(CountEntries(removedCallbacks), 0, "Repeated events should not replace the shared refresh timer")
                         local finalCallback = scheduledCallbacks[nextCallbackId]
                         CheckEqual(finalCallback.delay, 500, "Refresh debounce should retain the 500 ms delay")
                         finalCallback.callback()
                         CheckEqual(debounceRefreshes.slotUpdate, 2, "Each inventory event should update tracked-item notification state")
-                        CheckEqual(debounceRefreshes.tracker, 1, "A burst should refresh the tracker once")
+                        CheckEqual(debounceRefreshes.trackerQueued, 2, "Each inventory event should feed the tracker queue")
+                        CheckEqual(debounceRefreshes.tracker, 0, "The shared currency/progress timer must not refresh the tracker")
                         CheckEqual(debounceRefreshes.currency, 1, "A burst should refresh the currency panel once")
                         CheckEqual(debounceRefreshes.progress, 1, "A burst should refresh progress bars once")
                     end)
@@ -2197,6 +2246,7 @@ local function RunTests(arguments)
                         this[name] = query
                     end
                     this.HandleTrackedItemInventoryUpdate = savedHandleTrackedItemInventoryUpdate
+                    this.QueueTrackerSlotUpdate = savedQueueTrackerSlotUpdate
                     this.RefreshItemTrackerPanel = savedRefreshItemTrackerPanel
                     this.RefreshCurrencyPanel = savedRefreshCurrencyPanel
                     this.RefreshResourceProgressBars = savedRefreshResourceProgressBars
@@ -2465,29 +2515,12 @@ local function RunTests(arguments)
             for line in (performanceReport .. "\n"):gmatch("(.-)\n") do
                 table.insert(reportLines, line)
             end
-            error(table.concat(reportLines, "\n"), 0)
+            FinishTestReport(reportLines, options, discovery, results)
         end)
         return
     end
 
-    local hasFailures = passed < total
-    if options.copy or hasFailures then
-        error(table.concat(reportLines, "\n"), 0)
-    elseif options.verbose or options.veryverbose then
-        for _, reportLine in ipairs(reportLines) do
-            d(reportLine)
-        end
-    else
-        d(summary)
-        for _, line in ipairs(discovery) do
-            d("[InventoryCompanion tests] " .. line)
-        end
-        for _, result in ipairs(results) do
-            if result:sub(1, 5) == "FAIL " or result:sub(1, 5) == "WARN " then
-                d("[InventoryCompanion tests] " .. result)
-            end
-        end
-    end
+    FinishTestReport(reportLines, options, discovery, results)
 end
 
 this.RunTests = RunTests

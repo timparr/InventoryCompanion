@@ -32,7 +32,8 @@ local function GetSortedGroupNames()
     local activeRules = this.GetActiveTrackedRules(true)
     local groupNames = {}
     for name in pairs(activeRules) do
-        if searchQuery == "" or activeRules[name].displayName:lower():find(searchQuery, 1, true) then
+        if not activeRules[name].isInactive
+            and (searchQuery == "" or activeRules[name].displayName:lower():find(searchQuery, 1, true)) then
             table.insert(groupNames, name)
         end
     end
@@ -76,15 +77,23 @@ local function PopulateGroupRow(row, groupName, index, scrollChild, activeRules)
     local ruleData = activeRules[groupName]
     local displayName = ruleData.displayName
 
+    if ruleData.isInactive then
+        displayName = displayName .. " (inactive: " .. tostring(ruleData.inactiveReason) .. ")"
+    end
     -- Apply hidden styling (Red text with "(hidden)" suffix)
-    if ruleData.display.isHidden == true then
+    if ruleData.display.isHidden == true and not ruleData.isInactive then
         displayName = string.format("|cFF5252%s (hidden)|r", displayName)
+    elseif ruleData.display.isHidden == true then
+        displayName = displayName .. " (hidden)"
     end
 
     nameLabel:SetText(displayName)
 
     -- Styling based on selection state
-    if isSelected then
+    if ruleData.isInactive then
+        nameLabel:SetFont(isSelected and "ZoFontGameBold" or "ZoFontGame")
+        nameLabel:SetColor(0.69, 0.69, 0.69, 1)
+    elseif isSelected then
         nameLabel:SetFont("ZoFontGameBold")
         nameLabel:SetColor(0.95, 0.95, 0.95, 1.0)
     else
@@ -98,14 +107,16 @@ local function PopulateGroupRow(row, groupName, index, scrollChild, activeRules)
     -- Mouse handlers for hover and click effects
     row:SetHandler("OnMouseEnter", function()
         if not isSelected then
-            nameLabel:SetColor(0.85, 0.85, 0.85, 1.0)
+            nameLabel:SetColor(ruleData.isInactive and 0.69 or 0.85,
+                ruleData.isInactive and 0.69 or 0.85, ruleData.isInactive and 0.69 or 0.85, 1.0)
             bgTex:SetAlpha(0.2)
         end
     end)
 
     row:SetHandler("OnMouseExit", function()
         if not isSelected then
-            nameLabel:SetColor(0.60, 0.60, 0.60, 1.0)
+            local color = ruleData.isInactive and 0.69 or 0.60
+            nameLabel:SetColor(color, color, color, 1.0)
             bgTex:SetAlpha(0.0)
         end
     end)
@@ -122,7 +133,7 @@ local function PopulateGroupListPane(groupNames, activeRules)
     local scrollChild = GetControl(InventoryCompanion_GroupsWindowLeftPane, "ScrollChild")
     assert(scrollChild, "Groups editor is missing its group-list ScrollChild")
 
-    if not selectedGroupName or not activeRules[selectedGroupName] then
+    if not selectedGroupName or not activeRules[selectedGroupName] or activeRules[selectedGroupName].isInactive then
         selectedGroupName = groupNames[1]
     end
 
@@ -671,8 +682,11 @@ function this.RefreshGroupsEditor()
     local groupNames, activeRules = GetSortedGroupNames()
 
     PopulateGroupListPane(groupNames, activeRules)
-    PopulateSingleGroupPane(activeRules)
-	SetActionButtons(activeRules)
+    InventoryCompanion_GroupsWindowRightPane:SetHidden(selectedGroupName == nil)
+    if selectedGroupName then
+        PopulateSingleGroupPane(activeRules)
+        SetActionButtons(activeRules)
+    end
     this.UpdateEventRegistry()
     this.RefreshEditorChrome(InventoryCompanion_GroupsWindow, "groups")
 end

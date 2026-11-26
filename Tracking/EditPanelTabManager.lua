@@ -16,6 +16,10 @@ local editorTabs = {
 }
 local visits = {}
 
+function this.InvalidateEditorHistory()
+    for window in pairs(visits) do visits[window] = nil end
+end
+
 function this.EndEditorVisit(window)
     visits[window] = nil
 end

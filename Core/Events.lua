@@ -12,28 +12,33 @@ local pendingActions = {}
 local callLaterHandle = nil
 local DEFAULT_DELAY_MS = 500
 
-local function Enqueue(key, func, delayMs)
+local function SchedulePendingActions(delayMs)
+    if callLaterHandle or next(pendingActions) == nil then return end
+    callLaterHandle = zo_callLater(function()
+        callLaterHandle = nil
+        local executing = pendingActions
+        pendingActions = {}
+        for _, action in pairs(executing) do
+            if action.stillNeeded() then action.run() end
+        end
+    end, delayMs)
+end
+
+local function Enqueue(key, func, delayMs, stillNeeded)
+    assert(type(stillNeeded) == "function", "Queued refresh requires a current-consumer predicate")
     delayMs = delayMs or DEFAULT_DELAY_MS
+    pendingActions[key] = { run = func, stillNeeded = stillNeeded }
+    SchedulePendingActions(delayMs)
+end
 
-    if not pendingActions[key] then
-        pendingActions[key] = func
+local function PrunePendingActions()
+    for key, action in pairs(pendingActions) do
+        if not action.stillNeeded() then pendingActions[key] = nil end
     end
-
-    if callLaterHandle then
+    if next(pendingActions) == nil and callLaterHandle then
         zo_removeCallLater(callLaterHandle)
         callLaterHandle = nil
     end
-
-    callLaterHandle = zo_callLater(function()
-        callLaterHandle = nil
-        
-        local executing = pendingActions
-        pendingActions = {}
-
-        for _, qFunc in pairs(executing) do
-            qFunc()
-        end
-    end, delayMs)
 end
 
 ------------------------------------------------------------------
@@ -50,6 +55,10 @@ local function ShouldListenSlotUpdate()
 
     return showMeters or showTracker or showCapacity or this.HasCapacityNotifications()
         or this.HasTrackedItemNotifications()
+end
+
+local function ShouldListenFullInventoryUpdate()
+    return this.GetPanelSettings("Tracker").showTrackedItemsPanel ~= false
 end
 
 local function ShouldListenCurrencyUpdates()
@@ -86,62 +95,68 @@ local function OnInventorySlotUpdate(eventCode, bagId, slotIndex, isNewItem, ite
     end
 
     if this.GetPanelSettings("Tracker").showTrackedItemsPanel ~= false then
-        Enqueue("RefreshItemTracker", function()
-            this.RefreshItemTrackerPanel("inventory")
-        end, 500)
+        this.QueueTrackerSlotUpdate(bagId, slotIndex)
     end
 
     if this.HasVisibleCapacityResources() then
-        Enqueue("RefreshCurrency", function()
-            this.RefreshCurrencyPanel()
-        end, 500)
+        Enqueue("RefreshCurrencyFromSlot", function()
+            if this.HasVisibleCapacityResources() then this.RefreshCurrencyPanel() end
+        end, 500, this.HasVisibleCapacityResources)
     end
 
     if this.HasVisibleProgressBars() then
-        Enqueue("RefreshProgress", function()
-            this.RefreshResourceProgressBars()
-        end, 500)
+        Enqueue("RefreshProgressFromSlot", function()
+            if this.HasVisibleProgressBars() then this.RefreshResourceProgressBars() end
+        end, 500, this.HasVisibleProgressBars)
+    end
+end
+
+local function OnFullInventoryUpdate()
+    if this.GetPanelSettings("Tracker").showTrackedItemsPanel ~= false then
+        this.NoteTrackerFullInventoryUpdate()
     end
 end
 
 local function OnCurrencyUpdate(eventCode, currencyType, currencyLocation, newAmount, oldAmount, reason)
-    local shouldRefreshPanel = this.IsCurrencyResourceVisible(currencyType, currencyLocation)
-    local shouldRefreshBar = this.IsCurrencyProgressBarVisible(currencyType)
     this.NotifyCurrencyChange(currencyType, currencyLocation, newAmount, reason)
-    if not shouldRefreshPanel and not shouldRefreshBar then
+    local function ShouldRefresh()
+        return this.IsCurrencyResourceVisible(currencyType, currencyLocation)
+            or this.IsCurrencyProgressBarVisible(currencyType)
+    end
+    if not ShouldRefresh() then
         return
     end
-    Enqueue("RefreshCurrency", function()
-        if shouldRefreshPanel then
-            this.RefreshCurrencyPanel()
-        end
-        if shouldRefreshBar then
-            this.RefreshResourceProgressBars()
-        end
+    Enqueue("RefreshFromCurrencyUpdate", function()
+        if this.IsCurrencyResourceVisible(currencyType, currencyLocation) then this.RefreshCurrencyPanel() end
+        if this.IsCurrencyProgressBarVisible(currencyType) then this.RefreshResourceProgressBars() end
         this.UpdateEventRegistry()
-    end, 500)
+    end, 500, ShouldRefresh)
 end
 
 local function OnCurrencyCapsChanged()
     if this.HasVisibleCurrencyResources() or this.HasVisibleCappedProgressBars() then
-        Enqueue("RefreshCurrencyAndProgress", function()
+        local function ShouldRefresh()
+            return this.HasVisibleCurrencyResources() or this.HasVisibleCappedProgressBars()
+        end
+        Enqueue("RefreshFromCurrencyCaps", function()
             this.RefreshProgressBarResourceDiscovery()
             if this.HasVisibleCurrencyResources() then
                 this.RefreshCurrencyPanel()
             end
+            if this.HasVisibleCappedProgressBars() then this.RefreshResourceProgressBars() end
             this.UpdateEventRegistry()
-        end, 500)
+        end, 500, ShouldRefresh)
     end
 end
 
 local function OnCapacityChanged()
-    Enqueue("RefreshProgress", function()
-        this.RefreshResourceProgressBars()
-    end, 500)
+    Enqueue("RefreshProgressFromCapacity", function()
+        if this.HasVisibleProgressBars() then this.RefreshResourceProgressBars() end
+    end, 500, this.HasVisibleProgressBars)
     if this.HasVisibleCapacityResources() then
-        Enqueue("RefreshCurrency", function()
-            this.RefreshCurrencyPanel()
-        end, 500)
+        Enqueue("RefreshCurrencyFromCapacity", function()
+            if this.HasVisibleCapacityResources() then this.RefreshCurrencyPanel() end
+        end, 500, this.HasVisibleCapacityResources)
     end
 end
 
@@ -166,6 +181,11 @@ local eventRegistry = {
     [EVENT_INVENTORY_BAG_CAPACITY_CHANGED] = { name = "BagCapacity",  condition = ShouldListenBagCapacity,  handler = OnCapacityChanged },
     [EVENT_INVENTORY_BANK_CAPACITY_CHANGED]= { name = "BankCapacity", condition = ShouldListenBankCapacity, handler = OnCapacityChanged },
 }
+if EVENT_INVENTORY_FULL_UPDATE then
+    eventRegistry[EVENT_INVENTORY_FULL_UPDATE] = {
+        name = "FullInventoryUpdate", condition = ShouldListenFullInventoryUpdate, handler = OnFullInventoryUpdate,
+    }
+end
 
 function this.UpdateEventRegistry()
     local desiredListeners = {}
@@ -191,6 +211,8 @@ function this.UpdateEventRegistry()
             end
         end
     end
+
+    PrunePendingActions()
 
     for eventId, listener in pairs(desiredListeners) do
         if not activeListeners[eventId] then

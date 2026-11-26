@@ -195,6 +195,30 @@ function this.GetItemEditorTests()
         assert(ok, failure)
     end)
 
+    Add("Item editor omits inactive groups and restores them without changing settings", function()
+        this.accountWide.trackedRules.default = { displayName = "Kept", display = { notify = true } }
+        this.InvalidateRuleCache()
+        this.RefreshTrackedItemsEditor()
+        local runtime = this.GetRuntimeRules()
+        local saved = this.accountWide.trackedRules.default
+        assert(not Row(1).hidden and Row(1).entry.key == "default")
+        Handler(1, "Show")()
+        assert(not InventoryCompanion_ItemRowOptions.hidden)
+        runtime.default.isInactive = true
+        this.RefreshTrackedItemsEditor()
+        assert(Row(1).hidden and InventoryCompanion_ItemRowOptions.hidden)
+        this.GetSettingsProfile().filterUntracked = true
+        inventory = { { itemId = 99, link = "A match", icon = "icon" } }
+        this.RefreshTrackedItemsEditor()
+        assert(not Row(1).hidden and Row(1).entry.isUntracked,
+            "Inactive groups must not claim untracked items")
+        this.GetSettingsProfile().filterUntracked = false
+        runtime.default.isInactive = false
+        this.RefreshTrackedItemsEditor()
+        assert(not Row(1).hidden and Row(1).entry.key == "default")
+        assert(this.accountWide.trackedRules.default == saved and saved.display.notify == true)
+    end)
+
     Add("Item editor toggles absent Show from its effective true default", function()
         local item = Item(nil)
         this.accountWide.trackedItems[10] = item

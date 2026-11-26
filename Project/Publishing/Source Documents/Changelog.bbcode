@@ -2,8 +2,39 @@
 
 [SIZE="2"][B][current version][/B][/SIZE]
 
+[B]Headline Feature - FCO Item Saver Integration[/B]
 [LIST]
-[*]The Item Tracker now counts items separately for each tracked group. It flattens repeated items only when their backpack and bank-side counts match across visible groups; different counts retain source-labeled rows instead of being added together. Single-item groups keep their headers.
+[*]1. Track items marked for deconstruction, vendor sale or guild-store sale, and use those groups in AutoCategory.
+[*]2. Integration is optional and starts off; Enable creates no groups automatically. Suspend and Resume preserve your groups and settings. Inactive groups are hidden in Manage Groups and Manage Tracking but retain their positions and inactivity reason in Manage AutoCategory.
+[/LIST]
+
+[B]Before upgrading:[/B] To support this integration, your SavedVariables file will be migrated to version 14. We recommend taking a backup first. Previous versions of Inventory Companion cannot read the file once it has been upgraded.
+
+[B]Other changes[/B]
+[LIST]
+[*]4. The Item Tracker now counts items separately for each tracked group. It flattens repeated items only when their backpack and bank-side counts match across visible groups; different counts retain source-labeled rows instead of being added together. Single-item groups keep their headers.
+[/LIST]
+
+[B]Bug fixes[/B]
+[LIST]
+[*]7. The tracker now reflects FCO marking changes without requiring the item to be moved.
+[*]8. Fixed AutoCategory stopping synchronization when opening the bank with FCO marker groups.
+[*]12. Retry synchronization and confirmed assignment repair now recheck item categories instead of retaining stale cached results.
+[*]13. Fixed FCO group notifications interrupting tracker updates when items enter the backpack or stacks change.
+[*]14. The item tracker shows the first inventory update immediately, then batches redraws to roughly three per second during continued activity, including a final update when transfers stop. Internal counts continue updating immediately.
+[/LIST]
+
+[B]Back End Fixes[/B]
+[LIST]
+[*]5. [B]Performance enhancement:[/B]
+[LIST]
+[*]Inventory tracking reuses inventory and group-matching work, updating changed items incrementally instead of repeatedly rescanning everything.
+[*]Large background scans and FCO marker checks run in short slices, keeping the current tracker view visible while checks finish. Marker polling stops when the tracker is hidden or on the HUD.
+[/LIST]
+[*]9. [B]Debugging change:[/B] Initial FCO support uses three fixed-marker test groups, currently created and removed through confirmed actions under Debugging. These groups start backpack-only in the tracker. Their saved AutoCategory configuration is profile-specific and does not enable AutoCategory globally; a full marker-selection editor is not included yet.
+[*]10. [B]Logging change:[/B] Debugging includes diagnostic logging and a confirmed Clear action. Background events and performance samples retain only their newest entries; logging defaults on in DEV and off in release builds. /ictest and Debug Key runs retain their latest ten complete reports even with logging off, with long lines stored safely. AutoCategory recovery's Log error also saves the full failure and traceback with logging off. Clear removes events, samples and test reports; reload the UI or log out to write changes to SavedVariables.
+[*]11. [B]Saved-data change:[/B] Saved-variable schema 14 preserves the new FCO lifecycle and test-group metadata. Back up SavedVariables before upgrading; builds with schemas 12 or 13 are not supported by this migration.
+[*]15. The Debug Key runs diagnostics without the long tracker benchmark; run /ictrackperf explicitly when needed.
 [/LIST]
 
 [SIZE="2"][B]1.8.1[/B][/SIZE]

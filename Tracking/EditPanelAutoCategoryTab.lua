@@ -287,11 +287,20 @@ local function PopulateRow(row, entry, displayIndex, scrollChild, contextAtRende
         label:SetText("AutoCategory: " .. EscapeEsoMarkup(entry.name))
         label:SetColor(0.65, 0.68, 1, 1)
     else
-        label:SetText(entry.name)
-        if modeAtRender == "display" then label:SetColor(0.2, 0.8, 0.4, 1)
-        else label:SetColor(0.60, 0.90, 0.65, 1) end
+        local inactiveRule = entry.kind == "group" and this.GetRuntimeRules()[entry.ruleKey]
+        if inactiveRule and inactiveRule.isInactive then
+            label:SetText(entry.name .. " (inactive: " .. tostring(inactiveRule.inactiveReason) .. ")")
+            label:SetColor(0.69, 0.69, 0.69, 1)
+        else
+            label:SetText(entry.name)
+            if modeAtRender == "display" then label:SetColor(0.2, 0.8, 0.4, 1)
+            else label:SetColor(0.60, 0.90, 0.65, 1) end
+        end
     end
-    if not entry.included then label:SetColor(1, 0.25, 0.25, 1) end
+    local inactiveRule = entry.kind == "group" and this.GetRuntimeRules()[entry.ruleKey]
+    if not entry.included and not (inactiveRule and inactiveRule.isInactive) then
+        label:SetColor(1, 0.25, 0.25, 1)
+    end
 
     row:SetHandler("OnMouseEnter", function()
         SetRowBackground(row, entry, true)
@@ -437,6 +446,8 @@ function this.RefreshAutoCategoryEditor()
     end
     local recovery = Window("Recovery")
     recovery:SetHidden(not recoveryVisible)
+    local logFeedback = GetControl(recovery, "LogFeedback")
+    logFeedback:SetHidden(true)
     if recoveryVisible then
         selectedReferences = {}
         scrollAfterMove = nil
@@ -457,11 +468,18 @@ function this.RefreshAutoCategoryEditor()
         repair:SetHandler("OnMouseEnter", function(control)
             ShowTooltip(control, this.AutoCategoryIntegration.CanRepairAssignments()
                 and "Preview removal of affected IC-owned assignments in the active AC profile, then synchronize."
-                or "No specific assignment repair is available. Retry or use Show details; code defects cannot be repaired by deleting rows.")
+                or "No specific assignment repair is available. Retry or use Log error; code defects cannot be repaired by deleting rows.")
         end)
         repair:SetHandler("OnMouseExit", HideTooltip)
         GetControl(recovery, "BtnDetails"):SetHandler("OnClicked", function()
-            this.AutoCategoryIntegration.ShowRecoveryDetails()
+            local recorded, message = this.AutoCategoryIntegration.LogRecoveryDetails()
+            logFeedback:SetText(message)
+            if recorded then
+                logFeedback:SetColor(1, 1, 1, 1)
+            else
+                logFeedback:SetColor(1, 0.3, 0.3, 1)
+            end
+            logFeedback:SetHidden(false)
         end)
         GetControl(recovery, "BtnReset"):SetHandler("OnClicked", function()
             this.AutoCategoryIntegration.ShowIntegrationReset()

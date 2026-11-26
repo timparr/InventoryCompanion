@@ -3,11 +3,98 @@ local this = InventoryCompanion
 
 local trackerRows = {}
 local previousLayout = nil
+local trackerSlotIndex
+local pendingSlotUpdates = {}
+local slotUpdateScheduled = false
+local slotUpdateHandle
+local slicedTrackerJob
+local markerPollPass
+local markerPollRegistered = false
+local markerAvailabilitySignature
+local trackerRefreshGeneration = 0
+local pendingTrackerRender
+local pendingIncrementalRender
+local lastInventoryRenderAt
+local priorityWatchRevision
+local priorityWatchSignature
+local priorityWatchHadMismatch
 local ROW_HEIGHT = 22
 local ROW_WIDTH = 320
 local MAX_GROUP_ITEM_ROWS = 200
 local MIN_COUNT_WIDTH = 36
 local COUNT_WIDTH_PER_CHARACTER = 8
+
+local function WatchFCOGroupPriority()
+    if not this.DiagnosticLog.IsEnabled() then return end
+    if this.IsDevelopment ~= true then return end
+    local revision = this.DiagnosticLog.GetEnableRevision()
+    if priorityWatchRevision ~= revision then
+        priorityWatchRevision = revision
+        priorityWatchSignature = nil
+    end
+    if this.accountWide.fcoIntegrationState ~= "enabled" then return end
+    local profile = this.GetAutoCategoryProfile()
+    if profile.fcoTestGroupsCreated ~= true then return end
+    local state, message = this.AutoCategoryIntegration.GetStatus()
+    if state ~= "available" then return end
+    local groups = this.FCOItemSaver.GetGroups()
+    local contexts = { "backpack", "bank" }
+    local records = {}
+    local mismatches = {}
+    for _, contextKey in ipairs(contexts) do
+        local saved = profile.autoCategoryOrder.contexts[contextKey]
+        for _, mode in ipairs({ "matching", "display" }) do
+            local positions = {}
+            for index, reference in ipairs(saved[mode]) do positions[reference] = index end
+            local actualPositions = {}
+            for _, row in ipairs(this.AutoCategoryIntegration.ResolveAutoCategoryOrder(
+                contextKey, { mode = mode })) do
+                if row.kind == "group" then actualPositions[row.reference] = row.index end
+            end
+            for _, group in ipairs(groups) do
+                local reference = "ic:" .. group.key
+                local savedPosition = positions[reference]
+                local actualPosition = actualPositions[reference]
+                records[#records + 1] = {
+                    context = contextKey, mode = mode, group = group.key,
+                    savedPosition = savedPosition, actualPosition = actualPosition,
+                }
+                if savedPosition ~= actualPosition then
+                    mismatches[#mismatches + 1] = string.format("%s/%s %s saved=%s actual=%s",
+                        contextKey, mode, group.key, tostring(savedPosition), tostring(actualPosition))
+                end
+            end
+        end
+    end
+    local signatureParts = {}
+    for _, record in ipairs(records) do
+        signatureParts[#signatureParts + 1] = string.format("%s/%s/%s=%s/%s",
+            record.context, record.mode, record.group,
+            tostring(record.savedPosition), tostring(record.actualPosition))
+    end
+    local signature = table.concat(signatureParts, ";")
+    if priorityWatchSignature == signature then return end
+    local previous = priorityWatchSignature
+    priorityWatchSignature = signature
+    local hadMismatch = #mismatches > 0
+    local event = previous == nil and "acPriorityBaseline"
+        or priorityWatchHadMismatch and not hadMismatch and "acPriorityRecovered" or "acPriorityChanged"
+    priorityWatchHadMismatch = hadMismatch
+    local details = { "Integration status: " .. tostring(state) .. "; " .. tostring(message) }
+    for _, record in ipairs(records) do
+        details[#details + 1] = string.format("%s/%s %s saved=%s actual=%s",
+            record.context, record.mode, record.group,
+            tostring(record.savedPosition), tostring(record.actualPosition))
+    end
+    this.DiagnosticLog.Event(event, hadMismatch and table.concat(mismatches, "; ")
+        or "FCO group saved and actual positions captured without mismatches", details)
+end
+
+function this.ResetPriorityWatch()
+    priorityWatchRevision = this.DiagnosticLog.GetEnableRevision()
+    priorityWatchSignature = nil
+    priorityWatchHadMismatch = nil
+end
 
 local function GetRowsContainer()
     return InventoryCompanion_ItemTrackerFloatContainerRows
@@ -1026,7 +1113,12 @@ function this.GetTrackerDisplayList()
     local activeRules = this.GetActiveTrackedRules()
     local showEmpty = this.GetPanelSettings("Tracker").showEmptyTrackedItems ~= false
 
-    local snapshot = this.GetMasterItemList(trackedItems, activeRules, this.GetTrackerBagIdList())
+    local snapshot, slotIndex = this.GetMasterItemList(trackedItems, activeRules, this.GetTrackerBagIdList())
+    if slotIndex then
+        slotIndex.profile, slotIndex.revision = this.GetTrackerContext()
+        slotIndex.runtimeRules, slotIndex.subscriber = this.GetRuntimeRules(), IsESOPlusSubscriber()
+        trackerSlotIndex = slotIndex
+    end
     local displayList, differingItemCount =
         BuildDisplayList(snapshot, activeRules, trackedItems, showEmpty)
     return displayList, activeRules, snapshot, differingItemCount
@@ -1050,11 +1142,563 @@ local function ApplyBoundedPosition(oldLeft, oldTop)
     this.PanelLayout.UpdateVisibility()
 end
 
+local slicedTrackerBudgetMs = 8
+local slicedTrackerDelayMs = 10
+local inventoryRenderIntervalMs = 333
+
+local function SameRuleNames(slotIndex, activeRules)
+    for ruleName in pairs(activeRules) do
+        if not slotIndex.ruleNames[ruleName] then return false end
+    end
+    for ruleName in pairs(slotIndex.ruleNames) do
+        if not activeRules[ruleName] then return false end
+    end
+    return true
+end
+
+local function SlotIndexIsCurrent(slotIndex, activeRules)
+    local profile, revision = this.GetTrackerContext()
+    if profile ~= slotIndex.profile or revision ~= slotIndex.revision
+        or this.GetRuntimeRules() ~= slotIndex.runtimeRules or IsESOPlusSubscriber() ~= slotIndex.subscriber
+        or not SameRuleNames(slotIndex, activeRules) then
+        return false
+    end
+    local markerIds = this.FCOItemSaver.GetActiveMarkerIds(activeRules)
+    if #markerIds ~= #slotIndex.markerIds then return false end
+    for index, markerId in ipairs(markerIds) do
+        if slotIndex.markerIds[index] ~= markerId then return false end
+    end
+    return true
+end
+
+local function MarkSlot(set, bagId, slotIndex)
+    local slots = set[bagId]
+    if not slots then slots = {}; set[bagId] = slots end
+    slots[slotIndex] = true
+end
+
+local function ApplySlotsToIndex(slotIndex, changed, rules)
+    local slotCount = 0
+    for bagId, slots in pairs(changed) do
+        local bag = slotIndex.bags[bagId]
+        if bag then
+            for slot in pairs(slots) do
+                slotCount = slotCount + 1
+                if not bag.ordered[slot] then
+                    bag.ordered[slot] = true
+                    bag.order[#bag.order + 1] = slot
+                end
+                local record = this.EvaluateTrackerSlot(bagId, slot, rules)
+                if record then
+                    record.markerKey = this.FCOItemSaver.ReadSlotMarkerKey(bagId, slot, slotIndex.markerIds)
+                end
+                bag.slots[slot] = record
+            end
+        end
+    end
+    return slotCount
+end
+
+local function CompareTrackerSnapshots(left, right)
+    local differences = {}
+    local itemIds = {}
+    for itemId in pairs(left.items) do itemIds[itemId] = true end
+    for itemId in pairs(right.items) do itemIds[itemId] = true end
+    for itemId in pairs(itemIds) do
+        local a, b = left.items[itemId], right.items[itemId]
+        local different = a == nil or b == nil
+        if not different then
+            different = a.bagCount ~= b.bagCount or a.bankCount ~= b.bankCount
+            for key in pairs(a.matchedRules) do if not b.matchedRules[key] then different = true end end
+            for key in pairs(b.matchedRules) do if not a.matchedRules[key] then different = true end end
+        end
+        if different then
+            differences[#differences + 1] = string.format("item %s indexed=%s fresh=%s",
+                tostring(itemId), a and string.format("%d/%d", a.bagCount, a.bankCount) or "missing",
+                b and string.format("%d/%d", b.bagCount, b.bankCount) or "missing")
+            if #differences >= 20 then break end
+        end
+    end
+    return differences
+end
+
+local RenderTrackerDisplayList
+
+local function ScheduleTrackerRender(render)
+    local token = {}
+    render.timerToken = token
+    if render.handle then zo_removeCallLater(render.handle) end
+    render.handle = nil
+    local delay = 0
+    if lastInventoryRenderAt then
+        delay = math.max(0, math.min(inventoryRenderIntervalMs,
+            lastInventoryRenderAt + inventoryRenderIntervalMs - GetGameTimeMilliseconds()))
+    end
+    local started = false
+    local handle = zo_callLater(function()
+        started = true
+        if render.timerToken ~= token then return end
+        render.handle = nil
+        render.callback()
+    end, delay)
+    if not started then render.handle = handle end
+end
+
+local function CancelPendingIncrementalRender()
+    local render = pendingIncrementalRender
+    pendingIncrementalRender = nil
+    if render then
+        render.timerToken = nil
+        if render.handle then zo_removeCallLater(render.handle) end
+    end
+end
+
+local function CountMarkedSlots(set)
+    local count = 0
+    for _, slots in pairs(set) do
+        for _ in pairs(slots) do count = count + 1 end
+    end
+    return count
+end
+
+local function DescribeSlotRecord(record)
+    if not record then return "empty" end
+    return string.format("%s x%s", tostring(record.itemData.itemId), tostring(record.itemData.count))
+end
+
+local function DescribeSlotDifferences(previous, fresh, dirty)
+    local lines, total = {}, 0
+    for _, bagId in ipairs(fresh.bagIds) do
+        local previousSlots, freshSlots = previous.bags[bagId].slots, fresh.bags[bagId].slots
+        local candidates = {}
+        for slot in pairs(previousSlots) do candidates[slot] = true end
+        for slot in pairs(freshSlots) do candidates[slot] = true end
+        for slot in pairs(candidates) do
+            local a, b = previousSlots[slot], freshSlots[slot]
+            if not a or not b or a.itemData.itemId ~= b.itemData.itemId or a.itemData.count ~= b.itemData.count then
+                total = total + 1
+                if #lines < 20 then
+                    lines[#lines + 1] = string.format("bag %d slot %d previous=%s fresh=%s live=%s replayed=%s",
+                        bagId, slot, DescribeSlotRecord(a), DescribeSlotRecord(b),
+                        DescribeSlotRecord(this.EvaluateTrackerSlot(bagId, slot, {})),
+                        tostring(dirty[bagId] ~= nil and dirty[bagId][slot] == true))
+                end
+            end
+        end
+    end
+    return lines, total
+end
+
+local function AdoptTrackerSlotIndex(slotIndex, freshSnapshot, trackedItems, activeRules, job)
+    slotIndex.profile, slotIndex.revision = this.GetTrackerContext()
+    slotIndex.runtimeRules, slotIndex.subscriber = this.GetRuntimeRules(), IsESOPlusSubscriber()
+    local previous = trackerSlotIndex
+    trackerSlotIndex = slotIndex
+    if not previous or not previous.incrementallyUpdated or not SlotIndexIsCurrent(previous, activeRules) then return end
+    local incremental = this.BuildTrackerSnapshotFromSlotIndex(previous, trackedItems, activeRules)
+    local differences = CompareTrackerSnapshots(incremental, freshSnapshot)
+    if #differences > 0 then
+        local slotLines, slotTotal = DescribeSlotDifferences(previous, slotIndex, job.dirty)
+        differences[#differences + 1] = string.format(
+            "scan: replayed slots=%d, bankOpen=%s, wallMs=%s, slices=%s, fullUpdateDuringScan=%s, "
+                .. "incremental updates applied to previous index=%s (%s slots)",
+            CountMarkedSlots(job.dirty), tostring(IsBankOpen()), tostring(job.metrics.wallMs),
+            tostring(job.metrics.sliceCount), tostring(job.rerun == true),
+            tostring(previous.updateCount), tostring(previous.updatedSlotCount))
+        differences[#differences + 1] = string.format("slot differences between previous and fresh index: %d", slotTotal)
+        for _, line in ipairs(slotLines) do differences[#differences + 1] = line end
+        if this.DiagnosticLog.Event("trackerMismatch", "Incremental tracker differs from a fresh scan", differences) == true then
+            this.Utils.UserError("Tracker mismatch logged (TODO F16). Reload the UI, then ask Copilot to analyse the diagnostic log.",
+                "Tracker mismatch logged - see TODO F16")
+        end
+    end
+end
+
+local function RenderTrackerDisplayList(items, rules, reason, targetGroup)
+    CancelPendingIncrementalRender()
+    lastInventoryRenderAt = GetGameTimeMilliseconds()
+    local oldLeft, oldTop = GetTrackerCoordinates()
+    HideAllTrackerRows()
+    local context, revision = this.GetTrackerContext()
+    local contextChanged = not previousLayout or previousLayout.context ~= context
+        or previousLayout.revision ~= revision
+    if contextChanged then previousLayout = nil end
+    local _, scrollOffset = GetRowsContainer().scroll:GetScrollOffsets()
+    if contextChanged then scrollOffset = 0 end
+    if #items == 0 then
+        items = { { link = "|c888888No tracked items in backpack|r", count = 0,
+            icon = "EsoUI/Art/Buttons/edit_up.dds", isEmpty = true } }
+    end
+    local budget = math.min(this.GetPanelSettings("Tracker").trackerMaxRows,
+        math.max(1, math.floor((GuiRoot:GetHeight() - InventoryCompanion_ItemTrackerFloatTitle:GetHeight() - 12) / 24)))
+    local model = BuildLayoutModel(items, rules)
+    local expanded, collapsed = ChooseLayout(model, previousLayout, reason, targetGroup, budget)
+    local selected = SelectRows(model, expanded)
+    local wrapped = false
+    if this.GetPanelSettings("Tracker").wrapTrackedItemNames == true and not collapsed and #selected <= budget then
+        MeasureWrappedRows(selected)
+        local units = 0
+        for _, item in ipairs(selected) do units = units + item.rowUnits end
+        wrapped = units <= budget
+    end
+    for _, name in ipairs(model.order) do model.groups[name].expanded = expanded[name] end
+    local contentHeight = RenderPopulatedRows(selected, wrapped)
+    local target
+    for index, item in ipairs(selected) do
+        if item.isGroup and reason == "expand" and item.ruleName == targetGroup then target = trackerRows[index] end
+    end
+    ApplyViewport(contentHeight, budget, wrapped, scrollOffset, target)
+    model.context, model.revision, model.budget = context, revision, budget
+    previousLayout = model
+    ApplyBoundedPosition(oldLeft, oldTop)
+end
+
+local function StartSlicedTrackerRefresh(reason, targetGroup)
+    CancelPendingIncrementalRender()
+    trackerRefreshGeneration = trackerRefreshGeneration + 1
+    local generation = trackerRefreshGeneration
+    local trackedItems, rules = this.GetActiveTrackedItems(), this.GetActiveTrackedRules()
+    local profile, revision = this.GetTrackerContext()
+    local runtimeRules = this.GetRuntimeRules()
+    local bankOpen, subscriber = IsBankOpen(), IsESOPlusSubscriber()
+    local showEmpty = this.GetPanelSettings("Tracker").showEmptyTrackedItems ~= false
+    local job = {
+        started = GetGameTimeMilliseconds(),
+        dirty = {},
+        work = { entries = 0, markerIds = {} },
+        metrics = { elapsedMs = 0, maxSliceMs = 0, sliceCount = 0,
+            targetSliceMs = slicedTrackerBudgetMs, requestedDelayMs = slicedTrackerDelayMs },
+    }
+    slicedTrackerJob = job
+    local checks = 0
+    job.work.checkpoint = function()
+        checks = checks + 1
+        if checks >= 16 then
+            checks = 0
+            if GetGameTimeMilliseconds() - job.sliceStarted >= slicedTrackerBudgetMs then coroutine.yield() end
+        end
+    end
+    local bagIds = this.GetTrackerBagIdList()
+    local worker = coroutine.create(function()
+        local snapshot, slotIndex = this.PreparedScanning.GetPreparedMasterItemList(
+            trackedItems, rules, bagIds, job.work)
+        job.slotIndex = slotIndex
+        return snapshot
+    end)
+    local function Step()
+        if slicedTrackerJob ~= job then return end
+        local currentProfile, currentRevision = this.GetTrackerContext()
+        if currentProfile ~= profile or currentRevision ~= revision or this.GetRuntimeRules() ~= runtimeRules
+            or IsBankOpen() ~= bankOpen or IsESOPlusSubscriber() ~= subscriber
+            or this.GetPanelSettings("Tracker").showTrackedItemsPanel == false then
+            slicedTrackerJob = nil
+            this.RefreshItemTrackerPanel("inventory")
+            return
+        end
+        job.sliceStarted = GetGameTimeMilliseconds()
+        local ok, snapshot = coroutine.resume(worker)
+        local sliceMs = GetGameTimeMilliseconds() - job.sliceStarted
+        job.metrics.elapsedMs = job.metrics.elapsedMs + sliceMs
+        job.metrics.maxSliceMs = math.max(job.metrics.maxSliceMs, sliceMs)
+        job.metrics.sliceCount = job.metrics.sliceCount + 1
+        if not ok then
+            slicedTrackerJob = nil
+            error(snapshot, 0)
+        end
+        if coroutine.status(worker) ~= "dead" then
+            local started = false
+            local handle = zo_callLater(function()
+                started = true
+                job.handle = nil
+                Step()
+            end, slicedTrackerDelayMs)
+            if not started then job.handle = handle end
+            return
+        end
+        slicedTrackerJob = nil
+        job.metrics.status = "completed"
+        job.metrics.wallMs = GetGameTimeMilliseconds() - job.started
+        local slotIndex = job.slotIndex
+        job.metrics.dirtySlots = ApplySlotsToIndex(slotIndex, job.dirty, rules)
+        if job.metrics.dirtySlots > 0 then
+            snapshot = this.BuildTrackerSnapshotFromSlotIndex(slotIndex, trackedItems, rules)
+        end
+        local previous = trackerSlotIndex
+        if previous and SlotIndexIsCurrent(previous, rules) and pendingSlotUpdates then
+            local pending = pendingSlotUpdates
+            pendingSlotUpdates = {}
+            local flushed = ApplySlotsToIndex(previous, pending, rules)
+            if flushed > 0 then
+                previous.incrementallyUpdated = true
+                previous.updateCount = (previous.updateCount or 0) + 1
+                previous.updatedSlotCount = (previous.updatedSlotCount or 0) + flushed
+            end
+        end
+        if job.rerun then slotIndex.fullUpdateSeen = true end
+        AdoptTrackerSlotIndex(slotIndex, snapshot, trackedItems, rules, job)
+        job.metrics.finishMs = GetGameTimeMilliseconds() - job.started - job.metrics.wallMs
+        local render = { generation = generation }
+        pendingTrackerRender = render
+        render.callback = function()
+            if pendingTrackerRender ~= render then return end
+            pendingTrackerRender = nil
+            local renderStartedAt = GetGameTimeMilliseconds()
+            if generation == trackerRefreshGeneration and slicedTrackerJob == nil
+                and trackerSlotIndex == slotIndex
+                and this.GetPanelSettings("Tracker").showTrackedItemsPanel ~= false then
+                if slotIndex.updateCount then snapshot = this.BuildTrackerSnapshotFromSlotIndex(slotIndex, trackedItems, rules) end
+                RenderTrackerDisplayList(BuildDisplayList(snapshot, rules, trackedItems, showEmpty), rules, reason, targetGroup)
+                WatchFCOGroupPriority()
+            end
+            this.DiagnosticLog.Sample("trackerScan", {
+                algorithm = "sliced", status = "completed", scanMs = job.metrics.elapsedMs,
+                wallMs = job.metrics.wallMs, maxSliceMs = job.metrics.maxSliceMs,
+                sliceCount = job.metrics.sliceCount, targetSliceMs = slicedTrackerBudgetMs,
+                requestedDelayMs = slicedTrackerDelayMs, entries = job.work.entries,
+                markerCount = #job.work.markerIds, finishMs = job.metrics.finishMs,
+            })
+            this.DiagnosticLog.Sample("trackerRefresh", {
+                reason = tostring(reason), scanMs = job.metrics.elapsedMs,
+                renderMs = GetGameTimeMilliseconds() - renderStartedAt,
+                rows = job.work.entries, bankOpen = bankOpen,
+            })
+            if job.rerun then StartSlicedTrackerRefresh("inventory") end
+        end
+        ScheduleTrackerRender(render)
+    end
+    local started = false
+    local handle = zo_callLater(function()
+        started = true
+        job.handle = nil
+        Step()
+    end, 0)
+    if not started then job.handle = handle end
+end
+
+function this.CancelSlicedTrackerRefresh()
+    CancelPendingIncrementalRender()
+    trackerRefreshGeneration = trackerRefreshGeneration + 1
+    if slicedTrackerJob and slicedTrackerJob.handle then
+        zo_removeCallLater(slicedTrackerJob.handle)
+        slicedTrackerJob.handle = nil
+    end
+    if pendingTrackerRender then
+        pendingTrackerRender.timerToken = nil
+        if pendingTrackerRender.handle then zo_removeCallLater(pendingTrackerRender.handle) end
+    end
+    pendingTrackerRender = nil
+    slicedTrackerJob = nil
+end
+
+local function CancelPendingTrackerSlotUpdates()
+    if slotUpdateHandle then
+        zo_removeCallLater(slotUpdateHandle)
+        slotUpdateHandle = nil
+    end
+    pendingSlotUpdates = {}
+    slotUpdateScheduled = false
+end
+
+local function QueueIncrementalTrackerRender(slotIndex, scanMs, count)
+    if slicedTrackerJob or pendingTrackerRender then return end
+    if pendingIncrementalRender and pendingIncrementalRender.slotIndex ~= slotIndex then
+        CancelPendingIncrementalRender()
+    end
+    if pendingIncrementalRender then
+        pendingIncrementalRender.scanMs = pendingIncrementalRender.scanMs + scanMs
+        pendingIncrementalRender.rows = pendingIncrementalRender.rows + count
+        return
+    end
+    local render = {
+        slotIndex = slotIndex, generation = trackerRefreshGeneration,
+        scanMs = scanMs, rows = count,
+    }
+    pendingIncrementalRender = render
+    render.callback = function()
+        if pendingIncrementalRender ~= render then return end
+        pendingIncrementalRender = nil
+        if render.generation ~= trackerRefreshGeneration or trackerSlotIndex ~= slotIndex
+            or slicedTrackerJob or this.GetPanelSettings("Tracker").showTrackedItemsPanel == false then
+            return
+        end
+        local trackedItems, rules = this.GetActiveTrackedItems(), this.GetActiveTrackedRules()
+        if not SlotIndexIsCurrent(slotIndex, rules) then
+            trackerSlotIndex = nil
+            this.RefreshItemTrackerPanel("inventory")
+            return
+        end
+        local renderStarted = GetGameTimeMilliseconds()
+        local snapshot = this.BuildTrackerSnapshotFromSlotIndex(slotIndex, trackedItems, rules)
+        local showEmpty = this.GetPanelSettings("Tracker").showEmptyTrackedItems ~= false
+        RenderTrackerDisplayList(BuildDisplayList(snapshot, rules, trackedItems, showEmpty), rules, "inventory")
+        this.DiagnosticLog.Sample("trackerRefresh", {
+            reason = "incremental", scanMs = render.scanMs,
+            renderMs = GetGameTimeMilliseconds() - renderStarted,
+            rows = render.rows, bankOpen = IsBankOpen(),
+        })
+    end
+    ScheduleTrackerRender(render)
+end
+
+local function ApplyTrackerSlotUpdates()
+    slotUpdateScheduled = false
+    slotUpdateHandle = nil
+    local pending = pendingSlotUpdates
+    pendingSlotUpdates = {}
+    local slotIndex = trackerSlotIndex
+    if not slotIndex or this.GetPanelSettings("Tracker").showTrackedItemsPanel == false then return end
+    local started = GetGameTimeMilliseconds()
+    local rules = this.GetActiveTrackedRules()
+    if not SlotIndexIsCurrent(slotIndex, rules) then
+        trackerSlotIndex = nil
+        this.RefreshItemTrackerPanel("inventory")
+        return
+    end
+    local count = ApplySlotsToIndex(slotIndex, pending, rules)
+    if count == 0 then return end
+    slotIndex.incrementallyUpdated = true
+    slotIndex.updateCount = (slotIndex.updateCount or 0) + 1
+    slotIndex.updatedSlotCount = (slotIndex.updatedSlotCount or 0) + count
+    QueueIncrementalTrackerRender(slotIndex, GetGameTimeMilliseconds() - started, count)
+end
+
+function this.QueueTrackerSlotUpdate(bagId, slotIndex)
+    if slicedTrackerJob then MarkSlot(slicedTrackerJob.dirty, bagId, slotIndex) end
+    if not trackerSlotIndex then
+        if not slicedTrackerJob then this.RefreshItemTrackerPanel("inventory") end
+        return
+    end
+    MarkSlot(pendingSlotUpdates, bagId, slotIndex)
+    if not slotUpdateScheduled then
+        slotUpdateScheduled = true
+        local started = false
+        local handle = zo_callLater(function()
+            started = true
+            slotUpdateHandle = nil
+            ApplyTrackerSlotUpdates()
+        end, 0)
+        if not started then slotUpdateHandle = handle end
+    end
+end
+
+function this.NoteTrackerFullInventoryUpdate()
+    if slicedTrackerJob then slicedTrackerJob.rerun = true
+    else this.RefreshItemTrackerPanel("inventory") end
+end
+
+local function MarkerPollAllowed()
+    if InventoryCompanion_ItemTrackerFloat:IsHidden() then return false end
+    local scene = SCENE_MANAGER:GetCurrentScene()
+    return scene ~= nil and scene:GetName() ~= "hud"
+end
+
+function this.PollTrackerMarkers()
+    if this.accountWide.fcoIntegrationState ~= "enabled" then
+        this.StopTrackerMarkerPolling()
+        return
+    end
+    local signature = this.FCOItemSaver.GetAvailabilitySignature(this.GetRuntimeRules())
+    if signature ~= markerAvailabilitySignature then
+        markerAvailabilitySignature = signature
+        if markerPollPass and markerPollPass.handle then zo_removeCallLater(markerPollPass.handle) end
+        markerPollPass = nil
+        this.InvalidateRuleCache()
+        this.CancelSlicedTrackerRefresh()
+        this.AutoCategoryIntegration.OnFCOAvailabilityChanged()
+        this.RefreshGroupsEditor()
+        this.RefreshAutoCategoryEditor()
+        this.RefreshItemTrackerPanel()
+    end
+    if not this.FCOItemSaver.IsReady() then return end
+    if markerPollPass or not trackerSlotIndex or not MarkerPollAllowed() then return end
+    local rules = this.GetActiveTrackedRules()
+    if not SlotIndexIsCurrent(trackerSlotIndex, rules) then
+        this.RefreshItemTrackerPanel("inventory")
+        return
+    end
+    local slotIndex = trackerSlotIndex
+    if #slotIndex.markerIds == 0 then return end
+    local pass = {}
+    markerPollPass = pass
+    local worker = coroutine.create(function()
+        local checks = 0
+        for _, bagId in ipairs(slotIndex.bagIds) do
+            local bag = slotIndex.bags[bagId]
+            local position = 1
+            while bag.order[position] do
+                local slot = bag.order[position]
+                local record = bag.slots[slot]
+                if record and this.FCOItemSaver.ReadSlotMarkerKey(bagId, slot, slotIndex.markerIds) ~= record.markerKey then
+                    this.QueueTrackerSlotUpdate(bagId, slot)
+                end
+                position = position + 1
+                checks = checks + 1
+                if checks >= 8 then
+                    checks = 0
+                    if GetGameTimeMilliseconds() - pass.sliceStarted >= 2 then coroutine.yield() end
+                end
+            end
+        end
+    end)
+    local function Step()
+        if markerPollPass ~= pass then return end
+        if trackerSlotIndex ~= slotIndex or not MarkerPollAllowed()
+            or this.accountWide.fcoIntegrationState ~= "enabled" then
+            markerPollPass = nil
+            return
+        end
+        pass.sliceStarted = GetGameTimeMilliseconds()
+        local ok, failure = coroutine.resume(worker)
+        if not ok then markerPollPass = nil; error(failure, 0) end
+        if coroutine.status(worker) ~= "dead" then
+            local started = false
+            local handle = zo_callLater(function()
+                started = true
+                pass.handle = nil
+                Step()
+            end, slicedTrackerDelayMs)
+            if not started then pass.handle = handle end
+        else markerPollPass = nil end
+    end
+    Step()
+end
+
+function this.StartTrackerMarkerPolling()
+    local updateName = this.Name .. "_FCOItemSaverMarkerPoll"
+    if this.accountWide.fcoIntegrationState ~= "enabled" then
+        this.StopTrackerMarkerPolling()
+        return
+    end
+    local signature = this.FCOItemSaver.GetAvailabilitySignature(this.GetRuntimeRules())
+    if not MarkerPollAllowed() and markerPollPass then
+        if markerPollPass.handle then zo_removeCallLater(markerPollPass.handle) end
+        markerPollPass = nil
+    end
+    if markerPollRegistered then return end
+    markerAvailabilitySignature = signature
+    EVENT_MANAGER:RegisterForUpdate(updateName, 1000, this.PollTrackerMarkers)
+    markerPollRegistered = true
+end
+
+function this.StopTrackerMarkerPolling()
+    if markerPollRegistered then
+        EVENT_MANAGER:UnregisterForUpdate(this.Name .. "_FCOItemSaverMarkerPoll")
+        markerPollRegistered = false
+    end
+    if markerPollPass and markerPollPass.handle then
+        zo_removeCallLater(markerPollPass.handle)
+        markerPollPass.handle = nil
+    end
+    markerPollPass = nil
+    markerAvailabilitySignature = nil
+end
+
 function this.SetItemTrackerPanelVisible(visible)
     assert(type(visible) == "boolean", "Tracker visibility must be a boolean")
     this.GetPanelSettings("Tracker").showTrackedItemsPanel = visible
     this.UpdateEventRegistry()
     this.RefreshItemTrackerPanel()
+    this.StartTrackerMarkerPolling()
 end
 
 function this.ToggleItemTrackerPanel()
@@ -1062,17 +1706,29 @@ function this.ToggleItemTrackerPanel()
 end
 
 function this.RefreshItemTrackerPanel(reason, targetGroup)
+    if reason == "inventory" and slicedTrackerJob then return end
+    if reason ~= "inventory" then lastInventoryRenderAt = nil end
     local titleSize = this.GetPanelSettings("Tracker").trackerTitleSize
     InventoryCompanion_ItemTrackerFloatTitle:SetFont(string.format("%s|%d|soft-shadow-thin",
         ZoFontGame:GetFontInfo(), titleSize))
     InventoryCompanion_ItemTrackerFloatEditIcon:SetDimensions(titleSize, titleSize)
     InventoryCompanion_ItemTrackerFloatSettingsIcon:SetDimensions(titleSize, titleSize)
     if this.GetPanelSettings("Tracker").showTrackedItemsPanel == false then
+        this.CancelSlicedTrackerRefresh()
+        CancelPendingTrackerSlotUpdates()
         InventoryCompanion_ItemTrackerFloat:SetHidden(true)
         this.PanelLayout.UpdateVisibility()
         return
     end
 
+    if reason == "inventory" then
+        this.CancelSlicedTrackerRefresh()
+        StartSlicedTrackerRefresh(reason, targetGroup)
+        return
+    end
+    this.CancelSlicedTrackerRefresh()
+    CancelPendingTrackerSlotUpdates()
+    local scanStarted = GetGameTimeMilliseconds()
     local oldLeft, oldTop = GetTrackerCoordinates()
     HideAllTrackerRows()
 
@@ -1083,6 +1739,7 @@ function this.RefreshItemTrackerPanel(reason, targetGroup)
     local _, scrollOffset = GetRowsContainer().scroll:GetScrollOffsets()
     if contextChanged then scrollOffset = 0 end
     local items, rules = this.GetTrackerDisplayList()
+    local scanFinished = GetGameTimeMilliseconds()
     if #items == 0 then
         items = { { link = "|c888888No tracked items in backpack|r", count = 0,
             icon = "EsoUI/Art/Buttons/edit_up.dds", isEmpty = true } }
@@ -1114,4 +1771,9 @@ function this.RefreshItemTrackerPanel(reason, targetGroup)
     model.context, model.revision, model.budget = context, revision, budget
     previousLayout = model
     ApplyBoundedPosition(oldLeft, oldTop)
+    this.DiagnosticLog.Sample("trackerRefresh", {
+        reason = tostring(reason), scanMs = scanFinished - scanStarted,
+        renderMs = GetGameTimeMilliseconds() - scanFinished, rows = #items,
+        bankOpen = IsBankOpen(),
+    })
 end

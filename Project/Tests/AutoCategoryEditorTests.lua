@@ -353,13 +353,21 @@ function this.GetAutoCategoryEditorTests()
                 end
                 assert(#VisibleRows() == 0 and not GetControl(window, "BtnEditItems").hidden
                     and not GetControl(window, "BtnEditGroups").hidden)
-                local oldRetry, oldDetails = integration.RetrySynchronization, integration.ShowRecoveryDetails
+                local oldRetry, oldDetails = integration.RetrySynchronization, integration.LogRecoveryDetails
                 local retried, detailed = 0, 0
                 integration.RetrySynchronization = function() retried = retried + 1 end
-                integration.ShowRecoveryDetails = function() detailed = detailed + 1 end
+                integration.LogRecoveryDetails = function()
+                    detailed = detailed + 1
+                    return true, "Error logged. Log out to save."
+                end
                 GetControl(recovery, "BtnRetry").handlers.OnClicked()
                 GetControl(recovery, "BtnDetails").handlers.OnClicked()
                 assert(retried == 1 and detailed == 1, "Recovery must not go through the faulted Run gate")
+                local feedback = GetControl(recovery, "LogFeedback")
+                assert(feedback.text == "Error logged. Log out to save." and not feedback.hidden)
+                integration.LogRecoveryDetails = function() return false, "Cannot log: malformed store" end
+                GetControl(recovery, "BtnDetails").handlers.OnClicked()
+                assert(feedback.text == "Cannot log: malformed store" and not feedback.hidden)
                 local previousCanRepair, previousShowRepair = integration.CanRepairAssignments, integration.ShowAssignmentRepair
                 assert(GetControl(recovery, "BtnRepair").enabled == false,
                     "A code failure must not offer assignment repair")
@@ -371,7 +379,7 @@ function this.GetAutoCategoryEditorTests()
                 GetControl(recovery, "BtnRepair").handlers.OnClicked()
                 assert(repaired == 1)
                 integration.CanRepairAssignments, integration.ShowAssignmentRepair = previousCanRepair, previousShowRepair
-                integration.RetrySynchronization, integration.ShowRecoveryDetails = oldRetry, oldDetails
+                integration.RetrySynchronization, integration.LogRecoveryDetails = oldRetry, oldDetails
                 integration.ResolveAutoCategoryOrder = previousResolve
                 local previousReset = integration.ShowIntegrationReset
                 local resets = 0

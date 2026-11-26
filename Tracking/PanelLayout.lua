@@ -447,6 +447,7 @@ function layout.UpdateVisibility()
         panels[key]:SetHidden(not (visible and not otherSettings and (not inCutscene or exception)))
     end
     this.SetVisibilityTickerNeeded(needsTicker)
+    this.StartTrackerMarkerPolling()
 end
 
 function layout.UpdateContext()

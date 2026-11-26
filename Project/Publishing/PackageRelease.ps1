@@ -49,10 +49,15 @@ function Backup-SavedVariables {
     $null = New-Item -ItemType Directory -Path $backupDirectory -Force
     $timestamp = [datetime]::UtcNow.ToString("yyyyMMdd-HHmmssfff'Z'")
     foreach ($sourceFile in $sourceFiles) {
-        $backupPath = Join-Path $backupDirectory "$($sourceFile.BaseName)-$timestamp.lua"
+        $backupBaseName = if ($sourceFile.BaseName -eq "InventoryCompanion_DEV") {
+            "InventoryCompanion_DEV"
+        } else {
+            "InventoryCompanion_RELEASE"
+        }
+        $backupPath = Join-Path $backupDirectory "$backupBaseName-$timestamp.lua"
         $suffix = 1
         while (Test-Path -LiteralPath $backupPath) {
-            $backupPath = Join-Path $backupDirectory "$($sourceFile.BaseName)-$timestamp-$suffix.lua"
+            $backupPath = Join-Path $backupDirectory "$backupBaseName-$timestamp-$suffix.lua"
             $suffix++
         }
         Copy-Item -LiteralPath $sourceFile.FullName -Destination $backupPath
@@ -645,7 +650,9 @@ if ($releaseMode -eq "Hotfix") {
     $releaseManifest = @($manifestLines | Where-Object {
         $_.Trim().Replace('/', '\') -ne "Core\Development.lua"
     } | ForEach-Object {
-        $_ -replace '^(##\s*Title:.*?) \[DEV\]', '$1'
+        $releaseLine = $_ -replace '^(##\s*Title:.*?) \[DEV\]', '$1'
+        $releaseLine -replace '^(##\s*SavedVariables:\s*)InventoryCompanion_SavedVariables_dev(\s|$)',
+            '${1}InventoryCompanion_SavedVariables${2}'
     })
     $null = New-Item -ItemType Directory -Path $stateDirectory -Force
     $null = New-Item -ItemType Directory -Path $candidateRoot

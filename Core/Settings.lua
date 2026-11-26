@@ -81,29 +81,149 @@ local function CreatePanelNavigation(control)
     control.panelButtons[3]:SetEnabled(this.AutoCategoryIntegration.IsPanelAvailable())
 end
 
+local fcoActions = {
+    Enable = { "Enable", "Enable marker-linked matching without creating groups. Requires FCO ItemSaver to be ready." },
+    Suspend = { "Suspend", "Suspend matching while preserving configuration. Does not require FCO ItemSaver to be available." },
+    Resume = { "Resume", "Resume matching. Requires FCO ItemSaver to be ready." },
+    TurnOff = { "Turn Off", "Delete all FCO-dependent groups and owned references from all profiles and backups." },
+}
+
+local function RefreshFCOActions(control)
+    local state = this.accountWide.fcoIntegrationState
+    assert(state == "off" or state == "enabled" or state == "suspended", "Invalid FCO integration state")
+    local reason = state ~= "enabled" and this.FCOItemSaver.GetReadinessReason() or nil
+    local actions = {}
+    if state == "off" and not reason then actions[#actions + 1] = "Enable" end
+    if state == "enabled" then actions[#actions + 1] = "Suspend" end
+    if state == "suspended" and not reason then actions[#actions + 1] = "Resume" end
+    if state ~= "off" then actions[#actions + 1] = "TurnOff" end
+
+    local width = (control:GetWidth() - 8) / 2
+    for index, button in ipairs(control.fcoButtons) do
+        local action = actions[index]
+        button:ClearAnchors()
+        button:SetDimensions(width, 28)
+        button:SetAnchor(TOPLEFT, control, TOPLEFT, (index - 1) * (width + 8), 0)
+        button:SetHidden(action == nil)
+        button:SetText(action and fcoActions[action][1] or "")
+        button.data.tooltipText = action and fcoActions[action][2] or nil
+        button:SetHandler("OnClicked", action and function()
+            local dialogAction = action == "TurnOff" and "TURN_OFF" or string.upper(action)
+            ZO_Dialogs_ShowDialog("InventoryCompanion_CONFIRM_FCO_" .. dialogAction)
+        end or nil)
+    end
+    control.fcoReason:SetText(reason or "")
+    control.fcoReason:SetHidden(reason == nil)
+end
+
+local function CreateFCOActions(control)
+    control.fcoButtons = {}
+    for index = 1, 2 do
+        local button = WINDOW_MANAGER:CreateControlFromVirtual(nil, control, "ZO_DefaultButton")
+        button.data = {}
+        button:SetHandler("OnMouseEnter", ZO_Options_OnMouseEnter)
+        button:SetHandler("OnMouseExit", ZO_Options_OnMouseExit)
+        control.fcoButtons[index] = button
+    end
+    control.fcoReason = WINDOW_MANAGER:CreateControl(nil, control, CT_LABEL)
+    control.fcoReason:SetFont("ZoFontGameSmall")
+    control.fcoReason:SetDimensions(control:GetWidth(), 36)
+    control.fcoReason:SetAnchor(TOPLEFT, control, TOPLEFT, 0, 32)
+    RefreshFCOActions(control)
+end
+
 local function RegisterProfileCopyDialog()
-ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_CONFIRM_PROFILE_COPY", {
-    gamepadInfo = { dialogType = GAMEPAD_DIALOGS.BASIC },
-    title = { text = "Replace Full Profile" },
-    mainText = { text = function(dialog)
-        return "Replace the "
-            .. (this.character.useCharacterItemList and "current character" or "shared account")
-            .. " profile with " .. dialog.data.source
-            .. "?\nAll destination settings, items and groups will be replaced. This cannot be undone."
-    end },
-    buttons = {
-        { text = "Replace", callback = function(dialog)
-            assert(dialog.data.destination == this.GetSettingsProfile(), "Profile copy destination changed")
-            if this.CopyProfile(dialog.data.source) then
-                this.RefreshProfileSettings()
-                this.Utils.UserMessage("Full profile replaced.", "Profile Copy")
-            else
-                this.Utils.UserError("Source profile is unavailable or invalid.", "Profile Copy")
-            end
+    ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_CONFIRM_PROFILE_COPY", {
+        gamepadInfo = { dialogType = GAMEPAD_DIALOGS.BASIC },
+        title = { text = "Replace Full Profile" },
+        mainText = { text = function(dialog)
+            return "Replace the "
+                .. (this.character.useCharacterItemList and "current character" or "shared account")
+                .. " profile with " .. dialog.data.source
+                .. "?\nAll destination settings, items and groups will be replaced. This cannot be undone."
         end },
-        { text = SI_DIALOG_CANCEL },
-    },
-})
+        buttons = {
+            { text = "Replace", callback = function(dialog)
+                assert(dialog.data.destination == this.GetSettingsProfile(), "Profile copy destination changed")
+                if this.CopyProfile(dialog.data.source) then
+                    this.RefreshProfileSettings()
+                    this.Utils.UserMessage("Full profile replaced.", "Profile Copy")
+                else
+                    this.Utils.UserError("Source profile is unavailable or invalid.", "Profile Copy")
+                end
+            end },
+            { text = SI_DIALOG_CANCEL },
+        },
+    })
+end
+
+local function RegisterFCOTestGroupDialogs()
+    ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_CONFIRM_ADD_FCO_TEST_GROUPS", {
+        gamepadInfo = { dialogType = GAMEPAD_DIALOGS.BASIC },
+        title = { text = "Add FCO Test Groups" },
+        mainText = { text = "This will add the Deconstruct, Sell to vendor and Sell at guild store test FCO groups to the current profile. They will be non-hidden, shown in the tracker for the backpack only, grouped, with notifications off, and included at the top of AutoCategory Priority and Display in every container. Existing group edits will be preserved. AutoCategory will not be enabled globally. Continue?" },
+        buttons = {
+            { text = "Yes", callback = function()
+                this.FCOItemSaver.AddTestGroups()
+                this.RefreshProfileSettings()
+            end },
+            { text = "No" },
+        },
+    })
+    ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_CONFIRM_ADD_FCO_OVERLAP_GROUPS", {
+        gamepadInfo = { dialogType = GAMEPAD_DIALOGS.BASIC },
+        title = { text = "Add Overlapping FCO Test Groups" },
+        mainText = { text = "This adds real custom groups for each enabled FCO marker, plus mixed name/marker, multiple-marker and negative-marker tests where the required markers are available. Existing groups and edits are preserved. Continue?" },
+        buttons = {
+            { text = "Yes", callback = function()
+                this.FCOItemSaver.AddOverlappingTestGroups()
+                this.RefreshProfileSettings()
+            end },
+            { text = "No" },
+        },
+    })
+    ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_CONFIRM_FCO_TURN_OFF", {
+        gamepadInfo = { dialogType = GAMEPAD_DIALOGS.BASIC },
+        title = { text = "Turn Off FCO Integration" },
+        mainText = { text = "This turns off FCO ItemSaver integration. Any groups containing FCO marker matches will be deleted from all profiles. If you re-enable FCO ItemSaver integration in the future, you will have to rebuild these groups and reorder them in AutoCategory.\n\nYou could suspend the integration instead, which marks all the groups inactive without deleting them. Do you want to proceed?" },
+        buttons = {
+            { text = "Yes, delete my groups", callback = function()
+                this.FCOItemSaver.TurnOff()
+                this.RefreshProfileSettings()
+            end },
+            { text = "No" },
+        },
+    })
+    for action, dialog in pairs({
+        Enable = { "Enable FCO Integration", "This will turn on FCO ItemSaver integration. Once this is on, you will be able to add marker conditions to your groups. You can then:\n\n- Show them in the item tracker\n- Have them notified in chat or on the HUD\n- Organise your inventory using your FCO markers (if you also use AutoCategory)", "Enable" },
+        Suspend = { "Suspend FCO Integration", "Suspend FCO ItemSaver matching while preserving all profile groups and AutoCategory settings?", "Suspend" },
+        Resume = { "Resume FCO Integration", "Resume FCO ItemSaver matching? FCO ItemSaver must be loaded and ready.", "Resume" },
+    }) do
+        local actionDialog = dialog
+        ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_CONFIRM_FCO_" .. string.upper(action), {
+            gamepadInfo = { dialogType = GAMEPAD_DIALOGS.BASIC },
+            title = { text = actionDialog[1] },
+            mainText = { text = actionDialog[2] },
+            buttons = {
+                { text = "Yes", callback = function()
+                    this.FCOItemSaver[actionDialog[3]]()
+                    this.RefreshProfileSettings()
+                end },
+                { text = "No" },
+            },
+        })
+    end
+    ZO_Dialogs_RegisterCustomDialog("InventoryCompanion_CONFIRM_CLEAR_DIAGNOSTICS", {
+        gamepadInfo = { dialogType = GAMEPAD_DIALOGS.BASIC },
+        title = { text = "Clear Diagnostic Log" },
+        mainText = { text = "Clear all saved diagnostic events, samples, test reports, and session history? This cannot be undone." },
+        buttons = {
+            { text = "Clear", callback = function()
+                this.DiagnosticLog.Clear()
+            end },
+            { text = SI_DIALOG_CANCEL },
+        },
+    })
 end
 
 local function RefreshProgressBarSettings()
@@ -214,6 +334,7 @@ end
 
 function this.CreateSettingsPanel()
     RegisterProfileCopyDialog()
+    RegisterFCOTestGroupDialogs()
     local LAM = LibAddonMenu2
     local panelName = this.Utils.DisplayName()
 
@@ -433,7 +554,14 @@ function this.CreateSettingsPanel()
                 setFunc = function() error("Planned integration controls are disabled") end,
                 disabled = true },
         }
-        if integration == "TTC" then
+        if integration == "FCO ItemSaver" then
+            controls = {
+                { type = "description", text = "FCO ItemSaver integration controls. Marker-group creation and editing are planned future development." },
+                { type = "custom", reference = "InventoryCompanion_FCOActions",
+                    minHeight = 68, maxHeight = 68,
+                    createFunc = CreateFCOActions, refreshFunc = RefreshFCOActions },
+            }
+        else
             for _, band in ipairs({
                 { "Trash below", 100 }, { "Low Level up to", 100 }, { "Mid Level up to", 1000 },
                 { "Expensive up to", 5000 }, { "Superior up to", 10000 }, { "Amazing up to", 100000 },
@@ -446,9 +574,34 @@ function this.CreateSettingsPanel()
             end
         end
         optionsData[#optionsData + 1] = { type = "submenu", name = integration .. " (planned)",
-            disabled = true, controls = controls }
+            disabled = integration == "TTC", controls = controls }
     end
     optionsData[#optionsData + 1] = { type = "submenu", name = "Debugging", controls = {
+        { type = "checkbox", name = "Enable Diagnostic Logging",
+            tooltip = "Save bounded diagnostic events, performance samples, and test reports in SavedVariables.",
+            getFunc = function() return this.accountWide.diagnosticLoggingEnabled end,
+            setFunc = function(value) this.DiagnosticLog.SetEnabled(value) end },
+        { type = "button", name = "Clear Diagnostic Log",
+            func = function() ZO_Dialogs_ShowDialog("InventoryCompanion_CONFIRM_CLEAR_DIAGNOSTICS") end,
+            width = "full" },
+        { type = "button", name = "Add test FCO groups",
+            tooltip = "Add three visible backpack-only test groups and place them first in this profile's AutoCategory lists. No change occurs until you confirm.",
+            func = function()
+                ZO_Dialogs_ShowDialog("InventoryCompanion_CONFIRM_ADD_FCO_TEST_GROUPS")
+            end,
+            disabled = function()
+                return this.accountWide.fcoIntegrationState ~= "enabled" or not this.FCOItemSaver.IsReady()
+            end,
+            width = "full" },
+        { type = "button", name = "Add overlapping FCO test groups",
+            tooltip = "Add groups for enabled markers and mixed, multiple and negative conditions. No change occurs until you confirm.",
+            func = function()
+                ZO_Dialogs_ShowDialog("InventoryCompanion_CONFIRM_ADD_FCO_OVERLAP_GROUPS")
+            end,
+            disabled = function()
+                return this.accountWide.fcoIntegrationState ~= "enabled" or not this.FCOItemSaver.IsReady()
+            end,
+            width = "full" },
         { type = "checkbox", name = "Enable Debug Mode",
             tooltip = "Output verbose debug logs to the chat window.",
             getFunc = function() return this.accountWide.debugEnabled end,

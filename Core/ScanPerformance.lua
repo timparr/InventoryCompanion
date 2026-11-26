@@ -62,7 +62,11 @@ local function RunTrackerPerformanceTest(onComplete)
     reportLines[#reportLines + 1] = string.format(
         "[InventoryCompanion tracker timing] Starting %d runs of %d iterations: scan, display-list build, and layout-model build. Each timer covers only its function; UI yields between iterations. Rules: %d; bags: %d; bank %s.",
         RUN_COUNT, OPERATIONS_PER_RUN, ruleCount, #bagIds, bankOpen and "open" or "closed")
-    d("[InventoryCompanion tracker timing] Started; the complete report will be raised as an error when finished.")
+    if onComplete then
+        d("[InventoryCompanion tracker timing] Started; the complete report will be recorded in diagnostic SavedVariables when finished.")
+    else
+        d("[InventoryCompanion tracker timing] Started; the complete report will be raised as an error when finished.")
+    end
 
     local function RunNextOperation()
         if IsBankOpen() ~= bankOpen then

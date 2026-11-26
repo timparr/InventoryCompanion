@@ -5,8 +5,8 @@ InventoryCompanion = {
 	DisplayName = "Inventory Companion",
     Author = "@Tim-P",
     Version = "1.8.2",
-    SettingsVersion = 11,
-    SettingsName = "InventoryCompanion_SavedVariables",
+    SettingsVersion = 15,
+    SettingsName = isDevelopment and "InventoryCompanion_SavedVariables_dev" or "InventoryCompanion_SavedVariables",
 }
 local this = InventoryCompanion
 this.state = {
@@ -59,7 +59,16 @@ function this.ValidateGuildBankPartialWithdrawSetting()
     this.accountWide.guildBankPartialWithdrawEnabled = enabled
 end
 
+function this.ValidateDiagnosticLoggingSetting()
+    local enabled = this.accountWide.diagnosticLoggingEnabled
+    if enabled == nil then enabled = this.defaultsAccount.diagnosticLoggingEnabled end
+    assert(type(enabled) == "boolean", "Saved diagnosticLoggingEnabled must be a boolean")
+    this.accountWide.diagnosticLoggingEnabled = enabled
+end
+
 local function Initialize()
+    this.DiagnosticLog.Initialize()
+    this.FCOItemSaver.RegisterBuiltInGroups()
     this.PrepareSavedVariables()
 
     -- Register keybind display names in ESO controls menu
@@ -75,6 +84,8 @@ local function Initialize()
     this.ValidateTrackerSettings()
     this.ValidateDebugSettings()
     this.ValidateGuildBankPartialWithdrawSetting()
+    this.ValidateDiagnosticLoggingSetting()
+    this.DiagnosticLog.Start()
     this.ValidateSavedRuleProfiles()
     this.PanelLayout.Initialize()
     this.AutoCategoryIntegration.Initialize()
@@ -87,6 +98,7 @@ local function Initialize()
     this.InitializeCurrencyGridColumns()
     this.InitResourceProgressBars()
     this.InitItemTrackerPanel()
+    this.StartTrackerMarkerPolling()
     this.InitCurrencyPanel()
     this.CreateSettingsPanel()
     this.PanelLayout.CompleteInitialization()
@@ -194,5 +206,5 @@ end
 -- Debug Key
 ------------------------------------------------------------------
 function this.Debug()
-    this.RunTests("verbose copy autocategory trackerperf")
+    this.RunTests("verbose copy autocategory")
 end

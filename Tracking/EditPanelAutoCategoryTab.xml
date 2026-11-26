@@ -77,7 +77,7 @@
                             <Dimensions x="260" y="28" />
                             <Anchor point="LEFT" relativeTo="$(parent)BtnRetry" relativePoint="RIGHT" offsetX="12" />
                         </Button>
-                        <Button name="$(parent)BtnDetails" inherits="ZO_DefaultButton" text="Show details">
+                        <Button name="$(parent)BtnDetails" inherits="ZO_DefaultButton" text="Log error">
                             <Dimensions x="160" y="28" />
                             <Anchor point="LEFT" relativeTo="$(parent)BtnRepair" relativePoint="RIGHT" offsetX="12" />
                         </Button>
@@ -85,6 +85,10 @@
                             <Dimensions x="240" y="28" />
                             <Anchor point="TOPLEFT" relativeTo="$(parent)BtnRetry" relativePoint="BOTTOMLEFT" offsetY="16" />
                         </Button>
+                        <Label name="$(parent)LogFeedback" font="ZoFontGame" color="FFFFFF" wrapMode="TEXT_WRAP_MODE_WORD" hidden="true">
+                            <Dimensions x="540" y="44" />
+                            <Anchor point="TOPLEFT" relativeTo="$(parent)BtnReset" relativePoint="TOPRIGHT" offsetX="12" />
+                        </Label>
                         <Button name="$(parent)BtnEnableSetup" inherits="ZO_DefaultButton" text="Enable and set up again" hidden="true">
                             <Dimensions x="260" y="28" />
                             <Anchor point="TOPLEFT" relativeTo="$(parent)Warning" relativePoint="BOTTOMLEFT" offsetY="16" />

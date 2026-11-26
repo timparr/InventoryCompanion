@@ -211,7 +211,7 @@ function integration.GetProblemRowsMessage()
     assert(integration.NeedsRecovery(), "AutoCategory has no failure to display")
     local records = integration.unavailableAssignments
     if #records == 0 then
-        return "No specific problematic assignment rows were identified. Use Show details for the failure report."
+        return "No specific problematic assignment rows were identified. Use Log error to save the failure report."
     end
     local lines = { "Problematic assignments (" .. #records .. "):" }
     for _, record in ipairs(records) do
@@ -221,15 +221,44 @@ function integration.GetProblemRowsMessage()
     return table.concat(lines, "\n")
 end
 
-function integration.ShowRecoveryDetails()
-    assert(integration.NeedsRecovery(), "AutoCategory has no failure details")
-    if integration.IsFaulted() then return integration.ShowLastError() end
-    local lines = { status.message, "", "Problematic assignments:" }
-    for _, record in ipairs(integration.unavailableAssignments) do
-        lines[#lines + 1] = contextByKey[record.context].title .. ": "
-            .. record.line.name .. " [key=" .. record.ruleKey .. "]"
+local function GetLastErrorReport()
+    assert(integration.IsFaulted(), "AutoCategory has no stored integration error")
+    local report = this.autoCategoryFailureTraceback or this.autoCategoryFailure
+    if integration.failureDiagnostics then
+        report = report .. "\n\n" .. integration.failureDiagnostics
     end
-    error(table.concat(lines, "\n"), 0)
+    return report
+end
+
+local function GetLastErrorLines()
+    local lines = {}
+    for line in (GetLastErrorReport() .. "\n"):gmatch("(.-)\n") do
+        lines[#lines + 1] = line
+    end
+    return lines
+end
+
+function integration.LogRecoveryDetails()
+    assert(integration.NeedsRecovery(), "AutoCategory has no failure details")
+    local lines
+    if integration.IsFaulted() then
+        lines = GetLastErrorLines()
+    else
+        lines = { status.message, "", "Problematic assignments:" }
+        for _, record in ipairs(integration.unavailableAssignments) do
+            lines[#lines + 1] = contextByKey[record.context].title .. ": "
+                .. record.line.name .. " [key=" .. record.ruleKey .. "]"
+        end
+    end
+    local recorded, reason = this.DiagnosticLog.Event("acFailure", "AutoCategory failure report requested.", lines, true)
+    if not recorded then
+        local message = "AutoCategory error could not be logged: " .. tostring(reason)
+        d("[InventoryCompanion] " .. message)
+        return false, message
+    end
+    local message = "AutoCategory error logged. /reloadui or log out to save it to disk."
+    d("[InventoryCompanion] " .. message)
+    return true, message
 end
 
 local function ScheduleErrorWindow(message)
@@ -242,12 +271,7 @@ local function ScheduleErrorWindow(message)
 end
 
 function integration.ShowLastError()
-    assert(integration.IsFaulted(), "AutoCategory has no stored integration error")
-    local report = this.autoCategoryFailureTraceback or this.autoCategoryFailure
-    if integration.failureDiagnostics then
-        report = report .. "\n\n" .. integration.failureDiagnostics
-    end
-    error(report, 0)
+    error(GetLastErrorReport(), 0)
 end
 
 function integration.Run(operation, ...)
@@ -308,9 +332,11 @@ local function GetRuntimeRules()
     assert(next(this.preLoadedRulesets) ~= nil, "IC baseline groups have not finished loading")
     assert(rules[otherRuleKey] == nil and profile.trackedRules[otherRuleKey] == nil,
         "IC group identity collides with the internal Other helper")
-    for key in pairs(this.preLoadedRulesets) do
-        assert(rules[key] ~= nil and rules[key].isPreloaded == true,
-            "IC runtime is incomplete: missing baseline group " .. key)
+    for key, baseline in pairs(this.preLoadedRulesets) do
+        if not baseline.isFCOGroup or profile.fcoTestGroupsCreated == true then
+            assert(rules[key] ~= nil and rules[key].isPreloaded == true,
+                "IC runtime is incomplete: missing baseline group " .. key)
+        end
     end
     for key in pairs(profile.trackedRules) do
         assert(rules[key] ~= nil, "IC runtime is incomplete: missing saved group " .. key)
@@ -583,7 +609,8 @@ function integration.BuildDebugReport()
     local runtimeOk, rulesOrFailure = pcall(function()
         assert(type(activeProfile.trackedRules) == "table",
             "Active profile trackedRules are unavailable for read-only inspection")
-        return this.GetRuntimeRules(CopySavedValue(activeProfile.trackedRules))
+        return this.GetRuntimeRules(CopySavedValue(activeProfile.trackedRules),
+            activeProfile.fcoTestGroupsCreated)
     end)
     if not runtimeOk then
         lines[#lines + 1] = "Runtime group inspection failed: " .. tostring(rulesOrFailure)
@@ -830,6 +857,7 @@ function integration.Fail(failure, traceback)
             .. " Open the IC AutoCategory panel for recovery, or IC Settings > Integrations > AutoCategory"
             .. " > Settings. Saved settings are preserved; other IC features remain available.",
     }
+    this.DiagnosticLog.Event("acFailure", "AutoCategory synchronization stopped.", GetLastErrorLines())
     d("[InventoryCompanion] WARNING: " .. status.message)
     if this.state ~= nil and this.state.isLoaded then
         local ok, refreshFailure = pcall(this.RefreshAutoCategoryUI)
@@ -868,6 +896,56 @@ function integration.PreflightSavedDataCleanup()
         end
     end
     return removals
+end
+
+function integration.PreflightDeletedFCOGroups(keys)
+    if AutoCategory == nil or next(keys) == nil then return {} end
+    CheckExternalShape(AutoCategory)
+    local removals, seen = {}, {}
+    for _, profile in ipairs({ AutoCategory.acctSaved, AutoCategory.charSaved, AutoCategory.saved }) do
+        assert(type(profile) == "table" and type(profile.bags) == "table",
+            "AutoCategory saved assignments are unavailable; no FCO cleanup was performed")
+        for _, context in ipairs(contexts) do
+            local bag = profile.bags[context.bagType()]
+            assert(type(bag) == "table" and type(bag.rules) == "table",
+                "AutoCategory assignments are unavailable for " .. context.title)
+            if not seen[bag] then
+                seen[bag] = true
+                assert(bag.icAssignmentTemplates == nil or type(bag.icAssignmentTemplates) == "table",
+                    "AutoCategory IC assignment templates are malformed")
+                if bag.icAssignmentTemplates then
+                    for key in pairs(keys) do
+                        local template = bag.icAssignmentTemplates[key]
+                        if template ~= nil then
+                            assert(type(template) == "table" and template.icOwned == true
+                                and template.icRuleKey == key, "AutoCategory IC assignment template is malformed")
+                            removals[#removals + 1] = { templates = bag.icAssignmentTemplates, key = key }
+                        end
+                    end
+                end
+                for index = #bag.rules, 1, -1 do
+                    local assignment = bag.rules[index]
+                    assert(type(assignment) == "table", "AutoCategory assignment is malformed")
+                    if assignment.icOwned == true and keys[assignment.icRuleKey] then
+                        removals[#removals + 1] = { rules = bag.rules, index = index, assignment = assignment }
+                    end
+                end
+            end
+        end
+    end
+    return removals
+end
+
+function integration.ApplyDeletedFCOGroups(removals)
+    for _, removal in ipairs(removals) do
+        if removal.templates then
+            removal.templates[removal.key] = nil
+        else
+            assert(removal.rules[removal.index] == removal.assignment,
+                "AutoCategory assignments changed after FCO cleanup preflight")
+            table.remove(removal.rules, removal.index)
+        end
+    end
 end
 
 function integration.ApplySavedDataCleanup(removals)
@@ -1028,13 +1106,17 @@ local function RegisterPlugin()
         local function MatchesRule(ruleKey)
             if not this.GetAutoCategoryState().enabled then return false end
             assert(type(ac.checkingItemLink) == "string", "AutoCategory checkingItemLink must be a string")
-            if ruleKey == otherRuleKey then return this.ItemMatchesRuntimeRule(ac.checkingItemLink, otherRule) end
+            if ruleKey == otherRuleKey then
+                return this.ItemMatchesRuntimeRule(ac.checkingItemLink, otherRule,
+                    ac.checkingItemBagId, ac.checkingItemSlotIndex)
+            end
             local rules = GetRuntimeRules()
             local rule = rules[ruleKey]
             assert(rule ~= nil, "Registered AutoCategory expression references unknown Inventory Companion group: "
                 .. tostring(ruleKey))
             assert(type(ac.checkingItemLink) == "string", "AutoCategory checkingItemLink must be a string")
-            return this.ItemMatchesRuntimeRule(ac.checkingItemLink, rule)
+            return this.ItemMatchesRuntimeRule(ac.checkingItemLink, rule,
+                ac.checkingItemBagId, ac.checkingItemSlotIndex)
         end
         ac.AddRuleFunc(predicateName, function(ruleKey)
             return integration.Run(MatchesRule, ruleKey) == true
@@ -2010,6 +2092,42 @@ function integration.GetAreaSummary(reference, fits)
     return ({ [2] = "Two Areas", [3] = "Three Areas", [4] = "Four Areas", [5] = "Five Areas" })[#enabled]
 end
 
+local function ClearAutoCategoryItemCache()
+    if type(PLAYER_INVENTORY) ~= "table" or type(PLAYER_INVENTORY.inventories) ~= "table" then return end
+    local function ClearBag(bagSlots)
+        if type(bagSlots) ~= "table" then return end
+        for _, data in pairs(bagSlots) do
+            if type(data) == "table" then data.AC_hash = nil end
+        end
+    end
+    for _, inventory in pairs(PLAYER_INVENTORY.inventories) do
+        if type(inventory) == "table" then
+            if type(inventory.slots) == "table" then
+                for _, bagSlots in pairs(inventory.slots) do ClearBag(bagSlots) end
+            end
+            if type(inventory.backingBags) == "table" and type(SHARED_INVENTORY) == "table"
+                and type(SHARED_INVENTORY.GetBagCache) == "function" then
+                -- Reopening a bank can reuse shared records that are absent from its current UI slots.
+                for _, bagId in ipairs(inventory.backingBags) do
+                    ClearBag(SHARED_INVENTORY:GetBagCache(bagId))
+                end
+            end
+        end
+    end
+end
+
+function integration.OnFCOAvailabilityChanged()
+    if AutoCategory == nil or status.state == "absent" or not this.GetAutoCategoryState().configuredEnabled
+        or AutoCategory.Inited ~= true or integration.IsFaulted() then return end
+    integration.Run(function()
+        local prepared = integration.PreflightAutoCategory()
+        if prepared == nil then return end
+        for _, plan in pairs(prepared.plans) do plan.forceRefresh = true end
+        ClearAutoCategoryItemCache()
+        integration.ProjectAutoCategory(prepared)
+    end)
+end
+
 function integration.RetrySynchronization()
     assert(integration.NeedsRecovery(), "AutoCategory retry requires a failure state")
     pendingGeneration = pendingGeneration + 1
@@ -2028,6 +2146,7 @@ function integration.RetrySynchronization()
             local prepared = integration.PreflightAutoCategory()
             if prepared == nil then return false end
             for _, plan in pairs(prepared.plans) do plan.forceRefresh = true end
+            ClearAutoCategoryItemCache()
             integration.ProjectAutoCategory(prepared)
             return not integration.NeedsRecovery() and status.state == "available"
         end
@@ -2055,10 +2174,13 @@ local function PrepareAssignmentRepair()
     local rules = GetRuntimeRules()
     assert(next(this.preLoadedRulesets) ~= nil, "Cannot repair assignments without loaded baseline groups")
     for ruleKey in pairs(this.preLoadedRulesets) do
-        assert(rules[ruleKey] ~= nil, "Cannot repair assignments with an incomplete IC runtime: " .. ruleKey)
+        local saved = this.GetAutoCategoryProfile().trackedRules[ruleKey]
+        assert(rules[ruleKey] ~= nil or saved and saved.deletedBuiltIn == true,
+            "Cannot repair assignments with an incomplete IC runtime: " .. ruleKey)
     end
-    for ruleKey in pairs(this.GetAutoCategoryProfile().trackedRules) do
-        assert(rules[ruleKey] ~= nil, "Cannot repair assignments with an incomplete IC runtime: " .. ruleKey)
+    for ruleKey, saved in pairs(this.GetAutoCategoryProfile().trackedRules) do
+        assert(rules[ruleKey] ~= nil or saved.deletedBuiltIn == true,
+            "Cannot repair assignments with an incomplete IC runtime: " .. ruleKey)
     end
     local unavailable = FindUnavailableAssignments(ac, BuildDefinitions(rules), rules)
     assert(#unavailable > 0, "Assignments changed; retry synchronization before attempting repair")
@@ -2096,6 +2218,7 @@ function integration.RepairAffectedAssignments(expectedProfile, expectedSaved, e
     integration.failureDiagnostics = nil
     status = { state = "pending", message = "Repairing AutoCategory assignments." }
     for _, plan in pairs(prepared.plans) do plan.forceRefresh = true end
+    ClearAutoCategoryItemCache()
     integration.ProjectAutoCategory(prepared)
     local recovered = not integration.NeedsRecovery() and status.state == "available"
     if recovered then

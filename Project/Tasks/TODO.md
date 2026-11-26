@@ -18,6 +18,12 @@ material, not approved implementation scope.
 
 ## Section A: 🛠️ In Progress & Immediate Tasks
 
+- **Final acceptance: schema-15 migration:** Exercise migration using an
+  actual older-schema DEV SavedVariables backup, with the required backup,
+  logout, restore, verification and recovery safeguards. This was deferred by
+  Tim on 2026-11-26; it is not yet a passed test. See the
+  [Scanning Refactor implementation record](<../DevDocs/Archive/ScanningRefactor/002 ScanningRefactor - Implementation Plan.md>).
+
 ---
 
 ## Section B: 🐛 Bug Fixes (Pending)
@@ -70,12 +76,17 @@ material, not approved implementation scope.
   house chests showing nicknames and stack states.
 - **D8. Wizard's Wardrobe Integration:** Add gear set checks, quick deposit
   keybinds, and inter-character gear sync.
-- **D9. Additional Virtual Groups & Summary Panel:** Explore virtual groups
-  for self-crafted writ items, stolen items, and junk/sellable items, and allow
-  groups to be summarized in the Currency Panel. Inspect the existing
+- **D9. Additional Virtual Groups:** Add virtual groups based on the game's
+  item classifications or flags, such as items marked as junk. Other candidates
+  include stolen items, self-crafted writ items, and sellable items. Inspect the existing
   Miscellaneous virtual group before implementation and reuse or extend its
-  behavior where appropriate. Consider renaming the Currency Panel to Summary
-  Panel if it includes broader item/group summaries.
+  behavior where appropriate. Currency Panel group totals are tracked separately
+  under D11.
+- **D11. Group Totals on the Currency Panel:** Show item-group counts as
+  totals only, without individual item rows. Requested locations: "backpack/bag";
+  clarify the intended location split when specifying this feature. Consider
+  renaming the Currency Panel to Summary Panel if it includes broader item/group
+  summaries.
 ---
 
 ## Section E: 🏗️ Post-V1 Refactoring Tickets
@@ -160,9 +171,25 @@ They may be refined or discarded during future triage.
   interactions. Identify and discuss fixes as separate follow-up work. D10.3
   preserves existing gamepad behavior; it does not add or repair gamepad support.
 
-- **F15. Currency Summary Panel Master Toggle:** Consider one setting to hide
-  or show the entire panel without changing which currency and capacity cells
-  are selected. Keep standalone resource bars and notifications independent.
+- **F15. Currency Summary Panel Master Toggle (Quick Candidate):** Add a quick
+  show/hide toggle for the entire panel without changing which currency and
+  capacity cells are selected. Keep standalone resource bars and notifications
+  independent.
+
+- **F16. Tracker Drift Verification (Idea):** Two linked options arising from the
+  unexplained 25 November tracker mismatch (see the Scanning Refactor plan).
+  (a) Visible alert: IMPLEMENTED in DEV 25 November for the acceptance pass.
+  A chat/HUD error "Tracker mismatch logged - see TODO F16" appears only when
+  logging is on and the mismatch was recorded; the item-detail log entry holds
+  the evidence. Decide later whether it stays, becomes DEV-only, or is removed
+  for release. The addon already detects drift, because every completed
+  full scan is compared with the incremental index.
+  (b) Post-burst verification scan:
+  one full scan shortly after a transfer or crafting burst settles, which gives
+  more comparisons and a meaningful clean result. A scan that also replaces the
+  index would hide the fault from the display, so decide deliberately whether it
+  verifies and logs only or also heals; this needs a root-cause finding first
+  and a spec change. Not started.
 
 Source design history: [Currency Preferences](../DevDocs/Archive/CurrencyPanel/CurrencyPreferences.md)
 and [Currency Panel Implementation Plan](../DevDocs/Archive/CurrencyPanel/ImplementationPlan.md),

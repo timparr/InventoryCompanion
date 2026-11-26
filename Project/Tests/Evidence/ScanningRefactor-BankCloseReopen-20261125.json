@@ -1,0 +1,305 @@
+{
+  "description": "Bank close/reopen observation window. trackerRefresh rows are evaluated slots, not transferred item counts. Raw inventory tracing was not active during this window; direction and remaining bank quantities cannot be reconstructed.",
+  "sourceFlushedAtUtc": "2026-11-25T22:06:48.088123+00:00",
+  "trackerRefreshSamples": [
+    {
+      "bankOpen": true,
+      "rows": 2,
+      "renderMs": 13,
+      "timestamp": 1795644367,
+      "reason": "incremental",
+      "scanMs": 0
+    },
+    {
+      "bankOpen": true,
+      "rows": 2,
+      "renderMs": 7,
+      "timestamp": 1795644367,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 5,
+      "timestamp": 1795644367,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 3,
+      "timestamp": 1795644368,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 7,
+      "timestamp": 1795644368,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 4,
+      "timestamp": 1795644368,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 2,
+      "renderMs": 6,
+      "timestamp": 1795644369,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 6,
+      "timestamp": 1795644369,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 10,
+      "timestamp": 1795644370,
+      "reason": "incremental",
+      "scanMs": 2
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 10,
+      "timestamp": 1795644370,
+      "reason": "incremental",
+      "scanMs": 2
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 4,
+      "timestamp": 1795644370,
+      "reason": "incremental",
+      "scanMs": 0
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 4,
+      "timestamp": 1795644371,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 4,
+      "timestamp": 1795644371,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 3,
+      "timestamp": 1795644372,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 11,
+      "timestamp": 1795644372,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 6,
+      "timestamp": 1795644372,
+      "reason": "incremental",
+      "scanMs": 2
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 5,
+      "timestamp": 1795644373,
+      "reason": "incremental",
+      "scanMs": 0
+    },
+    {
+      "bankOpen": true,
+      "rows": 2,
+      "renderMs": 3,
+      "timestamp": 1795644373,
+      "reason": "incremental",
+      "scanMs": 2
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 8,
+      "timestamp": 1795644374,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 8,
+      "timestamp": 1795644374,
+      "reason": "incremental",
+      "scanMs": 0
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 3,
+      "timestamp": 1795644374,
+      "reason": "incremental",
+      "scanMs": 0
+    },
+    {
+      "bankOpen": true,
+      "rows": 6,
+      "renderMs": 3,
+      "timestamp": 1795644375,
+      "reason": "incremental",
+      "scanMs": 0
+    },
+    {
+      "bankOpen": true,
+      "rows": 2,
+      "renderMs": 7,
+      "timestamp": 1795644375,
+      "reason": "incremental",
+      "scanMs": 0
+    },
+    {
+      "bankOpen": true,
+      "rows": 6,
+      "renderMs": 5,
+      "timestamp": 1795644376,
+      "reason": "incremental",
+      "scanMs": 2
+    },
+    {
+      "bankOpen": true,
+      "rows": 2,
+      "renderMs": 6,
+      "timestamp": 1795644376,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 3,
+      "timestamp": 1795644376,
+      "reason": "incremental",
+      "scanMs": 2
+    },
+    {
+      "bankOpen": false,
+      "rows": 4,
+      "renderMs": 4,
+      "timestamp": 1795644377,
+      "reason": "incremental",
+      "scanMs": 0
+    },
+    {
+      "bankOpen": true,
+      "rows": 2,
+      "renderMs": 3,
+      "timestamp": 1795644390,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 2,
+      "renderMs": 16,
+      "timestamp": 1795644390,
+      "reason": "incremental",
+      "scanMs": 0
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 7,
+      "timestamp": 1795644390,
+      "reason": "incremental",
+      "scanMs": 0
+    },
+    {
+      "bankOpen": true,
+      "rows": 2,
+      "renderMs": 7,
+      "timestamp": 1795644391,
+      "reason": "incremental",
+      "scanMs": 0
+    },
+    {
+      "bankOpen": true,
+      "rows": 2,
+      "renderMs": 10,
+      "timestamp": 1795644391,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 4,
+      "timestamp": 1795644391,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 8,
+      "timestamp": 1795644392,
+      "reason": "incremental",
+      "scanMs": 0
+    },
+    {
+      "bankOpen": true,
+      "rows": 2,
+      "renderMs": 9,
+      "timestamp": 1795644392,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 2,
+      "timestamp": 1795644393,
+      "reason": "incremental",
+      "scanMs": 1
+    },
+    {
+      "bankOpen": true,
+      "rows": 4,
+      "renderMs": 2,
+      "timestamp": 1795644393,
+      "reason": "incremental",
+      "scanMs": 1
+    }
+  ],
+  "trackerScanSamples": [],
+  "diagnosticEvents": [],
+  "rawInventoryEvents": []
+}

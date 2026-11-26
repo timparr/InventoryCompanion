@@ -18,12 +18,20 @@ under [Features](../Features); active work lives in the
   report/checklist are retained in the [feature archive](FCOItemSaver).
   The raw [scaling capture](../../Tests/Evidence/FCO-Scaling-20261122-025148.txt)
   remains under test evidence. This is not production feature acceptance.
-  Active work is split into
+  Subsequent work is split into
   [Scanning Refactor](<../Features/ScanningRefactor/001 ScanningRefactor - Specification.md>),
   [Diagnostic Logging](<../Features/DiagnosticLogging/001 DiagnosticLogging - Specification.md>)
   and deferred [FCO Integration](<../Features/FCOItemSaver/001 FCOItemSaver - Specification.md>).
 
 ## Verified Addon Work
+
+- **Scanning Refactor and shared FCO condition framework:** Implementation
+  accepted by Tim on 2026-11-26 after independent review, 352/352 offline
+  tests, and positive in-game observations. The marker editor is deferred.
+  Migration from an actual older-schema DEV backup remains pending final
+  acceptance testing; the tracker mismatch remains a logging-monitored risk.
+  See the [feature specification](<../Features/ScanningRefactor/001 ScanningRefactor - Specification.md>)
+  and [implementation record](<ScanningRefactor/002 ScanningRefactor - Implementation Plan.md>).
 
 - **Untracked-item browsing (implemented portion of D3):** The item editor's
   Untracked filter scans backpack, bank, subscriber bank, and optionally the

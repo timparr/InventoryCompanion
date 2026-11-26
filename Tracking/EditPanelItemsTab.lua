@@ -157,7 +157,7 @@ end
 local function CollectWildcardRules(trackedRules, sortedEntries)
     local activeRules = this.GetActiveTrackedRules() -- NEW FOR KEY CHANGE
     for ruleName, data in pairs(trackedRules) do
-		if ruleName ~= "miscellaneous" then -- NEW FOR KEY CHANGE
+		if ruleName ~= "miscellaneous" and not activeRules[ruleName].isInactive then -- NEW FOR KEY CHANGE
             local ruleData = activeRules[ruleName] -- NEW FOR KEY CHANGE
             local displayName = ruleData.displayName
 			table.insert(sortedEntries, {
@@ -413,14 +413,23 @@ local function ConfigureRowTextAndRemoval(row, entry, refreshCallback)
         local activeRules = this.GetActiveTrackedRules() -- NEW FOR KEY CHANGE
         local ruleData = activeRules[key] -- NEW FOR KEY CHANGE
         local displayName = ruleData.displayName
-        label:SetText(string.format("|c50c878[Group]|r %s", displayName)) -- NEW FOR KEY CHANGE
+        if ruleData.isInactive then
+            displayName = displayName .. " (inactive: " .. tostring(ruleData.inactiveReason) .. ")"
+            label:SetColor(0.69, 0.69, 0.69, 1)
+        else
+            label:SetColor(1, 1, 1, 1)
+        end
+        label:SetText(ruleData.isInactive and ("[Group] " .. displayName)
+            or string.format("|c50c878[Group]|r %s", displayName)) -- NEW FOR KEY CHANGE
         btnRemove:SetHidden(true)
     elseif entry.isUntracked then
+        label:SetColor(1, 1, 1, 1)
         local iconTex = data.icon
         local iconFmt = (iconTex and iconTex ~= "") and string.format("|t20:20:%s|t", iconTex) or ""
         label:SetText(string.format("%s %s |c888888[Untracked]|r", iconFmt, data.link))
         btnRemove:SetHidden(true)
     else
+        label:SetColor(1, 1, 1, 1)
         btnRemove:SetHidden(false)
         btnRemove:SetHandler("OnClicked", function()
             ResolveEntryData(entry)

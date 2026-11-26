@@ -1,6 +1,6 @@
 # Copilot instructions
 
-InventoryCompanion is an Elder Scrolls Online (ESO) addon written in Lua 5.1 with XML UI. This checkout is the **DEV** installation (`InventoryCompanion_DEV.txt`); a sibling `InventoryCompanion` folder holds staged/released builds. Both share the same namespace (`InventoryCompanion`) and saved variables (`InventoryCompanion_SavedVariables`).
+InventoryCompanion is an Elder Scrolls Online (ESO) addon written in Lua 5.1 with XML UI. This checkout is the **DEV** installation (`InventoryCompanion_DEV.txt`); a sibling `InventoryCompanion` folder holds staged/released builds. Both share the runtime namespace (`InventoryCompanion`), but settings use separate saved globals: DEV `InventoryCompanion_SavedVariables_dev`, release `InventoryCompanion_SavedVariables`. Staging strips `_dev` from the manifest; release runtime selects the original name.
 
 `AGENTS.md` holds the project rules for every task; the key points are repeated below.
 

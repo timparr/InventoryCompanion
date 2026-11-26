@@ -4,7 +4,7 @@
 ## Author: @Tim-P
 ## Version: 1.8.2
 ## AddOnVersion: 10802
-## SavedVariables: InventoryCompanion_SavedVariables
+## SavedVariables: InventoryCompanion_SavedVariables_dev InventoryCompanion_Diagnostics
 ## DependsOn: LibAddonMenu-2.0>=43
 ## OptionalDependsOn: AutoCategory
 
@@ -15,11 +15,13 @@ Bindings.xml
 -- 1. Core Framework, Utilities & Settings
 Core/Init.lua
 Core/Utils.lua
+Core/DiagnosticLog.lua
 
 Core/Constants.lua
 Core/ContextMenus.lua
 Core/Settings.lua
 Core/Scanning.lua
+Core/FCOItemSaver.lua
 
 -- 2. Banking & Inventory Progress Modules
 Banking/CurrencyHelper.lua
@@ -37,6 +39,7 @@ Tracking/EditPanelAutoCategoryTab.xml
 Tracking/CurrencyPanel.xml
 
 Tracking/ItemDatabase.lua
+Tracking/PreparedScanning.lua
 Tracking/PanelLayout.lua
 Tracking/AutoCategoryIntegration.lua
 Tracking/EditPanelTabManager.lua

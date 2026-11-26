@@ -6,6 +6,16 @@ Owner: Copilot
 Updated: 2026-11-24
 Implementation plan: [implementation plan](<002 FCOItemSaver - Implementation Plan.md>)
 
+## Delivered backend baseline (26 November)
+
+Scanning Refactor delivered and Tim accepted the shared positive/negative
+marker-condition framework, schema-15 storage, lifecycle and the two Debugging
+test-group creation actions. The normal editor remains deferred. Earlier
+references below to fixed-marker built-ins, undecided backend matching or
+representation, and the old Add/Remove button pair are historical draft
+assumptions, not the current implementation contract. Final acceptance must
+still test schema-15 migration using an actual older-schema DEV backup.
+
 ## Overview / proposed changelog text
 
 - **Choose FCO markers in your own groups.** Extend the group editor so
@@ -23,15 +33,19 @@ Tim split the former combined FCO feature on 24 November:
 
 1. [Scanning Refactor](<../ScanningRefactor/001 ScanningRefactor - Specification.md>)
    owns production promotion of prepared matching, slot indexing,
-   incremental updates, time-sliced top-ups/polling, and **one hidden built-in
-   group per defined FCO marker**. Users can show/rename those groups and
-   edit their ordinary Include/Exclude name patterns with existing UI.
+   incremental updates and time-sliced top-ups/polling. Enable creates no
+   groups. A temporary Debugging **Add test FCO groups** button creates
+   Deconstruct, Sell to vendor and Sell at guild store, non-hidden and at the
+   top of AC Priority and Display in every container.
 2. **FCO Integration** (this document) owns the later marker-condition UI
    for custom groups and overrides, including marker composition.
 
-Built-in group creation has moved to Scanning Refactor so it need not wait
-for this editor. Do not implement it a second time here. Ordinary **name**
-pattern editing already exists and is not new marker-condition UI.
+This feature must remove the temporary **Add test FCO groups** and
+**Remove test FCO groups** Debugging buttons and their confirmation dialogs when the normal marker-group
+creation UI is delivered. Preserve
+already-created groups and their settings/AC positions; removing the button
+must not delete or regenerate them. Ordinary **name** pattern editing already
+exists and is not new marker-condition UI.
 
 Historical evidence and original approvals remain in the
 [spike results and decisions](<../../Archive/FCOItemSaver/Spike/002 FCOItemSaver - Results and Decisions.md>)
@@ -59,6 +73,11 @@ In scope for later design:
 - Validation, persistence, profile copy/reset and downgrade protection for
   those new saved conditions.
 - Reusing the scanning backend and existing AutoCategory IC predicate.
+- Removing the temporary Debugging **Add test FCO groups** and **Remove test FCO groups** buttons and their dialogs when the
+  normal marker-group creation workflow is available.
+- Removing the temporary DEV/debug AC priority-change watcher retained by
+  Scanning Refactor, without removing ordinary diagnostic logging or changing
+  users' saved/actual priorities.
 
 Out of scope:
 
@@ -77,6 +96,19 @@ Preserve existing name Include/Exclude semantics. A group using no new marker
 conditions continues to behave exactly as it did after Scanning Refactor.
 Do not silently remove, reinterpret or broaden a built-in's fixed marker
 when editing its name patterns or changing its display name.
+
+Inherit Scanning Refactor's account-wide **Enable FCO**, **Suspend FCO** /
+**Resume FCO**, and confirmed **Turn off FCO** lifecycle actions. While
+suspended or any required FCO condition is unavailable, the entire group is inactive in
+tracking and AutoCategory, including ordinary name patterns. Preserve edits
+and show the reason in the editor. This applies equally to future Include
+and Exclude marker conditions: disabling an exclusion must never broaden a
+group, such as turning `*writ*` excluding Sell at Guild Store into all writs.
+Confirmed permanent turn-off instead deletes every FCO-dependent group,
+including custom/mixed groups, and their settings/owned AC references across
+all profiles and retained backups. Cancel and Suspend instead retain their
+specified non-destructive meanings; later Enable creates no groups and does
+not recover deleted groups or edits.
 
 ## Preservation and compatibility
 
@@ -101,6 +133,9 @@ Finalize observable UI and combination cases when Q1-Q5 are resolved.
 | AC4 | Name exclusions and marker conditions interact exactly as agreed; ordinary groups remain unchanged. | Offline equivalence cases and in-game counts. |
 | AC5 | IC tracker and AC backpack/bank classification use the same new conditions. | Offline matcher tests and in-game sorting. |
 | AC6 | Every profile migrates non-destructively; older readers refuse the newer schema unchanged; saved choices survive unavailable FCO. | Offline migration/downgrade tests and actual older-backup UAT. |
+| AC7 | All custom/built-in marker conditions, including any approved exclusions, inherit whole-group inactivity while suspended/unavailable. Confirmed Turn off deletes all dependent groups/settings/references; cancellation and Suspend instead preserve them. No name-only fallback or stale AC classification broadens matching. | Offline mixed Include/Exclude dependency, all-profile deletion/preservation and lifecycle tests; in-game confirmation and suspend/resume checks. |
+| AC8 | The temporary Debugging Create test groups and Remove test groups buttons are removed when normal marker-group creation ships; existing test-created groups, edits and AC positions survive unchanged. Enable continues to create no groups automatically. | Offline control/preservation checks and in-game Settings/editor UAT. |
+| AC9 | The temporary priority-change watcher and its observation hooks are removed; normal logging, matching and saved/actual AC priorities remain unchanged. | Focused regression tests and source review. |
 
 ## Options and product decisions
 
@@ -109,6 +144,7 @@ Finalize observable UI and combination cases when Q1-Q5 are resolved.
 | D1 | Separate editor/condition work from proven backend promotion. | Tim, 24 November: "fco integration proper" and "ui to add patterns to custom groups an overrides". |
 | D2 | Do not delay Scanning Refactor for marker combinations. | Tim, 24 November: Gear 1-to-N "has to wait". |
 | D3 | Marker representation, operators, overrides and UI. | PENDING; do not carry the old combined plan's recommendations forward as approvals. |
+| D4 | Remove the temporary Create test groups and Remove test groups Debugging buttons with the normal marker-group editor; preserve groups already created. | Tim, 24 November: "add removing this button to the spec of the fco integration section"; subsequent addition of the paired removal button. |
 
 ## Feasibility notes
 

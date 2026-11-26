@@ -226,6 +226,8 @@ this.defaultsAccount = {
     bankItemDelay = 100,
     guildBankPartialWithdrawEnabled = true,
     debugEnabled = false,
+    diagnosticLoggingEnabled = this.IsDevelopment == true,
+    fcoIntegrationState = "off",
     debug = {},
     autoCategoryTimingThresholdMs = 500,
     houseBankNames = {},

@@ -112,6 +112,31 @@ local function CheckPatternList(patterns, context)
     end
 end
 
+local function CheckMarkerConditions(conditions, context)
+    assert(type(conditions) == "table", context .. " must be a table")
+    for key in pairs(conditions) do
+        assert(key == "include" or key == "exclude", context .. " has an unknown field: " .. tostring(key))
+    end
+    for _, kind in ipairs({ "include", "exclude" }) do
+        local list = conditions[kind]
+        assert(type(list) == "table", context .. "." .. kind .. " must be a dense array")
+        local count, seen = 0, {}
+        for index, markerId in pairs(list) do
+            assert(type(index) == "number" and index >= 1 and index < math.huge and index % 1 == 0,
+                context .. "." .. kind .. " has an invalid index")
+            assert(type(markerId) == "number" and markerId >= 1 and markerId < math.huge and markerId % 1 == 0,
+                context .. "." .. kind .. " has an invalid marker ID")
+            assert(not seen[markerId], context .. "." .. kind .. " repeats marker " .. markerId)
+            seen[markerId] = true
+            count = count + 1
+        end
+        for index = 1, count do
+            assert(rawget(list, index) ~= nil, context .. "." .. kind .. " must not contain holes")
+        end
+    end
+    assert(#conditions.include + #conditions.exclude > 0, context .. " must contain a marker")
+end
+
 local function CheckAutoCategoryPlacement(placement, context, allowPartial)
     assert(type(placement) == "table", context .. " must be a table")
     for key, value in pairs(placement) do
@@ -292,10 +317,22 @@ local function ValidateSavedRules(rules, context)
         assert(type(ruleName) == "string" and ruleName ~= "", context .. " has an invalid rule key")
         local path = context .. "[" .. ruleName .. "]"
         assert(type(saved) == "table", path .. " must be a table")
+        if saved.deletedBuiltIn ~= nil then
+            assert(saved.deletedBuiltIn == true and this.preLoadedRulesets[ruleName] ~= nil
+                and this.preLoadedRulesets[ruleName].isVirtual ~= true,
+                path .. ".deletedBuiltIn must identify a non-virtual built-in")
+            for field in pairs(saved) do
+                assert(field == "deletedBuiltIn", path .. " cannot combine deletion with rule fields")
+            end
+        end
         assert(saved.displayName == nil or type(saved.displayName) == "string",
             path .. ".displayName must be a string")
         for _, field in ipairs({ "patterns", "addedPatterns", "removedPatterns" }) do
             if saved[field] ~= nil then CheckPatternList(saved[field], path .. "." .. field) end
+        end
+        if saved.markerConditions ~= nil then
+            assert(ruleName ~= "miscellaneous", path .. " cannot have marker conditions")
+            CheckMarkerConditions(saved.markerConditions, path .. ".markerConditions")
         end
         if saved.display ~= nil then
             assert(type(saved.display) == "table", path .. ".display must be a table")
@@ -1102,9 +1139,12 @@ local function ValidateAccountWideListBackup(backup, context)
     for key in pairs(backup) do
         assert(key == "formatVersion" or key == "trackedRules" or key == "trackedItems"
             or key == "autoCategoryIntegrationEnabled" or key == "autoCategorySetupComplete"
-            or key == "autoCategoryOrder", context .. " has an unknown field: " .. tostring(key))
+            or key == "autoCategoryOrder" or key == "fcoTestGroupsCreated",
+            context .. " has an unknown field: " .. tostring(key))
     end
     assert(backup.formatVersion == 1, context .. " has an unsupported format version")
+    assert(backup.fcoTestGroupsCreated == nil or type(backup.fcoTestGroupsCreated) == "boolean",
+        context .. ".fcoTestGroupsCreated must be boolean")
     ValidateSavedRules(backup.trackedRules, context .. ".trackedRules")
     CheckTrackedItems(backup.trackedItems, context .. ".trackedItems")
     assert(type(backup.autoCategoryOrder) == "table", context .. ".autoCategoryOrder must be a table")
@@ -1113,9 +1153,18 @@ local function ValidateAccountWideListBackup(backup, context)
         trackedRules = backup.trackedRules,
         autoCategoryIntegrationEnabled = backup.autoCategoryIntegrationEnabled,
         autoCategorySetupComplete = backup.autoCategorySetupComplete,
+        fcoTestGroupsCreated = backup.fcoTestGroupsCreated == true,
         autoCategoryOrder = backup.autoCategoryOrder,
     }, context)
 end
+
+function this.ValidateFCOCleanupProfile(profile, context)
+    if profile.trackedRules ~= nil then ValidateSavedRules(profile.trackedRules, context .. ".trackedRules") end
+    if profile.trackedItems ~= nil then CheckTrackedItems(profile.trackedItems, context .. ".trackedItems") end
+    ValidateAutoCategoryProfile(profile, context)
+end
+
+this.ValidateAccountWideListBackup = ValidateAccountWideListBackup
 
 local function BuildAccountWideListBackup(profile)
     local backup = {
@@ -1124,6 +1173,7 @@ local function BuildAccountWideListBackup(profile)
         trackedItems = CopySavedValue(profile.trackedItems),
         autoCategoryIntegrationEnabled = profile.autoCategoryIntegrationEnabled,
         autoCategorySetupComplete = profile.autoCategorySetupComplete,
+        fcoTestGroupsCreated = profile.fcoTestGroupsCreated == true,
         autoCategoryOrder = CopySavedValue(profile.autoCategoryOrder),
     }
     ValidateAccountWideListBackup(backup, "Account-wide list backup")
@@ -1236,14 +1286,67 @@ function this.RestoreAccountWideListBackup()
     this.accountWide.trackedItems = restored.trackedItems
     this.accountWide.autoCategoryIntegrationEnabled = restored.autoCategoryIntegrationEnabled
     this.accountWide.autoCategorySetupComplete = restored.autoCategorySetupComplete
+    this.accountWide.fcoTestGroupsCreated = restored.fcoTestGroupsCreated
     this.accountWide.autoCategoryOrder = restored.autoCategoryOrder
     this.accountWide.itemListInitialized = true
     this.InvalidateRuleCache()
     trackerContextRevision = trackerContextRevision + 1
 end
 
+local function HasFCOGroupReferences(value, keys, visited)
+    if type(value) ~= "table" then return false end
+    visited = visited or {}
+    if visited[value] then return false end
+    visited[value] = true
+    for key, child in pairs(value) do
+        if type(key) == "string" then
+            if keys[key] or keys[key:gsub("^ic:", "")] then return true end
+        end
+        if type(child) == "string" and (keys[child] or keys[child:gsub("^ic:", "")]) then return true end
+        if HasFCOGroupReferences(child, keys, visited) then return true end
+    end
+    return false
+end
+
+local function HasFCOProfileData(profile, keys, context)
+    assert(type(profile) == "table", context .. " must be a table")
+    if profile.fcoTestGroupsCreated == true then return true end
+    if profile.trackedRules ~= nil then
+        assert(type(profile.trackedRules) == "table", context .. ".trackedRules must be a table")
+        for key in pairs(profile.trackedRules) do
+            if keys[key] then return true end
+        end
+    end
+    return HasFCOGroupReferences(profile.autoCategoryOrder, keys)
+end
+
+local function ValidateFCOProfileData(profile, keys, context, integrationState)
+    if profile.version ~= nil and profile.version >= 15 then return end
+    local created = profile.fcoTestGroupsCreated == true
+    local hasReferences = HasFCOProfileData(profile, keys, context)
+    assert(created or not hasReferences,
+        context .. " contains FCO test-group data while fcoTestGroupsCreated is false")
+    if integrationState == "off" then
+        assert(not created and not hasReferences,
+            context .. " contains FCO test-group data while FCO integration is off")
+    end
+    if profile.accountWideListBackup ~= nil then
+        local backup = profile.accountWideListBackup
+        assert(type(backup) == "table", context .. ".accountWideListBackup must be a table")
+        local backupHasData = HasFCOProfileData(backup, keys, context .. ".accountWideListBackup")
+        assert(backup.fcoTestGroupsCreated == true or not backupHasData,
+            context .. ".accountWideListBackup contains FCO data while its creation flag is false")
+        if integrationState == "off" then
+            assert(backup.fcoTestGroupsCreated ~= true and not backupHasData,
+                context .. ".accountWideListBackup contains FCO data while FCO integration is off")
+        end
+    end
+end
+
 function this.PrepareSavedVariables()
     ValidateBuiltInVirtualNameCollisions()
+    local fcoGroupKeys = {}
+    for _, group in ipairs(this.FCOItemSaver.GetGroups()) do fcoGroupKeys[group.key] = true end
     local saved = _G[this.SettingsName]
     if saved == nil then return end
     assert(type(saved) == "table", this.SettingsName .. " must be a table; initialization stopped")
@@ -1254,6 +1357,12 @@ function this.PrepareSavedVariables()
     for accountName, account in pairs(saved.Default) do
         local accountPath = this.SettingsName .. ".Default[" .. tostring(accountName) .. "]"
         assert(type(account) == "table", accountPath .. " must be a table; initialization stopped")
+        local accountProfile = account["$AccountWide"]
+        assert(accountProfile == nil or type(accountProfile) == "table",
+            accountPath .. ".$AccountWide must be a table; initialization stopped")
+        local accountFCOState = accountProfile and accountProfile.fcoIntegrationState or "off"
+        assert(accountFCOState == "off" or accountFCOState == "enabled" or accountFCOState == "suspended",
+            accountPath .. ".$AccountWide.fcoIntegrationState must be off, enabled or suspended")
         for profileName, profile in pairs(account) do
             local context = accountPath .. "[" .. tostring(profileName) .. "]"
             assert(type(profile) == "table", context .. " must be a table; initialization stopped")
@@ -1261,7 +1370,18 @@ function this.PrepareSavedVariables()
                 assert(profile.guildBankPartialWithdrawEnabled == nil
                     or type(profile.guildBankPartialWithdrawEnabled) == "boolean",
                     context .. ".guildBankPartialWithdrawEnabled must be boolean")
+                assert(profile.diagnosticLoggingEnabled == nil
+                    or type(profile.diagnosticLoggingEnabled) == "boolean",
+                    context .. ".diagnosticLoggingEnabled must be boolean")
+                assert(profile.fcoIntegrationState == nil or profile.fcoIntegrationState == "off"
+                    or profile.fcoIntegrationState == "enabled" or profile.fcoIntegrationState == "suspended",
+                    context .. ".fcoIntegrationState must be off, enabled or suspended")
+            else
+                assert(profile.fcoIntegrationState == nil,
+                    context .. ".fcoIntegrationState is account-wide and cannot appear in a character profile")
             end
+            assert(profile.fcoTestGroupsCreated == nil or type(profile.fcoTestGroupsCreated) == "boolean",
+                context .. ".fcoTestGroupsCreated must be boolean")
             local version = profile.version
             assert(type(version) == "number" and version >= 1 and version < math.huge and version % 1 == 0,
                 context .. ".version must be a positive integer; saved data was not changed")
@@ -1269,23 +1389,11 @@ function this.PrepareSavedVariables()
                 string.format("[InventoryCompanion] %s uses saved-variable version %s, but this addon supports version %s. "
                     .. "Initialization stopped without changing saved data. Install a compatible newer addon or restore a compatible backup.",
                     context, tostring(version), tostring(this.SettingsVersion)))
-            assert(this.SettingsVersion <= 11 and (version == this.SettingsVersion
-                    or (this.SettingsVersion == 11 and version <= 10)
-                    or (this.SettingsVersion == 10 and version <= 9)
-                    or (version == 1 and (this.SettingsVersion == 2 or this.SettingsVersion == 3 or this.SettingsVersion == 4
-                        or this.SettingsVersion == 5 or this.SettingsVersion == 6 or this.SettingsVersion == 7))
-                    or (version == 2 and (this.SettingsVersion == 3 or this.SettingsVersion == 4
-                        or this.SettingsVersion == 5 or this.SettingsVersion == 6 or this.SettingsVersion == 7))
-                    or (version == 3 and (this.SettingsVersion == 4 or this.SettingsVersion == 5
-                        or this.SettingsVersion == 6 or this.SettingsVersion == 7))
-                    or (version == 4 and (this.SettingsVersion == 5 or this.SettingsVersion == 6
-                        or this.SettingsVersion == 7))
-                    or (version == 5 and (this.SettingsVersion == 6 or this.SettingsVersion == 7))
-                    or (version == 6 and this.SettingsVersion == 7)
-                    or (version <= 7 and this.SettingsVersion == 8)
-                    or (version <= 8 and this.SettingsVersion == 9)),
+            assert(this.SettingsVersion == 15 and (version == 15 or version == 14 or version <= 11),
                 context .. " has no supported migration from version " .. tostring(version)
                     .. " to version " .. tostring(this.SettingsVersion))
+            local fcoState = accountFCOState
+            ValidateFCOProfileData(profile, fcoGroupKeys, context, fcoState)
             local initialized = profile.itemListInitialized
             if initialized == nil then
                 initialized = profile.trackedRules ~= nil and next(profile.trackedRules) ~= nil
@@ -1309,7 +1417,7 @@ function this.PrepareSavedVariables()
                 end
             end
             table.insert(profiles, { data = profile, context = context, initialized = initialized,
-                account = account, name = profileName })
+                account = account, name = profileName, fcoState = accountFCOState })
         end
     end
 
@@ -1321,6 +1429,7 @@ function this.PrepareSavedVariables()
             ValidateSavedRules(profile.trackedRules, context .. ".trackedRules")
         end
         ValidateAutoCategoryBoundary(profile, context)
+        ValidateFCOProfileData(profile, fcoGroupKeys, context, entry.fcoState)
         if profile.debug ~= nil then ValidateAutoCategoryDebug(profile.debug, context .. ".debug") end
         if profile.trackedItems ~= nil then
             CheckTrackedItems(profile.trackedItems, context .. ".trackedItems")
@@ -1377,6 +1486,14 @@ function this.PrepareSavedVariables()
             if migration.rules then candidate.trackedRules = migration.rules end
             if migration.order then candidate.autoCategoryOrder = migration.order end
             if migration.setupComplete then candidate.autoCategorySetupComplete = true end
+            candidate.fcoTestGroupsCreated = entry.data.fcoTestGroupsCreated == true
+            if entry.name == "$AccountWide" then
+                candidate.diagnosticLoggingEnabled = entry.data.diagnosticLoggingEnabled
+                if candidate.diagnosticLoggingEnabled == nil then
+                    candidate.diagnosticLoggingEnabled = this.defaultsAccount.diagnosticLoggingEnabled
+                end
+                candidate.fcoIntegrationState = entry.data.fcoIntegrationState or "off"
+            end
             candidates[entry.data] = candidate
             migration.candidate = candidate
         end
@@ -1409,6 +1526,9 @@ function this.PrepareSavedVariables()
                 candidate.trackedItems, candidate.trackedRules = nil, nil
                 candidate.autoCategoryOrder, candidate.autoCategorySetupComplete = nil, nil
             end
+            if candidate.fcoTestGroupsCreated == nil then candidate.fcoTestGroupsCreated = false end
+            ValidateFCOProfileData(candidate, fcoGroupKeys, entry.context,
+                entry.name == "$AccountWide" and (candidate.fcoIntegrationState or "off") or entry.fcoState)
             if entry.name ~= "$AccountWide" then
                 candidate.itemListInitialized = initialized
                 candidate.useCharacterItemList = candidate.useCharacterItemList == true
@@ -1427,6 +1547,9 @@ function this.PrepareSavedVariables()
             if entry.name ~= "$AccountWide" then
                 local initialized = entry.initialized == true
                     and not (entry.data.version < 10 and entry.data.useCharacterItemList ~= true)
+                if entry.data.version == 14 and entry.data.fcoTestGroupsCreated == true then
+                    initialized = true
+                end
                 local sourceCandidate
                 if entry.data.version < 10 and initialized then
                     local account = entry.account["$AccountWide"]
@@ -1435,15 +1558,46 @@ function this.PrepareSavedVariables()
                 PrepareProfileCandidate(index, entry, sourceCandidate, initialized)
             end
         end
+        local function ConvertLegacyGroups(candidate, context)
+            if candidate.fcoTestGroupsCreated ~= true then return end
+            assert(type(candidate.trackedRules) == "table", context .. ".trackedRules must be a table")
+            candidate.trackedRules = CopySavedValue(candidate.trackedRules)
+            for _, group in ipairs(this.FCOItemSaver.GetGroups()) do
+                local base = assert(this.preLoadedRulesets[group.key],
+                    "Missing FCO group baseline during migration: " .. group.key)
+                local saved = candidate.trackedRules[group.key] or {}
+                local converted = CopySavedValue(saved)
+                converted.displayName = saved.displayName or base.displayName
+                converted.patterns = saved.patterns and CopySavedValue(saved.patterns) or GetPatternList(base, saved)
+                converted.addedPatterns, converted.removedPatterns = nil, nil
+                converted.display = CopySavedValue(base.display)
+                if saved.display then
+                    for key, value in pairs(saved.display) do converted.display[key] = value end
+                end
+                converted.markerConditions = { include = { group.legacyMarkerId }, exclude = {} }
+                candidate.trackedRules[group.key] = converted
+            end
+        end
         if this.SettingsVersion >= 10 then
             for index, entry in ipairs(profiles) do
                 local migration, candidate = migrations[index], migrations[index].candidate
+                if entry.data.version == 14 and migration.initialized then
+                    ConvertLegacyGroups(candidate, entry.context)
+                end
                 if migration.initialized then
                     PromoteBuiltInNameCollisions(candidate, entry.context)
                 end
                 local backup = migration.backup
                 if backup == nil and entry.data.accountWideListBackup ~= nil then
                     backup = CopySavedValue(entry.data.accountWideListBackup)
+                end
+                if backup ~= nil and entry.data.version == 14 and backup.fcoTestGroupsCreated == true then
+                    ConvertLegacyGroups(backup, entry.context .. ".accountWideListBackup")
+                    migration.backup = backup
+                end
+                if backup ~= nil and backup.fcoTestGroupsCreated == nil then
+                    backup.fcoTestGroupsCreated = false
+                    migration.backup = backup
                 end
                 if backup ~= nil and PromoteBuiltInNameCollisions(backup,
                     entry.context .. ".accountWideListBackup") then
@@ -1465,7 +1619,8 @@ function this.PrepareSavedVariables()
         if migration.candidate then
             for _, key in ipairs(preferenceFields) do migration.profile[key] = migration.candidate[key] end
             for _, key in ipairs({ "trackedItems", "trackedRules", "autoCategoryOrder",
-                "autoCategorySetupComplete", "autoCategoryIntegrationEnabled", "useCharacterItemList" }) do
+                "autoCategorySetupComplete", "autoCategoryIntegrationEnabled", "useCharacterItemList",
+                "fcoTestGroupsCreated", "diagnosticLoggingEnabled", "fcoIntegrationState" }) do
                 migration.profile[key] = migration.candidate[key]
             end
             if migration.removeLegacyPanelFields then
@@ -1475,12 +1630,20 @@ function this.PrepareSavedVariables()
         migration.profile.version = this.SettingsVersion
         migration.profile.itemListInitialized = migration.initialized
     end
+    for _, group in ipairs(this.FCOItemSaver.GetGroups()) do
+        local baseline = this.preLoadedRulesets[group.key]
+        if baseline and baseline.isFCOGroup then this.preLoadedRulesets[group.key] = nil end
+    end
     this.InvalidateRuleCache()
 end
 
-function this.GetRuntimeRules(candidateSavedRules)
+function this.GetRuntimeRules(candidateSavedRules, candidateFCOCreated)
     local savedRules = candidateSavedRules or GetRawSavedRules()
     if candidateSavedRules then ValidateSavedRules(savedRules, "Candidate rules") end
+    local fcoGroupsCreated = candidateSavedRules and candidateFCOCreated == true or candidateFCOCreated
+    if fcoGroupsCreated == nil and candidateSavedRules == nil then
+        fcoGroupsCreated = this.GetAutoCategoryProfile().fcoTestGroupsCreated == true
+    end
     local firstAccess
     if candidateSavedRules == nil and this.IsDevelopment == true and runtimeRuleDiagnostics.firstAccess == nil then
         local caller = "unavailable"
@@ -1536,9 +1699,26 @@ function this.GetRuntimeRules(candidateSavedRules)
             display = this.ResolveItemDisplay(display),
             isPreloaded = base ~= nil,
             autoCategoryEnabled = saved.autoCategoryEnabled == true,
+            isFCOGroup = base and base.isFCOGroup == true or false,
+            markerKey = base and base.markerKey or nil,
+            markerId = base and base.isFCOGroup and this.FCOItemSaver.GetMarkerId(ruleName) or nil,
+            slotMatcher = base and base.slotMatcher or nil,
+            markerConditions = saved.markerConditions,
         }
+        if base and base.isFCOGroup then
+            assert(fcoGroupsCreated == true,
+                "FCO test group is not configured in the selected profile: " .. ruleName)
+            resolvedRules[ruleName].inactiveReason = this.FCOItemSaver.GetInactiveReason(ruleName)
+            resolvedRules[ruleName].isInactive = resolvedRules[ruleName].inactiveReason ~= nil
+        elseif saved.markerConditions then
+            resolvedRules[ruleName].inactiveReason = this.FCOItemSaver.GetConditionsInactiveReason(saved.markerConditions)
+            resolvedRules[ruleName].isInactive = resolvedRules[ruleName].inactiveReason ~= nil
+        end
     end
-    for ruleName, base in pairs(this.preLoadedRulesets) do Resolve(ruleName, base) end
+    for ruleName, base in pairs(this.preLoadedRulesets) do
+        if (not savedRules[ruleName] or not savedRules[ruleName].deletedBuiltIn)
+            and (not base.isFCOGroup or fcoGroupsCreated) then Resolve(ruleName, base) end
+    end
     for ruleName in pairs(savedRules) do
         if not this.preLoadedRulesets[ruleName] then Resolve(ruleName) end
     end
@@ -1609,6 +1789,13 @@ function this.GetActiveTrackedRules(includeHidden)
                 display = CopyValues(rule.display),
                 isPreloaded = rule.isPreloaded,
                 autoCategoryEnabled = rule.autoCategoryEnabled,
+                isFCOGroup = rule.isFCOGroup,
+                markerKey = rule.markerKey,
+                markerId = rule.markerId,
+                slotMatcher = rule.slotMatcher,
+                markerConditions = rule.markerConditions,
+                isInactive = rule.isInactive,
+                inactiveReason = rule.inactiveReason,
             }
         end
     end
@@ -1798,6 +1985,7 @@ local function CopyItemListProfile(source, destination)
     PrepareProfilePreferences(preferences)
     destination.trackedRules = rules
     destination.trackedItems = items
+    destination.fcoTestGroupsCreated = source.fcoTestGroupsCreated == true
     destination.autoCategorySetupComplete = source.autoCategorySetupComplete
     destination.autoCategoryOrder = order
     for _, key in ipairs(preferenceFields) do destination[key] = CopySavedValue(preferences[key]) end
@@ -1815,6 +2003,7 @@ function this.SetUseCharacterItemList(value)
     trackerContextRevision = trackerContextRevision + 1
     this.InvalidateRuleCache()
     this.AutoCategoryIntegration.OnProfileChanged()
+    this.StartTrackerMarkerPolling()
 end
 
 function this.UpdateRuleFlag(ruleName, flagKey, value)
@@ -1896,6 +2085,7 @@ function this.ResetRule(ruleName)
     assert(this.preLoadedRulesets[ruleName], "Only built-in rules can be reset")
     local savedRules = GetRawSavedRules()
     local saved = savedRules[ruleName]
+    assert(not saved or not saved.deletedBuiltIn, "A deleted built-in rule cannot be reset")
     if saved then
         saved.displayName = nil
         saved.patterns = nil
@@ -1941,6 +2131,7 @@ function this.CopyProfile(sourceKey)
     this.InvalidateRuleCache()
     trackerContextRevision = trackerContextRevision + 1
     this.AutoCategoryIntegration.OnProfileChanged()
+    this.StartTrackerMarkerPolling()
     return true
 end
 
@@ -1996,7 +2187,7 @@ function this.RestoreEditorState(panel, snapshot, contextKey, mode)
     CheckTrackedItems(candidate.trackedItems, "Undo candidate.trackedItems")
     CheckAutoCategoryOrder(candidate.autoCategoryOrder, "Undo candidate.autoCategoryOrder", candidate.trackedRules)
     if this.AutoCategoryIntegration.IsEditorActive() then
-        local rules = this.GetRuntimeRules(candidate.trackedRules)
+        local rules = this.GetRuntimeRules(candidate.trackedRules, candidate.fcoTestGroupsCreated)
         for key, order in pairs(overrides) do
             local available = {}
             for _, row in ipairs(this.AutoCategoryIntegration.ResolveAutoCategoryOrder(key, { mode = "display" })) do
@@ -2056,26 +2247,67 @@ CompilePatterns = function(patterns)
     return compiled
 end
 
-local function ItemNameMatchesCompiledRule(lowerName, compiledIncludes, compiledExcludes)
+function this.ItemMatchesCompiledRule(lowerName, rule, bagId, slotIndex, markerAnswers)
+    if lowerName == nil or rule.isInactive then return false end
+    local conditions = rule.markerConditions
+    if conditions then
+        assert(type(bagId) == "number" and type(slotIndex) == "number",
+            "FCO group matching requires the item's bag and slot")
+    end
+    local supportsMarkers = bagId == BAG_BACKPACK or bagId == BAG_BANK or bagId == BAG_SUBSCRIBER_BANK
+    if conditions and markerAnswers == nil and supportsMarkers then
+        local ids, seen = {}, {}
+        for _, list in ipairs({ conditions.include, conditions.exclude }) do
+            for _, markerId in ipairs(list) do
+                if not seen[markerId] then
+                    seen[markerId] = true
+                    ids[#ids + 1] = markerId
+                end
+            end
+        end
+        local _, answers = this.FCOItemSaver.ReadMarkers(ids, bagId, slotIndex)
+        markerAnswers = answers
+    end
     local included = false
-    for _, pattern in ipairs(compiledIncludes) do
+    for _, pattern in ipairs(rule.compiledPatterns) do
         if lowerName:match(pattern) ~= nil then
             included = true
             break
         end
     end
+    if not included and conditions and supportsMarkers then
+        for _, markerId in ipairs(conditions.include) do
+            if markerAnswers[markerId] then included = true; break end
+        end
+    end
+    if not included and rule.slotMatcher and (rule.markerId == nil or supportsMarkers) then
+        if markerAnswers ~= nil and rule.markerId ~= nil and markerAnswers[rule.markerId] ~= nil then
+            included = markerAnswers[rule.markerId]
+        else
+            assert(type(bagId) == "number" and type(slotIndex) == "number",
+                "FCO group matching requires the item's bag and slot")
+            included = rule.slotMatcher(bagId, slotIndex)
+        end
+        assert(type(included) == "boolean", "FCO slot matcher must return a boolean")
+    end
     if not included then return false end
 
-    for _, pattern in ipairs(compiledExcludes) do
+    for _, pattern in ipairs(rule.compiledExcludedPatterns) do
         if lowerName:match(pattern) ~= nil then return false end
+    end
+    if conditions and supportsMarkers then
+        for _, markerId in ipairs(conditions.exclude) do
+            if markerAnswers[markerId] then return false end
+        end
     end
     return true
 end
 
-function this.ItemMatchesRuntimeRule(itemLink, rule)
+function this.ItemMatchesRuntimeRule(itemLink, rule, bagId, slotIndex)
+    if rule.isInactive then return false end
     local name = GetItemLinkName(itemLink)
     if not name then return false end
-    return ItemNameMatchesCompiledRule(name:lower(), rule.compiledPatterns, rule.compiledExcludedPatterns)
+    return this.ItemMatchesCompiledRule(name:lower(), rule, bagId, slotIndex)
 end
 
 function this.ItemMatchesRule(itemLink, pattern)
@@ -2141,7 +2373,7 @@ function this.HandleTrackedItemInventoryUpdate(bagId, slotIndex, stackCountChang
     for ruleName, ruleData in pairs(trackedRules) do
         local display = ruleData.display
         if (ruleName == "miscellaneous" or not display.isHidden)
-            and display.notify and this.ItemMatchesRuntimeRule(itemLink, ruleData) then
+            and display.notify and this.ItemMatchesRuntimeRule(itemLink, ruleData, bagId, slotIndex) then
             notifyChat = notifyChat or display.notifyChat
             notifyHud = notifyHud or display.notifyHud
         end
@@ -2207,10 +2439,30 @@ local function addToRuleIndex(ruleIndex, ruleIndexSets, ruleName, itemId)
     table.insert(list, itemId)
 end
 
-local function findMatchingRulesCompiled(lowerName, compiledRules)
+local function findMatchingRulesCompiled(lowerName, compiledRules, itemData)
     local matchedRules = {}
+    if lowerName == nil then return matchedRules end
+    local markerIds, seen = {}, {}
+    for _, rule in pairs(compiledRules) do
+        if not rule.isInactive and rule.markerConditions then
+            for _, list in ipairs({ rule.markerConditions.include, rule.markerConditions.exclude }) do
+                for _, markerId in ipairs(list) do
+                    if not seen[markerId] then
+                        seen[markerId] = true
+                        markerIds[#markerIds + 1] = markerId
+                    end
+                end
+            end
+        end
+    end
+    local markerAnswers
+    if #markerIds > 0 and (itemData.bagId == BAG_BACKPACK or itemData.bagId == BAG_BANK
+        or itemData.bagId == BAG_SUBSCRIBER_BANK) then
+        local _
+        _, markerAnswers = this.FCOItemSaver.ReadMarkers(markerIds, itemData.bagId, itemData.slotIndex)
+    end
     for ruleName, rule in pairs(compiledRules) do
-        if ItemNameMatchesCompiledRule(lowerName, rule.compiledPatterns, rule.compiledExcludedPatterns) then
+        if this.ItemMatchesCompiledRule(lowerName, rule, itemData.bagId, itemData.slotIndex, markerAnswers) then
             matchedRules[ruleName] = true
         end
     end
@@ -2253,16 +2505,11 @@ local function registerItemRules(itemRecord, groups, ruleIndex, ruleIndexSets, m
     end
 end
 
-local function evaluateAndRecordItem(masterItems, groups, ruleIndex, ruleIndexSets, trackedItems,
-    compiledRules, itemData, isBank)
+local function recordMatchedItem(masterItems, groups, ruleIndex, ruleIndexSets, trackedItems,
+    matchedRules, itemData, isBank)
     local itemId = itemData.itemId
     local link = itemData.link
     local isTracked = trackedItems and trackedItems[itemId] ~= nil
-
-    local itemName = GetItemLinkName(link)
-    local lowerName = itemName and itemName:lower() or ""
-
-    local matchedRules = findMatchingRulesCompiled(lowerName, compiledRules)
 
     if not isTracked and not hasAnyMatch(matchedRules) then return end
 
@@ -2282,6 +2529,16 @@ local function evaluateAndRecordItem(masterItems, groups, ruleIndex, ruleIndexSe
     registerItemRules(itemRecord, groups, ruleIndex, ruleIndexSets, matchedRules, itemData, isBank)
 end
 
+local function evaluateAndRecordItem(masterItems, groups, ruleIndex, ruleIndexSets, trackedItems,
+    compiledRules, itemData, isBank, diagnostic)
+    if diagnostic and diagnostic.Checkpoint then diagnostic.Checkpoint() end
+    local itemName = diagnostic and diagnostic.GetName(itemData.link) or GetItemLinkName(itemData.link)
+    local lowerName = itemName and (diagnostic and diagnostic.NormalizeName(itemName) or itemName:lower())
+    local matchedRules = findMatchingRulesCompiled(lowerName, compiledRules, itemData)
+    recordMatchedItem(masterItems, groups, ruleIndex, ruleIndexSets, trackedItems,
+        matchedRules, itemData, isBank)
+end
+
 local function addRescuePassForTrackedItems(masterItems, trackedItems)
     if not trackedItems then return end
     
@@ -2299,7 +2556,8 @@ local function addRescuePassForTrackedItems(masterItems, trackedItems)
     end
 end
 
-local function BuildMasterItemList(trackedItems, activeRules, bagIdList, collectGroupBookkeeping)
+local function BuildMasterItemList(trackedItems, activeRules, bagIdList, collectGroupBookkeeping,
+    diagnostic, groupSlotLists, prepareIndexedGroups)
     assert(type(collectGroupBookkeeping) == "boolean", "collectGroupBookkeeping must be a boolean")
     local masterItems = {}
     local groups = collectGroupBookkeeping and {} or nil
@@ -2308,12 +2566,18 @@ local function BuildMasterItemList(trackedItems, activeRules, bagIdList, collect
 
     local compiledRules = {}
     for ruleName, ruleData in pairs(activeRules) do
+        if diagnostic and diagnostic.Checkpoint then diagnostic.Checkpoint() end
         assert(type(ruleData.compiledPatterns) == "table", "Rule " .. ruleName .. " is missing compiledPatterns")
         assert(type(ruleData.compiledExcludedPatterns) == "table",
             "Rule " .. ruleName .. " is missing compiledExcludedPatterns")
         compiledRules[ruleName] = {
             compiledPatterns = ruleData.compiledPatterns,
             compiledExcludedPatterns = ruleData.compiledExcludedPatterns,
+            slotMatcher = ruleData.slotMatcher,
+            markerKey = ruleData.markerKey,
+            markerId = ruleData.markerId,
+            markerConditions = ruleData.markerConditions,
+            isInactive = ruleData.isInactive,
         }
         if collectGroupBookkeeping then
             groups[ruleName] = {
@@ -2326,16 +2590,36 @@ local function BuildMasterItemList(trackedItems, activeRules, bagIdList, collect
         end
     end
 
+    local indexed = groupSlotLists ~= nil or prepareIndexedGroups == true
+    local capturedBags = indexed and {}
     for _, bagId in ipairs(bagIdList) do
         local isBank = (bagId ~= BAG_BACKPACK)
-        local contents = this.Scanning.GetBagContents({ bagId })
-        for _, itemData in ipairs(contents) do
-            evaluateAndRecordItem(masterItems, groups, ruleIndex, ruleIndexSets, trackedItems,
-                compiledRules, itemData, isBank)
+        local contents = this.Scanning.GetBagContents({ bagId }, nil, diagnostic and diagnostic.Checkpoint)
+        if diagnostic then diagnostic.OnBagRead(bagId, contents) end
+        if indexed then
+            capturedBags[bagId] = contents
+        else
+            for _, itemData in ipairs(contents) do
+                evaluateAndRecordItem(masterItems, groups, ruleIndex, ruleIndexSets, trackedItems,
+                    compiledRules, itemData, isBank, diagnostic)
+            end
         end
     end
 
-    addRescuePassForTrackedItems(masterItems, trackedItems)
+    if indexed then
+        if prepareIndexedGroups then groupSlotLists = diagnostic.PrepareGroupSlotLists(compiledRules) end
+        local matches = diagnostic.MatchIndexedGroups(compiledRules, groupSlotLists)
+        for _, bagId in ipairs(bagIdList) do
+            for _, itemData in ipairs(capturedBags[bagId]) do
+                if diagnostic.Checkpoint then diagnostic.Checkpoint() end
+                if diagnostic.CaptureSlot then diagnostic.CaptureSlot(itemData, matches[itemData]) end
+                recordMatchedItem(masterItems, groups, ruleIndex, ruleIndexSets, trackedItems,
+                    matches[itemData], itemData, bagId ~= BAG_BACKPACK)
+            end
+        end
+    end
+
+    addRescuePassForTrackedItems(masterItems, trackedItems, diagnostic and diagnostic.Checkpoint)
 
     return {
         items = masterItems,
@@ -2345,11 +2629,73 @@ local function BuildMasterItemList(trackedItems, activeRules, bagIdList, collect
 end
 
 function this.GetMasterItemList(trackedItems, activeRules, bagIdList)
-    return BuildMasterItemList(trackedItems, activeRules, bagIdList, true)
+    return this.PreparedScanning.GetPreparedMasterItemList(trackedItems, activeRules, bagIdList)
+end
+
+function this.GetMasterItemListForPreparedMatchingDiagnostics(trackedItems, activeRules, bagIdList, diagnostic)
+    assert(type(diagnostic) == "table" and type(diagnostic.PrepareGroupSlotLists) == "function"
+        and type(diagnostic.MatchIndexedGroups) == "function" and type(diagnostic.OnBagRead) == "function",
+        "Prepared matching requires its complete scan context")
+    local slotIndex = { bagIds = {}, bags = {}, ruleNames = {}, markerIds = diagnostic.markerIds }
+    for index, bagId in ipairs(bagIdList) do
+        slotIndex.bagIds[index] = bagId
+        slotIndex.bags[bagId] = { order = {}, ordered = {}, slots = {} }
+    end
+    for ruleKey in pairs(activeRules) do slotIndex.ruleNames[ruleKey] = true end
+    local capture = diagnostic.CaptureSlot
+    diagnostic.CaptureSlot = function(item, matchedRules)
+        capture(item, matchedRules, slotIndex)
+    end
+    local snapshot = BuildMasterItemList(trackedItems, activeRules, bagIdList, true,
+        diagnostic, nil, true)
+    return snapshot, slotIndex
 end
 
 function this.GetMasterItemListWithoutGroupBookkeepingForPerformanceTest(trackedItems, activeRules, bagIdList)
     return BuildMasterItemList(trackedItems, activeRules, bagIdList, false)
+end
+
+function this.EvaluateTrackerSlot(bagId, slotIndex, activeRules)
+    local itemData = this.Scanning.ReadSlot(bagId, slotIndex)
+    if not itemData then return nil end
+    local itemName = GetItemLinkName(itemData.link)
+    local lowerName = itemName and itemName:lower()
+    return {
+        itemData = itemData,
+        matchedRules = findMatchingRulesCompiled(lowerName, activeRules, itemData),
+    }
+end
+
+function this.BuildTrackerSnapshotFromSlotIndex(slotIndex, trackedItems, activeRules)
+    local masterItems, groups, ruleIndex, ruleIndexSets = {}, {}, {}, {}
+    for ruleName, ruleData in pairs(activeRules) do
+        assert(slotIndex.ruleNames[ruleName], "Slot index was not evaluated for rule " .. ruleName)
+        groups[ruleName] = {
+            displayName = ruleData.displayName,
+            items = {},
+            bagCount = 0,
+            bankCount = 0,
+        }
+        ruleIndexSets[ruleName] = {}
+    end
+    for _, bagId in ipairs(slotIndex.bagIds) do
+        local bag = slotIndex.bags[bagId]
+        for _, slot in ipairs(bag.order) do
+            local record = bag.slots[slot]
+            if record then
+                local matched = {}
+                for ruleName in pairs(record.matchedRules) do
+                    if activeRules[ruleName] and not activeRules[ruleName].isInactive then
+                        matched[ruleName] = true
+                    end
+                end
+                recordMatchedItem(masterItems, groups, ruleIndex, ruleIndexSets, trackedItems,
+                    matched, record.itemData, bagId ~= BAG_BACKPACK)
+            end
+        end
+    end
+    addRescuePassForTrackedItems(masterItems, trackedItems)
+    return { items = masterItems, groups = groups, ruleIndex = ruleIndex }
 end
 
 function this.GetTrackerBagIdList()

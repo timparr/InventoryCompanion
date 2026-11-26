@@ -1,5 +1,8 @@
 local function Load()
-    InventoryCompanion = { state = {}, Utils = {}, SetVisibilityTickerNeeded = function() end }
+    InventoryCompanion = {
+        state = {}, Utils = {}, SetVisibilityTickerNeeded = function() end,
+        StartTrackerMarkerPolling = function() end,
+    }
     IsShiftKeyDown = function() return true end
     assert(loadstring(PanelLayoutSource))()
     return InventoryCompanion, InventoryCompanion.PanelLayout

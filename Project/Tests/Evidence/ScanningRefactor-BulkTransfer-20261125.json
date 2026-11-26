@@ -1,0 +1,2396 @@
+{
+  "description": "Temporary observation-only inventory event capture: manual bank-to-bag transfers followed by automated bulk deposit. No item names or account data included.",
+  "sourceFlushedAtUtc": "2026-11-25T20:15:03.513606+00:00",
+  "events": [
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294964541,
+      "slot": 173,
+      "isNewItem": false,
+      "timestamp": 1795637664,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294964610,
+      "slot": 53,
+      "isNewItem": false,
+      "timestamp": 1795637664,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294964743,
+      "slot": 169,
+      "isNewItem": false,
+      "timestamp": 1795637665,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294964800,
+      "slot": 58,
+      "isNewItem": false,
+      "timestamp": 1795637665,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294964919,
+      "slot": 124,
+      "isNewItem": false,
+      "timestamp": 1795637665,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294964975,
+      "slot": 59,
+      "isNewItem": false,
+      "timestamp": 1795637665,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -3,
+      "bag": 6,
+      "gameTimeMs": 294965125,
+      "slot": 122,
+      "isNewItem": false,
+      "timestamp": 1795637665,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 3,
+      "bag": 1,
+      "gameTimeMs": 294965197,
+      "slot": 67,
+      "isNewItem": false,
+      "timestamp": 1795637665,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294965336,
+      "slot": 107,
+      "isNewItem": false,
+      "timestamp": 1795637665,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294965433,
+      "slot": 68,
+      "isNewItem": false,
+      "timestamp": 1795637665,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294965573,
+      "slot": 123,
+      "isNewItem": false,
+      "timestamp": 1795637665,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294965639,
+      "slot": 71,
+      "isNewItem": false,
+      "timestamp": 1795637665,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 2,
+      "gameTimeMs": 294965784,
+      "slot": 213,
+      "isNewItem": false,
+      "timestamp": 1795637666,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294965853,
+      "slot": 72,
+      "isNewItem": false,
+      "timestamp": 1795637666,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 2,
+      "gameTimeMs": 294966057,
+      "slot": 219,
+      "isNewItem": false,
+      "timestamp": 1795637666,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294966146,
+      "slot": 73,
+      "isNewItem": false,
+      "timestamp": 1795637666,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 2,
+      "gameTimeMs": 294966324,
+      "slot": 222,
+      "isNewItem": false,
+      "timestamp": 1795637666,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294966387,
+      "slot": 74,
+      "isNewItem": false,
+      "timestamp": 1795637666,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 2,
+      "gameTimeMs": 294966510,
+      "slot": 227,
+      "isNewItem": false,
+      "timestamp": 1795637666,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294966563,
+      "slot": 76,
+      "isNewItem": false,
+      "timestamp": 1795637666,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 2,
+      "gameTimeMs": 294966762,
+      "slot": 239,
+      "isNewItem": false,
+      "timestamp": 1795637667,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294966813,
+      "slot": 77,
+      "isNewItem": false,
+      "timestamp": 1795637667,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -2,
+      "bag": 6,
+      "gameTimeMs": 294967091,
+      "slot": 106,
+      "isNewItem": false,
+      "timestamp": 1795637667,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 2,
+      "bag": 1,
+      "gameTimeMs": 294967156,
+      "slot": 78,
+      "isNewItem": false,
+      "timestamp": 1795637667,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -2,
+      "bag": 6,
+      "gameTimeMs": 294967302,
+      "slot": 125,
+      "isNewItem": false,
+      "timestamp": 1795637667,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 2,
+      "bag": 1,
+      "gameTimeMs": 294967373,
+      "slot": 79,
+      "isNewItem": false,
+      "timestamp": 1795637667,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294967554,
+      "slot": 168,
+      "isNewItem": false,
+      "timestamp": 1795637667,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294967607,
+      "slot": 80,
+      "isNewItem": false,
+      "timestamp": 1795637667,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294967730,
+      "slot": 126,
+      "isNewItem": false,
+      "timestamp": 1795637668,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294967781,
+      "slot": 81,
+      "isNewItem": false,
+      "timestamp": 1795637668,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294967996,
+      "slot": 135,
+      "isNewItem": false,
+      "timestamp": 1795637668,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294968052,
+      "slot": 82,
+      "isNewItem": false,
+      "timestamp": 1795637668,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -2,
+      "bag": 6,
+      "gameTimeMs": 294968259,
+      "slot": 134,
+      "isNewItem": false,
+      "timestamp": 1795637668,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 2,
+      "bag": 1,
+      "gameTimeMs": 294968326,
+      "slot": 83,
+      "isNewItem": false,
+      "timestamp": 1795637668,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294968462,
+      "slot": 127,
+      "isNewItem": false,
+      "timestamp": 1795637668,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294968538,
+      "slot": 84,
+      "isNewItem": false,
+      "timestamp": 1795637668,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294968732,
+      "slot": 128,
+      "isNewItem": false,
+      "timestamp": 1795637669,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294968797,
+      "slot": 85,
+      "isNewItem": false,
+      "timestamp": 1795637669,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294969024,
+      "slot": 129,
+      "isNewItem": false,
+      "timestamp": 1795637669,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294969110,
+      "slot": 86,
+      "isNewItem": false,
+      "timestamp": 1795637669,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294969304,
+      "slot": 130,
+      "isNewItem": false,
+      "timestamp": 1795637669,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294969405,
+      "slot": 87,
+      "isNewItem": false,
+      "timestamp": 1795637669,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -2,
+      "bag": 6,
+      "gameTimeMs": 294969553,
+      "slot": 136,
+      "isNewItem": false,
+      "timestamp": 1795637669,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 2,
+      "bag": 1,
+      "gameTimeMs": 294969612,
+      "slot": 88,
+      "isNewItem": false,
+      "timestamp": 1795637669,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294969737,
+      "slot": 131,
+      "isNewItem": false,
+      "timestamp": 1795637670,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294969788,
+      "slot": 89,
+      "isNewItem": false,
+      "timestamp": 1795637670,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294969939,
+      "slot": 132,
+      "isNewItem": false,
+      "timestamp": 1795637670,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294969998,
+      "slot": 90,
+      "isNewItem": false,
+      "timestamp": 1795637670,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294970273,
+      "slot": 133,
+      "isNewItem": false,
+      "timestamp": 1795637670,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294970337,
+      "slot": 91,
+      "isNewItem": false,
+      "timestamp": 1795637670,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294970487,
+      "slot": 137,
+      "isNewItem": false,
+      "timestamp": 1795637670,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294970560,
+      "slot": 92,
+      "isNewItem": false,
+      "timestamp": 1795637670,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294970758,
+      "slot": 138,
+      "isNewItem": false,
+      "timestamp": 1795637671,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294970813,
+      "slot": 93,
+      "isNewItem": false,
+      "timestamp": 1795637671,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294970979,
+      "slot": 139,
+      "isNewItem": false,
+      "timestamp": 1795637671,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294971031,
+      "slot": 94,
+      "isNewItem": false,
+      "timestamp": 1795637671,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -3,
+      "bag": 6,
+      "gameTimeMs": 294971171,
+      "slot": 170,
+      "isNewItem": false,
+      "timestamp": 1795637671,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 3,
+      "bag": 1,
+      "gameTimeMs": 294971222,
+      "slot": 95,
+      "isNewItem": false,
+      "timestamp": 1795637671,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294971472,
+      "slot": 140,
+      "isNewItem": false,
+      "timestamp": 1795637671,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294971538,
+      "slot": 96,
+      "isNewItem": false,
+      "timestamp": 1795637671,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294971681,
+      "slot": 141,
+      "isNewItem": false,
+      "timestamp": 1795637671,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294971770,
+      "slot": 97,
+      "isNewItem": false,
+      "timestamp": 1795637672,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294971900,
+      "slot": 149,
+      "isNewItem": false,
+      "timestamp": 1795637672,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294971972,
+      "slot": 98,
+      "isNewItem": false,
+      "timestamp": 1795637672,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294972148,
+      "slot": 142,
+      "isNewItem": false,
+      "timestamp": 1795637672,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294972213,
+      "slot": 99,
+      "isNewItem": false,
+      "timestamp": 1795637672,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294972420,
+      "slot": 150,
+      "isNewItem": false,
+      "timestamp": 1795637672,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294972498,
+      "slot": 100,
+      "isNewItem": false,
+      "timestamp": 1795637672,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294972682,
+      "slot": 148,
+      "isNewItem": false,
+      "timestamp": 1795637672,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294972769,
+      "slot": 101,
+      "isNewItem": false,
+      "timestamp": 1795637673,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294972918,
+      "slot": 143,
+      "isNewItem": false,
+      "timestamp": 1795637673,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294972971,
+      "slot": 102,
+      "isNewItem": false,
+      "timestamp": 1795637673,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294973112,
+      "slot": 144,
+      "isNewItem": false,
+      "timestamp": 1795637673,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294973160,
+      "slot": 103,
+      "isNewItem": false,
+      "timestamp": 1795637673,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294973319,
+      "slot": 145,
+      "isNewItem": false,
+      "timestamp": 1795637673,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294973371,
+      "slot": 104,
+      "isNewItem": false,
+      "timestamp": 1795637673,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294973532,
+      "slot": 146,
+      "isNewItem": false,
+      "timestamp": 1795637673,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294973594,
+      "slot": 105,
+      "isNewItem": false,
+      "timestamp": 1795637673,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294973734,
+      "slot": 147,
+      "isNewItem": false,
+      "timestamp": 1795637674,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294973800,
+      "slot": 106,
+      "isNewItem": false,
+      "timestamp": 1795637674,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294974053,
+      "slot": 151,
+      "isNewItem": false,
+      "timestamp": 1795637674,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294974114,
+      "slot": 107,
+      "isNewItem": false,
+      "timestamp": 1795637674,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294974245,
+      "slot": 152,
+      "isNewItem": false,
+      "timestamp": 1795637674,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294974440,
+      "slot": 108,
+      "isNewItem": false,
+      "timestamp": 1795637674,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294974576,
+      "slot": 153,
+      "isNewItem": false,
+      "timestamp": 1795637674,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294974627,
+      "slot": 109,
+      "isNewItem": false,
+      "timestamp": 1795637674,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294974736,
+      "slot": 154,
+      "isNewItem": false,
+      "timestamp": 1795637675,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294974785,
+      "slot": 110,
+      "isNewItem": false,
+      "timestamp": 1795637675,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294974916,
+      "slot": 155,
+      "isNewItem": false,
+      "timestamp": 1795637675,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294974978,
+      "slot": 111,
+      "isNewItem": false,
+      "timestamp": 1795637675,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -3,
+      "bag": 6,
+      "gameTimeMs": 294975185,
+      "slot": 156,
+      "isNewItem": false,
+      "timestamp": 1795637675,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 3,
+      "bag": 1,
+      "gameTimeMs": 294975273,
+      "slot": 112,
+      "isNewItem": false,
+      "timestamp": 1795637675,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294975492,
+      "slot": 157,
+      "isNewItem": false,
+      "timestamp": 1795637675,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294975555,
+      "slot": 113,
+      "isNewItem": false,
+      "timestamp": 1795637675,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294975697,
+      "slot": 158,
+      "isNewItem": false,
+      "timestamp": 1795637675,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294975758,
+      "slot": 114,
+      "isNewItem": false,
+      "timestamp": 1795637676,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294975883,
+      "slot": 159,
+      "isNewItem": false,
+      "timestamp": 1795637676,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294975951,
+      "slot": 115,
+      "isNewItem": false,
+      "timestamp": 1795637676,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294976086,
+      "slot": 160,
+      "isNewItem": false,
+      "timestamp": 1795637676,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294976174,
+      "slot": 116,
+      "isNewItem": false,
+      "timestamp": 1795637676,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294976322,
+      "slot": 161,
+      "isNewItem": false,
+      "timestamp": 1795637676,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294976393,
+      "slot": 122,
+      "isNewItem": false,
+      "timestamp": 1795637676,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294976593,
+      "slot": 162,
+      "isNewItem": false,
+      "timestamp": 1795637676,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294976645,
+      "slot": 123,
+      "isNewItem": false,
+      "timestamp": 1795637676,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294976778,
+      "slot": 163,
+      "isNewItem": false,
+      "timestamp": 1795637677,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294976833,
+      "slot": 124,
+      "isNewItem": false,
+      "timestamp": 1795637677,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294976978,
+      "slot": 171,
+      "isNewItem": false,
+      "timestamp": 1795637677,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294977039,
+      "slot": 125,
+      "isNewItem": false,
+      "timestamp": 1795637677,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -2,
+      "bag": 6,
+      "gameTimeMs": 294977187,
+      "slot": 172,
+      "isNewItem": false,
+      "timestamp": 1795637677,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 2,
+      "bag": 1,
+      "gameTimeMs": 294977245,
+      "slot": 126,
+      "isNewItem": false,
+      "timestamp": 1795637677,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294977418,
+      "slot": 164,
+      "isNewItem": false,
+      "timestamp": 1795637677,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294977486,
+      "slot": 127,
+      "isNewItem": false,
+      "timestamp": 1795637677,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294977688,
+      "slot": 165,
+      "isNewItem": false,
+      "timestamp": 1795637677,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294977740,
+      "slot": 129,
+      "isNewItem": false,
+      "timestamp": 1795637678,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294978126,
+      "slot": 166,
+      "isNewItem": false,
+      "timestamp": 1795637678,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294978172,
+      "slot": 130,
+      "isNewItem": false,
+      "timestamp": 1795637678,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 6,
+      "gameTimeMs": 294978443,
+      "slot": 167,
+      "isNewItem": false,
+      "timestamp": 1795637678,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 1,
+      "gameTimeMs": 294978493,
+      "slot": 131,
+      "isNewItem": false,
+      "timestamp": 1795637678,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 2,
+      "gameTimeMs": 294986124,
+      "slot": 213,
+      "isNewItem": false,
+      "timestamp": 1795637686,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294986183,
+      "slot": 53,
+      "isNewItem": false,
+      "timestamp": 1795637686,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 2,
+      "gameTimeMs": 294986333,
+      "slot": 219,
+      "isNewItem": false,
+      "timestamp": 1795637686,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294986408,
+      "slot": 58,
+      "isNewItem": false,
+      "timestamp": 1795637686,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 2,
+      "gameTimeMs": 294986552,
+      "slot": 222,
+      "isNewItem": false,
+      "timestamp": 1795637686,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294986612,
+      "slot": 59,
+      "isNewItem": false,
+      "timestamp": 1795637686,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 3,
+      "bag": 2,
+      "gameTimeMs": 294986751,
+      "slot": 227,
+      "isNewItem": false,
+      "timestamp": 1795637687,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -3,
+      "bag": 1,
+      "gameTimeMs": 294986798,
+      "slot": 67,
+      "isNewItem": false,
+      "timestamp": 1795637687,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 2,
+      "gameTimeMs": 294986908,
+      "slot": 239,
+      "isNewItem": false,
+      "timestamp": 1795637687,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294986956,
+      "slot": 68,
+      "isNewItem": false,
+      "timestamp": 1795637687,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294987063,
+      "slot": 106,
+      "isNewItem": false,
+      "timestamp": 1795637687,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294987109,
+      "slot": 71,
+      "isNewItem": false,
+      "timestamp": 1795637687,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294987373,
+      "slot": 107,
+      "isNewItem": false,
+      "timestamp": 1795637687,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294987428,
+      "slot": 72,
+      "isNewItem": false,
+      "timestamp": 1795637687,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294987569,
+      "slot": 122,
+      "isNewItem": false,
+      "timestamp": 1795637687,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294987630,
+      "slot": 73,
+      "isNewItem": false,
+      "timestamp": 1795637687,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294987775,
+      "slot": 123,
+      "isNewItem": false,
+      "timestamp": 1795637688,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294987838,
+      "slot": 74,
+      "isNewItem": false,
+      "timestamp": 1795637688,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294987963,
+      "slot": 124,
+      "isNewItem": false,
+      "timestamp": 1795637688,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294988011,
+      "slot": 76,
+      "isNewItem": false,
+      "timestamp": 1795637688,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294988119,
+      "slot": 125,
+      "isNewItem": false,
+      "timestamp": 1795637688,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294988165,
+      "slot": 77,
+      "isNewItem": false,
+      "timestamp": 1795637688,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 2,
+      "bag": 6,
+      "gameTimeMs": 294988370,
+      "slot": 126,
+      "isNewItem": false,
+      "timestamp": 1795637688,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -2,
+      "bag": 1,
+      "gameTimeMs": 294988415,
+      "slot": 78,
+      "isNewItem": false,
+      "timestamp": 1795637688,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 2,
+      "bag": 6,
+      "gameTimeMs": 294988576,
+      "slot": 127,
+      "isNewItem": false,
+      "timestamp": 1795637688,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -2,
+      "bag": 1,
+      "gameTimeMs": 294988621,
+      "slot": 79,
+      "isNewItem": false,
+      "timestamp": 1795637688,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294988748,
+      "slot": 128,
+      "isNewItem": false,
+      "timestamp": 1795637689,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294988805,
+      "slot": 80,
+      "isNewItem": false,
+      "timestamp": 1795637689,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294988943,
+      "slot": 129,
+      "isNewItem": false,
+      "timestamp": 1795637689,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294989023,
+      "slot": 81,
+      "isNewItem": false,
+      "timestamp": 1795637689,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294989204,
+      "slot": 130,
+      "isNewItem": false,
+      "timestamp": 1795637689,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294989261,
+      "slot": 82,
+      "isNewItem": false,
+      "timestamp": 1795637689,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 2,
+      "bag": 6,
+      "gameTimeMs": 294989400,
+      "slot": 131,
+      "isNewItem": false,
+      "timestamp": 1795637689,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -2,
+      "bag": 1,
+      "gameTimeMs": 294989459,
+      "slot": 83,
+      "isNewItem": false,
+      "timestamp": 1795637689,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294989616,
+      "slot": 132,
+      "isNewItem": false,
+      "timestamp": 1795637689,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294989686,
+      "slot": 84,
+      "isNewItem": false,
+      "timestamp": 1795637689,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294989825,
+      "slot": 133,
+      "isNewItem": false,
+      "timestamp": 1795637690,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294989900,
+      "slot": 85,
+      "isNewItem": false,
+      "timestamp": 1795637690,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294990016,
+      "slot": 134,
+      "isNewItem": false,
+      "timestamp": 1795637690,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294990080,
+      "slot": 86,
+      "isNewItem": false,
+      "timestamp": 1795637690,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294990213,
+      "slot": 135,
+      "isNewItem": false,
+      "timestamp": 1795637690,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294990263,
+      "slot": 87,
+      "isNewItem": false,
+      "timestamp": 1795637690,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 2,
+      "bag": 6,
+      "gameTimeMs": 294990426,
+      "slot": 136,
+      "isNewItem": false,
+      "timestamp": 1795637690,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -2,
+      "bag": 1,
+      "gameTimeMs": 294990476,
+      "slot": 88,
+      "isNewItem": false,
+      "timestamp": 1795637690,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294990624,
+      "slot": 137,
+      "isNewItem": false,
+      "timestamp": 1795637690,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294990671,
+      "slot": 89,
+      "isNewItem": false,
+      "timestamp": 1795637690,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294990787,
+      "slot": 138,
+      "isNewItem": false,
+      "timestamp": 1795637691,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294990857,
+      "slot": 90,
+      "isNewItem": false,
+      "timestamp": 1795637691,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294990982,
+      "slot": 139,
+      "isNewItem": false,
+      "timestamp": 1795637691,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294991047,
+      "slot": 91,
+      "isNewItem": false,
+      "timestamp": 1795637691,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294991255,
+      "slot": 140,
+      "isNewItem": false,
+      "timestamp": 1795637691,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294991322,
+      "slot": 92,
+      "isNewItem": false,
+      "timestamp": 1795637691,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294991437,
+      "slot": 141,
+      "isNewItem": false,
+      "timestamp": 1795637691,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294991488,
+      "slot": 93,
+      "isNewItem": false,
+      "timestamp": 1795637691,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294991638,
+      "slot": 142,
+      "isNewItem": false,
+      "timestamp": 1795637691,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294991691,
+      "slot": 94,
+      "isNewItem": false,
+      "timestamp": 1795637691,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 3,
+      "bag": 6,
+      "gameTimeMs": 294991798,
+      "slot": 143,
+      "isNewItem": false,
+      "timestamp": 1795637692,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -3,
+      "bag": 1,
+      "gameTimeMs": 294991850,
+      "slot": 95,
+      "isNewItem": false,
+      "timestamp": 1795637692,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294991954,
+      "slot": 144,
+      "isNewItem": false,
+      "timestamp": 1795637692,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294992012,
+      "slot": 96,
+      "isNewItem": false,
+      "timestamp": 1795637692,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294992134,
+      "slot": 145,
+      "isNewItem": false,
+      "timestamp": 1795637692,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294992213,
+      "slot": 97,
+      "isNewItem": false,
+      "timestamp": 1795637692,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294992362,
+      "slot": 146,
+      "isNewItem": false,
+      "timestamp": 1795637692,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294992432,
+      "slot": 98,
+      "isNewItem": false,
+      "timestamp": 1795637692,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294992578,
+      "slot": 147,
+      "isNewItem": false,
+      "timestamp": 1795637692,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294992643,
+      "slot": 99,
+      "isNewItem": false,
+      "timestamp": 1795637692,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294992788,
+      "slot": 148,
+      "isNewItem": false,
+      "timestamp": 1795637693,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294992860,
+      "slot": 100,
+      "isNewItem": false,
+      "timestamp": 1795637693,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294993107,
+      "slot": 149,
+      "isNewItem": false,
+      "timestamp": 1795637693,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294993196,
+      "slot": 101,
+      "isNewItem": false,
+      "timestamp": 1795637693,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294993400,
+      "slot": 150,
+      "isNewItem": false,
+      "timestamp": 1795637693,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294993464,
+      "slot": 102,
+      "isNewItem": false,
+      "timestamp": 1795637693,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294993574,
+      "slot": 151,
+      "isNewItem": false,
+      "timestamp": 1795637693,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294993628,
+      "slot": 103,
+      "isNewItem": false,
+      "timestamp": 1795637693,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294993740,
+      "slot": 152,
+      "isNewItem": false,
+      "timestamp": 1795637694,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294993796,
+      "slot": 104,
+      "isNewItem": false,
+      "timestamp": 1795637694,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294993934,
+      "slot": 153,
+      "isNewItem": false,
+      "timestamp": 1795637694,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294994000,
+      "slot": 105,
+      "isNewItem": false,
+      "timestamp": 1795637694,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294994224,
+      "slot": 154,
+      "isNewItem": false,
+      "timestamp": 1795637694,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294994297,
+      "slot": 106,
+      "isNewItem": false,
+      "timestamp": 1795637694,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294994430,
+      "slot": 155,
+      "isNewItem": false,
+      "timestamp": 1795637694,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294994484,
+      "slot": 107,
+      "isNewItem": false,
+      "timestamp": 1795637694,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294994590,
+      "slot": 156,
+      "isNewItem": false,
+      "timestamp": 1795637694,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294994648,
+      "slot": 108,
+      "isNewItem": false,
+      "timestamp": 1795637694,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294994769,
+      "slot": 157,
+      "isNewItem": false,
+      "timestamp": 1795637695,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294994826,
+      "slot": 109,
+      "isNewItem": false,
+      "timestamp": 1795637695,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294994934,
+      "slot": 158,
+      "isNewItem": false,
+      "timestamp": 1795637695,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294994988,
+      "slot": 110,
+      "isNewItem": false,
+      "timestamp": 1795637695,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294995133,
+      "slot": 159,
+      "isNewItem": false,
+      "timestamp": 1795637695,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294995193,
+      "slot": 111,
+      "isNewItem": false,
+      "timestamp": 1795637695,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 3,
+      "bag": 6,
+      "gameTimeMs": 294995319,
+      "slot": 160,
+      "isNewItem": false,
+      "timestamp": 1795637695,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -3,
+      "bag": 1,
+      "gameTimeMs": 294995413,
+      "slot": 112,
+      "isNewItem": false,
+      "timestamp": 1795637695,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294995565,
+      "slot": 161,
+      "isNewItem": false,
+      "timestamp": 1795637695,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294995637,
+      "slot": 113,
+      "isNewItem": false,
+      "timestamp": 1795637695,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294995750,
+      "slot": 162,
+      "isNewItem": false,
+      "timestamp": 1795637696,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294995823,
+      "slot": 114,
+      "isNewItem": false,
+      "timestamp": 1795637696,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294995972,
+      "slot": 163,
+      "isNewItem": false,
+      "timestamp": 1795637696,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294996051,
+      "slot": 115,
+      "isNewItem": false,
+      "timestamp": 1795637696,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294996201,
+      "slot": 164,
+      "isNewItem": false,
+      "timestamp": 1795637696,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294996291,
+      "slot": 116,
+      "isNewItem": false,
+      "timestamp": 1795637696,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294996496,
+      "slot": 165,
+      "isNewItem": false,
+      "timestamp": 1795637696,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294996561,
+      "slot": 122,
+      "isNewItem": false,
+      "timestamp": 1795637696,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294996784,
+      "slot": 166,
+      "isNewItem": false,
+      "timestamp": 1795637697,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294996844,
+      "slot": 123,
+      "isNewItem": false,
+      "timestamp": 1795637697,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294996986,
+      "slot": 167,
+      "isNewItem": false,
+      "timestamp": 1795637697,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294997059,
+      "slot": 124,
+      "isNewItem": false,
+      "timestamp": 1795637697,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294997200,
+      "slot": 168,
+      "isNewItem": false,
+      "timestamp": 1795637697,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294997274,
+      "slot": 125,
+      "isNewItem": false,
+      "timestamp": 1795637697,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 2,
+      "bag": 6,
+      "gameTimeMs": 294997412,
+      "slot": 169,
+      "isNewItem": false,
+      "timestamp": 1795637697,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -2,
+      "bag": 1,
+      "gameTimeMs": 294997501,
+      "slot": 126,
+      "isNewItem": false,
+      "timestamp": 1795637697,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294997610,
+      "slot": 170,
+      "isNewItem": false,
+      "timestamp": 1795637697,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294997671,
+      "slot": 127,
+      "isNewItem": false,
+      "timestamp": 1795637697,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294997800,
+      "slot": 171,
+      "isNewItem": false,
+      "timestamp": 1795637698,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294997863,
+      "slot": 129,
+      "isNewItem": false,
+      "timestamp": 1795637698,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294997980,
+      "slot": 172,
+      "isNewItem": false,
+      "timestamp": 1795637698,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294998040,
+      "slot": 130,
+      "isNewItem": false,
+      "timestamp": 1795637698,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": 1,
+      "bag": 6,
+      "gameTimeMs": 294998210,
+      "slot": 173,
+      "isNewItem": false,
+      "timestamp": 1795637698,
+      "event": "slot",
+      "reason": 0
+    },
+    {
+      "delta": -1,
+      "bag": 1,
+      "gameTimeMs": 294998271,
+      "slot": 131,
+      "isNewItem": false,
+      "timestamp": 1795637698,
+      "event": "slot",
+      "reason": 0
+    }
+  ],
+  "trackerRefreshSamples": [
+    {
+      "bankOpen": true,
+      "scanMs": 27,
+      "timestamp": 1795637678,
+      "renderMs": 3,
+      "rows": 114,
+      "gameTimeMs": 294978071,
+      "reason": "incremental"
+    },
+    {
+      "bankOpen": true,
+      "scanMs": 1,
+      "timestamp": 1795637679,
+      "renderMs": 3,
+      "rows": 4,
+      "gameTimeMs": 294978821,
+      "reason": "incremental"
+    },
+    {
+      "bankOpen": true,
+      "scanMs": 21,
+      "timestamp": 1795637698,
+      "renderMs": 3,
+      "rows": 118,
+      "gameTimeMs": 294998587,
+      "reason": "incremental"
+    }
+  ],
+  "trackerScanSamples": []
+}

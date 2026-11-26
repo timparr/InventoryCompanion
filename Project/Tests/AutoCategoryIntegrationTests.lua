@@ -1,5 +1,7 @@
 local this = InventoryCompanion
 local integration = this.AutoCategoryIntegration
+this.StartTrackerMarkerPolling = function() end
+this.DiagnosticLog = { Event = function() return false end }
 
 local contexts = {
     { key = "backpack", bag = 1 },
@@ -701,8 +703,15 @@ function this.GetAutoCategoryIntegrationTests()
                     and not summary:find("Backpack: Category 4", 1, true)
                     and summary:find("18 more", 1, true)
                     and summary:find("cancel and review", 1, true))
-                local ok, report = pcall(integration.ShowRecoveryDetails)
-                assert(not ok and tostring(report):find("run priority is invalid", 1, true))
+                local previousLog, recordedLines = this.DiagnosticLog
+                this.DiagnosticLog = { Event = function(kind, _, lines, force)
+                    assert(kind == "acFailure" and force == true)
+                    recordedLines = lines
+                    return true
+                end }
+                assert(integration.LogRecoveryDetails())
+                assert(table.concat(recordedLines, "\n"):find("run priority is invalid", 1, true))
+                this.DiagnosticLog = previousLog
                 while #bag > 8 do table.remove(bag) end
                 assert(not integration.RetrySynchronization())
                 assert(integration.ShowAssignmentRepair())
@@ -711,6 +720,77 @@ function this.GetAutoCategoryIntegrationTests()
                     and summary:find("Backpack: Category 5", 1, true)
                     and not summary:find("more.", 1, true))
                 integration.unavailableAssignments = previousRows
+            end,
+        },
+        {
+            name = "AutoCategory failures automatically record safe trace details only with logging enabled",
+            run = function()
+                for _, scenario in ipairs({ { true, false }, { false, false }, { true, true }, { false, true } }) do
+                    local enabled, early = scenario[1], scenario[2]
+                    local messages = {}
+                    local addon = { accountWide = { diagnosticLoggingEnabled = enabled } }
+                    local environment = setmetatable({
+                        InventoryCompanion = addon,
+                        GetTimeStamp = function() return 1 end,
+                        GetGameTimeMilliseconds = function() return 2 end,
+                        GetAPIVersion = function() return 101051 end,
+                        IsESOPlusSubscriber = function() return true end,
+                        GetUnitName = function() return "Synthetic" end,
+                        GetCurrentCharacterId = function() return "1" end,
+                        d = function(message) messages[#messages + 1] = message end,
+                    }, { __index = _G })
+                    for _, source in ipairs({ DiagnosticLogSource, AutoCategoryIntegrationSource }) do
+                        setfenv(assert(loadstring(source)), environment)()
+                    end
+                    local log, ac = addon.DiagnosticLog, addon.AutoCategoryIntegration
+                    log.Initialize()
+                    local profile = addon.accountWide
+                    if early then addon.accountWide = nil else log.Start() end
+                    local before = enabled and 1 or 0
+                    local trace = "synthetic failure\n" .. string.rep("x", 4001) .. "\nframe"
+                    ac.Fail("synthetic failure", trace)
+                    if early then
+                        addon.accountWide = profile
+                        log.Start()
+                    end
+                    ac.Fail("duplicate must not overwrite")
+                    local events = log.GetStore().events
+                    assert(#events == before + (enabled and 1 or 0),
+                        "The initial failure must be logged exactly once, only when enabled")
+                    assert(ac.IsFaulted() and addon.autoCategoryFailure == "synthetic failure")
+                    if enabled then
+                        local event = events[#events]
+                        assert(event.kind == "acFailure" and table.concat(event.details, "") == trace:gsub("\n", ""))
+                        for _, line in ipairs(event.details) do assert(#line <= 1900) end
+                    end
+                    local recorded, feedback = ac.LogRecoveryDetails()
+                    assert(recorded and feedback:find("log out", 1, true))
+                    assert(#events == before + (enabled and 2 or 1)
+                        and addon.accountWide.diagnosticLoggingEnabled == enabled)
+                end
+            end,
+        },
+        {
+            name = "AutoCategory Log error records the fault traceback and reports an unavailable log",
+            run = function()
+                PrepareActive({})
+                this.RefreshAutoCategoryUI = function() end
+                integration.Fail("synthetic marker failure", "synthetic marker failure\nstack traceback:\nframe")
+                integration.failureDiagnostics = "extra diagnostic context"
+                local previousLog, recordedLines = this.DiagnosticLog
+                this.DiagnosticLog = { Event = function(kind, _, lines, force)
+                    assert(kind == "acFailure" and force == true)
+                    recordedLines = lines
+                    return true
+                end }
+                assert(integration.LogRecoveryDetails())
+                assert(table.concat(recordedLines, "\n")
+                    == "synthetic marker failure\nstack traceback:\nframe\n\nextra diagnostic context")
+                assert(integration.IsFaulted() and this.autoCategoryFailure == "synthetic marker failure")
+                this.DiagnosticLog.Event = function() return nil, "malformed diagnostics" end
+                local recorded, feedback = integration.LogRecoveryDetails()
+                assert(not recorded and feedback:find("malformed diagnostics", 1, true))
+                this.DiagnosticLog = previousLog
             end,
         },
         {
@@ -947,11 +1027,32 @@ function this.GetAutoCategoryIntegrationTests()
                     and profile.autoCategoryIntegrationEnabled == true)
                 assert(not integration.RetrySynchronization(), "Retry must not remove damaged saved assignments")
                 assert(bag[#bag] == injected)
+                local previousInventory, previousShared = PLAYER_INVENTORY, SHARED_INVENTORY
+                local cached = { AC_hash = "stale bank classification", AC_categoryName = "Old category",
+                    bagId = 2, slotIndex = 155, stackCount = 17 }
+                local shared = { AC_hash = "stale detached bank classification", stackCount = 3 }
+                SHARED_INVENTORY = { GetBagCache = function(_, bagId)
+                    assert(bagId == 2)
+                    return { [156] = shared }
+                end }
+                PLAYER_INVENTORY = { inventories = {
+                    [12] = { backingBags = { 2 }, slots = { [2] = { [155] = cached } } },
+                } }
+                ac.RefreshList = function()
+                    assert(cached.AC_hash == nil and shared.AC_hash == nil,
+                        "Repair must invalidate item classifications before refreshing AC")
+                end
                 assert(integration.ShowAssignmentRepair())
                 assert(shownSetup.definition.mainText.text(shownSetup):find(injected.name, 1, true))
-                assert(bag[#bag] == injected and profile.autoCategoryOrder == order,
+                assert(bag[#bag] == injected and profile.autoCategoryOrder == order
+                    and cached.AC_hash ~= nil and shared.AC_hash ~= nil,
                     "Preview must not edit assignments or order")
                 ConfirmSetup()
+                assert(cached.AC_hash == nil and cached.AC_categoryName == "Old category"
+                    and cached.bagId == 2 and cached.slotIndex == 155 and cached.stackCount == 17
+                    and shared.AC_hash == nil and shared.stackCount == 3,
+                    "Confirmed repair must invalidate only the cached item hash")
+                PLAYER_INVENTORY, SHARED_INVENTORY = previousInventory, previousShared
                 assert(not integration.NeedsRecovery() and integration.IsEditorActive())
                 assert(#integration.lastRepairBackup.rows == 1
                     and integration.lastRepairBackup.rows[1].line.icRuleKey == injected.icRuleKey
@@ -1066,6 +1167,100 @@ function this.GetAutoCategoryIntegrationTests()
                 shownSetup.data.profile = this.character
                 assert(not pcall(ConfirmSetup), "A changed profile must prevent repair")
                 assert(#bag == count and bag[count] == row)
+            end,
+        },
+        {
+            name = "AutoCategory recovery invalidates shared bank records absent from UI slot tables",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local previousInventory, previousShared = PLAYER_INVENTORY, SHARED_INVENTORY
+                local bank = { AC_hash = "unchanged item hash", AC_categoryName = "Other", stackCount = 17 }
+                local subscriber = { AC_hash = "unchanged subscriber hash", AC_matched = false, stackCount = 3 }
+                local caches = { [2] = { [155] = bank }, [6] = { [0] = subscriber } }
+                local requested = {}
+                SHARED_INVENTORY = {
+                    GetBagCache = function(_, bagId)
+                        requested[bagId] = true
+                        return caches[bagId]
+                    end,
+                    GetOrCreateBagCache = function() error("Recovery must not populate inventory caches") end,
+                }
+                PLAYER_INVENTORY = { inventories = {
+                    [12] = { backingBags = { 2, 6 }, slots = { [2] = {}, [6] = {} } },
+                    [13] = { backingBags = { 3 }, slots = {} },
+                } }
+                local refreshes = 0
+                AutoCategory.RefreshList = function()
+                    assert(bank.AC_hash == nil and subscriber.AC_hash == nil,
+                        "Recovery must invalidate shared records before a bank rebuild can reuse them")
+                    refreshes = refreshes + 1
+                end
+                integration.Fail("Synthetic bank cache recovery")
+                assert(integration.RetrySynchronization(), this.autoCategoryFailure)
+                assert(refreshes == #contexts and requested[2] and requested[6] and requested[3])
+                assert(caches[3] == nil and bank.AC_categoryName == "Other" and bank.stackCount == 17
+                    and subscriber.AC_matched == false and subscriber.stackCount == 3)
+                PLAYER_INVENTORY.inventories[12].slots[2] = SHARED_INVENTORY:GetBagCache(2)
+                assert(PLAYER_INVENTORY.inventories[12].slots[2][155].AC_hash == nil,
+                    "The bank must receive invalidated data immediately, without waiting for AC's timeout")
+                PLAYER_INVENTORY, SHARED_INVENTORY = previousInventory, previousShared
+            end,
+        },
+        {
+            name = "AutoCategory retry clears visible and hidden item caches before refresh without changing priorities",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.RefreshAutoCategoryUI = function() end
+                assert(integration.ProjectAutoCategory())
+                local order = this.accountWide.autoCategoryOrder
+                local before = {}
+                for _, context in ipairs(contexts) do
+                    before[context.key] = { display = table.concat(order.contexts[context.key].display, ","),
+                        matching = table.concat(order.contexts[context.key].matching, ","), priorities = {} }
+                    for index, row in ipairs(AutoCategory.saved.bags[context.bag].rules) do
+                        before[context.key].priorities[index] = { row.runpriority, row.showpriority }
+                    end
+                end
+                local previousInventory = PLAYER_INVENTORY
+                local bank = { AC_hash = "stale bank result", AC_matched = false, stackCount = 17 }
+                local backpack = { AC_hash = "stale backpack result", AC_categoryName = "Old category", slotIndex = 0 }
+                local hidden = { AC_hash = "stale hidden result", unrelated = true }
+                PLAYER_INVENTORY = { inventories = {
+                    [11] = { slots = { [1] = { [0] = backpack, metadata = false }, [2] = { [155] = bank } } },
+                    [12] = { slots = { [2] = { [155] = bank } } },
+                    [13] = { slots = { [3] = { [4] = hidden }, metadata = "not a bag" } },
+                    [14] = { unrelated = true }, metadata = 42,
+                } }
+                local refreshes = 0
+                AutoCategory.RefreshList = function(_, evenIfHidden)
+                    assert(bank.AC_hash == nil and backpack.AC_hash == nil and hidden.AC_hash == nil,
+                        "All cached item hashes must be invalidated before the first AC refresh")
+                    assert(evenIfHidden == false, "Recovery must not force hidden inventories to rebuild")
+                    refreshes = refreshes + 1
+                end
+                integration.Fail("Synthetic cached classification failure")
+                this.accountWide.autoCategorySetupComplete = "malformed"
+                assert(not integration.RetrySynchronization())
+                assert(bank.AC_hash ~= nil and refreshes == 0,
+                    "An invalid recovery must not touch the item cache")
+                this.accountWide.autoCategorySetupComplete = true
+                assert(integration.RetrySynchronization(), this.autoCategoryFailure)
+                assert(refreshes == #contexts and bank.AC_matched == false and bank.stackCount == 17
+                    and backpack.AC_categoryName == "Old category" and backpack.slotIndex == 0
+                    and hidden.unrelated == true, "Only classification hashes may be changed")
+                for _, context in ipairs(contexts) do
+                    local saved = this.accountWide.autoCategoryOrder.contexts[context.key]
+                    local original = before[context.key]
+                    assert(table.concat(saved.display, ",") == original.display
+                        and table.concat(saved.matching, ",") == original.matching)
+                    for index, row in ipairs(AutoCategory.saved.bags[context.bag].rules) do
+                        assert(row.runpriority == original.priorities[index][1]
+                            and row.showpriority == original.priorities[index][2])
+                    end
+                end
+                PLAYER_INVENTORY = previousInventory
             end,
         },
         {
@@ -1760,6 +1955,55 @@ function this.GetAutoCategoryIntegrationTests()
             end,
         },
         {
+            name = "FCO availability refresh clears AutoCategory item caches and refreshes all contexts",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                assert(integration.ProjectAutoCategory())
+                local previousInventory = PLAYER_INVENTORY
+                local item = { AC_hash = "stale", unrelated = true }
+                PLAYER_INVENTORY = { inventories = { { slots = { { item } } } } }
+                local refreshes = 0
+                AutoCategory.RefreshList = function()
+                    assert(item.AC_hash == nil, "FCO cache must be cleared before refresh")
+                    refreshes = refreshes + 1
+                end
+                integration.OnFCOAvailabilityChanged()
+                assert(item.AC_hash == nil and item.unrelated and refreshes == #contexts)
+                PLAYER_INVENTORY = previousInventory
+            end,
+        },
+        {
+            name = "FCO cleanup removes only deleted group templates and assignments in both AC profiles",
+            run = function()
+                PrepareActive({})
+                for _, profileName in ipairs({ "acctSaved", "charSaved" }) do
+                    for _, context in ipairs(contexts) do
+                        local bag = AutoCategory[profileName].bags[context.bag]
+                        bag.rules = {
+                            Assignment("Delete", 100, 100, { icOwned = true, icRuleKey = "removed" }),
+                            Assignment("Survive", 90, 90, { icOwned = true, icRuleKey = "survives" }),
+                            Assignment("Native", 80, 80),
+                        }
+                        bag.icAssignmentTemplates = {
+                            removed = { icOwned = true, icRuleKey = "removed" },
+                            survives = { icOwned = true, icRuleKey = "survives", extra = true },
+                        }
+                    end
+                end
+                local removals = integration.PreflightDeletedFCOGroups({ removed = true })
+                integration.ApplyDeletedFCOGroups(removals)
+                for _, profileName in ipairs({ "acctSaved", "charSaved" }) do
+                    for _, context in ipairs(contexts) do
+                        local bag = AutoCategory[profileName].bags[context.bag]
+                        assert(#bag.rules == 2 and bag.rules[1].icRuleKey == "survives"
+                            and bag.rules[2].name == "Native")
+                        assert(bag.icAssignmentTemplates.removed == nil
+                            and bag.icAssignmentTemplates.survives.extra)
+                    end
+                end
+            end,
+        },
+        {
             name = "Saved-data cleanup removes only explicitly IC-owned assignments in both AC profiles",
             run = function()
                 PrepareActive({})
@@ -1828,6 +2072,42 @@ function this.GetAutoCategoryIntegrationTests()
                 assert(table.concat(this.accountWide.autoCategoryOrder.contexts.backpack.display, ",") == beforeOrder)
                 assert(backpack.rules[1].showpriority == beforeFirst and backpack.rules[1000].showpriority == beforeLast)
                 assert(integration.IsFaulted() and not this.GetAutoCategoryState().enabled)
+            end,
+        },
+        {
+            name = "AutoCategory marker predicates receive the current bank bag and slot without faulting",
+            run = function()
+                PrepareActive({ alpha = { autoCategoryEnabled = true } })
+                this.preLoadedRulesets.alpha.patterns = {}
+                local queried = {}
+                this.preLoadedRulesets.alpha.slotMatcher = function(bagId, slotIndex)
+                    queried[#queried + 1] = { bagId, slotIndex }
+                    return (bagId == 2 and slotIndex == 155) or (bagId == 6 and slotIndex == 0)
+                end
+                this.InvalidateRuleCache()
+                AutoCategory.Inited = false
+                AutoCategory.Plugins["Inventory Companion"] = nil
+                this.accountWide.autoCategoryIntegrationEnabled = nil
+                integration.Initialize()
+                AutoCategory.Plugins["Inventory Companion"].initialize()
+                this.accountWide.autoCategoryIntegrationEnabled = true
+                AutoCategory.checkingItemLink = "synthetic link"
+                local previousName = GetItemLinkName
+                GetItemLinkName = function() return "master blacksmithing writ" end
+                local predicate = AutoCategory.RulesW.predicate
+                for _, item in ipairs({
+                    { 2, 155, true }, { 2, 156, false }, { 1, 155, false }, { 6, 0, true },
+                }) do
+                    AutoCategory.checkingItemBagId, AutoCategory.checkingItemSlotIndex = item[1], item[2]
+                    assert(predicate("alpha") == item[3], "Marker predicate must classify the current slot")
+                    local last = queried[#queried]
+                    assert(last[1] == item[1] and last[2] == item[2] and not integration.IsFaulted())
+                end
+                GetItemLinkName = function() return "beta item" end
+                AutoCategory.checkingItemBagId, AutoCategory.checkingItemSlotIndex = nil, nil
+                assert(predicate("beta") and not integration.IsFaulted(),
+                    "Name-only predicates must retain their existing link-only behavior")
+                GetItemLinkName = previousName
             end,
         },
         {
@@ -2553,6 +2833,38 @@ function this.GetAutoCategoryIntegrationTests()
                     assert(#inactive.bags[context.bag].rules == 1
                         and inactive.bags[context.bag].rules[1].name == "Inactive")
                 end
+            end,
+        },
+        {
+            name = "AutoCategory operations omit global FCO baselines from profiles without created test groups",
+            run = function()
+                NewFixture()
+                local fcoKey = "__ic_fco_deconstruct"
+                this.preLoadedRulesets[fcoKey] = {
+                    displayName = "Deconstruct", patterns = {}, isFCOGroup = true,
+                    markerKey = fcoKey,
+                    display = { show = true, notify = false, bank = false, group = true,
+                        isExpanded = true, isHidden = false },
+                }
+                this.character.itemListInitialized = true
+                this.accountWide.fcoTestGroupsCreated = false
+                this.character.fcoTestGroupsCreated = false
+                this.accountWide.autoCategoryOrder.contexts.backpack = {
+                    display = { "ic:alpha" }, matching = { "ic:alpha" }, hidden = {},
+                }
+                this.character.autoCategoryOrder.contexts.backpack = {
+                    display = { "ic:beta" }, matching = { "ic:beta" }, hidden = {},
+                }
+                this.InvalidateRuleCache()
+                local accountRows = integration.ResolveAutoCategoryOrder("backpack", { mode = "display" })
+                assert(#accountRows == 1 and accountRows[1].ruleKey == "alpha")
+                assert(this.GetRuntimeRules()[fcoKey] == nil,
+                    "Unconfigured profile must not enumerate the global FCO identity")
+                this.SetUseCharacterItemList(true)
+                local characterRows = integration.ResolveAutoCategoryOrder("backpack", { mode = "display" })
+                assert(#characterRows == 1 and characterRows[1].ruleKey == "beta")
+                assert(this.GetRuntimeRules()[fcoKey] == nil,
+                    "Profile switch must not make unrelated FCO baselines required")
             end,
         },
     }

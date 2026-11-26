@@ -426,7 +426,8 @@ function this.GetRuleTests()
         _G.GetItemId = function() return 987654321 end
         _G.GetItemLink = function() return "item" end
         _G.IsESOPlusSubscriber = function() return false end
-        local entries = { { itemId = 987654321, link = "item", icon = "icon", count = 2 } }
+        local entries = { { bagId = BAG_BACKPACK, slotIndex = 0, itemId = 987654321,
+            link = "item", icon = "icon", count = 2 } }
         this.Scanning = { GetBagContents = function() return entries end }
         local warnings = 0
         this.Utils = {
@@ -464,10 +465,12 @@ function this.GetRuleTests()
         _G.GetItemLinkName = function(link) return link end
         local contentsByBag = {
             [BAG_BACKPACK] = {
-                { itemId = 987654320, link = "alpha", icon = "alpha-icon", count = 2 },
+                { bagId = BAG_BACKPACK, slotIndex = 0, itemId = 987654320,
+                    link = "alpha", icon = "alpha-icon", count = 2 },
             },
             [BAG_BANK] = {
-                { itemId = 987654320, link = "beta", icon = "beta-icon", count = 3 },
+                { bagId = BAG_BANK, slotIndex = 0, itemId = 987654320,
+                    link = "beta", icon = "beta-icon", count = 3 },
             },
         }
         this.Scanning = {
@@ -521,7 +524,8 @@ function this.GetRuleTests()
     Add("Exclusion suffix narrows only its own group", function()
         _G.BAG_BACKPACK = 1
         _G.GetItemLinkName = function(link) return link == "item" and "Target +1" or nil end
-        local entries = { { itemId = 987654321, link = "item", icon = "icon", count = 1 } }
+        local entries = { { bagId = BAG_BACKPACK, slotIndex = 0, itemId = 987654321,
+            link = "item", icon = "icon", count = 1 } }
         this.Scanning = { GetBagContents = function() return entries end }
 
         local suffix = this.constants.RULE_PATTERN_EXCLUSION_SUFFIX
@@ -666,7 +670,8 @@ function this.GetRuleTests()
         _G.IsESOPlusSubscriber = function() return false end
         local entries = {}
         for index = 1, 100 do
-            entries[index] = { itemId = 990000 + index, link = "Synthetic Item " .. index, icon = "icon", count = 1 }
+            entries[index] = { bagId = BAG_BACKPACK, slotIndex = index, itemId = 990000 + index,
+                link = "Synthetic Item " .. index, icon = "icon", count = 1 }
         end
         this.Scanning = { GetBagContents = function() return entries end }
         local warnings = 0
