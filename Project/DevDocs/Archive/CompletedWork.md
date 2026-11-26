@@ -4,9 +4,8 @@ Completed work is recorded here for project history and future release-note draf
 
 Supporting documents are grouped by feature in this archive. They preserve
 design decisions, implementation details, failed approaches, and dated evidence,
-not independent current requirements or outstanding tasks. Current authoritative
-specifications live in [FeatureSpecs](../FeatureSpecs) and active feature folders
-under [Features](../Features); active work lives in the
+not independent current requirements or outstanding tasks. Completed feature
+specifications may also be retained with their archived records. Active work lives in the
 [master TODO](../../Tasks/TODO.md).
 
 ## Archived investigations
@@ -19,8 +18,8 @@ under [Features](../Features); active work lives in the
   The raw [scaling capture](../../Tests/Evidence/FCO-Scaling-20261122-025148.txt)
   remains under test evidence. This is not production feature acceptance.
   Subsequent work is split into
-  [Scanning Refactor](<../Features/ScanningRefactor/001 ScanningRefactor - Specification.md>),
-  [Diagnostic Logging](<../Features/DiagnosticLogging/001 DiagnosticLogging - Specification.md>)
+  [Scanning Refactor](<ScanningRefactor/001 ScanningRefactor - Specification.md>),
+  [Diagnostic Logging](<DiagnosticLogging/001 DiagnosticLogging - Specification.md>)
   and deferred [FCO Integration](<../Features/FCOItemSaver/001 FCOItemSaver - Specification.md>).
 
 ## Verified Addon Work
@@ -30,8 +29,14 @@ under [Features](../Features); active work lives in the
   tests, and positive in-game observations. The marker editor is deferred.
   Migration from an actual older-schema DEV backup remains pending final
   acceptance testing; the tracker mismatch remains a logging-monitored risk.
-  See the [feature specification](<../Features/ScanningRefactor/001 ScanningRefactor - Specification.md>)
+  See the [feature specification](<ScanningRefactor/001 ScanningRefactor - Specification.md>)
   and [implementation record](<ScanningRefactor/002 ScanningRefactor - Implementation Plan.md>).
+
+- **Diagnostic Logging:** Implemented with Scanning Refactor and accepted by
+  Tim on 2026-11-26. Some in-game variants remain untested, and DEV/release
+  diagnostic-log isolation remains a release prerequisite. See the
+  [specification](<DiagnosticLogging/001 DiagnosticLogging - Specification.md>)
+  and [implementation record](<DiagnosticLogging/002 DiagnosticLogging - Implementation Plan.md>).
 
 - **Untracked-item browsing (implemented portion of D3):** The item editor's
   Untracked filter scans backpack, bank, subscriber bank, and optionally the

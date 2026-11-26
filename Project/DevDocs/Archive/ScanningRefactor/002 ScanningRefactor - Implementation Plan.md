@@ -19,7 +19,7 @@ historical. Final acceptance must still exercise schema-15 migration using an
 actual older-schema DEV backup with the required safeguards. The marker editor
 is deferred.
 TODO item: None; promotion of the existing FCO spike backend
-Spec: [feature spec](<../../Features/ScanningRefactor/001 ScanningRefactor - Specification.md>)
+Spec: [feature spec](<001 ScanningRefactor - Specification.md>)
 Owner: Copilot
 Updated: 2026-11-26
 
@@ -862,7 +862,7 @@ Inspected baseline: `383644c`, `spike/fco-itemsaver`.
 | `Core\Events.lua` | Slot events queue incremental work and retain a 500 ms debounced refresh; DEV full-update listener requests top-ups without discarding the view. |
 | `Tracking\EditPanelGroupsTab.lua` / `.xml` | Existing hidden-group handling, rename, Include/Exclude pattern editor, display overrides and built-in reset. No new marker UI needed. |
 | `Tracking\AutoCategoryIntegration.lua` | Existing IC predicate, per-area participation/order, explicit failure/Retry Sync and AC item-hash clearing. |
-| `Core\DiagnosticLog.lua` | General event/sample API, implemented separately in the [logging plan](<../../Features/DiagnosticLogging/002 DiagnosticLogging - Implementation Plan.md>). |
+| `Core\DiagnosticLog.lua` | General event/sample API, implemented separately in the [logging plan](<../DiagnosticLogging/002 DiagnosticLogging - Implementation Plan.md>). |
 
 ### Working algorithm, not proposed optimization
 
@@ -1053,10 +1053,10 @@ copy/normalization code remains responsible for ordinary overrides.
 
 - Depends on: approved Scanning Refactor and Diagnostic Logging documents,
   required independent reviews and separate GO to code.
-- Spec coverage: the [Diagnostic Logging specification](<../../Features/DiagnosticLogging/001 DiagnosticLogging - Specification.md>);
+- Spec coverage: the [Diagnostic Logging specification](<../DiagnosticLogging/001 DiagnosticLogging - Specification.md>);
   prerequisite for Scanning Refactor startup and production diagnostics.
 - Promote the working framework from spike commit `383644c`, preserved in
-  `16c31c2`, following the [logging implementation plan](<../../Features/DiagnosticLogging/002 DiagnosticLogging - Implementation Plan.md>).
+  `16c31c2`, following the [logging implementation plan](<../DiagnosticLogging/002 DiagnosticLogging - Implementation Plan.md>).
   This task is explicitly part of the production delivery, not an assumed
   dependency already present on `main`.
 - Files/methods:

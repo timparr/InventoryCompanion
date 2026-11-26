@@ -12,7 +12,7 @@ Details: [results and decisions](<002 FCOItemSaver - Results and Decisions.md>)
 
 Keep the expandable test list and brief outcomes here; put detailed evidence,
 measurements and decisions in the linked record. Production work is split into
-[Scanning Refactor](<../../../Features/ScanningRefactor/001 ScanningRefactor - Specification.md>)
+[Scanning Refactor](<../../ScanningRefactor/001 ScanningRefactor - Specification.md>)
 (backend and hidden single-marker built-ins) and
 [FCO Integration](<../../../Features/FCOItemSaver/001 FCOItemSaver - Specification.md>)
 (later custom marker conditions and overrides), separate from this spike.

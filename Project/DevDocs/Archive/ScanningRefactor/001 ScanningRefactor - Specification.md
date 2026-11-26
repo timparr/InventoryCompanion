@@ -6,7 +6,7 @@ deferred.
 TODO item: None; production promotion of the FCO ItemSaver feasibility spike
 Owner: Copilot
 Updated: 2026-11-26
-Implementation plan: [archived implementation record](<../../Archive/ScanningRefactor/002 ScanningRefactor - Implementation Plan.md>)
+Implementation plan: [archived implementation record](<002 ScanningRefactor - Implementation Plan.md>)
 
 ## Acceptance UI amendment (25 November)
 
@@ -108,7 +108,7 @@ not reimplemented. Its setting, controls and initial logs are included in the
 production handoff; the linked logging specification owns their behavior.
 
 The deferred marker-editor work belongs to
-[FCO Integration](<../FCOItemSaver/001 FCOItemSaver - Specification.md>).
+[FCO Integration](<../../Features/FCOItemSaver/001 FCOItemSaver - Specification.md>).
 
 ## User experience and behavior
 

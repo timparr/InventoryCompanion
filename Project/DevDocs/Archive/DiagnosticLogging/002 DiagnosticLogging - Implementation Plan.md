@@ -1,12 +1,19 @@
 # Diagnostic logging: implementation plan
 
-Status: IN ACCEPTANCE - combined offline suite 318/318 PASS. Automatic AC failure logging and visible Log error feedback reviewed and verified in-game; remaining feature acceptance checks pending.
+Status: IMPLEMENTATION ACCEPTED as part of Scanning Refactor by Tim on
+26 November 2026; this plan is historical. Unperformed in-game checks remain
+pending, and DEV/release diagnostic-log isolation remains a release prerequisite.
 TODO item: None - requested directly by Tim
 Spec: [001 DiagnosticLogging - Specification.md](<001 DiagnosticLogging - Specification.md>)
 Owner: @Tim-P
-Updated: 24 November
+Updated: 26 November
 
 Process: [feature development](../../../Processes/FeatureDevelopment.md).
+
+The full offline suite subsequently passed 352/352. Historical pending entries
+below are not claims that those checks were performed. See the
+[Scanning Refactor record](<../ScanningRefactor/002 ScanningRefactor - Implementation Plan.md>)
+for the accepted shared implementation and final-acceptance limitations.
 
 ## In-game report-history verification (25 November, 23:52 UTC)
 

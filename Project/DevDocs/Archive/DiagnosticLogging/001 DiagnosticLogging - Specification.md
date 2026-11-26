@@ -1,6 +1,8 @@
 # Diagnostic logging: feature spec
 
-Status: APPROVED FOR IMPLEMENTATION - independent focused review passed; Tim's conditional GO effective. In-game acceptance PENDING.
+Status: IMPLEMENTATION ACCEPTED as part of Scanning Refactor by Tim on
+26 November 2026; this record is archived. Unperformed in-game checks remain
+pending, and DEV/release diagnostic-log isolation remains a release prerequisite.
 TODO item: None - requested directly by Tim, 24 November, during the FCO ItemSaver spike
 Owner: @Tim-P
 Updated: 24 November

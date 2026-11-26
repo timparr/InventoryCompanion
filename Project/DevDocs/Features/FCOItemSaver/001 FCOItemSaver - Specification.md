@@ -31,7 +31,7 @@ Follow the [feature development process](../../../Processes/FeatureDevelopment.m
 
 Tim split the former combined FCO feature on 24 November:
 
-1. [Scanning Refactor](<../ScanningRefactor/001 ScanningRefactor - Specification.md>)
+1. [Scanning Refactor](<../../Archive/ScanningRefactor/001 ScanningRefactor - Specification.md>)
    owns production promotion of prepared matching, slot indexing,
    incremental updates and time-sliced top-ups/polling. Enable creates no
    groups. A temporary Debugging **Add test FCO groups** button creates
