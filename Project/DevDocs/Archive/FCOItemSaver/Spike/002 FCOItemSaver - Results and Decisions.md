@@ -14,9 +14,9 @@ and checklist. On 24 November the production documents were split into
 [Scanning Refactor](<../../ScanningRefactor/001 ScanningRefactor - Specification.md>)
 (backend and hidden single-marker built-ins;
 [plan](<../../ScanningRefactor/002 ScanningRefactor - Implementation Plan.md>))
-and [FCO Integration](<../../../Features/FCOItemSaver/001 FCOItemSaver - Specification.md>)
+and [FCO Integration](<../../../Features/FCOItemSaverUI/001 FCOItemSaverUI - Specification.md>)
 (later custom marker conditions and overrides;
-[plan](<../../../Features/FCOItemSaver/002 FCOItemSaver - Implementation Plan.md>)).
+[plan](<../../../Features/FCOItemSaverUI/002 FCOItemSaverUI - Implementation Plan.md>)).
 Historical diagnostic contracts and approvals are summarized below for
 reference, not replaced or extended.
 They are not fresh approval for the proposed built-in group. Add evidence under

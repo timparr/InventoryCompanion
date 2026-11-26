@@ -4,7 +4,7 @@ Status: DEFERRED DRAFT - not approved; editor/product decisions remain open
 TODO item: None; follows Scanning Refactor
 Owner: Copilot
 Updated: 2026-11-24
-Implementation plan: [implementation plan](<002 FCOItemSaver - Implementation Plan.md>)
+Implementation plan: [implementation plan](<002 FCOItemSaverUI - Implementation Plan.md>)
 
 ## Delivered backend baseline (26 November)
 

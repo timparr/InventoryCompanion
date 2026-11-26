@@ -2,7 +2,7 @@
 
 Status: DEFERRED PROVISIONAL - not approved; coding not authorized
 TODO item: None; follows Scanning Refactor
-Spec: [feature spec](<001 FCOItemSaver - Specification.md>)
+Spec: [feature spec](<001 FCOItemSaverUI - Specification.md>)
 Owner: Copilot
 Updated: 2026-11-24
 

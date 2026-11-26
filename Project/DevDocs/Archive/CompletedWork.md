@@ -20,7 +20,7 @@ specifications may also be retained with their archived records. Active work liv
   Subsequent work is split into
   [Scanning Refactor](<ScanningRefactor/001 ScanningRefactor - Specification.md>),
   [Diagnostic Logging](<DiagnosticLogging/001 DiagnosticLogging - Specification.md>)
-  and deferred [FCO Integration](<../Features/FCOItemSaver/001 FCOItemSaver - Specification.md>).
+  and deferred [FCO Integration](<../Features/FCOItemSaverUI/001 FCOItemSaverUI - Specification.md>).
 
 ## Verified Addon Work
 

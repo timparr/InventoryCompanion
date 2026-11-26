@@ -108,7 +108,7 @@ not reimplemented. Its setting, controls and initial logs are included in the
 production handoff; the linked logging specification owns their behavior.
 
 The deferred marker-editor work belongs to
-[FCO Integration](<../../Features/FCOItemSaver/001 FCOItemSaver - Specification.md>).
+[FCO Integration](<../../Features/FCOItemSaverUI/001 FCOItemSaverUI - Specification.md>).
 
 ## User experience and behavior
 
